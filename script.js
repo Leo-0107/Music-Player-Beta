@@ -154,6 +154,7 @@
   let historyIndex = -1;
 
   let sleepTimerId = null;
+  let sleepIntervalId = null;
   let sleepTimerEnd = null;
   let hasCountedCurrentSong = false;
 
@@ -280,6 +281,8 @@
     shortcutModal: document.getElementById("shortcutModal"),
     btnCloseShortcutModal: document.getElementById("btnCloseShortcutModal"),
     timerStatus: document.getElementById("timerStatus"),
+    customTimerInput: document.getElementById("customTimerInput"),
+    btnSetCustomTimer: document.getElementById("btnSetCustomTimer"),
     plSelectSheet: document.getElementById("plSelectSheet"),
     plSelectList: document.getElementById("plSelectList"),
     btnClosePlSheet: document.getElementById("btnClosePlSheet")
@@ -855,7 +858,6 @@
     toast("全ファイルをリセットしました");
   });
 
-  /* ZIPファイルの解析とプレイリスト登録を含むファイル読み込み処理 */
   async function loadFiles(fileList){
     const files = Array.from(fileList || []);
     if(!files.length) return;
@@ -865,7 +867,6 @@
     const directAudioFiles = files.filter(f => f.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(f.name));
     const zipFiles = files.filter(f => /\.zip$/i.test(f.name));
 
-    // Zipファイル処理: Zip名をプレイリスト名として追加
     for (const zipFile of zipFiles) {
       if (typeof JSZip === "undefined") {
         toast("Zipライブラリが見つかりません");
@@ -906,7 +907,6 @@
       }
     }
 
-    // 通常のオーディオファイル処理
     for (const f of directAudioFiles) {
       const meta = await parseID3(f);
       saveTrackToDB({
@@ -1678,8 +1678,18 @@
     el.pillFavs.textContent = `${state.favorites.length}☆`;
     el.btnMainShuffle.classList.toggle("active", state.shuffle);
     el.btnMainRepeat.classList.toggle("active", state.repeat);
-    el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
+    if (el.shuffleState) el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
     
+    // クロスフェード・無音スキップの表示同期
+    if (el.btnCrossfade) {
+      el.btnCrossfade.classList.toggle("active", state.crossfade);
+      el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
+    }
+    if (el.btnSilenceSkip) {
+      el.btnSilenceSkip.classList.toggle("active", state.silenceSkip);
+      el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+    }
+
     renderSongList();
     renderQueue();
     renderPlaylists();
@@ -1691,7 +1701,6 @@
     setWaveMode(state.waveMode);
   }
 
-  /* ドロワーメニュー制御（背面スクロール防止対応） */
   function openMenu(sectionId) {
     el.sidebar.classList.add("open");
     el.overlay.classList.add("open");
@@ -1759,7 +1768,6 @@
     });
   });
 
-  // 設定メニュー項目のクリックハンドラ一括初期化
   function attachMenuItemEvents(scope = document) {
     scope.querySelectorAll(".menuItem").forEach(btn => {
       btn.addEventListener("click", (e) => {
@@ -1896,33 +1904,87 @@
     }
   });
 
+  /* スリープタイマーカウントダウン＆設定処理 */
+  function startSleepTimerCountdown() {
+    if (sleepIntervalId) clearInterval(sleepIntervalId);
+    sleepIntervalId = setInterval(() => {
+      if (!sleepTimerEnd) {
+        clearInterval(sleepIntervalId);
+        return;
+      }
+      const remainingMs = sleepTimerEnd - Date.now();
+      if (remainingMs <= 0) {
+        clearInterval(sleepIntervalId);
+        if (sleepTimerId) clearTimeout(sleepTimerId);
+        sleepTimerEnd = null;
+        audio.pause();
+        updatePlayPauseUI();
+        toast("スリープタイマーにより再生を停止しました");
+        el.timerStatus.textContent = "タイマーOFF";
+        document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
+      } else {
+        const totalSec = Math.ceil(remainingMs / 1000);
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        el.timerStatus.textContent = `残り時間: ${m}分${String(s).padStart(2, "0")}秒`;
+      }
+    }, 1000);
+  }
+
+  function setSleepTimer(minutes) {
+    if (sleepTimerId) clearTimeout(sleepTimerId);
+    if (sleepIntervalId) clearInterval(sleepIntervalId);
+
+    if (minutes <= 0 || isNaN(minutes)) {
+      sleepTimerEnd = null;
+      el.timerStatus.textContent = "タイマーOFF";
+      toast("スリープタイマーを解除しました");
+    } else {
+      const ms = minutes * 60 * 1000;
+      sleepTimerEnd = Date.now() + ms;
+      const totalSec = Math.ceil(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      el.timerStatus.textContent = `残り時間: ${m}分${String(s).padStart(2, "0")}秒`;
+      toast(`${minutes}分タイマーを設定しました`);
+
+      sleepTimerId = setTimeout(() => {
+        audio.pause();
+        updatePlayPauseUI();
+        toast("スリープタイマーにより再生を停止しました");
+        el.timerStatus.textContent = "タイマーOFF";
+        document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
+      }, ms);
+
+      startSleepTimerCountdown();
+    }
+  }
+
   document.querySelectorAll("[data-timer]").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
 
-      if (sleepTimerId) clearTimeout(sleepTimerId);
-      const min = btn.dataset.timer;
-
-      if (min === "off") {
-        sleepTimerEnd = null;
-        el.timerStatus.textContent = "タイマーOFF";
-        toast("スリープタイマーを解除しました");
+      const minStr = btn.dataset.timer;
+      if (minStr === "off") {
+        setSleepTimer(0);
       } else {
-        const ms = parseInt(min, 10) * 60 * 1000;
-        sleepTimerEnd = Date.now() + ms;
-        el.timerStatus.textContent = `${min}分後に自動停止します`;
-        toast(`${min}分タイマーを設定しました`);
-
-        sleepTimerId = setTimeout(() => {
-          audio.pause();
-          updatePlayPauseUI();
-          toast("スリープタイマーにより再生を停止しました");
-          el.timerStatus.textContent = "タイマーOFF";
-        }, ms);
+        setSleepTimer(parseInt(minStr, 10));
       }
     });
   });
+
+  if (el.btnSetCustomTimer && el.customTimerInput) {
+    el.btnSetCustomTimer.addEventListener("click", () => {
+      const min = parseInt(el.customTimerInput.value, 10);
+      if (isNaN(min) || min <= 0) {
+        toast("正しい数値を入力してください");
+        return;
+      }
+      document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
+      setSleepTimer(min);
+    });
+  }
 
   el.btnThemeSystem.addEventListener("click", () => { state.themeMode = "system"; saveState(); applyTheme(); });
   el.btnThemeDark.addEventListener("click", () => { state.themeMode = "dark"; saveState(); applyTheme(); });
@@ -1954,7 +2016,6 @@
     }
   });
 
-  /* タブ切り替え処理（設定画面の独立化対応） */
   document.querySelectorAll(".navTab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
@@ -1978,7 +2039,6 @@
         plEl.style.display = "none";
         settingsContainer.style.display = "block";
 
-        // 設定タブ用にメニュー構造を複製・保持し、メニューボタン押下時にも消えないように維持
         if (!settingsContainer.firstElementChild) {
           const clone = el.sidebarInner.cloneNode(true);
           settingsContainer.appendChild(clone);
