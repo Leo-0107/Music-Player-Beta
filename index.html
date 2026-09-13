@@ -6,6 +6,8 @@
 <title>Music Player v4.2</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
+<!-- Zipダウンロード用ライブラリ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -33,56 +35,60 @@
     </div>
 
     <!-- メインエリア -->
-    <div class="grid">
-      <!-- アートワーク / カバー表示 -->
-      <div class="coverBox">
-        <canvas id="nowCoverCanvas" width="320" height="320"></canvas>
-      </div>
-
-      <!-- プレイヤーコントロール -->
+    <div class="mainContent">
       <div class="playerPanel">
         
         <!-- HOME タブ用エリア -->
         <div id="homeElements">
-          <div class="field">
-            <label>ファイル選択</label>
-            <div class="fileInputRow">
-              <input type="file" id="folder" multiple accept="audio/*">
-              <button class="btn danger small" id="btnResetFiles">全削除</button>
+          <div class="homeLayout">
+            <!-- ジャケット表示 (ホーム画面専用) -->
+            <div class="coverBox">
+              <canvas id="nowCoverCanvas" width="320" height="320"></canvas>
             </div>
-          </div>
 
-          <div class="field">
-            <input type="text" id="search" placeholder="曲名やアーティストで検索...">
-          </div>
+            <div class="homeControls">
+              <div class="field">
+                <label>ファイル選択・ダウンロード</label>
+                <div class="fileInputRow">
+                  <input type="file" id="folder" multiple accept="audio/*" webkitdirectory directory>
+                  <button class="btn active small" id="btnDownloadZip">Zip保存</button>
+                  <button class="btn danger small" id="btnResetFiles">全削除</button>
+                </div>
+              </div>
 
-          <!-- シークバー & 再生時間 -->
-          <div class="progressWrap">
-            <div class="seekbarContainer">
-              <canvas id="seekbarHeatmap" class="seekbarHeatmap"></canvas>
-              <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
+              <div class="field">
+                <input type="text" id="search" placeholder="曲名やアーティストで検索...">
+              </div>
+
+              <!-- シークバー & 再生時間 -->
+              <div class="progressWrap">
+                <div class="seekbarContainer">
+                  <canvas id="seekbarHeatmap" class="seekbarHeatmap"></canvas>
+                  <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
+                </div>
+                <div class="timeLine">
+                  <span id="timeNow">0:00</span>
+                  <span id="timeAll">0:00</span>
+                </div>
+              </div>
+
+              <!-- コントロールボタン -->
+              <div class="controls">
+                <button class="btn" id="btnPrev">⏮</button>
+                <button class="btn" id="btnRewind10">-10s</button>
+                <button class="btn btnPlayMain" id="btnPlay">▶ 再生</button>
+                <button class="btn" id="btnForward10">+10s</button>
+                <button class="btn" id="btnNext">⏭</button>
+                <button class="btn" id="btnFav">☆</button>
+                <button class="btn" id="btnMainShuffle">🔀</button>
+                <button class="btn" id="btnMainRepeat">🔁</button>
+              </div>
+
+              <!-- 波形表示ビジュアライザー -->
+              <div class="waveWrap">
+                <canvas id="wave" class="wave"></canvas>
+              </div>
             </div>
-            <div class="timeLine">
-              <span id="timeNow">0:00</span>
-              <span id="timeAll">0:00</span>
-            </div>
-          </div>
-
-          <!-- コントロールボタン -->
-          <div class="controls">
-            <button class="btn" id="btnPrev">⏮</button>
-            <button class="btn" id="btnRewind10">-10s</button>
-            <button class="btn btnPlayMain" id="btnPlay">▶ 再生</button>
-            <button class="btn" id="btnForward10">+10s</button>
-            <button class="btn" id="btnNext">⏭</button>
-            <button class="btn" id="btnFav">☆</button>
-            <button class="btn" id="btnMainShuffle">🔀</button>
-            <button class="btn" id="btnMainRepeat">🔁</button>
-          </div>
-
-          <!-- 波形表示ビジュアライザー -->
-          <div class="waveWrap">
-            <canvas id="wave" class="wave"></canvas>
           </div>
 
           <!-- 曲リスト -->
@@ -342,15 +348,15 @@
 <div class="miniPlayer">
   <div class="miniInner">
     <input type="range" id="miniProgress" min="0" max="100" value="0" step="0.1">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="miniRow">
       <div class="miniNow">
-        <div id="miniTitle" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">停止中</div>
-        <div id="miniSub" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ファイル未選択</div>
+        <div id="miniTitle">停止中</div>
+        <div id="miniSub">ファイル未選択</div>
       </div>
       <div class="miniBtns">
-        <button class="btn small" id="miniPrev">⏮</button>
+        <button class="btn small miniPrevBtn" id="miniPrev">⏮</button>
         <button class="btn small" id="miniPlay">▶</button>
-        <button class="btn small" id="miniNext">⏭</button>
+        <button class="btn small miniNextBtn" id="miniNext">⏭</button>
       </div>
     </div>
   </div>
