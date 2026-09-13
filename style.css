@@ -53,7 +53,7 @@ body.theme-light select option {
 .app {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 12px 14px 210px;
+  padding: 12px 14px 160px; /* 固定UI分を考慮した下部余白 */
 }
 
 .shell {
@@ -169,7 +169,7 @@ body.theme-light select option {
 
 .homeLayout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 160px 1fr; /* ジャケットサイズに合わせて縮小 */
   gap: 20px;
 }
 @media (max-width: 960px) {
@@ -177,12 +177,13 @@ body.theme-light select option {
   .headerRight { padding-left: 0; }
 }
 
-/* ホーム専用のカバー表示 */
+/* ホームのカバー表示 (サイズをコンパクトに調整) */
 .coverBox {
   background: var(--panel2);
-  border-radius: 20px;
-  min-height: 320px;
-  max-width: 320px;
+  border-radius: 16px;
+  min-height: 160px;
+  max-width: 160px;
+  height: 160px;
   width: 100%;
   margin: 0 auto;
   position: relative;
@@ -192,10 +193,10 @@ body.theme-light select option {
   justify-content: center;
 }
 #nowCoverCanvas {
-  width: 100%;
-  height: 100%;
+  width: 160px;
+  height: 160px;
   object-fit: cover;
-  border-radius: 20px;
+  border-radius: 16px;
 }
 
 .homeControls { min-width: 0; }
@@ -326,7 +327,7 @@ input[type="range"] {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin: 18px 0 10px;
+  margin: 0 0 10px;
 }
 .songList { display: flex; flex-direction: column; gap: 8px; }
 .song {
@@ -361,293 +362,314 @@ input[type="range"] {
 .starBtn.active { background: rgba(248,210,92,.2); color: var(--warn); }
 .delTrackBtn:hover { background: rgba(255,77,77,.2); color: var(--danger); }
 
-/* ミニプレイヤーのレスポンシブ非表示制御 */
-.miniPlayer {
-  position: fixed;
-  left: 0; right: 0; bottom: 58px;
-  z-index: 40;
-  background: var(--bg);
-  border-top: 1px solid var(--line);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 -8px 24px rgba(0,0,0,.2);
-}
-.miniInner {
-  width: min(1180px, 100%);
-  margin: 0 auto;
-  padding: 8px 16px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.miniRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-.miniNow {
-  min-width: 0;
-  flex: 1;
-}
-#miniTitle { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#miniSub { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.miniBtns { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-
-/* 画面サイズが小さい場合の表示レスポンシブ処理 */
-@media (max-width: 520px) {
-  #miniSub { display: none; }
-}
-@media (max-width: 420px) {
-  .miniBtns .miniPrevBtn, .miniBtns .miniNextBtn { display: none; }
-}
-@media (max-width: 320px) {
-  .miniNow { display: none; }
-  .miniRow { justify-content: center; }
-}
-
-/* ナビゲーション */
+/* 最下部固定: ボトムナビゲーション */
 .bottomNav {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
-  height: 58px;
-  background: var(--bg);
-  border-top: 1px solid var(--line);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 1000;
   display: flex;
   justify-content: space-around;
   align-items: center;
-  z-index: 50;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .navTab {
-  background: transparent;
-  border: 0;
-  color: var(--muted);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
   font-size: .75rem;
+  gap: 2px;
+  flex: 1;
+  height: 100%;
+}
+.navTab.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+.navTab .icon {
+  font-size: 1.1rem;
+}
+
+/* ボトムナビの上に固定: ミニプレイヤー */
+.miniPlayer {
+  position: fixed;
+  bottom: 56px;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: var(--panel3);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 6px 16px;
 }
-.navTab.active { color: var(--accent); font-weight: 700; }
-.navTab .icon { font-size: 1.2rem; }
+.miniInner {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.miniRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.miniNow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+#miniTitle {
+  font-size: .88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.miniCoverCanvas {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--panel2);
+}
+.miniBtns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
 
+/* 小型化したカラーピッカー選択 */
+.colorPickerGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.colorDot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.1s ease;
+}
+.colorDot.selected {
+  border-color: var(--accent);
+  transform: scale(1.15);
+}
+
+/* サイドバー・モーダル・その他の標準 UI スタイル */
+.sectionCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.sectionTitle {
+  font-size: .9rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
 .overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.5);
-  backdrop-filter: blur(4px);
-  z-index: 60;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1001;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s ease;
+  transition: opacity 0.2s;
 }
-.overlay.open { opacity: 1; pointer-events: auto; }
-
-/* サイドバー・メニュー スクロール修正 */
+.overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
 .sidebar {
-  position: fixed; top: 0; left: 0;
-  width: min(420px, 92vw); height: 100%;
-  z-index: 70;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 85vw);
   background: var(--bg);
-  border-right: 1px solid var(--line);
-  transform: translateX(-102%);
-  transition: transform .22s ease;
+  z-index: 1002;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+  box-shadow: var(--shadow);
 }
-.sidebar.open { transform: translateX(0); }
-
+.sidebar.open {
+  transform: translateX(0);
+}
 .sidebarInner {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-height: 100vh;
-  overflow: hidden;
 }
-
 .sideHead {
-  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--line);
+}
+.sideHeadLeft {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
+  gap: 8px;
 }
-.sideHeadLeft { display: flex; align-items: center; gap: 10px; }
 .backBtn {
-  background: var(--panel2);
   border: 0;
+  background: transparent;
   color: var(--text);
-  border-radius: 10px;
-  padding: 6px 12px;
-  font-size: .88rem;
-  display: none;
+  font-size: 1.1rem;
 }
-.sideTitle { font-weight: 700; font-size: 1.1rem; }
-
-/* スクロールを有効化 */
+.sideTitle {
+  font-weight: 700;
+  font-size: 1rem;
+}
 .sideBody {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  -webkit-overflow-scrolling: touch;
 }
-
-.menuList { display: flex; flex-direction: column; gap: 10px; }
+.menuList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .menuItem {
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 14px 16px;
-  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.menuItem span { font-size: .8rem; color: var(--muted); }
-
-.panelSection { display: none; flex-direction: column; gap: 14px; }
-.panelSection.active { display: flex; }
-.sectionCard {
   background: var(--panel2);
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-weight: 600;
 }
-.sectionTitle { font-weight: 700; font-size: .95rem; margin-bottom: 10px; }
-
-/* プレイリスト内のアコーディオン表示 */
-.plTrackList {
-  display: flex;
+.menuItem span {
+  font-size: .78rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.panelSection {
+  display: none;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  gap: 10px;
 }
-.plTrackItem {
+.panelSection.active {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  background: var(--panel3);
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: .88rem;
-}
-.plTrackItem:hover {
-  background: rgba(29, 185, 84, 0.2);
 }
 
-/* トースト */
 .toast {
   position: fixed;
-  bottom: 80px; left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: rgba(0,0,0,.85);
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: rgba(0,0,0,0.85);
   color: #fff;
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-size: .86rem;
-  opacity: 0;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: .85rem;
   pointer-events: none;
-  transition: opacity .2s ease, transform .2s ease;
-  z-index: 100;
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--line);
+  opacity: 0;
+  transition: transform 0.2s, opacity 0.2s;
+  z-index: 2000;
 }
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
-/* モーダル & ボトムシート */
-.modalBackdrop, .bottomSheetOverlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.6);
-  backdrop-filter: blur(4px);
-  z-index: 90;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity .2s ease;
+.plTrackList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
 }
-.modalBackdrop.show, .bottomSheetOverlay.show { opacity: 1; pointer-events: auto; }
-.modalCard {
+.plTrackItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel2);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: .84rem;
+  cursor: pointer;
+}
+
+.modalBackdrop, .bottomSheetOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modalBackdrop.show, .bottomSheetOverlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modalCard, .bottomSheetCard {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 20px;
-  width: min(360px, 90vw);
+  width: min(400px, 90vw);
   box-shadow: var(--shadow);
 }
-.modalTextRed { color: var(--danger); font-weight: 700; margin-bottom: 14px; text-align: center; }
-
-.bottomSheetOverlay { align-items: flex-end; }
-.bottomSheetCard {
-  background: var(--bg);
-  border-top: 1px solid var(--line);
-  border-radius: 24px 24px 0 0;
-  padding: 20px;
-  width: 100%;
-  max-height: 70vh;
-  display: flex; flex-direction: column;
+.modalTextRed {
+  color: var(--danger);
+  margin-bottom: 12px;
+  font-size: .9rem;
 }
-.bottomSheetHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.bottomSheetTitle { font-weight: 700; font-size: 1.05rem; }
-.bottomSheetList { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-.plSelectItem {
-  padding: 12px;
-  background: var(--panel2);
-  border-radius: 12px;
-  cursor: pointer;
-  display: flex; justify-content: space-between; align-items: center;
-}
-.plSelectItem:hover { background: var(--panel3); }
-
-/* ヘルプショートカット Grid */
 .shortcutGrid {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 8px 14px;
-  font-size: .86rem;
+  gap: 8px 16px;
+  font-size: .84rem;
   margin-bottom: 16px;
 }
 kbd {
   background: var(--panel3);
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: 4px;
   font-family: monospace;
 }
-
-.chartCanvasWrap {
-  width: 100%;
-  height: 180px;
-  position: relative;
+.bottomSheetList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }
-#playHistoryChart {
-  width: 100%;
-  height: 100%;
-}
-.colorPickerGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 8px 0 12px; }
-.colorDot {
-  aspect-ratio: 1;
-  border-radius: 50%;
+.plSelectItem {
+  padding: 10px 12px;
+  background: var(--panel2);
+  border-radius: 10px;
   cursor: pointer;
-  border: 2px solid transparent;
-}
-.colorDot.selected { border-color: var(--text); }
-.gradDirectionGrid { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.gradOption {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; background: var(--panel2); border-radius: 10px; cursor: pointer; font-size: .86rem;
-}
-.gradOption.selected { background: var(--panel3); font-weight: 700; }
-.radioDot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted); }
-.gradOption.selected .radioDot { background: var(--accent); border-color: var(--accent); }
-.verticalArea { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
-.vBand { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-.vVal { font-size: .75rem; color: var(--muted); }
-.vTrack { height: 120px; display: flex; align-items: center; }
-.vSlider {
-  writing-mode: bt-lr;
-  -webkit-appearance: slider-vertical;
-  width: 12px; height: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
