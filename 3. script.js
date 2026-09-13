@@ -1682,7 +1682,6 @@
     el.sideTitle.textContent = titles[id] || "メニュー";
   }
 
-  // 初期化およびイベントハンドラの設定
   initDB().then(() => reloadPlaylistFromDB());
 
   el.btnMenu.addEventListener("click", () => openMenu());
@@ -1783,7 +1782,6 @@
     el.pannerValText.textContent = pct === 0 ? "中央" : pct < 0 ? `左 ${Math.abs(pct)}%` : `右 ${pct}%`;
   });
 
-  // オーディオプログレス更新
   audio.addEventListener("timeupdate", () => {
     if (!isSlidingRange && audio.duration) {
       const pct = (audio.currentTime / audio.duration) * 100;
@@ -1822,7 +1820,6 @@
     }
   });
 
-  // タイマー設定
   document.querySelectorAll("[data-timer]").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
@@ -1851,13 +1848,11 @@
     });
   });
 
-  // テーマボタン
   el.btnThemeSystem.addEventListener("click", () => { state.themeMode = "system"; saveState(); applyTheme(); });
   el.btnThemeDark.addEventListener("click", () => { state.themeMode = "dark"; saveState(); applyTheme(); });
   el.btnThemeLight.addEventListener("click", () => { state.themeMode = "light"; saveState(); applyTheme(); });
   el.btnThemeCustom.addEventListener("click", () => { state.themeMode = "custom"; saveState(); applyTheme(); renderColorPickers(); });
 
-  // ショートカットキー
   document.addEventListener("keydown", e => {
     if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
 
@@ -1883,7 +1878,6 @@
     }
   });
 
-  // ボトムナビゲーションの切り替え
   document.querySelectorAll(".navTab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
@@ -1915,7 +1909,6 @@
     });
   });
 
-  // 初期レンダリング
   updateArtwork(null);
   renderAll();
   drawWaveform();
