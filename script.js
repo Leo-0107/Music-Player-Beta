@@ -1,3 +1,4 @@
+// 3. script.js
 (() => {
   const STORAGE = {
     favorites: "mp_favs_v12",
@@ -35,6 +36,7 @@
 
   const dbName = "Music Player v3.8";
   let db = null;
+
   function initDB() {
     return new Promise(resolve => {
       const req = indexedDB.open(dbName, 1);
@@ -155,6 +157,11 @@
   let sleepTimerEnd = null;
   let hasCountedCurrentSong = false;
 
+  function loadJSON(k, f){ try{ const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; }catch{ return f; } }
+  function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
+  function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
+  function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
+
   const state = {
     playlist: [],
     currentSong: null,
@@ -187,7 +194,6 @@
   const el = {
     shell: document.getElementById("shell"),
     folder: document.getElementById("folder"),
-    btnDownloadZip: document.getElementById("btnDownloadZip"),
     btnResetFiles: document.getElementById("btnResetFiles"),
     search: document.getElementById("search"),
     list: document.getElementById("list"),
@@ -329,11 +335,6 @@
     });
   }
 
-  function loadJSON(k, f){ try{ const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; }catch{ return f; } }
-  function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
-  function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
-  function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
-
   function saveState(){
     localStorage.setItem(STORAGE.favorites, JSON.stringify(state.favorites));
     localStorage.setItem(STORAGE.queue, JSON.stringify(state.queue));
@@ -375,6 +376,7 @@
     const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
     return `${m}:${String(s).padStart(2, "0")}`;
   }
+
   function toast(msg){
     el.toast.textContent = msg;
     el.toast.classList.add("show");
@@ -525,46 +527,22 @@
 
     switch (state.dMode) {
       case "3D":
-        x = state.panValue * 2;
-        y = 0;
-        z = 1;
-        setPos(x, y, z);
-        break;
-
+        x = state.panValue * 2; y = 0; z = 1; setPos(x, y, z); break;
       case "4D":
-        x = Math.sin(t * 0.4) * 2.5;
-        y = Math.sin(t * 0.8) * 1.2;
-        z = Math.cos(t * 0.4) * 2.5;
-        setPos(x, y, z);
-        break;
-
+        x = Math.sin(t * 0.4) * 2.5; y = Math.sin(t * 0.8) * 1.2; z = Math.cos(t * 0.4) * 2.5; setPos(x, y, z); break;
       case "8D":
-        const radius8D = 3.2;
-        x = Math.sin(t) * radius8D;
-        y = 0;
-        z = Math.cos(t) * radius8D;
-        setPos(x, y, z);
-        break;
-
+        x = Math.sin(t) * 3.2; y = 0; z = Math.cos(t) * 3.2; setPos(x, y, z); break;
       case "16D":
-        const radius16D = 3.5;
-        x = Math.sin(t * 1.2) * radius16D;
-        y = Math.sin(t * 2.4) * 1.8;
-        z = Math.cos(t * 0.7) * radius16D;
-        setPos(x, y, z);
-        break;
-
+        x = Math.sin(t * 1.2) * 3.5; y = Math.sin(t * 2.4) * 1.8; z = Math.cos(t * 0.7) * 3.5; setPos(x, y, z); break;
       case "2D":
       default:
-        setPos(0, 0, 0);
-        break;
+        setPos(0, 0, 0); break;
     }
   }
 
   function setDMode(mode) {
     state.dMode = mode;
     saveState();
-    
     const descriptions = {
       "2D": "2D: 標準ステレオ再生",
       "3D": "3D: 左右パン連動の固定立体音響",
@@ -573,18 +551,14 @@
       "16D": "16D: 高度なマルチトラック8の字立体周回"
     };
     if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
-
     if (el.dModeBtns) {
       el.dModeBtns.querySelectorAll("button").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.d === mode);
       });
     }
-
     if (mode === "2D" && panner3DNode) {
       if (panner3DNode.positionX) {
-        panner3DNode.positionX.value = 0;
-        panner3DNode.positionY.value = 0;
-        panner3DNode.positionZ.value = 0;
+        panner3DNode.positionX.value = 0; panner3DNode.positionY.value = 0; panner3DNode.positionZ.value = 0;
       } else {
         panner3DNode.setPosition(0, 0, 0);
       }
@@ -654,6 +628,7 @@
     ];
 
     targets.forEach(({ grid, key }) => {
+      if(!grid) return;
       grid.innerHTML = "";
       const current = state.customTheme[key];
       COLOR_PALETTE_12.forEach(color => {
@@ -670,12 +645,12 @@
       });
     });
 
-    el.sliderL1.value = state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100;
-    el.sliderL2.value = state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100;
-    el.sliderLText.value = state.customTheme.lText !== undefined ? state.customTheme.lText : 100;
-    el.txtL1.textContent = `${el.sliderL1.value}%`;
-    el.txtL2.textContent = `${el.sliderL2.value}%`;
-    el.txtLText.textContent = `${el.sliderLText.value}%`;
+    if(el.sliderL1) el.sliderL1.value = state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100;
+    if(el.sliderL2) el.sliderL2.value = state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100;
+    if(el.sliderLText) el.sliderLText.value = state.customTheme.lText !== undefined ? state.customTheme.lText : 100;
+    if(el.txtL1) el.txtL1.textContent = `${el.sliderL1.value}%`;
+    if(el.txtL2) el.txtL2.textContent = `${el.sliderL2.value}%`;
+    if(el.txtLText) el.txtLText.textContent = `${el.sliderLText.value}%`;
 
     document.querySelectorAll(".gradOption").forEach(opt => {
       opt.classList.toggle("selected", opt.dataset.deg === (state.customTheme.dir || "180deg"));
@@ -694,6 +669,7 @@
   [{ slider: el.sliderL1, txt: el.txtL1, key: "l1" },
    { slider: el.sliderL2, txt: el.txtL2, key: "l2" },
    { slider: el.sliderLText, txt: el.txtLText, key: "lText" }].forEach(({ slider, txt, key }) => {
+    if(!slider) return;
     slider.addEventListener("input", () => {
       const val = Number(slider.value);
       state.customTheme[key] = val;
@@ -704,6 +680,7 @@
   });
 
   function renderEqualizer(){
+    if(!el.eqPresetRow || !el.eqBands) return;
     el.eqPresetRow.innerHTML = "";
     Object.keys(EQ_PRESETS).forEach(pName => {
       const b = document.createElement("button");
@@ -814,7 +791,6 @@
     updatePresetButtonsUI();
   });
 
-  /* ジャケット画像描画（メイン＋ミニプレイヤー両対応） */
   function updateArtwork(song) {
     const drawCanvas = (canvas, size) => {
       if(!canvas) return;
@@ -857,40 +833,6 @@
     });
   }
 
-  async function downloadAllAsZip() {
-    const tracks = await loadTracksFromDB();
-    if (!tracks.length) {
-      toast("ダウンロード可能な曲がありません");
-      return;
-    }
-
-    if (typeof JSZip === "undefined") {
-      toast("Zipライブラリの読み込みに失敗しました");
-      return;
-    }
-
-    toast("Zipファイルを生成中...");
-    const zip = new JSZip();
-    tracks.forEach(track => {
-      zip.file(track.name, track.blob);
-    });
-
-    zip.generateAsync({ type: "blob" }).then(content => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(content);
-      a.download = "music_player_songs.zip";
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast("Zipダウンロード完了！");
-    }).catch(() => {
-      toast("Zip作成エラーが発生しました");
-    });
-  }
-
-  if (el.btnDownloadZip) {
-    el.btnDownloadZip.addEventListener("click", downloadAllAsZip);
-  }
-
   el.btnResetFiles.addEventListener("click", () => {
     if (!confirm("保存された全トラックを削除しますか？")) return;
     if (db) {
@@ -900,6 +842,7 @@
     state.playlist = [];
     state.currentSong = null;
     state.queue = [];
+    state.playlists = {};
     audio.pause();
     audio.src = "";
     el.folder.value = "";
@@ -912,14 +855,59 @@
     toast("全ファイルをリセットしました");
   });
 
+  /* ZIPファイルの解析とプレイリスト登録を含むファイル読み込み処理 */
   async function loadFiles(fileList){
     const files = Array.from(fileList || []);
-    const audioFiles = files.filter(f => f.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(f.name));
-    if(!audioFiles.length) return;
+    if(!files.length) return;
 
-    toast(`${audioFiles.length}曲の解析・読み込み中...`);
+    toast(`ファイルの解析・読み込み中...`);
 
-    for (const f of audioFiles) {
+    const directAudioFiles = files.filter(f => f.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(f.name));
+    const zipFiles = files.filter(f => /\.zip$/i.test(f.name));
+
+    // Zipファイル処理: Zip名をプレイリスト名として追加
+    for (const zipFile of zipFiles) {
+      if (typeof JSZip === "undefined") {
+        toast("Zipライブラリが見つかりません");
+        continue;
+      }
+      try {
+        const plName = zipFile.name.replace(/\.zip$/i, "");
+        if (!state.playlists[plName]) {
+          state.playlists[plName] = [];
+        }
+
+        const zip = await JSZip.loadAsync(zipFile);
+        const fileKeys = Object.keys(zip.files);
+
+        for (const filename of fileKeys) {
+          const entry = zip.files[filename];
+          if (!entry.dir && /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(filename)) {
+            const blob = await entry.async("blob");
+            const cleanName = filename.split('/').pop();
+            const audioFile = new File([blob], cleanName, { type: blob.type || "audio/mpeg" });
+            const meta = await parseID3(audioFile);
+
+            saveTrackToDB({
+              name: audioFile.name,
+              title: meta.title,
+              artist: meta.artist,
+              blob: audioFile,
+              coverBlob: meta.coverBlob
+            });
+
+            if (!state.playlists[plName].includes(audioFile.name)) {
+              state.playlists[plName].push(audioFile.name);
+            }
+          }
+        }
+      } catch (e) {
+        toast("Zipファイルの解析エラーが発生しました");
+      }
+    }
+
+    // 通常のオーディオファイル処理
+    for (const f of directAudioFiles) {
       const meta = await parseID3(f);
       saveTrackToDB({
         name: f.name,
@@ -930,8 +918,9 @@
       });
     }
 
+    saveState();
     await reloadPlaylistFromDB();
-    toast(`${audioFiles.length}曲の登録完了！`);
+    toast(`読み込み完了！`);
   }
 
   async function reloadPlaylistFromDB() {
@@ -1608,8 +1597,8 @@
 
   function renderStats() {
     const totalPlays = Object.values(state.playCounts).reduce((a, b) => a + b, 0);
-    el.statPlays.textContent = totalPlays;
-    el.statSongs.textContent = state.playlist.length;
+    if (el.statPlays) el.statPlays.textContent = totalPlays;
+    if (el.statSongs) el.statSongs.textContent = state.playlist.length;
 
     renderStatsChart();
   }
@@ -1702,43 +1691,48 @@
     setWaveMode(state.waveMode);
   }
 
+  /* ドロワーメニュー制御（背面スクロール防止対応） */
   function openMenu(sectionId) {
-    el.sidebar.appendChild(el.sidebarInner);
     el.sidebar.classList.add("open");
     el.overlay.classList.add("open");
+    document.body.classList.add("menu-open");
     state.menuOpen = true;
 
     if (sectionId) {
-      showPanelSection(sectionId);
+      showPanelSection(sectionId, el.sidebar);
     } else {
-      showMainMenuList();
+      showMainMenuList(el.sidebar);
     }
   }
 
   function closeMenu() {
     el.sidebar.classList.remove("open");
     el.overlay.classList.remove("open");
+    document.body.classList.remove("menu-open");
     state.menuOpen = false;
-    
-    const activeTab = document.querySelector('.navTab.active');
-    if (activeTab && activeTab.dataset.target === 'settings') {
-      document.getElementById("settingsTabContainer").appendChild(el.sidebarInner);
-    }
   }
 
-  function showMainMenuList() {
-    el.mainMenuList.style.display = "flex";
-    document.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
-    el.btnSideBack.style.display = "none";
-    el.sideTitle.textContent = "メニュー";
+  function showMainMenuList(container = el.sidebar) {
+    const mainList = container.querySelector("#mainMenuList") || el.mainMenuList;
+    const backBtn = container.querySelector("#btnSideBack") || el.btnSideBack;
+    const title = container.querySelector("#sideTitle") || el.sideTitle;
+
+    if(mainList) mainList.style.display = "flex";
+    container.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
+    if(backBtn) backBtn.style.display = "none";
+    if(title) title.textContent = "メニュー";
   }
 
-  function showPanelSection(id) {
-    el.mainMenuList.style.display = "none";
-    document.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
-    const sec = document.getElementById(id);
+  function showPanelSection(id, container = el.sidebar) {
+    const mainList = container.querySelector("#mainMenuList") || el.mainMenuList;
+    const backBtn = container.querySelector("#btnSideBack") || el.btnSideBack;
+    const title = container.querySelector("#sideTitle") || el.sideTitle;
+
+    if(mainList) mainList.style.display = "none";
+    container.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
+    const sec = container.querySelector(`#${id}`) || document.getElementById(id);
     if (sec) sec.classList.add("active");
-    el.btnSideBack.style.display = "inline-block";
+    if(backBtn) backBtn.style.display = "inline-block";
 
     const titles = {
       optionsSection: "再生オプション",
@@ -1749,7 +1743,7 @@
       statsSection: "再生統計",
       themeSection: "テーマ設定"
     };
-    el.sideTitle.textContent = titles[id] || "メニュー";
+    if(title) title.textContent = titles[id] || "メニュー";
   }
 
   initDB().then(() => reloadPlaylistFromDB());
@@ -1757,13 +1751,25 @@
   el.btnMenu.addEventListener("click", () => openMenu());
   el.btnCloseMenu.addEventListener("click", closeMenu);
   el.overlay.addEventListener("click", closeMenu);
-  el.btnSideBack.addEventListener("click", showMainMenuList);
-
-  document.querySelectorAll(".menuItem").forEach(btn => {
-    btn.addEventListener("click", () => {
-      showPanelSection(btn.dataset.section);
+  
+  document.querySelectorAll("#btnSideBack").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const parentContainer = e.target.closest(".sidebar") || e.target.closest("#settingsTabContainer");
+      showMainMenuList(parentContainer);
     });
   });
+
+  // 設定メニュー項目のクリックハンドラ一括初期化
+  function attachMenuItemEvents(scope = document) {
+    scope.querySelectorAll(".menuItem").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const parentContainer = e.target.closest(".sidebar") || e.target.closest("#settingsTabContainer");
+        showPanelSection(btn.dataset.section, parentContainer);
+      });
+    });
+  }
+
+  attachMenuItemEvents();
 
   el.folder.addEventListener("change", e => loadFiles(e.target.files));
 
@@ -1948,6 +1954,7 @@
     }
   });
 
+  /* タブ切り替え処理（設定画面の独立化対応） */
   document.querySelectorAll(".navTab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
@@ -1971,10 +1978,13 @@
         plEl.style.display = "none";
         settingsContainer.style.display = "block";
 
-        if (el.sidebarInner.parentElement !== settingsContainer) {
-          settingsContainer.appendChild(el.sidebarInner);
+        // 設定タブ用にメニュー構造を複製・保持し、メニューボタン押下時にも消えないように維持
+        if (!settingsContainer.firstElementChild) {
+          const clone = el.sidebarInner.cloneNode(true);
+          settingsContainer.appendChild(clone);
+          attachMenuItemEvents(settingsContainer);
         }
-        showMainMenuList();
+        showMainMenuList(settingsContainer);
       }
     });
   });
