@@ -194,7 +194,7 @@
     nowTitle: document.getElementById("nowTitle"),
     nowSub: document.getElementById("nowSub"),
     miniTitle: document.getElementById("miniTitle"),
-    miniSub: document.getElementById("miniSub"),
+    miniCoverCanvas: document.getElementById("miniCoverCanvas"),
     pillSongs: document.getElementById("pillSongs"),
     pillFavs: document.getElementById("pillFavs"),
     btnShortcutHelp: document.getElementById("btnShortcutHelp"),
@@ -310,6 +310,7 @@
   });
 
   function updateTitleTextAndScroll(element, text) {
+    if (!element) return;
     const container = element.closest(".scroll-container");
     element.classList.remove("scrolling");
     element.style.animationPlayState = "paused";
@@ -813,29 +814,33 @@
     updatePresetButtonsUI();
   });
 
+  /* ジャケット画像描画（メイン＋ミニプレイヤー両対応） */
   function updateArtwork(song) {
-    const canvas = el.nowCoverCanvas;
-    if(!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, 320, 320);
+    const drawCanvas = (canvas, size) => {
+      if(!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, size, size);
 
-    if (song?.coverUrl) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0, 320, 320);
-      img.src = song.coverUrl;
-      return;
-    }
+      if (song?.coverUrl) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0, size, size);
+        img.src = song.coverUrl;
+        return;
+      }
 
-    ctx.fillStyle = "rgba(35, 35, 40, 0.9)";
-    ctx.fillRect(0, 0, 320, 320);
-    ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
-    ctx.font = "bold 48px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("NO IMAGE", 160, 160);
+      ctx.fillStyle = "rgba(35, 35, 40, 0.9)";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
+      ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("NO IMAGE", size / 2, size / 2);
+    };
+
+    drawCanvas(el.nowCoverCanvas, 160);
+    drawCanvas(el.miniCoverCanvas, 32);
   }
 
-  // ファイルおよびZipダウンロード処理
   function downloadSingleSong(song) {
     if (!song) return;
     loadTracksFromDB().then(tracks => {
@@ -902,7 +907,6 @@
     updateTitleTextAndScroll(el.nowTitle, "未再生");
     updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
     updateTitleTextAndScroll(el.miniTitle, "停止中");
-    updateTitleTextAndScroll(el.miniSub, "ファイル未選択");
     saveState();
     renderAll();
     toast("全ファイルをリセットしました");
@@ -956,7 +960,6 @@
       updateTitleTextAndScroll(el.nowTitle, "未再生");
       updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
       updateTitleTextAndScroll(el.miniTitle, "停止中");
-      updateTitleTextAndScroll(el.miniSub, "ファイル未選択");
     }
 
     state.queue = state.queue.filter(q => q !== song.name);
@@ -1051,7 +1054,6 @@
       updateTitleTextAndScroll(el.nowTitle, song.title);
       updateTitleTextAndScroll(el.miniTitle, song.title);
       updateTitleTextAndScroll(el.nowSub, song.artist);
-      updateTitleTextAndScroll(el.miniSub, song.artist);
       el.btnFav.textContent = state.favorites.includes(song.name) ? "★" : "☆";
       el.btnFav.classList.toggle("active", state.favorites.includes(song.name));
 
@@ -1191,7 +1193,6 @@
     }
   });
 
-  // プレイリストの描画と直接曲選択機能
   function renderPlaylists(){
     el.playlistContainer.innerHTML = "";
     const names = Object.keys(state.playlists);
@@ -1225,7 +1226,6 @@
             </div>
           `;
           
-          // 曲行をクリックして直接再生
           row.querySelector(".playPlTrackBtn").addEventListener("click", (e) => {
             e.stopPropagation();
             if (found) playSong(found);
