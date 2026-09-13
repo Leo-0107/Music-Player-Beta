@@ -187,6 +187,7 @@
   const el = {
     shell: document.getElementById("shell"),
     folder: document.getElementById("folder"),
+    btnDownloadZip: document.getElementById("btnDownloadZip"),
     btnResetFiles: document.getElementById("btnResetFiles"),
     search: document.getElementById("search"),
     list: document.getElementById("list"),
@@ -814,6 +815,7 @@
 
   function updateArtwork(song) {
     const canvas = el.nowCoverCanvas;
+    if(!canvas) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, 320, 320);
 
@@ -831,6 +833,57 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("NO IMAGE", 160, 160);
+  }
+
+  // ファイルおよびZipダウンロード処理
+  function downloadSingleSong(song) {
+    if (!song) return;
+    loadTracksFromDB().then(tracks => {
+      const dbTrack = tracks.find(t => t.name === song.name);
+      if (dbTrack && dbTrack.blob) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(dbTrack.blob);
+        a.download = song.name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } else {
+        toast("ファイルの取得に失敗しました");
+      }
+    });
+  }
+
+  async function downloadAllAsZip() {
+    const tracks = await loadTracksFromDB();
+    if (!tracks.length) {
+      toast("ダウンロード可能な曲がありません");
+      return;
+    }
+
+    if (typeof JSZip === "undefined") {
+      toast("Zipライブラリの読み込みに失敗しました");
+      return;
+    }
+
+    toast("Zipファイルを生成中...");
+    const zip = new JSZip();
+    tracks.forEach(track => {
+      zip.file(track.name, track.blob);
+    });
+
+    zip.generateAsync({ type: "blob" }).then(content => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(content);
+      a.download = "music_player_songs.zip";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast("Zipダウンロード完了！");
+    }).catch(() => {
+      toast("Zip作成エラーが発生しました");
+    });
+  }
+
+  if (el.btnDownloadZip) {
+    el.btnDownloadZip.addEventListener("click", downloadAllAsZip);
   }
 
   el.btnResetFiles.addEventListener("click", () => {
@@ -1138,6 +1191,7 @@
     }
   });
 
+  // プレイリストの描画と直接曲選択機能
   function renderPlaylists(){
     el.playlistContainer.innerHTML = "";
     const names = Object.keys(state.playlists);
@@ -1151,7 +1205,7 @@
       
       const tracksInPl = state.playlists[pName];
       const listDiv = document.createElement("div");
-      listDiv.style.cssText = "display:flex; flex-direction:column; gap:2px; margin-top:6px; border-top:1px solid var(--line); padding-top:6px;";
+      listDiv.className = "plTrackList";
 
       if (!tracksInPl.length) {
         listDiv.innerHTML = `<div style="color:var(--muted); font-size:.78rem">曲がありません</div>`;
@@ -1159,15 +1213,29 @@
         tracksInPl.forEach((songName, idx) => {
           const found = state.playlist.find(x => x.name === songName);
           const row = document.createElement("div");
-          row.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:.84rem;";
+          row.className = "plTrackItem";
           row.innerHTML = `
-            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px;">
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
               ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
-              ${found ? found.title : songName.replace(/\.(mp3|m4a|wav|ogg|flac|aac)$/i, '')}
+              <strong>${found ? found.title : songName.replace(/\.(mp3|m4a|wav|ogg|flac|aac)$/i, '')}</strong>
             </span>
-            <button class="btn small ghost removePlSongBtn" style="padding:2px 6px;">✕</button>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button class="btn small playPlTrackBtn" style="padding:2px 8px;">▶</button>
+              <button class="btn small ghost removePlSongBtn" style="padding:2px 6px;">✕</button>
+            </div>
           `;
-          row.querySelector(".removePlSongBtn").addEventListener("click", () => {
+          
+          // 曲行をクリックして直接再生
+          row.querySelector(".playPlTrackBtn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (found) playSong(found);
+          });
+          row.addEventListener("click", () => {
+            if (found) playSong(found);
+          });
+
+          row.querySelector(".removePlSongBtn").addEventListener("click", (e) => {
+            e.stopPropagation();
             state.playlists[pName].splice(idx, 1);
             saveState();
             renderPlaylists();
@@ -1177,11 +1245,11 @@
       }
 
       card.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
           <div style="font-weight:700; cursor:pointer;" class="plTitleText">${pName} (${tracksInPl.length}曲)</div>
-          <div>
+          <div style="display:flex; gap:4px;">
             <button class="btn small renamePlBtn">名前変更</button>
-            <button class="btn small playPlBtn">▶ 再生</button>
+            <button class="btn small playPlBtn">▶ 全曲再生</button>
             <button class="btn small ghost delPlBtn">✕</button>
           </div>
         </div>
@@ -1273,12 +1341,14 @@
           <div class="songMeta">再生数 ${state.playCounts[song.name] || 0}回</div>
         </div>
         <div class="songRight">
+          <button class="dlTrackBtn">⬇</button>
           <button class="addPlBtn">リスト追加</button>
           <button class="queueBtn">＋キュー</button>
           <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
           <button class="delTrackBtn">🗑</button>
         </div>
       `;
+      row.querySelector(".dlTrackBtn").addEventListener("click", e => { e.stopPropagation(); downloadSingleSong(song); });
       row.querySelector(".addPlBtn").addEventListener("click", e => { e.stopPropagation(); addSongToPlaylist(song.name); });
       row.querySelector(".queueBtn").addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
       row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
