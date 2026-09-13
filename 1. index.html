@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v3.8</title>
+<title>Music Player v4.2</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -196,125 +196,144 @@
             <button class="btn small" data-d="8D">8D</button>
             <button class="btn small" data-d="16D">16D</button>
           </div>
-          <div id="dModeDesc" style="font-size:.82rem; color:var(--muted); margin-top:6px;">2D: 標準ステレオ再生</div>
-          
-          <div style="margin-top:12px;">
-            <label>ステレオパン</label>
-            <div class="meter">
-              <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
-              <span id="pannerValText">中央</span>
-            </div>
+          <div id="dModeDesc" style="font-size:0.82rem; color:var(--muted); margin-top:8px;">2D: 標準ステレオ再生</div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">左右バランス (パン)</div>
+          <div class="meter">
+            <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
+            <span id="pannerValText">中央</span>
           </div>
         </div>
 
         <div class="sectionCard">
-          <div class="sectionTitle">特殊再生・ビジュアライザ</div>
+          <div class="sectionTitle">特殊機能</div>
           <div class="controls">
             <button class="btn small" id="btnCrossfade">クロスフェード: ON</button>
             <button class="btn small" id="btnSilenceSkip">無音スキップ: ON</button>
           </div>
-          <div style="margin-top:10px;">
-            <label>波形表示モード</label>
-            <div class="controls" id="waveModeBtns">
-              <button class="btn small" data-wave="3d">3D波形</button>
-              <button class="btn small" data-wave="2d">2Dスペクトラム</button>
-            </div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">ビジュアライザー表示</div>
+          <div class="controls" id="waveModeBtns">
+            <button class="btn small" data-wave="3d">3D波形</button>
+            <button class="btn small" data-wave="2d">2Dスペクトラム</button>
           </div>
+        </div>
+
+        <div class="sectionCard">
+          <div id="shuffleState" style="font-size:0.86rem; color:var(--muted);">シャッフル: ON</div>
         </div>
       </div>
 
-      <!-- セクション: プレイリスト -->
+      <!-- セクション: プレイリスト (サイドバー管理用) -->
       <div class="panelSection" id="playlistSection">
-        <div style="font-size:.86rem; color:var(--muted);">画面下の「リスト」タブからもアクセスできます。</div>
+        <div style="font-size:0.86rem; color:var(--muted);">画面下の「リスト」タブからプレイリストを作成・管理できます。</div>
       </div>
 
       <!-- セクション: 再生キュー -->
       <div class="panelSection" id="queueSection">
-        <div class="controls" style="margin-bottom:10px;">
-          <button class="btn small" id="btnQueueShuffle">シャッフル</button>
-          <button class="btn small danger" id="btnQueueClear">全消去</button>
+        <div class="sectionCard">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div class="sectionTitle" style="margin:0;">再生キュー</div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn small" id="btnQueueShuffle">シャッフル</button>
+              <button class="btn small danger" id="btnQueueClear">全消去</button>
+            </div>
+          </div>
+          <div id="queueList"></div>
         </div>
-        <div id="queueList"></div>
       </div>
 
       <!-- セクション: イコライザー -->
       <div class="panelSection" id="eqSection">
-        <div class="eqPresetRow" id="eqPresetRow"></div>
-        <div class="verticalArea" id="eqBands"></div>
-        <button class="btn small ghost" id="btnEqReset" style="margin-top:14px; width:100%;">フラットにリセット</button>
+        <div class="sectionCard">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div class="sectionTitle" style="margin:0;">プリセット</div>
+            <button class="btn small ghost" id="btnEqReset">リセット</button>
+          </div>
+          <div class="eqPresetRow" id="eqPresetRow"></div>
+          <div class="verticalArea" id="eqBands"></div>
+        </div>
       </div>
 
       <!-- セクション: スリープタイマー -->
       <div class="panelSection" id="timerSection">
         <div class="sectionCard">
-          <div id="timerStatus" style="font-weight:700; margin-bottom:10px;">タイマーOFF</div>
+          <div class="sectionTitle">自動停止タイマー</div>
           <div class="controls">
             <button class="btn small" data-timer="off">オフ</button>
             <button class="btn small" data-timer="15">15分</button>
             <button class="btn small" data-timer="30">30分</button>
             <button class="btn small" data-timer="60">60分</button>
           </div>
+          <div id="timerStatus" style="font-size:0.86rem; color:var(--muted); margin-top:10px;">タイマーOFF</div>
         </div>
       </div>
 
       <!-- セクション: 再生統計 -->
       <div class="panelSection" id="statsSection">
         <div class="sectionCard">
-          <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-            <div>総再生数: <span id="statPlays">0</span>回</div>
-            <div>登録曲数: <span id="statSongs">0</span>曲</div>
+          <div class="sectionTitle">再生データ</div>
+          <div style="display:flex; gap:16px; margin-bottom:12px;">
+            <div>総再生回数: <strong id="statPlays">0</strong>回</div>
+            <div>登録曲数: <strong id="statSongs">0</strong>曲</div>
           </div>
+          <button class="btn small danger" id="btnResetStats">統計リセット</button>
+        </div>
+        <div class="sectionCard">
+          <div class="sectionTitle">直近7日間の再生履歴</div>
           <div class="chartCanvasWrap">
             <canvas id="playHistoryChart"></canvas>
           </div>
-          <button class="btn small danger" id="btnResetStats" style="margin-top:12px; width:100%;">統計リセット</button>
         </div>
       </div>
 
       <!-- セクション: テーマ設定 -->
       <div class="panelSection" id="themeSection">
         <div class="sectionCard">
-          <div class="sectionTitle">テーマモード</div>
+          <div class="sectionTitle">テーマ選択</div>
           <div class="controls">
-            <button class="btn small" id="btnThemeSystem">システム</button>
+            <button class="btn small" id="btnThemeSystem">システム連動</button>
             <button class="btn small" id="btnThemeDark">ダーク</button>
             <button class="btn small" id="btnThemeLight">ライト</button>
             <button class="btn small" id="btnThemeCustom">カスタム</button>
           </div>
         </div>
 
-        <div id="customThemeArea" style="display:none;">
-          <div class="sectionCard">
-            <div class="sectionTitle">メインカラー1</div>
-            <div class="colorPickerGrid" id="gridColor1"></div>
-            <label>明度: <span id="txtL1">100%</span></label>
-            <input type="range" id="sliderL1" min="10" max="150" value="100">
+        <div class="sectionCard" id="customThemeArea" style="display:none;">
+          <div class="sectionTitle">カラー1 (上部)</div>
+          <div class="colorPickerGrid" id="gridColor1"></div>
+          <div class="meter">
+            <input type="range" id="sliderL1" min="0" max="200" value="100">
+            <span id="txtL1">100%</span>
           </div>
 
-          <div class="sectionCard">
-            <div class="sectionTitle">メインカラー2</div>
-            <div class="colorPickerGrid" id="gridColor2"></div>
-            <label>明度: <span id="txtL2">100%</span></label>
-            <input type="range" id="sliderL2" min="10" max="150" value="100">
+          <div class="sectionTitle" style="margin-top:12px;">カラー2 (下部)</div>
+          <div class="colorPickerGrid" id="gridColor2"></div>
+          <div class="meter">
+            <input type="range" id="sliderL2" min="0" max="200" value="100">
+            <span id="txtL2">100%</span>
           </div>
 
-          <div class="sectionCard">
-            <div class="sectionTitle">テキストカラー</div>
-            <div class="colorPickerGrid" id="gridTextColor"></div>
-            <label>明度: <span id="txtLText">100%</span></label>
-            <input type="range" id="sliderLText" min="10" max="150" value="100">
+          <div class="sectionTitle" style="margin-top:12px;">テキストカラー</div>
+          <div class="colorPickerGrid" id="gridTextColor"></div>
+          <div class="meter">
+            <input type="range" id="sliderLText" min="0" max="200" value="100">
+            <span id="txtLText">100%</span>
           </div>
 
-          <div class="sectionCard">
-            <div class="sectionTitle">グラデーション方向</div>
-            <div class="gradDirectionGrid" id="gradDirectionList">
-              <div class="gradOption" data-deg="180deg"><div class="radioDot"></div>上から下 (180°)</div>
-              <div class="gradOption" data-deg="135deg"><div class="radioDot"></div>斜め (135°)</div>
-              <div class="gradOption" data-deg="90deg"><div class="radioDot"></div>左から右 (90°)</div>
-            </div>
+          <div class="sectionTitle" style="margin-top:12px;">グラデーション方向</div>
+          <div class="gradDirectionGrid" id="gradDirectionList">
+            <div class="gradOption" data-deg="180deg"><div class="radioDot"></div>上から下 (180deg)</div>
+            <div class="gradOption" data-deg="135deg"><div class="radioDot"></div>斜め (135deg)</div>
+            <div class="gradOption" data-deg="90deg"><div class="radioDot"></div>左から右 (90deg)</div>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </div>
@@ -323,14 +342,10 @@
 <div class="miniPlayer">
   <div class="miniInner">
     <input type="range" id="miniProgress" min="0" max="100" value="0" step="0.1">
-    <div class="miniTop">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
       <div class="miniNow">
-        <div class="scroll-container">
-          <div class="scroll-text" id="miniTitle">停止中</div>
-        </div>
-        <div class="scroll-container">
-          <div class="scroll-text" id="miniSub">ファイル未選択</div>
-        </div>
+        <div id="miniTitle" style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">停止中</div>
+        <div id="miniSub" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ファイル未選択</div>
       </div>
       <div class="miniBtns">
         <button class="btn small" id="miniPrev">⏮</button>
@@ -344,11 +359,11 @@
 <!-- ボトムナビゲーション -->
 <div class="bottomNav">
   <button class="navTab active" data-target="home">
-    <span class="icon">🎵</span>
+    <span class="icon">🏠</span>
     <span>ホーム</span>
   </button>
   <button class="navTab" data-target="playlist">
-    <span class="icon">📜</span>
+    <span class="icon">🎵</span>
     <span>リスト</span>
   </button>
   <button class="navTab" data-target="settings">
@@ -357,40 +372,42 @@
   </button>
 </div>
 
-<!-- モーダル・シート -->
+<!-- モーダル: プレイリスト警告 -->
 <div class="modalBackdrop" id="plAlertModal">
   <div class="modalCard">
     <div class="modalTextRed">プレイリスト名を入力してください</div>
-    <button class="btn active" id="btnClosePlModal">OK</button>
+    <button class="btn small" id="btnClosePlModal">OK</button>
   </div>
 </div>
 
+<!-- モーダル: ショートカットヘルプ -->
 <div class="modalBackdrop" id="shortcutModal">
-  <div class="modalCard" style="text-align:left;">
-    <div class="sectionTitle" style="text-align:center;">キーボードショートカット</div>
+  <div class="modalCard">
+    <div style="font-weight:700; margin-bottom:12px;">キーボードショートカット</div>
     <div class="shortcutGrid">
-      <kbd>Space</kbd> <span>再生 / 一時停止</span>
-      <kbd>←</kbd> <kbd>→</kbd> <span>5秒巻き戻し / 早送り</span>
-      <kbd>↑</kbd> <kbd>↓</kbd> <span>音量調整</span>
-      <kbd>M</kbd> <span>ミュート切り替え</span>
-      <kbd>F</kbd> <span>お気に入り追加/解除</span>
-      <kbd>?</kbd> <span>ヘルプを表示</span>
+      <div><kbd>Space</kbd></div><div>再生 / 一時停止</div>
+      <div><kbd>←</kbd> / <kbd>→</kbd></div><div>5秒巻き戻し / 早送り</div>
+      <div><kbd>↑</kbd> / <kbd>↓</kbd></div><div>音量アップ / ダウン</div>
+      <div><kbd>M</kbd></div><div>ミュート切り替え</div>
+      <div><kbd>F</kbd></div><div>お気に入り追加/削除</div>
+      <div><kbd>?</kbd></div><div>ヘルプ表示</div>
     </div>
-    <button class="btn active" id="btnCloseShortcutModal" style="width:100%;">閉じる</button>
+    <button class="btn small" id="btnCloseShortcutModal">閉じる</button>
   </div>
 </div>
 
+<!-- ボトムシート: プレイリスト選択 -->
 <div class="bottomSheetOverlay" id="plSelectSheet">
   <div class="bottomSheetCard">
     <div class="bottomSheetHeader">
-      <div class="bottomSheetTitle">プレイリストに追加</div>
+      <div class="bottomSheetTitle">プレイリストを選択</div>
       <button class="btn ghost small" id="btnClosePlSheet">✕</button>
     </div>
     <div class="bottomSheetList" id="plSelectList"></div>
   </div>
 </div>
 
-<!-- トースト -->
+<!-- トースト通知 -->
 <div class="toast" id="toast"></div>
 
 <script src="script.js"></script>
