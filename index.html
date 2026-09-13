@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v4.3</title>
+<title>Music Player v4.4</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <!-- Zipダウンロード用ライブラリ -->
@@ -41,9 +41,9 @@
         <!-- HOME タブ用エリア -->
         <div id="homeElements">
           <div class="homeLayout">
-            <!-- ジャケット表示 (ホーム画面専用) -->
+            <!-- ジャケット表示 (サイズ縮小版) -->
             <div class="coverBox">
-              <canvas id="nowCoverCanvas" width="320" height="320"></canvas>
+              <canvas id="nowCoverCanvas" width="160" height="160"></canvas>
             </div>
 
             <div class="homeControls">
@@ -90,24 +90,29 @@
               </div>
             </div>
           </div>
-
-          <!-- 曲リスト -->
-          <div class="songHead">
-            <div style="font-weight:700;">トラックリスト</div>
-          </div>
-          <div class="songList" id="list"></div>
         </div>
 
-        <!-- PLAYLIST タブ用エリア -->
-        <div id="playlistElements" style="display:none; flex-direction:column; gap:12px;">
-          <div class="field">
-            <label>新規プレイリスト作成</label>
-            <div class="fileInputRow">
-              <input type="text" id="newPlName" placeholder="プレイリスト名">
-              <button class="btn active" id="btnCreatePl">作成</button>
+        <!-- LIST タブ用エリア（追加一覧とプレイリストを分割配置） -->
+        <div id="playlistElements" style="display:none; flex-direction:column; gap:20px;">
+          <!-- 追加一覧 (トラックリスト) -->
+          <div class="sectionCard">
+            <div class="songHead" style="margin-top:0;">
+              <div style="font-weight:700;">追加一覧</div>
             </div>
+            <div class="songList" id="list"></div>
           </div>
-          <div id="playlistContainer"></div>
+
+          <!-- プレイリスト -->
+          <div class="sectionCard">
+            <div class="field">
+              <label style="font-weight:700;">新規プレイリスト作成</label>
+              <div class="fileInputRow">
+                <input type="text" id="newPlName" placeholder="プレイリスト名">
+                <button class="btn active" id="btnCreatePl">作成</button>
+              </div>
+            </div>
+            <div id="playlistContainer"></div>
+          </div>
         </div>
 
         <!-- SETTINGS タブ用エリア -->
@@ -344,14 +349,14 @@
   </div>
 </div>
 
-<!-- ミニプレイヤー -->
+<!-- ミニプレイヤー (固定配置・曲名の右にジャケット配置・アーティスト非表示) -->
 <div class="miniPlayer">
   <div class="miniInner">
     <input type="range" id="miniProgress" min="0" max="100" value="0" step="0.1">
     <div class="miniRow">
       <div class="miniNow">
         <div id="miniTitle">停止中</div>
-        <div id="miniSub">ファイル未選択</div>
+        <canvas id="miniCoverCanvas" width="32" height="32" class="miniCoverCanvas"></canvas>
       </div>
       <div class="miniBtns">
         <button class="btn small miniPrevBtn" id="miniPrev">⏮</button>
@@ -362,7 +367,7 @@
   </div>
 </div>
 
-<!-- ボトムナビゲーション -->
+<!-- ボトムナビゲーション (最下部固定) -->
 <div class="bottomNav">
   <button class="navTab active" data-target="home">
     <span class="icon">🏠</span>
