@@ -4,290 +4,63 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Music Player v3.8</title>
-<link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="overlay" id="overlay"></div>
-
-<div class="modalBackdrop" id="plAlertModal">
-  <div class="modalCard">
-    <div class="modalTextRed">プレイリストの名前を設定してください</div>
-    <button class="btn small" id="btnClosePlModal">閉じる</button>
-  </div>
-</div>
-
-<div class="modalBackdrop" id="shortcutModal">
-  <div class="modalCard">
-    <div style="font-weight:700; font-size:1.1rem; margin-bottom:8px;">キーボードショートカット</div>
-    <div class="shortcutGrid">
-      <div><kbd>Space</kbd></div><div>再生 / 一時停止</div>
-      <div><kbd>←</kbd> / <kbd>→</kbd></div><div>5秒巻き戻し / 早送り</div>
-      <div><kbd>↑</kbd> / <kbd>↓</kbd></div><div>音量調整</div>
-      <div><kbd>M</kbd></div><div>消音（ミュート）ON/OFF</div>
-      <div><kbd>F</kbd></div><div>お気に入り切り替え</div>
-      <div><kbd>?</kbd></div><div>ヘルプ表示</div>
-    </div>
-    <button class="btn small" id="btnCloseShortcutModal">閉じる</button>
-  </div>
-</div>
-
-<div class="bottomSheetOverlay" id="plSelectSheet">
-  <div class="bottomSheetCard">
-    <div class="bottomSheetHeader">
-      <div class="bottomSheetTitle" id="plSelectSheetTitle">プレイリストに追加</div>
-      <button class="btn small ghost" id="btnClosePlSheet">✕</button>
-    </div>
-    <div class="bottomSheetList" id="plSelectList"></div>
-  </div>
-</div>
-
-<aside class="sidebar" id="sidebar">
-  <div id="sidebarInner" style="display:flex; flex-direction:column; height:100%; width:100%;">
-    <div class="sideHead">
-      <div class="sideHeadLeft">
-        <button class="backBtn" id="btnSideBack">← 戻る</button>
-        <div class="sideTitle" id="sideTitle">メニュー</div>
-      </div>
-      <button class="menuBtn" id="btnCloseMenu">×</button>
-    </div>
-    <div class="sideBody">
-      <div class="menuList" id="mainMenuList">
-        <button class="menuItem" data-section="optionsSection">再生オプション<span>再生速度・立体音響(2D-16D)・ビジュアル・キー・フェード・無音スキップ</span></button>
-        <button class="menuItem" data-section="playlistSection">プレイリスト<span>作成・曲の追加・管理</span></button>
-        <button class="menuItem" data-section="queueSection">再生キュー<span>順序変更・クリア</span></button>
-        <button class="menuItem" data-section="eqSection">イコライザー<span>5バンド調整・プリセット</span></button>
-        <button class="menuItem" data-section="timerSection">スリープタイマー<span>自動停止設定</span></button>
-        <button class="menuItem" data-section="statsSection">再生統計<span>再生回数・総再生数推移グラフ・各種リセット</span></button>
-        <button class="menuItem" data-section="themeSection">テーマ・カスタムカラー<span>12色パレット・明暗調整</span></button>
-      </div>
-
-      <section id="optionsSection" class="panelSection">
-        <div class="sectionCard">
-          <div class="sectionTitle">再生速度</div>
-          <div class="meter" style="margin-bottom:8px">
-            <span>スピード</span>
-            <span id="rateText">1.00x</span>
-          </div>
-          <div style="margin-bottom: 10px;">
-            <label style="font-size: .82rem; color: var(--muted); display: block; margin-bottom: 4px;">バー (0.25x - 2.0x)</label>
-            <input type="range" id="playbackRate" min="0.25" max="2.0" step="0.05" value="1.0">
-          </div>
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
-            <label for="customRateInput" style="font-size: .86rem;">カスタム (0.1x - 10x):</label>
-            <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0" style="width: 80px; padding: 6px 8px; border-radius: 10px;">
-          </div>
-        </div>
-
-        <div class="sectionCard">
-          <div class="sectionTitle">波形ビジュアル表示</div>
-          <div class="controls" id="waveModeBtns">
-            <button class="btn small active" data-wave="simple">シンプル</button>
-            <button class="btn small" data-wave="3d">3D (立体波形)</button>
-          </div>
-        </div>
-
-        <div class="sectionCard">
-          <div class="sectionTitle">立体音響モード (2D〜16D)</div>
-          <div class="controls" id="dModeBtns">
-            <button class="btn small active" data-d="2D">2D (通常)</button>
-            <button class="btn small" data-d="3D">3D</button>
-            <button class="btn small" data-d="4D">4D</button>
-            <button class="btn small" data-d="8D">8D</button>
-            <button class="btn small" data-d="16D">16D</button>
-          </div>
-          <div style="font-size:.78rem; color:var(--muted); margin-top:6px" id="dModeDesc">2D: 標準ステレオ再生</div>
-          
-          <div class="meter" style="margin-top:12px">
-            <span>左右手動パン (2D/3D時)</span>
-            <span id="pannerValText">中央</span>
-          </div>
-          <input type="range" id="pannerSlider" min="-1" max="1" step="0.1" value="0">
-        </div>
-
-        <div class="sectionCard">
-          <div class="sectionTitle">キー（ピッチ音高）</div>
-          <div class="meter" style="margin-bottom:8px">
-            <span>音高シフト</span>
-            <span id="pitchText">±0</span>
-          </div>
-          <input type="range" id="pitchShift" min="-6" max="6" step="1" value="0">
-        </div>
-
-        <div class="sectionCard">
-          <div class="sectionTitle">スマート再生設定</div>
-          <div class="controls">
-            <button class="btn small active" id="btnCrossfade">クロスフェード: ON</button>
-            <button class="btn small active" id="btnSilenceSkip">無音スキップ: ON</button>
-          </div>
-        </div>
-      </section>
-
-      <section id="playlistSection" class="panelSection">
-        <div class="sectionCard">
-          <div class="sectionTitle">新規プレイリスト作成</div>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="newPlName" placeholder="プレイリスト名を入力">
-            <button class="btn small" id="btnCreatePl">作成</button>
-          </div>
-        </div>
-        <div id="playlistContainer" style="display:flex; flex-direction:column; gap:10px;"></div>
-      </section>
-
-      <section id="queueSection" class="panelSection">
-        <div id="queueList" style="display:flex; flex-direction:column; gap:8px;"></div>
-        <div class="controls" style="margin-top:12px">
-          <button class="btn small warn" id="btnQueueClear">全消去</button>
-          <button class="btn small ghost" id="btnQueueShuffle">シャッフル</button>
-        </div>
-      </section>
-
-      <section id="eqSection" class="panelSection">
-        <div class="sectionCard">
-          <div class="sectionTitle">プリセット</div>
-          <div class="eqPresetRow" id="eqPresetRow"></div>
-        </div>
-        <div class="sectionCard">
-          <div class="sectionTitle">5バンド調整 (±12dB)</div>
-          <div class="verticalArea" id="eqBands"></div>
-        </div>
-        <button class="btn small ghost" id="btnEqReset">リセット</button>
-      </section>
-
-      <section id="timerSection" class="panelSection">
-        <div class="sectionCard">
-          <div class="sectionTitle">自動停止タイマー</div>
-          <div class="controls">
-            <button class="btn small active" data-timer="off">OFF</button>
-            <button class="btn small" data-timer="15">15分</button>
-            <button class="btn small" data-timer="30">30分</button>
-            <button class="btn small" data-timer="60">60分</button>
-          </div>
-          <div style="margin-top:10px; color:var(--text); font-size:.86rem" id="timerStatus">タイマーOFF</div>
-        </div>
-      </section>
-
-      <section id="statsSection" class="panelSection">
-        <div class="sectionCard">
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
-            <div><span style="color:var(--muted); font-size:.8rem">総再生数</span><div id="statPlays" style="font-size:1.1rem; font-weight:700">0</div></div>
-            <div><span style="color:var(--muted); font-size:.8rem">曲数</span><div id="statSongs" style="font-size:1.1rem; font-weight:700">0</div></div>
-          </div>
-        </div>
-        <div class="sectionCard">
-          <div class="sectionTitle">再生総数の推移（過去7日間）</div>
-          <div class="chartCanvasWrap">
-            <canvas id="playHistoryChart"></canvas>
-          </div>
-        </div>
-        <div class="sectionCard">
-          <div class="sectionTitle">統計データ操作</div>
-          <button class="btn small danger" id="btnResetStats">再生統計をリセット</button>
-        </div>
-      </section>
-
-      <section id="themeSection" class="panelSection">
-        <div class="sectionCard">
-          <div class="sectionTitle">モード選択</div>
-          <div class="controls">
-            <button class="btn small" id="btnThemeSystem">自動（OS設定）</button>
-            <button class="btn small" id="btnThemeDark">ダーク</button>
-            <button class="btn small" id="btnThemeLight">ライト</button>
-            <button class="btn small" id="btnThemeCustom">カスタム</button>
-          </div>
-        </div>
-        <div class="sectionCard" id="customThemeArea" style="display:none;">
-          <div class="sectionTitle">12色カラー ＆ 明暗微調整</div>
-          
-          <div class="field">
-            <label>背景カラー 1</label>
-            <div class="colorPickerGrid" id="gridColor1"></div>
-            <div class="meter"><span style="font-size:.78rem">明るさ微調整</span><span id="txtL1" style="font-size:.78rem">100%</span></div>
-            <input type="range" id="sliderL1" min="0" max="200" value="100">
-          </div>
-
-          <div class="field" style="margin-top:12px;">
-            <label>背景カラー 2</label>
-            <div class="colorPickerGrid" id="gridColor2"></div>
-            <div class="meter"><span style="font-size:.78rem">明るさ微調整</span><span id="txtL2" style="font-size:.78rem">100%</span></div>
-            <input type="range" id="sliderL2" min="0" max="200" value="100">
-          </div>
-
-          <div class="field" style="margin-top:12px;">
-            <label>文字カラー</label>
-            <div class="colorPickerGrid" id="gridTextColor"></div>
-            <div class="meter"><span style="font-size:.78rem">明るさ微調整</span><span id="txtLText" style="font-size:.78rem">100%</span></div>
-            <input type="range" id="sliderLText" min="0" max="200" value="100">
-          </div>
-
-          <div class="field" style="margin-top:12px;">
-            <label>グラデーション方向</label>
-            <div class="gradDirectionGrid" id="gradDirectionList">
-              <div class="gradOption" data-deg="180deg"><div class="radioDot"></div>上から下 ↓</div>
-              <div class="gradOption" data-deg="90deg"><div class="radioDot"></div>左から右 →</div>
-              <div class="gradOption" data-deg="135deg"><div class="radioDot"></div>斜め ↘</div>
-              <div class="gradOption" data-deg="0deg"><div class="radioDot"></div>下から上 ↑</div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  </div>
-</aside>
-
 <div class="app">
   <div class="shell" id="shell">
-    <header class="header">
+    
+    <!-- ヘッダー -->
+    <div class="header">
       <div class="brand">
         <button class="menuBtn" id="btnMenu">☰</button>
         <div class="titleArea">
-          <div class="scroll-container" id="titleContainer">
-            <h1 id="nowTitle" class="scroll-text">未再生</h1>
+          <div class="scroll-container">
+            <h1 class="scroll-text" id="nowTitle">未再生</h1>
           </div>
-          <div class="scroll-container" id="subContainer">
-            <div id="nowSub" class="scroll-text">ファイルをドロップまたは選択してください</div>
+          <div class="scroll-container">
+            <div class="scroll-text" id="nowSub">ファイルをドロップまたは選択してください</div>
           </div>
         </div>
       </div>
       <div class="headerRight">
-        <button class="pill" id="btnShortcutHelp" title="キーボード操作ヘルプ">?</button>
-        <div class="pill" id="pillSongs">0曲</div>
-        <div class="pill" id="pillFavs">0☆</div>
+        <span class="pill" id="pillSongs">0曲</span>
+        <span class="pill" id="pillFavs">0☆</span>
+        <button class="pill" id="btnShortcutHelp">?</button>
       </div>
-    </header>
+    </div>
 
+    <!-- メインエリア -->
     <div class="grid">
+      <!-- アートワーク / カバー表示 -->
       <div class="coverBox">
         <canvas id="nowCoverCanvas" width="320" height="320"></canvas>
       </div>
 
+      <!-- プレイヤーコントロール -->
       <div class="playerPanel">
-        <!-- ホームタブのコンテンツ (一覧以外) -->
+        
+        <!-- HOME タブ用エリア -->
         <div id="homeElements">
           <div class="field">
-            <label>音声ファイル読み込み（ドラッグ＆ドロップ対応・自動ストレージ保存）</label>
+            <label>ファイル選択</label>
             <div class="fileInputRow">
-              <input type="file" id="folder" webkitdirectory multiple accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac">
-              <button class="btn warn small" id="btnResetFiles" style="white-space:nowrap;">全リセット</button>
+              <input type="file" id="folder" multiple accept="audio/*">
+              <button class="btn danger small" id="btnResetFiles">全削除</button>
             </div>
           </div>
 
-          <div class="controls">
-            <button class="btn" id="btnPrev">⏮ 前へ</button>
-            <button class="btn small ghost" id="btnRewind10" title="10秒巻き戻し">↺ 10s</button>
-            <button class="btn btnPlayMain" id="btnPlay">▶ 再生</button>
-            <button class="btn small ghost" id="btnForward10" title="10秒早送り">10s ↻</button>
-            <button class="btn" id="btnNext">次へ ⏭</button>
-            <button class="btn warn" id="btnFav">☆</button>
-            <button class="btn small" id="btnMainShuffle">🔀</button>
-            <button class="btn small" id="btnMainRepeat">🔁</button>
+          <div class="field">
+            <input type="text" id="search" placeholder="曲名やアーティストで検索...">
           </div>
 
+          <!-- シークバー & 再生時間 -->
           <div class="progressWrap">
             <div class="seekbarContainer">
               <canvas id="seekbarHeatmap" class="seekbarHeatmap"></canvas>
-              <input type="range" id="progress" min="0" max="100" value="0">
+              <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
             </div>
             <div class="timeLine">
               <span id="timeNow">0:00</span>
@@ -295,79 +68,329 @@
             </div>
           </div>
 
-          <div class="field" style="margin-top:12px">
-            <div class="meter">
-              <span style="display:flex; align-items:center; gap:6px;">
-                <button class="btn small ghost" id="btnMuteToggle" style="padding:2px 8px; font-size:0.8rem;">🔊</button>
-                音量
-              </span>
-              <span id="volText">100%</span>
-            </div>
-            <input type="range" id="volume" min="0" max="1" step="0.01" value="1">
+          <!-- コントロールボタン -->
+          <div class="controls">
+            <button class="btn" id="btnPrev">⏮</button>
+            <button class="btn" id="btnRewind10">-10s</button>
+            <button class="btn btnPlayMain" id="btnPlay">▶ 再生</button>
+            <button class="btn" id="btnForward10">+10s</button>
+            <button class="btn" id="btnNext">⏭</button>
+            <button class="btn" id="btnFav">☆</button>
+            <button class="btn" id="btnMainShuffle">🔀</button>
+            <button class="btn" id="btnMainRepeat">🔁</button>
           </div>
 
+          <!-- 波形表示ビジュアライザー -->
           <div class="waveWrap">
             <canvas id="wave" class="wave"></canvas>
           </div>
+
+          <!-- 曲リスト -->
+          <div class="songHead">
+            <div style="font-weight:700;">トラックリスト</div>
+          </div>
+          <div class="songList" id="list"></div>
         </div>
 
-        <!-- プレイリストタブのコンテンツ (曲一覧のみ) -->
-        <div id="playlistElements" style="display:none; flex-direction:column;">
-          <div class="field" style="margin-bottom: 12px;">
-            <input type="text" id="search" placeholder="曲名やアーティストで検索">
+        <!-- PLAYLIST タブ用エリア -->
+        <div id="playlistElements" style="display:none; flex-direction:column; gap:12px;">
+          <div class="field">
+            <label>新規プレイリスト作成</label>
+            <div class="fileInputRow">
+              <input type="text" id="newPlName" placeholder="プレイリスト名">
+              <button class="btn active" id="btnCreatePl">作成</button>
+            </div>
           </div>
-          <div class="songHead">
-            <div style="font-weight:700">曲一覧</div>
-            <div class="pill" id="shuffleState">シャッフル: ON</div>
-          </div>
-          <div id="list" class="songList"></div>
+          <div id="playlistContainer"></div>
         </div>
+
+        <!-- SETTINGS タブ用エリア -->
+        <div id="settingsTabContainer"></div>
+
       </div>
     </div>
-    
-    <!-- 設定タブのコンテンツを注入するコンテナ -->
-    <div id="settingsTabContainer"></div>
   </div>
 </div>
 
-<!-- ボトムナビゲーション -->
-<div class="bottomNav" id="bottomNav">
-  <button class="navTab active" data-target="home">
-    <div class="icon">🏠</div>
-    ホーム
-  </button>
-  <button class="navTab" data-target="playlist">
-    <div class="icon">🎵</div>
-    プレイリスト
-  </button>
-  <button class="navTab" data-target="settings">
-    <div class="icon">⚙️</div>
-    設定
-  </button>
+<!-- サイドバー / 設定メニュー -->
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebarInner" id="sidebarInner">
+    <div class="sideHead">
+      <div class="sideHeadLeft">
+        <button class="backBtn" id="btnSideBack">←</button>
+        <div class="sideTitle" id="sideTitle">メニュー</div>
+      </div>
+      <button class="btn ghost small" id="btnCloseMenu">✕</button>
+    </div>
+    
+    <div class="sideBody">
+      <!-- メインメニュー -->
+      <div class="menuList" id="mainMenuList">
+        <button class="menuItem" data-section="optionsSection">
+          再生オプション
+          <span>再生速度・ピッチ・3D音響・音量</span>
+        </button>
+        <button class="menuItem" data-section="playlistSection">
+          プレイリスト
+          <span>作成と管理</span>
+        </button>
+        <button class="menuItem" data-section="queueSection">
+          再生キュー
+          <span>次に再生する曲の管理</span>
+        </button>
+        <button class="menuItem" data-section="eqSection">
+          イコライザー
+          <span>音質プリセットと調整</span>
+        </button>
+        <button class="menuItem" data-section="timerSection">
+          スリープタイマー
+          <span>自動停止タイマー設定</span>
+        </button>
+        <button class="menuItem" data-section="statsSection">
+          再生統計
+          <span>再生数と履歴グラフ</span>
+        </button>
+        <button class="menuItem" data-section="themeSection">
+          テーマ設定
+          <span>カラー・グラデーションカスタマイズ</span>
+        </button>
+      </div>
+
+      <!-- セクション: 再生オプション -->
+      <div class="panelSection" id="optionsSection">
+        <div class="sectionCard">
+          <div class="sectionTitle">音量 & ミュート</div>
+          <div class="meter">
+            <button class="btn small" id="btnMuteToggle">🔊</button>
+            <input type="range" id="volume" min="0" max="1" step="0.01" value="1">
+            <span id="volText">100%</span>
+          </div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">再生速度</div>
+          <div class="meter" style="margin-bottom:8px;">
+            <input type="range" id="playbackRate" min="0.25" max="3.0" step="0.05" value="1">
+            <span id="rateText">1.00x</span>
+          </div>
+          <div class="field">
+            <input type="number" id="customRateInput" min="0.1" max="10" step="0.01" value="1.0">
+          </div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">ピッチ（キー調整）</div>
+          <div class="meter">
+            <input type="range" id="pitchShift" min="-12" max="12" step="1" value="0">
+            <span id="pitchText">0</span>
+          </div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">立体音響 (D-Mode)</div>
+          <div class="controls" id="dModeBtns">
+            <button class="btn small" data-d="2D">2D</button>
+            <button class="btn small" data-d="3D">3D</button>
+            <button class="btn small" data-d="4D">4D</button>
+            <button class="btn small" data-d="8D">8D</button>
+            <button class="btn small" data-d="16D">16D</button>
+          </div>
+          <div id="dModeDesc" style="font-size:.82rem; color:var(--muted); margin-top:6px;">2D: 標準ステレオ再生</div>
+          
+          <div style="margin-top:12px;">
+            <label>ステレオパン</label>
+            <div class="meter">
+              <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
+              <span id="pannerValText">中央</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">特殊再生・ビジュアライザ</div>
+          <div class="controls">
+            <button class="btn small" id="btnCrossfade">クロスフェード: ON</button>
+            <button class="btn small" id="btnSilenceSkip">無音スキップ: ON</button>
+          </div>
+          <div style="margin-top:10px;">
+            <label>波形表示モード</label>
+            <div class="controls" id="waveModeBtns">
+              <button class="btn small" data-wave="3d">3D波形</button>
+              <button class="btn small" data-wave="2d">2Dスペクトラム</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- セクション: プレイリスト -->
+      <div class="panelSection" id="playlistSection">
+        <div style="font-size:.86rem; color:var(--muted);">画面下の「リスト」タブからもアクセスできます。</div>
+      </div>
+
+      <!-- セクション: 再生キュー -->
+      <div class="panelSection" id="queueSection">
+        <div class="controls" style="margin-bottom:10px;">
+          <button class="btn small" id="btnQueueShuffle">シャッフル</button>
+          <button class="btn small danger" id="btnQueueClear">全消去</button>
+        </div>
+        <div id="queueList"></div>
+      </div>
+
+      <!-- セクション: イコライザー -->
+      <div class="panelSection" id="eqSection">
+        <div class="eqPresetRow" id="eqPresetRow"></div>
+        <div class="verticalArea" id="eqBands"></div>
+        <button class="btn small ghost" id="btnEqReset" style="margin-top:14px; width:100%;">フラットにリセット</button>
+      </div>
+
+      <!-- セクション: スリープタイマー -->
+      <div class="panelSection" id="timerSection">
+        <div class="sectionCard">
+          <div id="timerStatus" style="font-weight:700; margin-bottom:10px;">タイマーOFF</div>
+          <div class="controls">
+            <button class="btn small" data-timer="off">オフ</button>
+            <button class="btn small" data-timer="15">15分</button>
+            <button class="btn small" data-timer="30">30分</button>
+            <button class="btn small" data-timer="60">60分</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- セクション: 再生統計 -->
+      <div class="panelSection" id="statsSection">
+        <div class="sectionCard">
+          <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <div>総再生数: <span id="statPlays">0</span>回</div>
+            <div>登録曲数: <span id="statSongs">0</span>曲</div>
+          </div>
+          <div class="chartCanvasWrap">
+            <canvas id="playHistoryChart"></canvas>
+          </div>
+          <button class="btn small danger" id="btnResetStats" style="margin-top:12px; width:100%;">統計リセット</button>
+        </div>
+      </div>
+
+      <!-- セクション: テーマ設定 -->
+      <div class="panelSection" id="themeSection">
+        <div class="sectionCard">
+          <div class="sectionTitle">テーマモード</div>
+          <div class="controls">
+            <button class="btn small" id="btnThemeSystem">システム</button>
+            <button class="btn small" id="btnThemeDark">ダーク</button>
+            <button class="btn small" id="btnThemeLight">ライト</button>
+            <button class="btn small" id="btnThemeCustom">カスタム</button>
+          </div>
+        </div>
+
+        <div id="customThemeArea" style="display:none;">
+          <div class="sectionCard">
+            <div class="sectionTitle">メインカラー1</div>
+            <div class="colorPickerGrid" id="gridColor1"></div>
+            <label>明度: <span id="txtL1">100%</span></label>
+            <input type="range" id="sliderL1" min="10" max="150" value="100">
+          </div>
+
+          <div class="sectionCard">
+            <div class="sectionTitle">メインカラー2</div>
+            <div class="colorPickerGrid" id="gridColor2"></div>
+            <label>明度: <span id="txtL2">100%</span></label>
+            <input type="range" id="sliderL2" min="10" max="150" value="100">
+          </div>
+
+          <div class="sectionCard">
+            <div class="sectionTitle">テキストカラー</div>
+            <div class="colorPickerGrid" id="gridTextColor"></div>
+            <label>明度: <span id="txtLText">100%</span></label>
+            <input type="range" id="sliderLText" min="10" max="150" value="100">
+          </div>
+
+          <div class="sectionCard">
+            <div class="sectionTitle">グラデーション方向</div>
+            <div class="gradDirectionGrid" id="gradDirectionList">
+              <div class="gradOption" data-deg="180deg"><div class="radioDot"></div>上から下 (180°)</div>
+              <div class="gradOption" data-deg="135deg"><div class="radioDot"></div>斜め (135°)</div>
+              <div class="gradOption" data-deg="90deg"><div class="radioDot"></div>左から右 (90°)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- 固定ミニプレーヤー -->
+<!-- ミニプレイヤー -->
 <div class="miniPlayer">
   <div class="miniInner">
+    <input type="range" id="miniProgress" min="0" max="100" value="0" step="0.1">
     <div class="miniTop">
       <div class="miniNow">
         <div class="scroll-container">
-          <div id="miniTitle" class="scroll-text">停止中</div>
+          <div class="scroll-text" id="miniTitle">停止中</div>
         </div>
         <div class="scroll-container">
-          <div id="miniSub" class="scroll-text">ファイル未選択</div>
+          <div class="scroll-text" id="miniSub">ファイル未選択</div>
         </div>
       </div>
       <div class="miniBtns">
         <button class="btn small" id="miniPrev">⏮</button>
-        <button class="btn small btnPlayMain" id="miniPlay">▶</button>
+        <button class="btn small" id="miniPlay">▶</button>
         <button class="btn small" id="miniNext">⏭</button>
       </div>
     </div>
-    <input type="range" id="miniProgress" min="0" max="100" value="0">
   </div>
 </div>
 
+<!-- ボトムナビゲーション -->
+<div class="bottomNav">
+  <button class="navTab active" data-target="home">
+    <span class="icon">🎵</span>
+    <span>ホーム</span>
+  </button>
+  <button class="navTab" data-target="playlist">
+    <span class="icon">📜</span>
+    <span>リスト</span>
+  </button>
+  <button class="navTab" data-target="settings">
+    <span class="icon">⚙️</span>
+    <span>設定</span>
+  </button>
+</div>
+
+<!-- モーダル・シート -->
+<div class="modalBackdrop" id="plAlertModal">
+  <div class="modalCard">
+    <div class="modalTextRed">プレイリスト名を入力してください</div>
+    <button class="btn active" id="btnClosePlModal">OK</button>
+  </div>
+</div>
+
+<div class="modalBackdrop" id="shortcutModal">
+  <div class="modalCard" style="text-align:left;">
+    <div class="sectionTitle" style="text-align:center;">キーボードショートカット</div>
+    <div class="shortcutGrid">
+      <kbd>Space</kbd> <span>再生 / 一時停止</span>
+      <kbd>←</kbd> <kbd>→</kbd> <span>5秒巻き戻し / 早送り</span>
+      <kbd>↑</kbd> <kbd>↓</kbd> <span>音量調整</span>
+      <kbd>M</kbd> <span>ミュート切り替え</span>
+      <kbd>F</kbd> <span>お気に入り追加/解除</span>
+      <kbd>?</kbd> <span>ヘルプを表示</span>
+    </div>
+    <button class="btn active" id="btnCloseShortcutModal" style="width:100%;">閉じる</button>
+  </div>
+</div>
+
+<div class="bottomSheetOverlay" id="plSelectSheet">
+  <div class="bottomSheetCard">
+    <div class="bottomSheetHeader">
+      <div class="bottomSheetTitle">プレイリストに追加</div>
+      <button class="btn ghost small" id="btnClosePlSheet">✕</button>
+    </div>
+    <div class="bottomSheetList" id="plSelectList"></div>
+  </div>
+</div>
+
+<!-- トースト -->
 <div class="toast" id="toast"></div>
 
 <script src="script.js"></script>
