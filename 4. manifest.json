@@ -1,0 +1,9 @@
+{
+  "short_name": "Music Player",
+  "name": "Music Player v3.8",
+  "icons": [],
+  "start_url": ".",
+  "background_color": "#121212",
+  "theme_color": "#1DB954",
+  "display": "standalone"
+}
