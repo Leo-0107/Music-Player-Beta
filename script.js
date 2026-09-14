@@ -149,6 +149,10 @@
   let wakeLock = null;
   let wave3dAngle = 0;
   let waveHistory3d = [];
+  
+  // 3D波形の順次減衰・スムーズ化用変数
+  let smoothAmp = new Float32Array(90);
+  let stopProgress = 1.0;
 
   const historyStack = [];
   let historyIndex = -1;
@@ -1471,22 +1475,36 @@
       const points = 90;
       const dataLen = analyserData ? analyserData.length : 64;
 
-      // カメラ設定：横からの固定アングル
-      const sideCamAngle = Math.PI * 0.35; // 横方向からの視覚度
-      const cosCam = Math.cos(sideCamAngle);
-      const sinCam = Math.sin(sideCamAngle);
-      const fov = 360;
+      // 音が止まった時に左から順に真っ直ぐにする進行度の更新
+      if (audio.paused) {
+        stopProgress = Math.min(1.5, stopProgress + 0.02);
+      } else {
+        stopProgress = 0;
+      }
 
-      // 再生中の波形の位相進行（カメラではなく波自体が動く）
+      // 20°上から見下ろすカメラ設定（ピッチ角 20度）
+      const pitch = 20 * (Math.PI / 180);
+      const cosPitch = Math.cos(pitch);
+      const sinPitch = Math.sin(pitch);
+      const fov = 380;
+
+      // 音が流れている時のみ波を動かす（止まっている時は固定してふらふらさせない）
       const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.5;
 
-      ctx.save();
-      
-      // 3D波形を180°回転させる
-      ctx.translate(w / 2, h / 2);
-      ctx.rotate(Math.PI);
-      ctx.translate(-w / 2, -h / 2);
+      // 各ポイントの音量振幅計算（左から順に減衰させる処理）
+      for (let i = 0; i < points; i++) {
+        const normX = i / (points - 1);
+        const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
+        let targetAmp = (analyserData && !audio.paused) ? analyserData[freqIdx] / 255 : 0;
 
+        // 左(0)から右(1)にかけて順次真っ直ぐ（振幅0）にするフェードワイプ
+        const fadeFactor = Math.max(0, Math.min(1, (normX - (stopProgress - 0.3)) / 0.3));
+        targetAmp *= fadeFactor;
+
+        smoothAmp[i] += (targetAmp - smoothAmp[i]) * 0.2;
+      }
+
+      ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
       for (let s = 0; s < numStrands; s++) {
@@ -1495,29 +1513,29 @@
         
         ctx.beginPath();
         for (let i = 0; i < points; i++) {
-          const normX = i / (points - 1);
-          const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
-          const rawAmp = analyserData ? analyserData[freqIdx] / 255 : 0.05;
+          const normX = i / (points - 1); // 左(0)から右(1)への向き
+          const currentAmp = smoothAmp[i];
 
           const envelope = Math.sin(normX * Math.PI);
           
-          const wave1 = Math.sin(normX * Math.PI * 4.0 + wavePhase) * 20;
-          const wave2 = Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * 9;
-          const audioDisplacement = (rawAmp * h * 0.35 + 4) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
-          const strandSpread = offsetVal * (22 + rawAmp * 45) * Math.sin(normX * Math.PI * 2.5 + offsetVal * 0.5);
+          // 音が止まっているときは、波の揺れ（wave1, wave2）も0に固定
+          const wave1 = audio.paused ? 0 : Math.sin(normX * Math.PI * 4.0 + wavePhase) * 20 * (currentAmp > 0.01 ? 1 : 0);
+          const wave2 = audio.paused ? 0 : Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * 9 * (currentAmp > 0.01 ? 1 : 0);
+          const audioDisplacement = (currentAmp * h * 0.35) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
+          const strandSpread = offsetVal * (22 + currentAmp * 45) * Math.sin(normX * Math.PI * 2.5 + offsetVal * 0.5);
           
-          // 3D空間のローカル座標計算
+          // 3D空間座標（X: 左〜右, Y: 高さ, Z: 奥行き）
           const x3d = (normX - 0.5) * w * 0.95;
           const y3d = (wave1 + wave2 + audioDisplacement) * envelope;
           const z3d = offsetVal * 150 + strandSpread;
 
-          // 固定された横アングルカメラによる透視投影
-          const xRot = x3d * cosCam - z3d * sinCam;
-          const zRot = x3d * sinCam + z3d * cosCam;
+          // 20度見下ろす視角計算（Y-Z軸の回転）
+          const yRot = y3d * cosPitch - z3d * sinPitch;
+          const zRot = y3d * sinPitch + z3d * cosPitch;
 
           const perspective = fov / (fov + zRot + 250);
-          const px = w / 2 + xRot * perspective;
-          const py = h / 2 + y3d * perspective;
+          const px = w / 2 + x3d * perspective;
+          const py = h / 2 - yRot * perspective;
 
           if (i === 0) {
             ctx.moveTo(px, py);
