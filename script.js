@@ -1432,6 +1432,7 @@
     renderSongList();
   });
 
+  // 波形描画ロジックの修正
   function drawWaveform() {
     requestAnimationFrame(drawWaveform);
 
@@ -1468,90 +1469,80 @@
     if (state.waveMode === "3d") {
       const currentFrame = analyserData ? Array.from(analyserData.subarray(0, 64)) : new Array(64).fill(0);
       waveHistory3d.unshift(currentFrame);
-      if (waveHistory3d.length > 24) waveHistory3d.pop();
+      const MAX_HISTORY = 40;
+      if (waveHistory3d.length > MAX_HISTORY) waveHistory3d.pop();
 
       wave3dAngle += 0.015;
-
-      const centerX = w / 2;
-      const centerY = h * 0.7; // ベースグリッドを下げて見下ろし感を出す
-      const fov = 300;
-
-      // 投影の角度計算：少し上から見下ろす
-      const camRotX = 0.8; // 上から見下ろす角度（少し強め）
-      const camRotY = Math.sin(wave3dAngle) * 0.05; // 正面ベースのわずかな揺らぎ
-
-      // 3D座標から2Dキャンバス座標への投影関数
-      function project(x, y, z) {
-        // Y軸回転（左右のアングル）
-        let x1 = x * Math.cos(camRotY) - z * Math.sin(camRotY);
-        let z1 = x * Math.sin(camRotY) + z * Math.cos(camRotY);
-        
-        // X軸回転（上下の見下ろし）
-        let y1 = y * Math.cos(camRotX) - z1 * Math.sin(camRotX);
-        let z2 = y * Math.sin(camRotX) + z1 * Math.cos(camRotX);
-        
-        const scale = fov / (fov + z2 + 100);
-        return {
-          x: centerX + x1 * scale,
-          y: centerY - y1 * scale, // y1を引くことで正の値が上に向かう
-          scale: scale
-        };
-      }
-
       const numPoints = 64;
 
+      // 上から見下ろす俯瞰（アイソメトリック風）の表現
       for (let zIdx = waveHistory3d.length - 1; zIdx >= 0; zIdx--) {
         const frame = waveHistory3d[zIdx];
-        const alpha = Math.pow(1 - zIdx / waveHistory3d.length, 1.8);
+        const progress = zIdx / (MAX_HISTORY - 1);
         
-        // 曲が右から左に流れるようにマッピングする
-        // zIdx=0(最新) が右側、zIdx=最大(過去) が左側へ
-        const histX = (waveHistory3d.length / 2 - zIdx) * 22;
-
-        const pts = [];
-        for (let i = 0; i < numPoints; i++) {
-          // 周波数帯域をZ軸（奥行き）にマッピング
-          const freqZ = (i - numPoints / 2.5) * 10;
-          const valY = frame[i] * 0.6; // 振幅
-          pts.push(project(histX, valY, freqZ));
-        }
-
+        // 時間経過による履歴の移動：右（新しい）から左（古い）へ
+        const baseX = w * (0.95 - progress * 0.9);
+        
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length - 1; i++) {
-          const xc = (pts[i].x + pts[i + 1].x) / 2;
-          const yc = (pts[i].y + pts[i + 1].y) / 2;
-          ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
-        }
-        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+        for (let i = 0; i < numPoints; i++) {
+          const iProgress = i / (numPoints - 1);
+          
+          // 周波数成分の展開：手前（下）から奥（上）へ
+          const baseY = h * 0.85 - iProgress * h * 0.7;
+          
+          // 振幅（高さ）を見下ろす視点で表現するため、上と左にずらして立体感を出す
+          const val = frame[i] * 0.35;
+          const px = baseX - val * 0.4;
+          const py = baseY - val * 0.7;
 
-        const hue = (280 + zIdx * 6 + wave3dAngle * 20) % 360;
+          if (i === 0) ctx.moveTo(px, py);
+          else {
+            const prevProgress = (i - 1) / (numPoints - 1);
+            const prevBaseY = h * 0.85 - prevProgress * h * 0.7;
+            const prevVal = frame[i-1] * 0.35;
+            const prevPx = baseX - prevVal * 0.4;
+            const prevPy = prevBaseY - prevVal * 0.7;
+            
+            const cx = (prevPx + px) / 2;
+            const cy = (prevPy + py) / 2;
+            ctx.quadraticCurveTo(prevPx, prevPy, cx, cy);
+          }
+        }
+        
+        const alpha = Math.pow(1 - progress, 1.2);
+        const hue = (280 + zIdx * 5 + wave3dAngle * 30) % 360;
         ctx.strokeStyle = `hsla(${hue}, 85%, 60%, ${alpha})`;
-        ctx.lineWidth = Math.max(1, 2.5 * pts[0].scale);
-        ctx.shadowBlur = zIdx === 0 ? 12 : 0; // 最新フレームのみ発光
-        ctx.shadowColor = `hsla(${hue}, 85%, 60%, 0.8)`;
+        ctx.lineWidth = 2;
         ctx.stroke();
 
-        // フレーム間を繋ぐグリッド線を描画
+        // 縦糸（時間方向への線）を描画してワイヤーフレーム感を強化
         if (zIdx < waveHistory3d.length - 1 && zIdx % 2 === 0) {
           const nextFrame = waveHistory3d[zIdx + 1];
-          const nextHistX = (waveHistory3d.length / 2 - (zIdx + 1)) * 22;
+          const nextProgress = (zIdx + 1) / (MAX_HISTORY - 1);
+          const nextBaseX = w * (0.95 - nextProgress * 0.9);
           
           ctx.beginPath();
-          ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${alpha * 0.25})`;
+          ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${alpha * 0.3})`;
           ctx.lineWidth = 1;
+          
           for (let i = 0; i < numPoints; i += 4) {
-            const freqZ = (i - numPoints / 2.5) * 10;
-            const p1 = project(histX, frame[i] * 0.6, freqZ);
-            const p2 = project(nextHistX, nextFrame[i] * 0.6, freqZ);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+            const iProgress = i / (numPoints - 1);
+            const baseY = h * 0.85 - iProgress * h * 0.7;
+            
+            const val = frame[i] * 0.35;
+            const px1 = baseX - val * 0.4;
+            const py1 = baseY - val * 0.7;
+            
+            const nextVal = nextFrame[i] * 0.35;
+            const px2 = nextBaseX - nextVal * 0.4;
+            const py2 = baseY - nextVal * 0.7;
+            
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
           }
           ctx.stroke();
         }
       }
-      ctx.shadowBlur = 0;
-
     } else {
       const len = analyserData ? analyserData.length : 64;
       const barWidth = (w / len) * 1.8;
@@ -1698,6 +1689,7 @@
     el.btnMainRepeat.classList.toggle("active", state.repeat);
     if (el.shuffleState) el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
     
+    // クロスフェード・無音スキップの表示同期
     if (el.btnCrossfade) {
       el.btnCrossfade.classList.toggle("active", state.crossfade);
       el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
@@ -1921,6 +1913,7 @@
     }
   });
 
+  /* スリープタイマーカウントダウン＆設定処理 */
   function startSleepTimerCountdown() {
     if (sleepIntervalId) clearInterval(sleepIntervalId);
     sleepIntervalId = setInterval(() => {
