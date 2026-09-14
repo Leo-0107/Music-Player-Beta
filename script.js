@@ -1443,22 +1443,19 @@
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const cw = canvas.clientWidth || canvas.width || 1;
-    const ch = canvas.clientHeight || canvas.height || 1;
-    if (canvas.width !== cw || canvas.height !== ch) {
-      canvas.width = cw;
-      canvas.height = ch;
+    const w = canvas.clientWidth || canvas.width || 1;
+    const h = canvas.clientHeight || canvas.height || 1;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
     }
 
-    const w = canvas.width;
-    const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // 実際の音声の時間波形を保存。
-    // 停止中は更新しないので、波形はその場に残り、動きもしない。
-    if (!drawWaveform._timeData || drawWaveform._timeData.length !== (analyser?.fftSize || 256)) {
-      drawWaveform._timeData = new Uint8Array(analyser?.fftSize || 256);
-      drawWaveform._lastTimeData = new Uint8Array(analyser?.fftSize || 256);
+    const fftSize = analyser?.fftSize || 256;
+    if (!drawWaveform._timeData || drawWaveform._timeData.length !== fftSize) {
+      drawWaveform._timeData = new Uint8Array(fftSize);
+      drawWaveform._lastTimeData = new Uint8Array(fftSize);
     }
 
     const timeData = drawWaveform._timeData;
@@ -1481,11 +1478,10 @@
       }
     }
 
-    // 2Dモードは元の表示を維持
+    // 2D modeは元の表示を維持
     if (state.waveMode !== "3d") {
       const len = analyserData ? analyserData.length : 64;
       if (playing && analyserData) analyser.getByteFrequencyData(analyserData);
-
       const barWidth = (w / len) * 1.8;
       let x = 0;
       for (let i = 0; i < len; i++) {
@@ -1504,14 +1500,13 @@
       return;
     }
 
-    // 再生中だけ左→右へ進む。
-    // 停止するとこの値を一切進めないので、波形が静止する。
+    // 「動く」のは音が鳴っている間だけ。停止中は完全にその場で止める。
     if (playing) {
       const now = performance.now();
       if (drawWaveform._lastFrame == null) drawWaveform._lastFrame = now;
       const dt = Math.min(40, now - drawWaveform._lastFrame);
       drawWaveform._lastFrame = now;
-      drawWaveform._flow += dt * 0.075;
+      drawWaveform._flow = (drawWaveform._flow || 0) + dt * 0.11;
     } else {
       drawWaveform._lastFrame = performance.now();
     }
@@ -1519,13 +1514,13 @@
     const flow = drawWaveform._flow || 0;
     const samples = lastTimeData.length;
 
-    // 約12本。奥の線も画面内に完全に収める。
-    const lines = 12;
-    const topY = h * 0.18;
-    const bottomY = h * 0.80;
-    const lineGap = (bottomY - topY) / (lines - 1);
+    // 奥行きは「上→下」に見せるだけにして、動きは絶対に奥行き方向へ付けない。
+    // これで波の移動方向は画面上の左→右だけになる。
+    const lines = 13;
+    const topY = h * 0.16;
+    const bottomY = h * 0.84;
+    const gap = (bottomY - topY) / (lines - 1);
 
-    // 音量（FFT）は高さ・発光量にだけ使用。
     let volume = 0;
     if (analyserData) {
       if (playing) analyser.getByteFrequencyData(analyserData);
@@ -1533,7 +1528,6 @@
       volume /= Math.max(1, analyserData.length * 255);
     }
 
-    // 周波数に応じた赤→橙→黄→緑→シアン→青。
     function hueAt(xNorm) {
       return 5 + xNorm * 215;
     }
@@ -1543,46 +1537,45 @@
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
+    // 各ラインは同じ「現在の音」を基準にし、奥行きによる時間ずらしはしない。
+    // そのため全ラインが同じ左→右方向の動きをする。
     for (let line = lines - 1; line >= 0; line--) {
       const depth = line / (lines - 1);
-
-      // 奥ほど少し細く・薄くするが、見切れない範囲に固定。
       const baseY = topY + depth * (bottomY - topY);
-      const ampScale = (0.55 + volume * 1.8) * (1.0 - depth * 0.10);
-      const lineSpeed = 1.0 + line * 0.035;
+      const depthScale = 1.0 - depth * 0.12;
+      const ampScale = (0.85 + volume * 1.4) * depthScale;
 
       ctx.beginPath();
 
       for (let i = 0; i < samples; i++) {
-        const xNorm = i / (samples - 1);
+        const xBase = i / (samples - 1);
 
-        // 実際の音声時間波形をそのまま使い、
-        // サンプル位置だけを時間とともに左→右へ流す。
-        // 各奥行きは少しずつ異なる遅延なので、独立した流れに見える。
-        const offset = Math.floor(
-          flow * lineSpeed + line * samples * 0.045
-        );
-        const idx = (i + offset) % samples;
+        // 波形そのものを左から右へ移動させる。
+        // ラインごとの奥行きオフセットはなく、方向感を一定にする。
+        const shifted = xBase - (flow / w);
+        const wrapped = ((shifted % 1) + 1) % 1;
+        const idx = Math.min(samples - 1, Math.floor(wrapped * (samples - 1)));
         const raw = (lastTimeData[idx] - 128) / 128;
 
-        // 左→右方向の波形。中央を基準に音声そのものの振幅を表示。
-        const waveAmp = raw * h * 0.20 * ampScale;
-
-        // 奥行きによる軽い立体感。ただし上下に大きく傾けず、奥まで見える。
-        const perspective = 1.0 - depth * 0.12;
-        const x = i * (w / (samples - 1));
-        const y = baseY - waveAmp * perspective;
+        const x = xBase * w;
+        const y = baseY - raw * h * 0.24 * ampScale;
 
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
 
-      const hue = hueAt(depth);
-      const alpha = 0.42 + (1 - depth) * 0.38;
-      ctx.strokeStyle = `hsla(${hue}, 95%, 62%, ${alpha})`;
-      ctx.lineWidth = 1.2 + (1 - depth) * 0.8;
-      ctx.shadowColor = `hsl(${hue}, 100%, 55%)`;
-      ctx.shadowBlur = 5 + volume * 10;
+      // 左→右に赤→橙→黄→緑→シアン→青の色が進む。
+      const grad = ctx.createLinearGradient(0, 0, w, 0);
+      grad.addColorStop(0, "hsla(5, 95%, 62%, 0.85)");
+      grad.addColorStop(0.2, "hsla(35, 95%, 62%, 0.82)");
+      grad.addColorStop(0.4, "hsla(60, 95%, 62%, 0.80)");
+      grad.addColorStop(0.6, "hsla(125, 95%, 62%, 0.78)");
+      grad.addColorStop(0.8, "hsla(175, 95%, 62%, 0.75)");
+      grad.addColorStop(1, "hsla(220, 95%, 62%, 0.72)");
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.1 + (1 - depth) * 1.0;
+      ctx.shadowColor = `hsla(${hueAt(0.45)}, 100%, 60%, 0.8)`;
+      ctx.shadowBlur = 4 + volume * 8;
       ctx.stroke();
     }
 
