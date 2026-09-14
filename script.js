@@ -1,4 +1,4 @@
-// 3. script.js
+// script.js
 (() => {
   const STORAGE = {
     favorites: "mp_favs_v12",
@@ -1432,7 +1432,7 @@
     renderSongList();
   });
 
-  // 波形描画ロジックの修正
+  // 波形描画ロジック（画像スタイルの発光ネオン3Dメッシュ・リボン）
   function drawWaveform() {
     requestAnimationFrame(drawWaveform);
 
@@ -1467,82 +1467,61 @@
     }
 
     if (state.waveMode === "3d") {
-      const currentFrame = analyserData ? Array.from(analyserData.subarray(0, 64)) : new Array(64).fill(0);
-      waveHistory3d.unshift(currentFrame);
-      const MAX_HISTORY = 40;
-      if (waveHistory3d.length > MAX_HISTORY) waveHistory3d.pop();
+      wave3dAngle += 0.02;
+      const numStrands = 22;
+      const points = 100;
+      const centerY = h / 2;
+      const dataLen = analyserData ? analyserData.length : 64;
 
-      wave3dAngle += 0.015;
-      const numPoints = 64;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
 
-      // 上から見下ろす俯瞰（アイソメトリック風）の表現
-      for (let zIdx = waveHistory3d.length - 1; zIdx >= 0; zIdx--) {
-        const frame = waveHistory3d[zIdx];
-        const progress = zIdx / (MAX_HISTORY - 1);
-        
-        // 時間経過による履歴の移動：右（新しい）から左（古い）へ
-        const baseX = w * (0.95 - progress * 0.9);
+      for (let s = 0; s < numStrands; s++) {
+        const strandRatio = s / (numStrands - 1);
+        const offsetVal = (strandRatio - 0.5) * 2;
         
         ctx.beginPath();
-        for (let i = 0; i < numPoints; i++) {
-          const iProgress = i / (numPoints - 1);
+        for (let i = 0; i < points; i++) {
+          const normX = i / (points - 1);
+          const px = normX * w;
           
-          // 周波数成分の展開：手前（下）から奥（上）へ
-          const baseY = h * 0.85 - iProgress * h * 0.7;
-          
-          // 振幅（高さ）を見下ろす視点で表現するため、上と左にずらして立体感を出す
-          const val = frame[i] * 0.35;
-          const px = baseX - val * 0.4;
-          const py = baseY - val * 0.7;
+          const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
+          const rawAmp = analyserData ? analyserData[freqIdx] / 255 : 0.05;
 
-          if (i === 0) ctx.moveTo(px, py);
-          else {
-            const prevProgress = (i - 1) / (numPoints - 1);
-            const prevBaseY = h * 0.85 - prevProgress * h * 0.7;
-            const prevVal = frame[i-1] * 0.35;
-            const prevPx = baseX - prevVal * 0.4;
-            const prevPy = prevBaseY - prevVal * 0.7;
-            
-            const cx = (prevPx + px) / 2;
-            const cy = (prevPy + py) / 2;
-            ctx.quadraticCurveTo(prevPx, prevPy, cx, cy);
+          // 画像同様、左右両端がなだらかに収束するエンベロープ
+          const envelope = Math.sin(normX * Math.PI);
+          
+          // 複合サイン波で有機的な曲線を再現
+          const wave1 = Math.sin(normX * Math.PI * 3.5 + wave3dAngle) * 18;
+          const wave2 = Math.cos(normX * Math.PI * 6.5 - wave3dAngle * 1.2) * 8;
+          
+          // 音声レベルに応じたダイナミックな振幅
+          const audioDisplacement = (rawAmp * h * 0.38 + 5) * Math.sin(normX * Math.PI * 2.5 + wave3dAngle * 0.8);
+          
+          // 立体層（3Dリボン）の交差・広がり
+          const strandSpread = offsetVal * (18 + rawAmp * 45) * Math.sin(normX * Math.PI * 2.8 + offsetVal * 0.5);
+          
+          const py = centerY + (wave1 + wave2 + audioDisplacement + strandSpread) * envelope;
+
+          if (i === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
           }
         }
-        
-        const alpha = Math.pow(1 - progress, 1.2);
-        const hue = (280 + zIdx * 5 + wave3dAngle * 30) % 360;
-        ctx.strokeStyle = `hsla(${hue}, 85%, 60%, ${alpha})`;
-        ctx.lineWidth = 2;
+
+        // 画像に合わせたネオンブルー〜パープル〜マゼンタのグラデーション発光
+        const hue = 220 + strandRatio * 70;
+        const lightness = 55 + Math.abs(offsetVal) * 15;
+        const alpha = 0.45 + (1 - Math.abs(offsetVal)) * 0.45;
+
+        ctx.strokeStyle = `hsla(${hue}, 95%, ${lightness}%, ${alpha})`;
+        ctx.lineWidth = 1.6;
+        ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+        ctx.shadowBlur = 10;
         ctx.stroke();
-
-        // 縦糸（時間方向への線）を描画してワイヤーフレーム感を強化
-        if (zIdx < waveHistory3d.length - 1 && zIdx % 2 === 0) {
-          const nextFrame = waveHistory3d[zIdx + 1];
-          const nextProgress = (zIdx + 1) / (MAX_HISTORY - 1);
-          const nextBaseX = w * (0.95 - nextProgress * 0.9);
-          
-          ctx.beginPath();
-          ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${alpha * 0.3})`;
-          ctx.lineWidth = 1;
-          
-          for (let i = 0; i < numPoints; i += 4) {
-            const iProgress = i / (numPoints - 1);
-            const baseY = h * 0.85 - iProgress * h * 0.7;
-            
-            const val = frame[i] * 0.35;
-            const px1 = baseX - val * 0.4;
-            const py1 = baseY - val * 0.7;
-            
-            const nextVal = nextFrame[i] * 0.35;
-            const px2 = nextBaseX - nextVal * 0.4;
-            const py2 = baseY - nextVal * 0.7;
-            
-            ctx.moveTo(px1, py1);
-            ctx.lineTo(px2, py2);
-          }
-          ctx.stroke();
-        }
       }
+      ctx.restore();
     } else {
       const len = analyserData ? analyserData.length : 64;
       const barWidth = (w / len) * 1.8;
@@ -1689,7 +1668,6 @@
     el.btnMainRepeat.classList.toggle("active", state.repeat);
     if (el.shuffleState) el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
     
-    // クロスフェード・無音スキップの表示同期
     if (el.btnCrossfade) {
       el.btnCrossfade.classList.toggle("active", state.crossfade);
       el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
@@ -1913,7 +1891,6 @@
     }
   });
 
-  /* スリープタイマーカウントダウン＆設定処理 */
   function startSleepTimerCountdown() {
     if (sleepIntervalId) clearInterval(sleepIntervalId);
     sleepIntervalId = setInterval(() => {
