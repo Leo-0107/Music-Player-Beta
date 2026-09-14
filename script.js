@@ -1473,79 +1473,61 @@
       wave3dAngle += 0.015;
 
       const centerX = w / 2;
-      const centerY = h * 0.7; // ベースグリッドを下げて見下ろし感を出す
-      const fov = 300;
-
-      // 投影の角度計算：右側から見下ろす
-      const camRotX = 0.6; // 上から見下ろす角度
-      const camRotY = -0.5 + Math.sin(wave3dAngle) * 0.05; // 右側からのアングル + わずかな揺らぎ
-
-      // 3D座標から2Dキャンバス座標への投影関数
-      function project(x, y, z) {
-        // Y軸回転（左右のアングル）
-        let x1 = x * Math.cos(camRotY) - z * Math.sin(camRotY);
-        let z1 = x * Math.sin(camRotY) + z * Math.cos(camRotY);
-        
-        // X軸回転（上下の見下ろし）
-        let y1 = y * Math.cos(camRotX) - z1 * Math.sin(camRotX);
-        let z2 = y * Math.sin(camRotX) + z1 * Math.cos(camRotX);
-        
-        const scale = fov / (fov + z2 + 100);
-        return {
-          x: centerX + x1 * scale,
-          y: centerY - y1 * scale, // y1を引くことで正の値が上に向かう
-          scale: scale
-        };
-      }
-
-      const numPoints = 64;
+      const centerY = h * 0.45;
+      const fov = 180;
 
       for (let zIdx = waveHistory3d.length - 1; zIdx >= 0; zIdx--) {
         const frame = waveHistory3d[zIdx];
-        const alpha = Math.pow(1 - zIdx / waveHistory3d.length, 1.8);
+        const z = (zIdx + 1) * 14; 
+        const scale = fov / (fov + z);
         
-        // 曲が左から右に流れるように、時間軸（zIdx）をX軸の移動にマッピングする
-        // zIdx=0(最新) が左側、zIdx=最大(過去) が右側へ
-        const histX = (zIdx - waveHistory3d.length / 2) * 22;
-
-        const pts = [];
-        for (let i = 0; i < numPoints; i++) {
-          // 周波数帯域をZ軸（奥行き）にマッピング
-          const freqZ = (i - numPoints / 2.5) * 10;
-          const valY = frame[i] * 0.6; // 振幅
-          pts.push(project(histX, valY, freqZ));
-        }
+        const alpha = Math.pow(1 - zIdx / waveHistory3d.length, 1.8);
+        const yOffset = centerY + (zIdx * 3.2);
 
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length - 1; i++) {
-          const xc = (pts[i].x + pts[i + 1].x) / 2;
-          const yc = (pts[i].y + pts[i + 1].y) / 2;
-          ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+        const numPoints = frame.length;
+        const totalWidth = w * 1.2 * scale;
+        const startX = centerX - totalWidth / 2;
+
+        for (let i = 0; i < numPoints; i++) {
+          const val = frame[i] * scale * 0.45;
+          const px = startX + (i / (numPoints - 1)) * totalWidth;
+          const py = yOffset - val;
+
+          if (i === 0) ctx.moveTo(px, py);
+          else {
+            const prevPx = startX + ((i - 1) / (numPoints - 1)) * totalWidth;
+            const cx = (prevPx + px) / 2;
+            ctx.quadraticCurveTo(prevPx, yOffset - frame[i-1]*scale*0.45, cx, py);
+          }
         }
-        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
         const hue = (280 + zIdx * 6 + wave3dAngle * 20) % 360;
         ctx.strokeStyle = `hsla(${hue}, 85%, 60%, ${alpha})`;
-        ctx.lineWidth = Math.max(1, 2.5 * pts[0].scale);
-        ctx.shadowBlur = zIdx === 0 ? 12 : 0; // 最新フレームのみ発光
+        ctx.lineWidth = Math.max(1, 2.5 * scale);
+        ctx.shadowBlur = zIdx === 0 ? 12 : 0;
         ctx.shadowColor = `hsla(${hue}, 85%, 60%, 0.8)`;
         ctx.stroke();
 
-        // フレーム間を繋ぐグリッド線を描画
         if (zIdx < waveHistory3d.length - 1 && zIdx % 2 === 0) {
           const nextFrame = waveHistory3d[zIdx + 1];
-          const nextHistX = (zIdx + 1 - waveHistory3d.length / 2) * 22;
-          
+          const nextZ = (zIdx + 2) * 14;
+          const nextScale = fov / (fov + nextZ);
+          const nextYOffset = centerY + ((zIdx + 1) * 3.2);
+          const nextTotalWidth = w * 1.2 * nextScale;
+          const nextStartX = centerX - nextTotalWidth / 2;
+
           ctx.beginPath();
           ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${alpha * 0.25})`;
           ctx.lineWidth = 1;
           for (let i = 0; i < numPoints; i += 4) {
-            const freqZ = (i - numPoints / 2.5) * 10;
-            const p1 = project(histX, frame[i] * 0.6, freqZ);
-            const p2 = project(nextHistX, nextFrame[i] * 0.6, freqZ);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+            const px1 = startX + (i / (numPoints - 1)) * totalWidth;
+            const py1 = yOffset - frame[i] * scale * 0.45;
+            const px2 = nextStartX + (i / (numPoints - 1)) * nextTotalWidth;
+            const py2 = nextYOffset - nextFrame[i] * nextScale * 0.45;
+
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
           }
           ctx.stroke();
         }
@@ -1698,6 +1680,7 @@
     el.btnMainRepeat.classList.toggle("active", state.repeat);
     if (el.shuffleState) el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
     
+    // クロスフェード・無音スキップの表示同期
     if (el.btnCrossfade) {
       el.btnCrossfade.classList.toggle("active", state.crossfade);
       el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
@@ -1921,6 +1904,7 @@
     }
   });
 
+  /* スリープタイマーカウントダウン＆設定処理 */
   function startSleepTimerCountdown() {
     if (sleepIntervalId) clearInterval(sleepIntervalId);
     sleepIntervalId = setInterval(() => {
