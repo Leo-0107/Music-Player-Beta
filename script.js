@@ -147,8 +147,6 @@
   let currentVolumeTarget = 1.0;
   let eqAnimId = null;
   let wakeLock = null;
-  let wave3dAngle = 0;
-  let waveHistory3d = [];
   
   // 3D波形の順次減衰・スムーズ化用変数
   let smoothAmp = new Float32Array(90);
@@ -1436,7 +1434,7 @@
     renderSongList();
   });
 
-  // 波形描画ロジック（画像スタイルの発光ネオン3Dメッシュ・リボン）
+  // 波形描画ロジック（画像スタイルの多色グラデーション＋鋭いスパイク＋立体ワイヤーフレームメッシュ＋反射）
   function drawWaveform() {
     requestAnimationFrame(drawWaveform);
 
@@ -1471,89 +1469,155 @@
     }
 
     if (state.waveMode === "3d") {
-      const numStrands = 12; // 本数を24から半分（12本）に変更
-      const points = 90;
       const dataLen = analyserData ? analyserData.length : 64;
+      const cols = 90;
 
-      // 音が止まった時に左から順に真っ直ぐにする進行度の更新
+      // 停止時の進行フェードアウト
       if (audio.paused) {
         stopProgress = Math.min(1.5, stopProgress + 0.02);
       } else {
         stopProgress = 0;
       }
 
-      // 3D波形を平面と見た時 -20°の場所にカメラを移動（ピッチ角 -20度）
-      const pitch = -20 * (Math.PI / 180);
-      const cosPitch = Math.cos(pitch);
-      const sinPitch = Math.sin(pitch);
-      const fov = 380;
-
-      // 音が流れている時のみ波を動かす
-      const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.5;
-
-      // 各ポイントの音量（音の大小）と周波数（音の高低：左＝低音〜右＝高音）に対応する振幅計算
-      for (let i = 0; i < points; i++) {
-        const normX = i / (points - 1); // 横軸：低音から高音への対応
+      // 各周波数帯の振幅スムーズ化
+      for (let i = 0; i < cols; i++) {
+        const normX = i / (cols - 1);
         const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
         let targetAmp = (analyserData && !audio.paused) ? analyserData[freqIdx] / 255 : 0;
 
-        // 左(0)から右(1)にかけて順次真っ直ぐ（振幅0）にするフェードワイプ
         const fadeFactor = Math.max(0, Math.min(1, (normX - (stopProgress - 0.3)) / 0.3));
         targetAmp *= fadeFactor;
 
         smoothAmp[i] += (targetAmp - smoothAmp[i]) * 0.2;
       }
 
+      const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.0;
+      const rows = 12; // Z軸奥行きのメッシュグリッド数
+      const horizonY = h * 0.58; // 3Dメッシュの中心基準線
+      const reflectY = horizonY;
+
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
-      for (let s = 0; s < numStrands; s++) {
-        const strandRatio = s / (numStrands - 1);
-        const offsetVal = (strandRatio - 0.5) * 2;
+      // 画像の配色パターン（左：赤/橙(H15) -> 中央左：黄(H50) -> 中央右：緑(H130) -> 右：シアン/青(H215)）
+      function getHue(normX) {
+        return 15 + normX * 200;
+      }
+
+      // 1. 背後の鋭い垂直スパイク群（Vertical Sharp Spikes）
+      for (let i = 0; i < cols; i += 2) {
+        const normX = i / (cols - 1);
+        const amp = smoothAmp[i];
+        if (amp < 0.01) continue;
+
+        const x = normX * w;
+        const spikeHeight = amp * h * 0.58;
+        const hue = getHue(normX);
+
+        ctx.beginPath();
+        ctx.moveTo(x, horizonY);
+        ctx.lineTo(x, horizonY - spikeHeight);
+        ctx.strokeStyle = `hsla(${hue}, 90%, 60%, ${0.25 + amp * 0.55})`;
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+
+        if (amp > 0.25 && i % 4 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(x, horizonY - spikeHeight);
+          ctx.lineTo(x, horizonY - spikeHeight - amp * 45);
+          ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${amp * 0.85})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      // 3D透視投影計算
+      const fov = 320;
+      const pitch = -16 * (Math.PI / 180);
+      const cosP = Math.cos(pitch);
+      const sinP = Math.sin(pitch);
+
+      function project3D(normX, normZ, amp) {
+        const x3d = (normX - 0.5) * w * 1.1;
+        const z3d = normZ * 210 + 35;
+        
+        const wave = Math.sin(normX * Math.PI * 6 + normZ * 4.5 - wavePhase) * (8 + amp * 22) +
+                     Math.cos(normX * Math.PI * 3.5 - normZ * 2.5 + wavePhase * 0.8) * (5 + amp * 16);
+        
+        const y3d = (wave - amp * 75 * Math.sin(normZ * Math.PI)) * Math.sin(normX * Math.PI);
+
+        const yRot = y3d * cosP - z3d * sinP;
+        const zRot = y3d * sinP + z3d * cosP;
+
+        const scale = fov / (fov + zRot + 180);
+        const px = w / 2 + x3d * scale;
+        const py = horizonY - yRot * scale;
+
+        return { x: px, y: py, scale };
+      }
+
+      // 2. 3Dワイヤーフレームメッシュ（横方向ライン）
+      const gridPoints = [];
+      for (let r = 0; r < rows; r++) {
+        const normZ = r / (rows - 1);
+        const rowPoints = [];
         
         ctx.beginPath();
-        for (let i = 0; i < points; i++) {
-          const normX = i / (points - 1);
-          const currentAmp = smoothAmp[i];
+        for (let i = 0; i < cols; i++) {
+          const normX = i / (cols - 1);
+          const amp = smoothAmp[i];
+          const pt = project3D(normX, normZ, amp);
+          rowPoints.push(pt);
 
-          const envelope = Math.sin(normX * Math.PI);
-          
-          // 音の大小（振幅/音量）と高低（周波数帯域）に対応した変調計算
-          const wave1 = audio.paused ? 0 : Math.sin(normX * Math.PI * 4.0 + wavePhase) * (15 + currentAmp * 25);
-          const wave2 = audio.paused ? 0 : Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * (6 + currentAmp * 15);
-          const audioDisplacement = (currentAmp * h * 0.4) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
-          const strandSpread = offsetVal * (22 + currentAmp * 45) * Math.sin(normX * Math.PI * 2.5 + offsetVal * 0.5);
-          
-          // 3D空間座標（X: 左〜右[低音〜高音], Y: 高さ[音量], Z: 奥行き[リボン幅]）
-          const x3d = (normX - 0.5) * w * 0.95;
-          const y3d = (wave1 + wave2 + audioDisplacement) * envelope;
-          const z3d = offsetVal * 150 + strandSpread;
-
-          // -20度見上げる/見下ろす視角計算（Y-Z軸の回転）
-          const yRot = y3d * cosPitch - z3d * sinPitch;
-          const zRot = y3d * sinPitch + z3d * cosPitch;
-
-          const perspective = fov / (fov + zRot + 250);
-          const px = w / 2 + x3d * perspective;
-          const py = h / 2 - yRot * perspective;
-
-          if (i === 0) {
-            ctx.moveTo(px, py);
-          } else {
-            ctx.lineTo(px, py);
-          }
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
         }
+        gridPoints.push(rowPoints);
 
-        const hue = 220 + strandRatio * 70;
-        const lightness = 55 + Math.abs(offsetVal) * 15;
-        const alpha = 0.45 + (1 - Math.abs(offsetVal)) * 0.45;
-
-        ctx.strokeStyle = `hsla(${hue}, 95%, ${lightness}%, ${alpha})`;
-        ctx.lineWidth = 1.6;
-        ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
-        ctx.shadowBlur = 10;
+        const hue = getHue(r / rows);
+        const alpha = 0.3 + (1 - normZ) * 0.5;
+        ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${alpha})`;
+        ctx.lineWidth = 1 + (1 - normZ) * 0.8;
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowBlur = 6;
         ctx.stroke();
       }
+
+      // 3. 3Dワイヤーフレームメッシュ（縦方向グリッドライン）
+      for (let i = 0; i < cols; i += 2) {
+        const normX = i / (cols - 1);
+        const hue = getHue(normX);
+        
+        ctx.beginPath();
+        for (let r = 0; r < rows; r++) {
+          const pt = gridPoints[r][i];
+          if (r === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.strokeStyle = `hsla(${hue}, 80%, 50%, 0.28)`;
+        ctx.lineWidth = 0.8;
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+      }
+
+      // 4. 水面鏡面反射（Reflection Effect）
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      for (let r = 0; r < rows; r += 2) {
+        ctx.beginPath();
+        for (let i = 0; i < cols; i++) {
+          const pt = gridPoints[r][i];
+          const reflY = reflectY + (reflectY - pt.y) * 0.65;
+          if (i === 0) ctx.moveTo(pt.x, reflY);
+          else ctx.lineTo(pt.x, reflY);
+        }
+        const normX = r / rows;
+        ctx.strokeStyle = `hsla(${getHue(normX)}, 80%, 50%, 0.3)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+
       ctx.restore();
     } else {
       const len = analyserData ? analyserData.length : 64;
