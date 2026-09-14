@@ -1476,9 +1476,9 @@
       const centerY = h * 0.7; // ベースグリッドを下げて見下ろし感を出す
       const fov = 300;
 
-      // 投影の角度計算：右側から見下ろす
-      const camRotX = 0.6; // 上から見下ろす角度
-      const camRotY = -0.5 + Math.sin(wave3dAngle) * 0.05; // 右側からのアングル + わずかな揺らぎ
+      // 投影の角度計算：少し上から見下ろす
+      const camRotX = 0.8; // 上から見下ろす角度（少し強め）
+      const camRotY = Math.sin(wave3dAngle) * 0.05; // 正面ベースのわずかな揺らぎ
 
       // 3D座標から2Dキャンバス座標への投影関数
       function project(x, y, z) {
@@ -1504,9 +1504,9 @@
         const frame = waveHistory3d[zIdx];
         const alpha = Math.pow(1 - zIdx / waveHistory3d.length, 1.8);
         
-        // 曲が左から右に流れるように、時間軸（zIdx）をX軸の移動にマッピングする
-        // zIdx=0(最新) が左側、zIdx=最大(過去) が右側へ
-        const histX = (zIdx - waveHistory3d.length / 2) * 22;
+        // 曲が右から左に流れるようにマッピングする
+        // zIdx=0(最新) が右側、zIdx=最大(過去) が左側へ
+        const histX = (waveHistory3d.length / 2 - zIdx) * 22;
 
         const pts = [];
         for (let i = 0; i < numPoints; i++) {
@@ -1535,7 +1535,7 @@
         // フレーム間を繋ぐグリッド線を描画
         if (zIdx < waveHistory3d.length - 1 && zIdx % 2 === 0) {
           const nextFrame = waveHistory3d[zIdx + 1];
-          const nextHistX = (zIdx + 1 - waveHistory3d.length / 2) * 22;
+          const nextHistX = (waveHistory3d.length / 2 - (zIdx + 1)) * 22;
           
           ctx.beginPath();
           ctx.strokeStyle = `hsla(${hue}, 70%, 50%, ${alpha * 0.25})`;
