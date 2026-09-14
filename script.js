@@ -1634,11 +1634,27 @@
       ctx.restore();
     } else {
       const len = analyserData ? analyserData.length : 64;
+      if (!drawWaveform._smooth2d || drawWaveform._smooth2d.length !== len) {
+        drawWaveform._smooth2d = new Float32Array(len);
+      }
+      const smooth2d = drawWaveform._smooth2d;
+
+      // 2D波形：音量の低下や停止時に滑らかにバーが減少するイージング処理
+      for (let i = 0; i < len; i++) {
+        const target = (playing && analyserData) ? analyserData[i] : 0;
+        if (target > smooth2d[i]) {
+          smooth2d[i] += (target - smooth2d[i]) * 0.35;
+        } else {
+          smooth2d[i] += (target - smooth2d[i]) * 0.15;
+        }
+        if (!playing && smooth2d[i] < 0.1) smooth2d[i] = 0;
+      }
+
       const barWidth = (w / len) * 1.8;
       let x = 0;
 
       for (let i = 0; i < len; i++) {
-        const v = analyserData ? analyserData[i] : 0;
+        const v = smooth2d[i];
         const barHeight = (v / 255) * h * 0.85;
 
         const grad = ctx.createLinearGradient(0, h, 0, 0);
