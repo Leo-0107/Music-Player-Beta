@@ -147,6 +147,10 @@
   let currentVolumeTarget = 1.0;
   let eqAnimId = null;
   let wakeLock = null;
+  
+  // 3D波形の順次減衰・スムーズ化用変数
+  let smoothAmp = new Float32Array(90);
+  let stopProgress = 1.0;
 
   const historyStack = [];
   let historyIndex = -1;
@@ -1430,7 +1434,7 @@
     renderSongList();
   });
 
-  // 波形描画ロジック（軽量3D：左から右に流れる独立した12本の波形ライン＆遠近感・停止時緩やか減衰）
+  // 波形描画ロジック（画像スタイルの多色グラデーション＋鋭いスパイク＋立体ワイヤーフレームメッシュ＋反射）
   function drawWaveform() {
     requestAnimationFrame(drawWaveform);
 
@@ -1439,8 +1443,8 @@
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const cw = Math.max(1, Math.floor(canvas.clientWidth || canvas.width || 1));
-    const ch = Math.max(1, Math.floor(canvas.clientHeight || canvas.height || 1));
+    const cw = canvas.clientWidth || canvas.width || 1;
+    const ch = canvas.clientHeight || canvas.height || 1;
     if (canvas.width !== cw || canvas.height !== ch) {
       canvas.width = cw;
       canvas.height = ch;
@@ -1450,34 +1454,34 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    if (!drawWaveform._lastSpectrum) {
-      drawWaveform._lastSpectrum = new Uint8Array(analyserData ? analyserData.length : 128);
-    }
-    const lastSpectrum = drawWaveform._lastSpectrum;
+    const playing = analyser && !audio.paused && audio.src;
 
-    if (analyser && !audio.paused && analyserData) {
-      try {
-        analyser.getByteFrequencyData(analyserData);
-        lastSpectrum.set(analyserData);
-        updateSpatialAudio();
+    if (playing) {
+      analyser.getByteFrequencyData(analyserData);
+      updateSpatialAudio();
 
-        if (state.silenceSkip) {
-          let sum = 0;
-          for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
-          const avg = sum / analyserData.length;
-          if (avg < 2 && audio.currentTime > 1 && audio.duration - audio.currentTime > 1.5) {
-            audio.currentTime += 0.5;
-          }
+      if (state.silenceSkip) {
+        let sum = 0;
+        for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+        const avg = sum / analyserData.length;
+        if (avg < 2 && audio.currentTime > 1 && audio.duration - audio.currentTime > 1.5) {
+          audio.currentTime += 0.5;
         }
-      } catch (_) {}
+      }
     }
 
+    // 2Dモードは従来どおり。停止時も最後の状態を少し残してから戻す。
     if (state.waveMode !== "3d") {
       const len = analyserData ? analyserData.length : 64;
+      if (!drawWaveform._last2D) drawWaveform._last2D = new Uint8Array(len);
+      if (drawWaveform._last2D.length !== len) drawWaveform._last2D = new Uint8Array(len);
+      if (playing) drawWaveform._last2D.set(analyserData);
+      else for (let i = 0; i < len; i++) drawWaveform._last2D[i] *= 0.82;
+
       const barWidth = (w / len) * 1.8;
       let x = 0;
       for (let i = 0; i < len; i++) {
-        const v = analyserData ? analyserData[i] : 0;
+        const v = drawWaveform._last2D[i];
         const barHeight = (v / 255) * h * 0.85;
         const grad = ctx.createLinearGradient(0, h, 0, 0);
         grad.addColorStop(0, "rgba(29, 185, 84, 0.2)");
@@ -1485,153 +1489,153 @@
         grad.addColorStop(1, "#38ef7d");
         ctx.fillStyle = grad;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, h - barHeight, Math.max(1, barWidth - 2), barHeight, [4, 4, 0, 0]);
-        else ctx.rect(x, h - barHeight, Math.max(1, barWidth - 2), barHeight);
+        ctx.roundRect(x, h - barHeight, barWidth - 2, barHeight, [4, 4, 0, 0]);
         ctx.fill();
         x += barWidth;
       }
       return;
     }
 
-    const dataLen = lastSpectrum.length || 64;
-    const cols = 60;
-    const lines = 12; // 10本ちょっと（12本）
-    const depth = 520; // 深い奥行きで奥までしっかり可視化
-    const centerY = h * 0.55;
-    const now = performance.now() * 0.001;
-    const playing = !!(analyser && !audio.paused);
+    const dataLen = analyserData ? analyserData.length : 64;
+    const cols = 64;
+    const lines = 14;
+    const depth = 520;
+    const horizonY = h * 0.60;
 
-    // 音が止まってもすぐ波がなくならないよう極めて滑らかに減衰する処理
+    // 最新のFFTを保存。停止直後にゼロへ飛ばさず、短時間だけ残して自然に平らにする。
+    if (!drawWaveform._lastSpectrum || drawWaveform._lastSpectrum.length !== dataLen) {
+      drawWaveform._lastSpectrum = new Uint8Array(dataLen);
+    }
     if (playing) {
-      drawWaveform._hold = Math.min(1, (drawWaveform._hold ?? 1) + 0.05);
+      drawWaveform._lastSpectrum.set(analyserData);
+      drawWaveform._stopFade = 1;
     } else {
-      drawWaveform._hold = Math.max(0.12, (drawWaveform._hold ?? 1) - 0.0015);
-    }
-    const hold = drawWaveform._hold ?? 1;
-
-    let volume = 0;
-    for (let i = 0; i < dataLen; i++) volume += lastSpectrum[i];
-    volume = (volume / dataLen / 255) * hold;
-    volume = Math.min(1, volume * 2.2);
-
-    function hueAt(x) {
-      return 5 + x * 215;
+      drawWaveform._stopFade = Math.max(0, (drawWaveform._stopFade ?? 1) - 0.035);
+      const fade = drawWaveform._stopFade;
+      for (let i = 0; i < dataLen; i++) drawWaveform._lastSpectrum[i] *= fade;
     }
 
-    const pitch = -28 * Math.PI / 180;
+    // 低域・中域・高域をまとめた1本分の波形を作る。
+    function makeWaveSnapshot() {
+      const out = new Float32Array(cols);
+      for (let i = 0; i < cols; i++) {
+        const x = i / (cols - 1);
+        const idx = Math.min(dataLen - 1, Math.floor(Math.pow(x, 0.72) * (dataLen - 1)));
+        const lowIdx = Math.min(dataLen - 1, Math.floor((x * 0.28) * dataLen));
+        const midIdx = Math.min(dataLen - 1, Math.floor((0.18 + x * 0.45) * dataLen));
+        const highIdx = Math.min(dataLen - 1, Math.floor((0.55 + x * 0.45) * dataLen));
+
+        const base = drawWaveform._lastSpectrum[idx] / 255;
+        const low = drawWaveform._lastSpectrum[lowIdx] / 255;
+        const mid = drawWaveform._lastSpectrum[midIdx] / 255;
+        const high = drawWaveform._lastSpectrum[highIdx] / 255;
+
+        // 音量を大きさに反映しつつ、元のFFT形状を主役にする。
+        out[i] = (base * 0.72 + low * 0.16 + mid * 0.08 + high * 0.04);
+      }
+      return out;
+    }
+
+    if (!drawWaveform._history || drawWaveform._history.length !== lines) {
+      drawWaveform._history = Array.from({ length: lines }, () => new Float32Array(cols));
+    }
+
+    const current = makeWaveSnapshot();
+    if (playing) {
+      // 新しい音を手前へ。古い波は奥へ押し出す。
+      for (let r = lines - 1; r > 0; r--) drawWaveform._history[r].set(drawWaveform._history[r - 1]);
+      drawWaveform._history[0].set(current);
+    } else {
+      // 停止時は最後の波を保持しつつ、各ラインを少しずつ平らにする。
+      for (let r = 0; r < lines; r++) {
+        const row = drawWaveform._history[r];
+        for (let i = 0; i < cols; i++) row[i] *= 0.90;
+      }
+    }
+
+    // カメラを上からしっかり見下ろし、奥のラインも見えるようにする。
+    const fov = 430;
+    const pitch = -27 * Math.PI / 180;
     const cosP = Math.cos(pitch);
     const sinP = Math.sin(pitch);
-    const fov = Math.max(280, w * 0.8);
+    const centerX = w * 0.5;
 
-    function project(xNorm, zNorm, y3d) {
-      const x3d = (xNorm - 0.5) * w * 1.2;
-      const z3d = zNorm * depth;
+    function hueAt(x) {
+      return 5 + x * 215; // 赤→橙→黄→緑→水色→青
+    }
+
+    function project(normX, normZ, y) {
+      const x3d = (normX - 0.5) * w * 1.18;
+      const z3d = normZ * depth;
+      const y3d = y;
       const yRot = y3d * cosP - z3d * sinP;
       const zRot = y3d * sinP + z3d * cosP;
-      const scale = fov / (fov + zRot + 200);
+      const scale = fov / (fov + zRot + 260);
       return {
-        x: w * 0.5 + x3d * scale,
-        y: centerY - yRot * scale,
+        x: centerX + x3d * scale,
+        y: horizonY - yRot * scale,
         scale
       };
     }
 
-    // それぞれのラインが独立して左から右へ流れる波形関数
-    function sampleWave(xNorm, lineIndex) {
-      const fftIndex = Math.min(dataLen - 1, Math.floor(Math.pow(xNorm, 1.5) * (dataLen * 0.8)));
-      const a = (lastSpectrum[fftIndex] / 255) * hold;
-      const lowIndex = Math.min(dataLen - 1, Math.floor(Math.pow(xNorm, 1.9) * Math.max(1, dataLen * 0.12)));
-      const midIndex = Math.min(dataLen - 1, Math.floor(dataLen * (0.10 + xNorm * 0.35)));
-      const low = (lastSpectrum[lowIndex] / 255) * hold;
-      const mid = (lastSpectrum[midIndex] / 255) * hold;
-
-      // 各ライン固有の速度・位相オフセット（左から右への流れ: - 時間 * 速度）
-      const flowSpeed = 2.4 + (lineIndex % 4) * 0.35;
-      const timeOffset = now * flowSpeed;
-      const linePhase = lineIndex * 0.78 + (lineIndex % 3) * 1.2;
-
-      const leftToRightWave = Math.sin(xNorm * 11.0 - timeOffset + linePhase) * 0.28 +
-                             Math.cos(xNorm * 5.5 - timeOffset * 0.7 + linePhase * 1.4) * 0.16;
-
-      const fftShape = a * 0.75 + low * 0.58 * Math.sin(xNorm * Math.PI) + mid * 0.32;
-      const spike = Math.pow(Math.max(0, a - 0.25), 1.3) * 1.4;
-
-      return (fftShape + leftToRightWave * (0.32 + volume * 0.85) + spike * Math.sin(xNorm * Math.PI))
-        * (32 + volume * 80 + (lineIndex % 2 === 0 ? 6 : -4));
-    }
-
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
-    const points = new Array(lines);
+    // 奥→手前の順で描画。これで「波が手前へ流れてくる」立体感を出す。
     for (let r = lines - 1; r >= 0; r--) {
-      const zNorm = r / (lines - 1);
-      const row = [];
+      const normZ = r / (lines - 1);
+      const row = drawWaveform._history[r];
+      const depthScale = 1 - normZ * 0.30;
+      const points = [];
+
+      ctx.beginPath();
       for (let i = 0; i < cols; i++) {
-        const xNorm = i / (cols - 1);
-        row.push(project(xNorm, zNorm, sampleWave(xNorm, r)));
+        const x = i / (cols - 1);
+        const amp = row[i] * depthScale;
+        // 奥行きごとに少しだけ独立した動きを加える。
+        const drift = Math.sin(performance.now() * 0.0012 + r * 0.75 + x * 9) * (1.5 + amp * 5);
+        const y = amp * h * 0.34 + drift;
+        const pt = project(x, normZ, y);
+        points.push(pt);
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
       }
-      points[r] = row;
 
-      const depthFade = 0.25 + (1 - zNorm) * 0.75;
-      const hueStart = hueAt(0);
-      const hueEnd = hueAt(1);
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, `hsla(${hueStart}, 95%, 60%, ${depthFade * 0.88})`);
-      grad.addColorStop(0.25, `hsla(45, 100%, 62%, ${depthFade})`);
-      grad.addColorStop(0.5, `hsla(120, 90%, 58%, ${depthFade})`);
-      grad.addColorStop(0.75, `hsla(180, 95%, 60%, ${depthFade})`);
-      grad.addColorStop(1, `hsla(${hueEnd}, 95%, 62%, ${depthFade * 0.85})`);
+      grad.addColorStop(0, `hsla(${hueAt(0)}, 100%, 58%, ${0.34 + (1 - normZ) * 0.28})`);
+      grad.addColorStop(0.2, `hsla(38, 100%, 58%, ${0.40 + (1 - normZ) * 0.28})`);
+      grad.addColorStop(0.42, `hsla(75, 100%, 58%, ${0.42 + (1 - normZ) * 0.28})`);
+      grad.addColorStop(0.62, `hsla(125, 100%, 58%, ${0.44 + (1 - normZ) * 0.28})`);
+      grad.addColorStop(0.82, `hsla(175, 100%, 60%, ${0.46 + (1 - normZ) * 0.28})`);
+      grad.addColorStop(1, `hsla(220, 100%, 62%, ${0.48 + (1 - normZ) * 0.28})`);
 
-      ctx.beginPath();
-      for (let i = 0; i < row.length; i++) {
-        if (i === 0) ctx.moveTo(row[i].x, row[i].y);
-        else ctx.lineTo(row[i].x, row[i].y);
-      }
       ctx.strokeStyle = grad;
-      ctx.lineWidth = 1.1 + (1 - zNorm) * 1.2;
-      ctx.shadowBlur = zNorm < 0.3 ? 8 : 3;
-      ctx.shadowColor = `hsla(${110 + (1 - zNorm) * 110}, 100%, 60%, 0.85)`;
+      ctx.lineWidth = 1.15 + (1 - normZ) * 1.15;
+      ctx.shadowColor = "rgba(80, 220, 255, 0.75)";
+      ctx.shadowBlur = 5 + (1 - normZ) * 5;
       ctx.stroke();
-    }
 
-    for (let r = 0; r < lines; r++) {
-      const zNorm = r / (lines - 1);
-      const row = points[r];
-      for (let i = 2; i < cols - 2; i += 3) {
-        const xNorm = i / (cols - 1);
-        const idx = Math.min(dataLen - 1, Math.floor(Math.pow(xNorm, 1.5) * (dataLen * 0.8)));
-        const amp = (lastSpectrum[idx] / 255) * hold;
-        if (amp < 0.38) continue;
-        const p = row[i];
-        const top = project(xNorm, zNorm, sampleWave(xNorm, r) - amp * 48);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(top.x, top.y);
-        ctx.strokeStyle = `hsla(${hueAt(xNorm)}, 100%, 72%, ${0.2 + amp * 0.6})`;
-        ctx.lineWidth = 0.8 + amp * 1.0;
-        ctx.shadowBlur = 4;
-        ctx.stroke();
+      // 強い周波数だけ鋭いスパイクを追加。
+      if (r === 0 || r === 1 || r === 3) {
+        ctx.shadowBlur = 7;
+        for (let i = 2; i < cols - 2; i += 3) {
+          const amp = row[i];
+          if (amp < 0.32) continue;
+          const x = i / (cols - 1);
+          const p1 = project(x, normZ, amp * h * 0.32);
+          const p2 = project(x, normZ, amp * h * (0.32 + Math.min(0.42, amp * 0.72)));
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = `hsla(${hueAt(x)}, 100%, 72%, ${0.35 + amp * 0.55})`;
+          ctx.lineWidth = 0.8 + amp * 1.1;
+          ctx.stroke();
+        }
       }
     }
 
-    ctx.save();
-    ctx.globalAlpha = 0.15 * Math.max(0.4, hold);
-    for (let r = 0; r < lines; r += 2) {
-      const row = points[r];
-      ctx.beginPath();
-      for (let i = 0; i < row.length; i++) {
-        const p = row[i];
-        const ry = centerY + (centerY - p.y) * 0.45;
-        if (i === 0) ctx.moveTo(p.x, ry);
-        else ctx.lineTo(p.x, ry);
-      }
-      ctx.strokeStyle = `hsla(${hueAt(r / (lines - 1))}, 90%, 60%, 0.5)`;
-      ctx.lineWidth = 0.8;
-      ctx.shadowBlur = 2;
-      ctx.stroke();
-    }
-    ctx.restore();
     ctx.restore();
   }
 
