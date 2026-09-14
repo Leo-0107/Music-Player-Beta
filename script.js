@@ -1467,13 +1467,26 @@
     }
 
     if (state.waveMode === "3d") {
-      wave3dAngle += 0.02;
-      const numStrands = 22;
-      const points = 100;
-      const centerY = h / 2;
+      const numStrands = 24;
+      const points = 90;
       const dataLen = analyserData ? analyserData.length : 64;
 
+      // カメラ設定：横からの固定アングル
+      const sideCamAngle = Math.PI * 0.35; // 横方向からの視覚度
+      const cosCam = Math.cos(sideCamAngle);
+      const sinCam = Math.sin(sideCamAngle);
+      const fov = 360;
+
+      // 再生中の波形の位相進行（カメラではなく波自体が動く）
+      const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.5;
+
       ctx.save();
+      
+      // 3D波形を180°回転させる
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(Math.PI);
+      ctx.translate(-w / 2, -h / 2);
+
       ctx.globalCompositeOperation = "lighter";
 
       for (let s = 0; s < numStrands; s++) {
@@ -1483,25 +1496,28 @@
         ctx.beginPath();
         for (let i = 0; i < points; i++) {
           const normX = i / (points - 1);
-          const px = normX * w;
-          
           const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
           const rawAmp = analyserData ? analyserData[freqIdx] / 255 : 0.05;
 
-          // 画像同様、左右両端がなだらかに収束するエンベロープ
           const envelope = Math.sin(normX * Math.PI);
           
-          // 複合サイン波で有機的な曲線を再現
-          const wave1 = Math.sin(normX * Math.PI * 3.5 + wave3dAngle) * 18;
-          const wave2 = Math.cos(normX * Math.PI * 6.5 - wave3dAngle * 1.2) * 8;
+          const wave1 = Math.sin(normX * Math.PI * 4.0 + wavePhase) * 20;
+          const wave2 = Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * 9;
+          const audioDisplacement = (rawAmp * h * 0.35 + 4) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
+          const strandSpread = offsetVal * (22 + rawAmp * 45) * Math.sin(normX * Math.PI * 2.5 + offsetVal * 0.5);
           
-          // 音声レベルに応じたダイナミックな振幅
-          const audioDisplacement = (rawAmp * h * 0.38 + 5) * Math.sin(normX * Math.PI * 2.5 + wave3dAngle * 0.8);
-          
-          // 立体層（3Dリボン）の交差・広がり
-          const strandSpread = offsetVal * (18 + rawAmp * 45) * Math.sin(normX * Math.PI * 2.8 + offsetVal * 0.5);
-          
-          const py = centerY + (wave1 + wave2 + audioDisplacement + strandSpread) * envelope;
+          // 3D空間のローカル座標計算
+          const x3d = (normX - 0.5) * w * 0.95;
+          const y3d = (wave1 + wave2 + audioDisplacement) * envelope;
+          const z3d = offsetVal * 150 + strandSpread;
+
+          // 固定された横アングルカメラによる透視投影
+          const xRot = x3d * cosCam - z3d * sinCam;
+          const zRot = x3d * sinCam + z3d * cosCam;
+
+          const perspective = fov / (fov + zRot + 250);
+          const px = w / 2 + xRot * perspective;
+          const py = h / 2 + y3d * perspective;
 
           if (i === 0) {
             ctx.moveTo(px, py);
@@ -1510,7 +1526,6 @@
           }
         }
 
-        // 画像に合わせたネオンブルー〜パープル〜マゼンタのグラデーション発光
         const hue = 220 + strandRatio * 70;
         const lightness = 55 + Math.abs(offsetVal) * 15;
         const alpha = 0.45 + (1 - Math.abs(offsetVal)) * 0.45;
