@@ -1451,8 +1451,31 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // 2Dモードは元の表示をそのまま使う
-    if (analyser && !audio.paused) {
+    // 3D waveform history.
+    // Each line owns one frequency band. New samples are added at the RIGHT,
+    // while the old samples move to the LEFT. No synthetic oscillation is used.
+    if (!drawWaveform._waveHistory) {
+      const rows = 13;
+      const cols = 150;
+      drawWaveform._waveRows = rows;
+      drawWaveform._waveCols = cols;
+      drawWaveform._waveHistory = Array.from({ length: rows }, () => new Float32Array(cols));
+      drawWaveform._waveSmooth = new Float32Array(rows);
+      drawWaveform._lastSampleTime = 0;
+      drawWaveform._lastFrameTime = performance.now();
+    }
+
+    const rows = drawWaveform._waveRows;
+    const cols = drawWaveform._waveCols;
+    const history = drawWaveform._waveHistory;
+    const bandSmooth = drawWaveform._waveSmooth;
+    const now = performance.now();
+    const dt = Math.min(100, now - drawWaveform._lastFrameTime);
+    drawWaveform._lastFrameTime = now;
+
+    const playing = !!(analyser && !audio.paused && !audio.ended);
+
+    if (analyser && playing) {
       analyser.getByteFrequencyData(analyserData);
       updateSpatialAudio();
 
@@ -1467,182 +1490,146 @@
     }
 
     if (state.waveMode === "3d") {
-      // ------------------------------------------------------------
-      // 3D波形
-      // ・新しい1コマを右端へ追加
-      // ・古いコマは左へ流れる
-      // ・各ラインは別々の周波数帯なので独立して動く
-      // ・停止時は残った波形がゆっくり一直線へ戻る
-      // ------------------------------------------------------------
-      const BANDS = 13;
-      const HISTORY = 150;
-      const now = performance.now();
+      const dataLen = analyserData ? analyserData.length : 64;
 
-      // drawWaveform() は毎フレーム呼ばれるため、履歴は関数内に保持する
-      if (!drawWaveform._waveHistory || drawWaveform._waveHistory.length !== BANDS ||
-          drawWaveform._waveHistory[0].length !== HISTORY) {
-        drawWaveform._waveHistory = Array.from(
-          { length: BANDS },
-          () => new Float32Array(HISTORY)
-        );
-        drawWaveform._lastWaveSong = null;
-        drawWaveform._lastWaveSample = 0;
-        drawWaveform._lastWaveTime = now;
-      }
+      // 1本ごとに担当する周波数帯を固定。
+      // 下の線ほど低音、上の線ほど高音を担当する。
+      function readBand(row) {
+        if (!analyserData || !dataLen) return 0;
 
-      const history = drawWaveform._waveHistory;
-      const dataLen = analyserData ? analyserData.length : 0;
-      const playing = !!(analyser && !audio.paused && dataLen);
-      const dt = Math.min(100, Math.max(0, now - drawWaveform._lastWaveTime));
-      drawWaveform._lastWaveTime = now;
+        // FFT bin は低域を細かく拾えるよう、対数寄りに分割。
+        const minBin = 1;
+        const maxBin = Math.max(minBin + 1, Math.floor(dataLen * 0.92));
+        const t0 = row / rows;
+        const t1 = (row + 1) / rows;
+        const a = Math.max(minBin, Math.floor(Math.pow(maxBin / minBin, t0) * minBin));
+        const b = Math.max(a + 1, Math.floor(Math.pow(maxBin / minBin, t1) * minBin));
 
-      const songKey = state.currentSong
-        ? `${state.currentSong.name || ""}|${state.currentSong.src || ""}`
-        : null;
-
-      // 曲が切り替わったら、前の曲の履歴を残さない
-      if (songKey !== drawWaveform._lastWaveSong) {
-        for (let r = 0; r < BANDS; r++) history[r].fill(0);
-        drawWaveform._lastWaveSong = songKey;
-        drawWaveform._lastWaveSample = 0;
-      }
-
-      // 約25msごとに「新しい縦1列」を右端へ追加する。
-      // これが「123 → 123 → 122 → 123」と右へ積み上がる部分。
-      if (playing) {
-        drawWaveform._lastWaveSample += dt;
-        if (drawWaveform._lastWaveSample >= 25) {
-          drawWaveform._lastWaveSample %= 25;
-
-          for (let r = 0; r < BANDS; r++) {
-            const t = r / (BANDS - 1);
-
-            // 低域→高域を13帯に分ける。低域は広め、高域は細かく拾う。
-            const low = Math.pow(t, 1.55);
-            const high = Math.pow((r + 1) / BANDS, 1.55);
-            let from = Math.floor(low * dataLen * 0.72);
-            let to = Math.floor(high * dataLen * 0.72);
-            from = Math.max(0, Math.min(dataLen - 1, from));
-            to = Math.max(from + 1, Math.min(dataLen, to));
-
-            let peak = 0;
-            let sum = 0;
-            let count = 0;
-            for (let i = from; i < to; i++) {
-              const v = analyserData[i] / 255;
-              peak = Math.max(peak, v);
-              sum += v;
-              count++;
-            }
-            const avg = count ? sum / count : 0;
-
-            // 強い音はピークを残し、弱い音は少し安定させる。
-            const amp = Math.min(1, avg * 0.72 + peak * 0.58);
-            history[r].copyWithin(0, 1);
-            history[r][HISTORY - 1] = amp;
-          }
+        let sum = 0;
+        let count = 0;
+        for (let i = a; i < Math.min(b, dataLen); i++) {
+          sum += analyserData[i];
+          count++;
         }
-      } else {
-        // 停止・一時停止時は履歴を消さず、ゆっくり0へ戻す。
-        // 約1秒前後でほぼ一直線になる。
-        const decay = Math.pow(0.01, dt / 1050);
-        for (let r = 0; r < BANDS; r++) {
-          const row = history[r];
-          for (let i = 0; i < HISTORY; i++) row[i] *= decay;
+        return count ? sum / count / 255 : 0;
+      }
+
+      // 新しい列を右端へ追加する間隔。速すぎないよう約18列/秒。
+      const sampleInterval = 55;
+      if (playing && now - drawWaveform._lastSampleTime >= sampleInterval) {
+        drawWaveform._lastSampleTime = now;
+
+        for (let r = 0; r < rows; r++) {
+          const raw = readBand(r);
+
+          // 各周波数帯は独立してスムージング。音の変化には追従するがガタつきすぎない。
+          const response = raw > bandSmooth[r] ? 0.34 : 0.18;
+          bandSmooth[r] += (raw - bandSmooth[r]) * response;
+
+          // 現在の音量をそのまま高さへ。無音時はここには新しい列を追加しない。
+          history[r].copyWithin(0, 1);
+          history[r][cols - 1] = bandSmooth[r];
         }
       }
 
-      // 高い位置から見下ろす。奥まで13本すべて見えるように、
-      // 奥行きは控えめ・視野角は広めにしている。
+      // 停止時は履歴を残したまま、全ての波をゆっくり基準線へ戻す。
+      // 「その場でフリーズ」ではなく、時間をかけてまっすぐな棒になる。
+      if (!playing) {
+        const decay = Math.pow(0.008, dt / 1000); // 約1秒強でほぼ基準線
+        for (let r = 0; r < rows; r++) {
+          const arr = history[r];
+          for (let i = 0; i < cols; i++) arr[i] *= decay;
+          bandSmooth[r] *= decay;
+        }
+      }
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // カメラをかなり上から見下ろす。奥行きは「時間の流れ」ではなく、
+      // 13本の周波数ラインを立体的に並べるためだけに使う。
       const pitch = -34 * Math.PI / 180;
       const cosP = Math.cos(pitch);
       const sinP = Math.sin(pitch);
-      const fov = 620;
-      const centerY = h * 0.56;
-      const depth = Math.min(230, h * 0.40);
-      const waveHeight = Math.min(120, h * 0.22);
-      const xWidth = w * 0.92;
+      const fov = 720;
+      const depth = 300;
+      const centerY = h * 0.70;
+      const xSpan = w * 0.92;
 
-      function project(xNorm, rowNorm, amp) {
-        const x3 = (xNorm - 0.5) * xWidth;
-        const z3 = rowNorm * depth;
-        const y3 = -amp * waveHeight;
-
-        const yRot = y3 * cosP - z3 * sinP;
-        const zRot = y3 * sinP + z3 * cosP;
+      function project(xNorm, z, height) {
+        const x3d = (xNorm - 0.5) * xSpan;
+        const y3d = height * h * 0.34;
+        const yRot = y3d * cosP - z * sinP;
+        const zRot = y3d * sinP + z * cosP;
         const scale = fov / (fov + zRot + 260);
-
         return {
-          x: w / 2 + x3 * scale,
+          x: w / 2 + x3d * scale,
           y: centerY - yRot * scale,
           scale
         };
       }
 
       function hueForRow(row) {
-        // 赤 → 橙 → 黄 → 緑 → シアン → 青
-        return 5 + (row / (BANDS - 1)) * 215;
+        // 低音=赤 → 中域=黄/緑 → 高域=シアン/青
+        return 0 + (row / (rows - 1)) * 215;
       }
 
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-
-      // 奥の線から描くことで、手前の線が自然に見える。
-      for (let r = BANDS - 1; r >= 0; r--) {
-        const row = history[r];
-        const rowNorm = r / (BANDS - 1);
+      // 基準線を薄く描いて、波が戻っていく先を見せる。
+      for (let r = 0; r < rows; r++) {
+        const z = (r / (rows - 1)) * depth;
+        const p0 = project(0, z, 0);
+        const p1 = project(1, z, 0);
         const hue = hueForRow(r);
-        const pts = new Array(HISTORY);
-
-        for (let i = 0; i < HISTORY; i++) {
-          pts[i] = project(i / (HISTORY - 1), rowNorm, row[i]);
-        }
-
-        // 強い波ほど光る。ただし常時まぶしすぎないようにする。
-        let maxAmp = 0;
-        for (let i = 0; i < HISTORY; i++) maxAmp = Math.max(maxAmp, row[i]);
-        const alpha = 0.48 + maxAmp * 0.42;
-
-        // 発光の下地
         ctx.beginPath();
-        for (let i = 0; i < HISTORY; i++) {
-          const p = pts[i];
-          if (i === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        }
-        ctx.strokeStyle = `hsla(${hue}, 95%, 60%, ${alpha * 0.28})`;
-        ctx.lineWidth = 4.5 + maxAmp * 3;
-        ctx.shadowColor = `hsla(${hue}, 100%, 55%, 0.9)`;
-        ctx.shadowBlur = 12 + maxAmp * 15;
-        ctx.stroke();
-
-        // 本体の線
-        ctx.beginPath();
-        for (let i = 0; i < HISTORY; i++) {
-          const p = pts[i];
-          if (i === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        }
-        ctx.strokeStyle = `hsla(${hue}, 95%, 62%, ${alpha})`;
-        ctx.lineWidth = 1.4 + maxAmp * 1.2;
-        ctx.shadowBlur = 3 + maxAmp * 6;
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.strokeStyle = `hsla(${hue}, 75%, 55%, 0.10)`;
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
         ctx.stroke();
       }
 
-      // 右端の「現在」を軽く強調。
-      // ここは時間が流れる方向を分かりやすくするための固定線で、
-      // 波形の履歴そのものには影響しない。
-      const currentTop = project(1, 0, 0);
-      const currentBottom = project(1, 1, 0);
-      ctx.beginPath();
-      ctx.moveTo(currentTop.x, currentTop.y);
-      ctx.lineTo(currentBottom.x, currentBottom.y);
-      ctx.strokeStyle = "rgba(255,255,255,0.10)";
-      ctx.lineWidth = 1;
-      ctx.shadowBlur = 0;
-      ctx.stroke();
+      // 各周波数帯の波形を独立して描画。
+      for (let r = 0; r < rows; r++) {
+        const z = (r / (rows - 1)) * depth;
+        const hue = hueForRow(r);
+        const arr = history[r];
+
+        ctx.beginPath();
+        for (let i = 0; i < cols; i++) {
+          const xNorm = i / (cols - 1);
+          const p = project(xNorm, z, arr[i]);
+          if (i === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        }
+
+        // 現在の音が強い線ほど発光を強くする。
+        const peak = Math.max(...arr);
+        ctx.strokeStyle = `hsla(${hue}, 95%, 60%, ${0.62 + Math.min(peak, 1) * 0.25})`;
+        ctx.lineWidth = 1.25 + Math.min(peak, 1) * 1.35;
+        ctx.shadowColor = `hsl(${hue}, 100%, 55%)`;
+        ctx.shadowBlur = 5 + Math.min(peak, 1) * 10;
+        ctx.stroke();
+      }
+
+      // 右端の「現在」を少しだけ強調。ここが実際に流れている音。
+      if (playing) {
+        const xNorm = 1;
+        for (let r = 0; r < rows; r++) {
+          const z = (r / (rows - 1)) * depth;
+          const p = project(xNorm, z, history[r][cols - 1]);
+          const hue = hueForRow(r);
+          const radius = 1.3 + history[r][cols - 1] * 3.2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${hue}, 100%, 72%, ${0.45 + history[r][cols - 1] * 0.5})`;
+          ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
     } else {
