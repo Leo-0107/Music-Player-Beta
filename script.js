@@ -1471,7 +1471,7 @@
     }
 
     if (state.waveMode === "3d") {
-      const numStrands = 24;
+      const numStrands = 12; // 本数を24から半分（12本）に変更
       const points = 90;
       const dataLen = analyserData ? analyserData.length : 64;
 
@@ -1482,18 +1482,18 @@
         stopProgress = 0;
       }
 
-      // 20°上から見下ろすカメラ設定（ピッチ角 20度）
-      const pitch = 20 * (Math.PI / 180);
+      // 3D波形を平面と見た時 -20°の場所にカメラを移動（ピッチ角 -20度）
+      const pitch = -20 * (Math.PI / 180);
       const cosPitch = Math.cos(pitch);
       const sinPitch = Math.sin(pitch);
       const fov = 380;
 
-      // 音が流れている時のみ波を動かす（止まっている時は固定してふらふらさせない）
+      // 音が流れている時のみ波を動かす
       const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.5;
 
-      // 各ポイントの音量振幅計算（左から順に減衰させる処理）
+      // 各ポイントの音量（音の大小）と周波数（音の高低：左＝低音〜右＝高音）に対応する振幅計算
       for (let i = 0; i < points; i++) {
-        const normX = i / (points - 1);
+        const normX = i / (points - 1); // 横軸：低音から高音への対応
         const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
         let targetAmp = (analyserData && !audio.paused) ? analyserData[freqIdx] / 255 : 0;
 
@@ -1513,23 +1513,23 @@
         
         ctx.beginPath();
         for (let i = 0; i < points; i++) {
-          const normX = i / (points - 1); // 左(0)から右(1)への向き
+          const normX = i / (points - 1);
           const currentAmp = smoothAmp[i];
 
           const envelope = Math.sin(normX * Math.PI);
           
-          // 音が止まっているときは、波の揺れ（wave1, wave2）も0に固定
-          const wave1 = audio.paused ? 0 : Math.sin(normX * Math.PI * 4.0 + wavePhase) * 20 * (currentAmp > 0.01 ? 1 : 0);
-          const wave2 = audio.paused ? 0 : Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * 9 * (currentAmp > 0.01 ? 1 : 0);
-          const audioDisplacement = (currentAmp * h * 0.35) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
+          // 音の大小（振幅/音量）と高低（周波数帯域）に対応した変調計算
+          const wave1 = audio.paused ? 0 : Math.sin(normX * Math.PI * 4.0 + wavePhase) * (15 + currentAmp * 25);
+          const wave2 = audio.paused ? 0 : Math.cos(normX * Math.PI * 7.0 - wavePhase * 0.8) * (6 + currentAmp * 15);
+          const audioDisplacement = (currentAmp * h * 0.4) * Math.sin(normX * Math.PI * 3.0 + wavePhase * 0.5);
           const strandSpread = offsetVal * (22 + currentAmp * 45) * Math.sin(normX * Math.PI * 2.5 + offsetVal * 0.5);
           
-          // 3D空間座標（X: 左〜右, Y: 高さ, Z: 奥行き）
+          // 3D空間座標（X: 左〜右[低音〜高音], Y: 高さ[音量], Z: 奥行き[リボン幅]）
           const x3d = (normX - 0.5) * w * 0.95;
           const y3d = (wave1 + wave2 + audioDisplacement) * envelope;
           const z3d = offsetVal * 150 + strandSpread;
 
-          // 20度見下ろす視角計算（Y-Z軸の回転）
+          // -20度見上げる/見下ろす視角計算（Y-Z軸の回転）
           const yRot = y3d * cosPitch - z3d * sinPitch;
           const zRot = y3d * sinPitch + z3d * cosPitch;
 
