@@ -1,4 +1,4 @@
-  <!-- 1. index.html -->
+<!-- 1. index.html -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -36,8 +36,9 @@
         <button class="menuItem" data-section="themeSection">テーマ設定<span>見た目のカスタマイズ</span></button>
         <hr style="border:0; border-top:1px solid var(--line); margin:12px 0;">
         <div class="field">
-          <label>音楽ファイル / Zip追加</label>
-          <input type="file" id="folder" multiple accept="audio/*,.zip">
+          <label>音楽ファイル / Zip / フォルダ追加</label>
+          <input type="file" id="folder" multiple accept="audio/*,.zip" title="単体ファイル・Zipを選択">
+          <input type="file" id="folderPicker" webkitdirectory directory style="margin-top: 6px;" title="フォルダを選択">
         </div>
         <button class="btn danger small" id="btnResetFiles" style="width:100%;">全ファイルリセット</button>
       </div>
@@ -48,7 +49,6 @@
           <div class="sectionTitle">再生速度・ピッチ</div>
           <div class="field">
             <label>速度: <span id="rateText">1.00x</span></label>
-            <!-- 1.0倍を中央にするため min=0.0 / max=2.0 に調整 -->
             <input type="range" id="playbackRate" min="0.0" max="2.0" step="0.05" value="1.0">
             <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0">
           </div>
@@ -121,7 +121,6 @@
             <button class="btn small" data-timer="30">30分</button>
             <button class="btn small" data-timer="60">60分</button>
           </div>
-          <!-- カスタム入力フォーム追加 -->
           <div class="field" style="margin-top:12px;">
             <label>カスタム時間 (分)</label>
             <div style="display:flex; gap:8px;">
@@ -185,7 +184,6 @@
           </div>
           <div class="field">
             <label>グラデーション方向</label>
-            <!-- グラデーション方向の全選択肢追加（横、斜め反対系等） -->
             <div class="gradList" id="gradDirectionList">
               <button class="gradOption" data-deg="180deg">↓ 縦 (上→下)</button>
               <button class="gradOption" data-deg="0deg">↑ 縦 (下→上)</button>
@@ -255,9 +253,10 @@
               <button class="btn small" id="btnMainRepeat">リピート</button>
             </div>
 
+            <!-- 音量バー: 0%〜200%、100%（1.0）が中央に来る設定 -->
             <div class="meter">
               <button class="btn small ghost" id="btnMuteToggle" style="padding:4px 8px;">🔊</button>
-              <input type="range" id="volume" min="0" max="1" step="0.01" value="1" style="flex:1;">
+              <input type="range" id="volume" min="0" max="2" step="0.01" value="1" style="flex:1;">
               <span id="volText" style="min-width:40px; text-align:right;">100%</span>
             </div>
           </div>
