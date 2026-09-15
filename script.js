@@ -143,13 +143,10 @@
   let spatialAngle = 0;
   let targetSongForPlaylist = null;
   let lastUnmutedVolume = 1.0;
-  let currentVolumeTarget = 1.0;
+  let currentVolumeTarget = loadNum(STORAGE.volume, 1.0);
   let eqAnimId = null;
   let wakeLock = null;
   
-  let smoothAmp = new Float32Array(90);
-  let stopProgress = 1.0;
-
   const historyStack = [];
   let historyIndex = -1;
 
@@ -195,8 +192,6 @@
   const el = {
     shell: document.getElementById("shell"),
     folder: document.getElementById("folder"),
-    btnFolderPicker: document.getElementById("btnFolderPicker"),
-    folderPicker: document.getElementById("folderPicker"),
     btnResetFiles: document.getElementById("btnResetFiles"),
     search: document.getElementById("search"),
     list: document.getElementById("list"),
@@ -247,7 +242,6 @@
     timeAll: document.getElementById("timeAll"),
     wave: document.getElementById("wave"),
     waveModeBtns: document.getElementById("waveModeBtns"),
-    shuffleState: document.getElementById("shuffleState"),
     btnQueueClear: document.getElementById("btnQueueClear"),
     btnQueueShuffle: document.getElementById("btnQueueShuffle"),
     btnEqReset: document.getElementById("btnEqReset"),
@@ -858,7 +852,6 @@
       audio.pause();
       audio.src = "";
       if (el.folder) el.folder.value = "";
-      if (el.folderPicker) el.folderPicker.value = "";
       updateArtwork(null);
       updateTitleTextAndScroll(el.nowTitle, "未再生");
       updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
@@ -933,6 +926,13 @@
     saveState();
     await reloadPlaylistFromDB();
     toast(`読み込み完了！`);
+  }
+
+  if (el.folder) {
+    el.folder.addEventListener("change", e => {
+      loadFiles(e.target.files);
+      el.folder.value = "";
+    });
   }
 
   async function reloadPlaylistFromDB() {
@@ -1251,7 +1251,7 @@
           const found = state.playlist.find(x => x.name === songName);
           const row = document.createElement("div");
           row.className = "plTrackItem";
-          const displayTitle = found ? found.title : songName.replace(/\\.(mp3|m4a|wav|ogg|flac|aac)$/i, '');
+          const displayTitle = found ? found.title : songName.replace(/\.[^/.]+$/, '');
           row.innerHTML = `
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
               ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
@@ -1524,438 +1524,192 @@
     else state.favorites.push(name);
     saveState();
     renderSongList();
-    if(state.currentSong?.name === name) updateNowPlayingUI(state.currentSong);
+    if(state.currentSong?.name === name) {
+      if (el.btnFav) {
+        el.btnFav.textContent = state.favorites.includes(name) ? "★" : "☆";
+        el.btnFav.classList.toggle("active", state.favorites.includes(name));
+      }
+    }
   }
 
   function renderQueue(){
-    if (!el.queueList) return;
+    if(!el.queueList) return;
     el.queueList.innerHTML = "";
-    if(!state.queue.length){
-      el.queueList.innerHTML = `<div style="color:var(--muted); font-size:.86rem">キューは空です</div>`;
+    if(!state.queue.length) {
+      el.queueList.innerHTML = `<div style="color:var(--muted); font-size:.84rem; text-align:center; padding:12px;">キューは空です</div>`;
       return;
     }
-    state.queue.forEach((name, idx) => {
-      const displayName = name.replace(/\.(mp3|m4a|wav|ogg|flac|aac)$/i, "");
-      const item = document.createElement("div");
-      item.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:var(--panel2); padding:8px 12px; border-radius:10px;";
-      item.innerHTML = `
-        <span style="font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${displayName}</span>
-        <div style="display:flex; gap:4px; margin-left:8px;">
-          <button class="btn small moveUpBtn" style="padding:2px 6px;">▲</button>
-          <button class="btn small moveDownBtn" style="padding:2px 6px;">▼</button>
-          <button class="btn small delQueueBtn" style="padding:2px 6px;">✕</button>
+    state.queue.forEach((songName, idx) => {
+      const song = state.playlist.find(s => s.name === songName);
+      const row = document.createElement("div");
+      row.className = "song";
+      const title = song ? song.title : songName.replace(/\.[^/.]+$/, "");
+      row.innerHTML = `
+        <div class="songMain">
+          <div class="songName">${title}</div>
+        </div>
+        <div class="songRight">
+          <button class="btn small ghost removeQueueBtn">✕</button>
         </div>
       `;
-      
-      item.querySelector(".moveUpBtn").addEventListener("click", () => {
-        if(idx > 0) {
-          [state.queue[idx - 1], state.queue[idx]] = [state.queue[idx], state.queue[idx - 1]];
-          saveState();
-          renderQueue();
-        }
-      });
-
-      item.querySelector(".moveDownBtn").addEventListener("click", () => {
-        if(idx < state.queue.length - 1) {
-          [state.queue[idx + 1], state.queue[idx]] = [state.queue[idx], state.queue[idx + 1]];
-          saveState();
-          renderQueue();
-        }
-      });
-
-      item.querySelector(".delQueueBtn").addEventListener("click", () => {
+      row.querySelector(".removeQueueBtn").addEventListener("click", e => {
+        e.stopPropagation();
         state.queue.splice(idx, 1);
         saveState();
         renderQueue();
       });
-
-      el.queueList.appendChild(item);
+      row.addEventListener("click", () => {
+        state.queue.splice(idx, 1);
+        saveState();
+        renderQueue();
+        if(song) playSong(song);
+      });
+      el.queueList.appendChild(row);
     });
   }
 
-  if (el.btnQueueClear) {
-    el.btnQueueClear.addEventListener("click", () => {
-      state.queue = [];
-      saveState();
-      renderQueue();
-      toast("再生キューを全消去しました");
-    });
-  }
-
-  if (el.btnQueueShuffle) {
-    el.btnQueueShuffle.addEventListener("click", () => {
-      for (let i = state.queue.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [state.queue[i], state.queue[j]] = [state.queue[j], state.queue[i]];
-      }
-      saveState();
-      renderQueue();
-      toast("キューをシャッフルしました");
-    });
-  }
-
-  if (el.pillFavs) {
-    el.pillFavs.addEventListener("click", () => {
-      state.favOnly = !state.favOnly;
-      el.pillFavs.classList.toggle("active", state.favOnly);
-      saveState();
-      renderSongList();
-    });
-  }
-
-  function drawWaveform() {
-    requestAnimationFrame(drawWaveform);
-
-    const canvas = el.wave;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    
-    if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
-    }
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    ctx.clearRect(0, 0, w, h);
-
-    if (analyser && !audio.paused) {
-      analyser.getByteFrequencyData(analyserData);
-      updateSpatialAudio();
-
-      if (state.silenceSkip) {
-        let sum = 0;
-        for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
-        const avg = sum / analyserData.length;
-        if (avg < 2 && audio.currentTime > 1 && audio.duration - audio.currentTime > 1.5) {
-          audio.currentTime += 0.5;
-        }
-      }
-    } else {
-      if (analyserData) analyserData.fill(0);
-    }
-
-    if (state.waveMode === "3d") {
-      const dataLen = analyserData ? analyserData.length : 64;
-      const cols = 90;
-
-      if (audio.paused) {
-        stopProgress = Math.min(1.5, stopProgress + 0.02);
-      } else {
-        stopProgress = 0;
-      }
-
-      for (let i = 0; i < cols; i++) {
-        const normX = i / (cols - 1);
-        const freqIdx = Math.floor(Math.pow(normX, 0.8) * (dataLen / 2));
-        let targetAmp = (analyserData && !audio.paused) ? analyserData[freqIdx] / 255 : 0;
-
-        const fadeFactor = Math.max(0, Math.min(1, (normX - (stopProgress - 0.3)) / 0.3));
-        targetAmp *= fadeFactor;
-
-        smoothAmp[i] += (targetAmp - smoothAmp[i]) * 0.2;
-      }
-
-      const wavePhase = audio.paused ? 0 : (audio.currentTime || 0) * 4.0;
-      const rows = 12;
-      const horizonY = h * 0.58;
-      const reflectY = horizonY;
-
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-
-      function getHue(normX) {
-        return 15 + normX * 200;
-      }
-
-      for (let i = 0; i < cols; i += 2) {
-        const normX = i / (cols - 1);
-        const amp = smoothAmp[i];
-        if (amp < 0.01) continue;
-
-        const x = normX * w;
-        const spikeHeight = amp * h * 0.58;
-        const hue = getHue(normX);
-
-        ctx.beginPath();
-        ctx.moveTo(x, horizonY);
-        ctx.lineTo(x, horizonY - spikeHeight);
-        ctx.strokeStyle = `hsla(${hue}, 90%, 60%, ${0.25 + amp * 0.55})`;
-        ctx.lineWidth = 1.3;
-        ctx.stroke();
-
-        if (amp > 0.25 && i % 4 === 0) {
-          ctx.beginPath();
-          ctx.moveTo(x, horizonY - spikeHeight);
-          ctx.lineTo(x, horizonY - spikeHeight - amp * 45);
-          ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${amp * 0.85})`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
-
-      const fov = 320;
-      const pitch = -16 * (Math.PI / 180);
-      const cosP = Math.cos(pitch);
-      const sinP = Math.sin(pitch);
-
-      function project3D(normX, normZ, amp) {
-        const x3d = (normX - 0.5) * w * 1.1;
-        const z3d = normZ * 210 + 35;
-        
-        const wave = Math.sin(normX * Math.PI * 6 + normZ * 4.5 - wavePhase) * (8 + amp * 22) +
-                     Math.cos(normX * Math.PI * 3.5 - normZ * 2.5 + wavePhase * 0.8) * (5 + amp * 16);
-        
-        const y3d = (wave - amp * 75 * Math.sin(normZ * Math.PI)) * Math.sin(normX * Math.PI);
-
-        const yRot = y3d * cosP - z3d * sinP;
-        const zRot = y3d * sinP + z3d * cosP;
-
-        const scale = fov / (fov + zRot + 180);
-        const px = w / 2 + x3d * scale;
-        const py = horizonY - yRot * scale;
-
-        return { x: px, y: py, scale };
-      }
-
-      const gridPoints = [];
-      for (let r = 0; r < rows; r++) {
-        const normZ = r / (rows - 1);
-        const rowPoints = [];
-        
-        ctx.beginPath();
-        for (let i = 0; i < cols; i++) {
-          const normX = i / (cols - 1);
-          const amp = smoothAmp[i];
-          const pt = project3D(normX, normZ, amp);
-          rowPoints.push(pt);
-
-          if (i === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
-        }
-        gridPoints.push(rowPoints);
-
-        const hue = getHue(r / rows);
-        const alpha = 0.3 + (1 - normZ) * 0.5;
-        ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${alpha})`;
-        ctx.lineWidth = 1 + (1 - normZ) * 0.8;
-        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
-        ctx.shadowBlur = 6;
-        ctx.stroke();
-      }
-
-      for (let i = 0; i < cols; i += 2) {
-        const normX = i / (cols - 1);
-        const hue = getHue(normX);
-        
-        ctx.beginPath();
-        for (let r = 0; r < rows; r++) {
-          const pt = gridPoints[r][i];
-          if (r === 0) ctx.moveTo(pt.x, pt.y);
-          else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.strokeStyle = `hsla(${hue}, 80%, 50%, 0.28)`;
-        ctx.lineWidth = 0.8;
-        ctx.shadowBlur = 0;
-        ctx.stroke();
-      }
-
-      ctx.save();
-      ctx.globalAlpha = 0.22;
-      for (let r = 0; r < rows; r += 2) {
-        ctx.beginPath();
-        for (let i = 0; i < cols; i++) {
-          const pt = gridPoints[r][i];
-          const reflY = reflectY + (reflectY - pt.y) * 0.65;
-          if (i === 0) ctx.moveTo(pt.x, reflY);
-          else ctx.lineTo(pt.x, reflY);
-        }
-        const normX = r / rows;
-        ctx.strokeStyle = `hsla(${getHue(normX)}, 80%, 50%, 0.3)`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      ctx.restore();
-    } else {
-      const len = analyserData ? analyserData.length : 64;
-      const barWidth = (w / len) * 1.8;
-      let x = 0;
-
-      for (let i = 0; i < len; i++) {
-        const v = analyserData ? analyserData[i] : 0;
-        const barHeight = (v / 255) * h * 0.85;
-
-        const grad = ctx.createLinearGradient(0, h, 0, 0);
-        grad.addColorStop(0, "rgba(29, 185, 84, 0.2)");
-        grad.addColorStop(0.5, "#1DB954");
-        grad.addColorStop(1, "#38ef7d");
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.roundRect(x, h - barHeight, barWidth - 2, barHeight, [4, 4, 0, 0]);
-        ctx.fill();
-
-        x += barWidth;
-      }
-    }
-  }
-
-
-  function renderStats() {
+  function renderStats(){
     const totalPlays = Object.values(state.playCounts).reduce((a, b) => a + b, 0);
-    if (el.statPlays) el.statPlays.textContent = totalPlays;
-    if (el.statSongs) el.statSongs.textContent = state.playlist.length;
+    if(el.statPlays) el.statPlays.textContent = totalPlays;
+    if(el.statSongs) el.statSongs.textContent = state.playlist.length;
+    if(el.pillSongs) el.pillSongs.textContent = `${state.playlist.length}曲`;
+    if(el.pillFavs) el.pillFavs.textContent = `${state.favorites.length}☆`;
 
-    renderStatsChart();
+    renderChart();
   }
 
-  function renderStatsChart() {
+  function renderChart(){
     const canvas = el.playHistoryChart;
-    if (!canvas) return;
+    if(!canvas) return;
     const ctx = canvas.getContext("2d");
-    const w = canvas.width = canvas.clientWidth || 300;
-    const h = canvas.height = canvas.clientHeight || 180;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, rect.height);
 
-    ctx.clearRect(0, 0, w, h);
-
-    const dates = [];
-    for (let i = 6; i >= 0; i--) {
+    const days = [];
+    for(let i=6; i>=0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
+      days.push(d.toISOString().split('T')[0]);
     }
 
-    const values = dates.map(d => state.playHistory[d] || 0);
-    const maxVal = Math.max(...values, 5);
-
+    const counts = days.map(day => state.playHistory[day] || 0);
+    const maxVal = Math.max(...counts, 5);
     const padding = 24;
-    const graphW = w - padding * 2;
-    const graphH = h - padding * 2;
+    const w = rect.width - padding * 2;
+    const h = rect.height - padding * 2;
+    const stepX = w / (days.length - 1);
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, h - padding);
-    ctx.lineTo(w - padding, h - padding);
+    ctx.moveTo(padding, rect.height - padding);
+    ctx.lineTo(rect.width - padding, rect.height - padding);
     ctx.stroke();
 
-    ctx.beginPath();
     ctx.strokeStyle = "#1DB954";
-    ctx.lineWidth = 3;
-
-    values.forEach((v, i) => {
-      const x = padding + (i / 6) * graphW;
-      const y = (h - padding) - (v / maxVal) * graphH;
-
-      if (i === 0) ctx.moveTo(x, y);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    days.forEach((day, i) => {
+      const x = padding + i * stepX;
+      const y = rect.height - padding - (counts[i] / maxVal) * h;
+      if(i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    values.forEach((v, i) => {
-      const x = padding + (i / 6) * graphW;
-      const y = (h - padding) - (v / maxVal) * graphH;
-
+    days.forEach((day, i) => {
+      const x = padding + i * stepX;
+      const y = rect.height - padding - (counts[i] / maxVal) * h;
       ctx.fillStyle = "#1DB954";
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
       ctx.font = "10px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(dates[i].slice(5), x, h - 8);
+      const label = day.slice(5);
+      ctx.fillText(label, x, rect.height - 6);
     });
   }
 
-  if (el.btnResetStats) {
-    el.btnResetStats.addEventListener("click", () => {
-      if (!confirm("再生統計データをリセットしますか？")) return;
-      state.playCounts = {};
-      state.playHistory = {};
-      saveState();
-      renderStats();
-      renderSongList();
-      toast("再生統計をリセットしました");
-    });
-  }
+  function setSleepTimer(minutes) {
+    if(sleepTimerId) clearTimeout(sleepTimerId);
+    if(sleepIntervalId) clearInterval(sleepIntervalId);
+    sleepTimerId = null;
+    sleepIntervalId = null;
+    sleepTimerEnd = null;
 
-  function renderAll() {
-    if (el.pillSongs) el.pillSongs.textContent = `${state.playlist.length}曲`;
-    if (el.pillFavs) el.pillFavs.textContent = `${state.favorites.length}☆`;
-    if (el.btnMainShuffle) el.btnMainShuffle.classList.toggle("active", state.shuffle);
-    if (el.btnMainRepeat) el.btnMainRepeat.classList.toggle("active", state.repeat);
-    if (el.shuffleState) el.shuffleState.textContent = `シャッフル: ${state.shuffle ? "ON" : "OFF"}`;
-    
-    if (el.btnCrossfade) {
-      el.btnCrossfade.classList.toggle("active", state.crossfade);
-      el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
-    }
-    if (el.btnSilenceSkip) {
-      el.btnSilenceSkip.classList.toggle("active", state.silenceSkip);
-      el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+    if(!minutes || minutes <= 0) {
+      if(el.timerStatus) el.timerStatus.textContent = "タイマーOFF";
+      toast("タイマーを解除しました");
+      return;
     }
 
-    renderSongList();
-    renderQueue();
-    renderPlaylists();
-    renderStats();
-    applyTheme();
-    renderColorPickers();
-    renderEqualizer();
-    setDMode(state.dMode);
-    setWaveMode(state.waveMode);
+    sleepTimerEnd = Date.now() + minutes * 60 * 1000;
+    toast(`${minutes}分後にタイマーを設定しました`);
+
+    const updateTimerUI = () => {
+      const remaining = Math.max(0, Math.ceil((sleepTimerEnd - Date.now()) / 1000));
+      if(remaining <= 0) {
+        audio.pause();
+        releaseWakeLock();
+        if(el.timerStatus) el.timerStatus.textContent = "タイマーOFF";
+        clearInterval(sleepIntervalId);
+        toast("スリープタイマーにより再生を停止しました");
+      } else {
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        if(el.timerStatus) el.timerStatus.textContent = `残り時間: ${m}:${String(s).padStart(2, "0")}`;
+      }
+    };
+
+    updateTimerUI();
+    sleepIntervalId = setInterval(updateTimerUI, 1000);
+    sleepTimerId = setTimeout(() => {
+      audio.pause();
+      releaseWakeLock();
+    }, minutes * 60 * 1000);
   }
 
-  function openMenu(sectionId) {
-    if (el.sidebar) el.sidebar.classList.add("open");
-    if (el.overlay) el.overlay.classList.add("open");
-    document.body.classList.add("menu-open");
+  function openSidebar(sectionId) {
     state.menuOpen = true;
+    document.body.classList.add("menu-open");
+    if(el.overlay) el.overlay.classList.add("open");
+    if(el.sidebar) el.sidebar.classList.add("open");
 
-    if (sectionId) {
-      showPanelSection(sectionId, el.sidebar);
+    if(sectionId) {
+      showPanelSection(sectionId);
     } else {
-      showMainMenuList(el.sidebar);
+      showMainMenu();
     }
   }
 
-  function closeMenu() {
-    if (el.sidebar) el.sidebar.classList.remove("open");
-    if (el.overlay) el.overlay.classList.remove("open");
-    document.body.classList.remove("menu-open");
+  function closeSidebar() {
     state.menuOpen = false;
+    document.body.classList.remove("menu-open");
+    if(el.overlay) el.overlay.classList.remove("open");
+    if(el.sidebar) el.sidebar.classList.remove("open");
   }
 
-  function showMainMenuList(container = el.sidebar) {
-    if (!container) return;
-    const mainList = container.querySelector("#mainMenuList") || el.mainMenuList;
-    const backBtn = container.querySelector("#btnSideBack") || el.btnSideBack;
-    const title = container.querySelector("#sideTitle") || el.sideTitle;
-
-    if(mainList) mainList.style.display = "flex";
-    container.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
-    if(backBtn) backBtn.style.display = "none";
-    if(title) title.textContent = "メニュー";
+  function showMainMenu() {
+    if(el.mainMenuList) el.mainMenuList.style.display = "flex";
+    document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+    if(el.btnSideBack) el.btnSideBack.style.display = "none";
+    if(el.sideTitle) el.sideTitle.textContent = "メニュー";
   }
 
-  function showPanelSection(id, container = el.sidebar) {
-    if (!container) return;
-    const mainList = container.querySelector("#mainMenuList") || el.mainMenuList;
-    const backBtn = container.querySelector("#btnSideBack") || el.btnSideBack;
-    const title = container.querySelector("#sideTitle") || el.sideTitle;
-
-    if(mainList) mainList.style.display = "none";
-    container.querySelectorAll(".panelSection").forEach(s => s.classList.remove("active"));
-    const sec = container.querySelector(`#${id}`) || document.getElementById(id);
-    if (sec) sec.classList.add("active");
-    if(backBtn) backBtn.style.display = "inline-block";
-
-    const titles = {
+  function showPanelSection(sectionId) {
+    if(el.mainMenuList) el.mainMenuList.style.display = "none";
+    document.querySelectorAll(".panelSection").forEach(p => {
+      p.classList.toggle("active", p.id === sectionId);
+    });
+    if(el.btnSideBack) el.btnSideBack.style.display = "inline-block";
+    const titleMap = {
       optionsSection: "再生オプション",
       playlistSection: "プレイリスト",
       queueSection: "再生キュー",
@@ -1964,494 +1718,299 @@
       statsSection: "再生統計",
       themeSection: "テーマ設定"
     };
-    if(title) title.textContent = titles[id] || "メニュー";
+    if(el.sideTitle) el.sideTitle.textContent = titleMap[sectionId] || "設定";
   }
 
-  initDB().then(() => reloadPlaylistFromDB());
+  function drawWave() {
+    requestAnimationFrame(drawWave);
+    if (!el.wave) return;
+    const canvas = el.wave;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = canvas.clientHeight;
 
-  if (el.btnMenu) el.btnMenu.addEventListener("click", () => openMenu());
-  if (el.btnCloseMenu) el.btnCloseMenu.addEventListener("click", closeMenu);
-  if (el.overlay) el.overlay.addEventListener("click", closeMenu);
-  
-  document.querySelectorAll("#btnSideBack").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      const parentContainer = e.target.closest(".sidebar") || e.target.closest("#settingsTabContainer");
-      showMainMenuList(parentContainer);
+    if (analyser && !audio.paused) {
+      analyser.getByteFrequencyData(analyserData);
+    } else if (analyserData) {
+      analyserData.fill(0);
+    }
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (state.waveMode === "3d") {
+      const bars = 64;
+      const barW = w / bars;
+      for (let i = 0; i < bars; i++) {
+        const val = analyserData ? analyserData[i * 2] || 0 : 0;
+        const barH = (val / 255) * h * 0.8;
+        const x = i * barW;
+        const y = h - barH;
+
+        const grad = ctx.createLinearGradient(x, h, x, y);
+        grad.addColorStop(0, "rgba(29, 185, 84, 0.2)");
+        grad.addColorStop(1, "rgba(29, 185, 84, 0.9)");
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, barW - 2, barH);
+      }
+    } else {
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#1DB954";
+      const sliceW = w / (analyserData ? analyserData.length : 1);
+      let x = 0;
+      for (let i = 0; i < (analyserData ? analyserData.length : 0); i++) {
+        const v = analyserData[i] / 255.0;
+        const y = h - (v * h * 0.8);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx.stroke();
+    }
+
+    updateSpatialAudio();
+  }
+
+  function renderAll(){
+    renderSongList();
+    renderQueue();
+    renderPlaylists();
+    renderStats();
+    renderEqualizer();
+    applyTheme();
+    renderColorPickers();
+    updateNowPlayingUI(state.currentSong);
+    if(el.btnMainShuffle) el.btnMainShuffle.classList.toggle("active", state.shuffle);
+    if(el.btnMainRepeat) el.btnMainRepeat.classList.toggle("active", state.repeat);
+    if(el.btnCrossfade) el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
+    if(el.btnSilenceSkip) el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+    setDMode(state.dMode);
+    setWaveMode(state.waveMode);
+  }
+
+  function initListeners() {
+    if (el.btnMenu) el.btnMenu.addEventListener("click", () => openSidebar());
+    if (el.btnCloseMenu) el.btnCloseMenu.addEventListener("click", closeSidebar);
+    if (el.overlay) el.overlay.addEventListener("click", closeSidebar);
+    if (el.btnSideBack) el.btnSideBack.addEventListener("click", showMainMenu);
+
+    document.querySelectorAll(".menuItem[data-section]").forEach(btn => {
+      btn.addEventListener("click", () => showPanelSection(btn.dataset.section));
     });
-  });
 
-  function attachMenuItemEvents(scope = document) {
-    scope.querySelectorAll(".menuItem").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const parentContainer = e.target.closest(".sidebar") || e.target.closest("#settingsTabContainer");
-        showPanelSection(btn.dataset.section, parentContainer);
+    if (el.btnPlay) el.btnPlay.addEventListener("click", playPause);
+    if (el.miniPlay) el.miniPlay.addEventListener("click", playPause);
+    if (el.btnPrev) el.btnPrev.addEventListener("click", prevTrack);
+    if (el.miniPrev) el.miniPrev.addEventListener("click", prevTrack);
+    if (el.btnNext) el.btnNext.addEventListener("click", nextTrack);
+    if (el.miniNext) el.miniNext.addEventListener("click", nextTrack);
+
+    if (el.btnRewind10) el.btnRewind10.addEventListener("click", () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+    if (el.btnForward10) el.btnForward10.addEventListener("click", () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); });
+
+    if (el.btnFav) el.btnFav.addEventListener("click", () => { if (state.currentSong) toggleFav(state.currentSong.name); });
+    if (el.btnMainShuffle) el.btnMainShuffle.addEventListener("click", () => { state.shuffle = !state.shuffle; saveState(); renderAll(); toast(state.shuffle ? "シャッフル: ON" : "シャッフル: OFF"); });
+    if (el.btnMainRepeat) el.btnMainRepeat.addEventListener("click", () => { state.repeat = !state.repeat; saveState(); renderAll(); toast(state.repeat ? "リピート: ON" : "リピート: OFF"); });
+
+    if (el.btnQueueClear) el.btnQueueClear.addEventListener("click", () => { state.queue = []; saveState(); renderQueue(); toast("キューを全消去しました"); });
+    if (el.btnQueueShuffle) el.btnQueueShuffle.addEventListener("click", () => { state.queue.sort(() => Math.random() - 0.5); saveState(); renderQueue(); toast("キューをシャッフルしました"); });
+
+    if (el.playbackRate) {
+      el.playbackRate.addEventListener("input", () => {
+        currentRate = Number(el.playbackRate.value);
+        if (el.customRateInput) el.customRateInput.value = currentRate;
+        applyPitchAndRate();
+      });
+    }
+    if (el.customRateInput) {
+      el.customRateInput.addEventListener("input", () => {
+        currentRate = Number(el.customRateInput.value);
+        if (el.playbackRate) el.playbackRate.value = currentRate;
+        applyPitchAndRate();
+      });
+    }
+    if (el.pitchShift) {
+      el.pitchShift.addEventListener("input", () => {
+        state.pitchSemitones = Number(el.pitchShift.value);
+        saveState();
+        applyPitchAndRate();
+      });
+    }
+
+    if (el.pannerSlider) {
+      el.pannerSlider.addEventListener("input", () => {
+        state.panValue = Number(el.pannerSlider.value);
+        if (pannerNode) pannerNode.pan.value = state.panValue;
+        if (el.pannerValText) {
+          if (state.panValue === 0) el.pannerValText.textContent = "中央";
+          else if (state.panValue < 0) el.pannerValText.textContent = `左 ${Math.abs(Math.round(state.panValue * 100))}%`;
+          else el.pannerValText.textContent = `右 ${Math.round(state.panValue * 100)}%`;
+        }
+      });
+    }
+
+    if (el.btnCrossfade) {
+      el.btnCrossfade.addEventListener("click", () => {
+        state.crossfade = !state.crossfade;
+        saveState();
+        renderAll();
+      });
+    }
+    if (el.btnSilenceSkip) {
+      el.btnSilenceSkip.addEventListener("click", () => {
+        state.silenceSkip = !state.silenceSkip;
+        saveState();
+        renderAll();
+      });
+    }
+
+    if (el.progress) {
+      el.progress.addEventListener("input", () => {
+        isSlidingRange = true;
+        if (audio.duration) audio.currentTime = (el.progress.value / 100) * audio.duration;
+      });
+      el.progress.addEventListener("change", () => { isSlidingRange = false; });
+    }
+    if (el.miniProgress) {
+      el.miniProgress.addEventListener("input", () => {
+        isSlidingRange = true;
+        if (audio.duration) audio.currentTime = (el.miniProgress.value / 100) * audio.duration;
+      });
+      el.miniProgress.addEventListener("change", () => { isSlidingRange = false; });
+    }
+
+    if (el.search) {
+      el.search.addEventListener("input", () => {
+        state.search = el.search.value;
+        renderSongList();
+      });
+    }
+
+    if (el.btnResetStats) {
+      el.btnResetStats.addEventListener("click", () => {
+        if (!confirm("再生統計データをリセットしますか？")) return;
+        state.playCounts = {};
+        state.playHistory = {};
+        saveState();
+        renderStats();
+        toast("統計データをリセットしました");
+      });
+    }
+
+    document.querySelectorAll("[data-timer]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const val = btn.dataset.timer;
+        if (val === "off") setSleepTimer(0);
+        else setSleepTimer(Number(val));
       });
     });
-  }
 
-  attachMenuItemEvents();
+    if (el.btnSetCustomTimer && el.customTimerInput) {
+      el.btnSetCustomTimer.addEventListener("click", () => {
+        const minutes = Number(el.customTimerInput.value);
+        if (minutes > 0) setSleepTimer(minutes);
+      });
+    }
 
-  if (el.folder) el.folder.addEventListener("change", e => {
-    loadFiles(e.target.files);
-    e.target.value = "";
-  });
-  // フォルダごとの読み込み。File System Access API が使えるブラウザでは
-  // フォルダを直接走査し、非対応ブラウザでは webkitdirectory にフォールバックする。
-  async function loadFolderDirectly() {
-    if (!window.showDirectoryPicker) return false;
+    if (el.btnThemeSystem) el.btnThemeSystem.addEventListener("click", () => { state.themeMode = "system"; saveState(); applyTheme(); });
+    if (el.btnThemeDark) el.btnThemeDark.addEventListener("click", () => { state.themeMode = "dark"; saveState(); applyTheme(); });
+    if (el.btnThemeLight) el.btnThemeLight.addEventListener("click", () => { state.themeMode = "light"; saveState(); applyTheme(); });
+    if (el.btnThemeCustom) el.btnThemeCustom.addEventListener("click", () => { state.themeMode = "custom"; saveState(); applyTheme(); renderColorPickers(); });
 
-    try {
-      const dirHandle = await window.showDirectoryPicker({ mode: "read" });
-      const files = [];
+    document.querySelectorAll(".navTab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        const target = tab.dataset.target;
+        const homeEl = document.getElementById("homeElements");
+        const plEl = document.getElementById("playlistElements");
+        const settingsContainer = document.getElementById("settingsTabContainer");
 
-      async function walkDirectory(handle, path = "") {
-        for await (const entry of handle.values()) {
-          if (entry.kind === "file") {
-            const file = await entry.getFile();
-            if (file.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(file.name)) {
-              // 相対パスを保持して、別フォルダの同名曲も区別する。
-              Object.defineProperty(file, "webkitRelativePath", {
-                value: path ? `${path}/${file.name}` : file.name,
-                configurable: true
-              });
-              files.push(file);
-            }
-          } else if (entry.kind === "directory") {
-            await walkDirectory(entry, path ? `${path}/${entry.name}` : entry.name);
+        if(homeEl) homeEl.style.display = target === "home" ? "block" : "none";
+        if(plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
+
+        if(target === "settings") {
+          if(settingsContainer && el.sidebarInner) {
+            settingsContainer.style.display = "block";
+            settingsContainer.appendChild(el.sidebarInner);
+            showMainMenu();
+          }
+        } else {
+          if(settingsContainer) settingsContainer.style.display = "none";
+          if(el.sidebar && el.sidebarInner && !el.sidebar.contains(el.sidebarInner)) {
+            el.sidebar.appendChild(el.sidebarInner);
           }
         }
-      }
+      });
+    });
 
-      await walkDirectory(dirHandle);
-      if (!files.length) {
-        toast("選択したフォルダに対応する音声ファイルがありません");
-        return true;
-      }
-
-      await loadFiles(files);
-      return true;
-    } catch (e) {
-      // キャンセルはエラー表示せず、通常のフォルダ選択へ戻す。
-      if (e?.name === "AbortError") return true;
-      console.warn("直接フォルダ読み込みに失敗しました", e);
-      return false;
+    if (el.shell) {
+      el.shell.addEventListener("dragover", e => { e.preventDefault(); el.shell.classList.add("dragover"); });
+      el.shell.addEventListener("dragleave", () => { el.shell.classList.remove("dragover"); });
+      el.shell.addEventListener("drop", e => {
+        e.preventDefault();
+        el.shell.classList.remove("dragover");
+        if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+      });
     }
-  }
 
-  if (el.btnFolderPicker && el.folderPicker) {
-    el.btnFolderPicker.addEventListener("click", async () => {
-      const handled = await loadFolderDirectly();
-      if (!handled) el.folderPicker.click();
-    });
-    el.folderPicker.addEventListener("change", async e => {
-      await loadFiles(e.target.files);
-      e.target.value = "";
-    });
-  }
-
-  if (el.shell) {
-    el.shell.addEventListener("dragover", e => {
-      e.preventDefault();
-      el.shell.classList.add("dragover");
-    });
-    el.shell.addEventListener("dragleave", () => el.shell.classList.remove("dragover"));
-    el.shell.addEventListener("drop", e => {
-      e.preventDefault();
-      el.shell.classList.remove("dragover");
-      loadFiles(e.dataTransfer.files);
-    });
-  }
-
-  if (el.btnPlay) el.btnPlay.addEventListener("click", playPause);
-  if (el.miniPlay) el.miniPlay.addEventListener("click", playPause);
-  if (el.btnPrev) el.btnPrev.addEventListener("click", prevTrack);
-  if (el.miniPrev) el.miniPrev.addEventListener("click", prevTrack);
-  if (el.btnNext) el.btnNext.addEventListener("click", nextTrack);
-  if (el.miniNext) el.miniNext.addEventListener("click", nextTrack);
-
-  if (el.btnRewind10) el.btnRewind10.addEventListener("click", () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
-  if (el.btnForward10) el.btnForward10.addEventListener("click", () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); });
-
-  if (el.btnFav) {
-    el.btnFav.addEventListener("click", () => {
-      if (state.currentSong) toggleFav(state.currentSong.name);
-    });
-  }
-
-  if (el.btnMainShuffle) {
-    el.btnMainShuffle.addEventListener("click", () => {
-      state.shuffle = !state.shuffle;
-      saveState();
-      renderAll();
-      toast(`シャッフル: ${state.shuffle ? "ON" : "OFF"}`);
-    });
-  }
-
-  if (el.btnMainRepeat) {
-    el.btnMainRepeat.addEventListener("click", () => {
-      state.repeat = !state.repeat;
-      saveState();
-      renderAll();
-      toast(`リピート: ${state.repeat ? "ON" : "OFF"}`);
-    });
-  }
-
-  if (el.search) {
-    el.search.addEventListener("input", e => {
-      state.search = e.target.value;
-      renderSongList();
-    });
-  }
-
-  if (el.playbackRate) {
-    el.playbackRate.addEventListener("input", e => {
-      currentRate = parseFloat(e.target.value);
-      if (el.customRateInput) el.customRateInput.value = currentRate;
-      applyPitchAndRate();
-    });
-  }
-
-  if (el.customRateInput) {
-    el.customRateInput.addEventListener("change", e => {
-      let val = parseFloat(e.target.value);
-      val = Math.max(0.1, Math.min(10, val || 1));
-      currentRate = val;
-      if (el.playbackRate) el.playbackRate.value = val;
-      applyPitchAndRate();
-    });
-  }
-
-  if (el.pitchShift) {
-    el.pitchShift.addEventListener("input", e => {
-      state.pitchSemitones = parseInt(e.target.value, 10);
-      saveState();
-      applyPitchAndRate();
-    });
-  }
-
-  if (el.btnCrossfade) {
-    el.btnCrossfade.addEventListener("click", () => {
-      state.crossfade = !state.crossfade;
-      el.btnCrossfade.classList.toggle("active", state.crossfade);
-      el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
-      saveState();
-    });
-  }
-
-  if (el.btnSilenceSkip) {
-    el.btnSilenceSkip.addEventListener("click", () => {
-      state.silenceSkip = !state.silenceSkip;
-      el.btnSilenceSkip.classList.toggle("active", state.silenceSkip);
-      el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
-      saveState();
-    });
-  }
-
-  if (el.pannerSlider) {
-    el.pannerSlider.addEventListener("input", e => {
-      state.panValue = parseFloat(e.target.value);
-      if (pannerNode) pannerNode.pan.value = state.panValue;
-      const pct = Math.round(state.panValue * 100);
-      if (el.pannerValText) el.pannerValText.textContent = pct === 0 ? "中央" : pct < 0 ? `左 ${Math.abs(pct)}%` : `右 ${pct}%`;
-    });
-  }
-
-  audio.addEventListener("timeupdate", () => {
-    if (!isSlidingRange && audio.duration) {
-      const pct = (audio.currentTime / audio.duration) * 100;
-      if (el.progress) el.progress.value = pct;
-      if (el.miniProgress) el.miniProgress.value = pct;
-      if (el.timeNow) el.timeNow.textContent = fmtTime(audio.currentTime);
-      if (el.timeAll) el.timeAll.textContent = fmtTime(audio.duration);
-
-      if (audio.currentTime > 3) {
+    audio.addEventListener("timeupdate", () => {
+      if(!isSlidingRange && audio.duration) {
+        const pct = (audio.currentTime / audio.duration) * 100;
+        if(el.progress) el.progress.value = pct;
+        if(el.miniProgress) el.miniProgress.value = pct;
+        if(el.timeNow) el.timeNow.textContent = fmtTime(audio.currentTime);
+        if(el.timeAll) el.timeAll.textContent = fmtTime(audio.duration);
+      }
+      if(audio.currentTime >= 5 && !hasCountedCurrentSong) {
         recordPlayCount();
       }
-    }
-  });
+      updateMediaSessionPosition();
+    });
 
-  const onSeekStart = () => { isSlidingRange = true; };
-  const onSeekEnd = (e) => {
-    isSlidingRange = false;
-    if (audio.duration) {
-      audio.currentTime = (e.target.value / 100) * audio.duration;
-    }
-  };
-
-  if (el.progress) {
-    el.progress.addEventListener("mousedown", onSeekStart);
-    el.progress.addEventListener("touchstart", onSeekStart);
-    el.progress.addEventListener("change", onSeekEnd);
-  }
-  if (el.miniProgress) {
-    el.miniProgress.addEventListener("mousedown", onSeekStart);
-    el.miniProgress.addEventListener("touchstart", onSeekStart);
-    el.miniProgress.addEventListener("change", onSeekEnd);
-  }
-
-  audio.addEventListener("ended", () => {
-    if (state.repeat) {
-      audio.currentTime = 0;
-      audio.play();
-    } else {
-      nextTrack();
-    }
-  });
-
-  function startSleepTimerCountdown() {
-    if (sleepIntervalId) clearInterval(sleepIntervalId);
-    sleepIntervalId = setInterval(() => {
-      if (!sleepTimerEnd) {
-        clearInterval(sleepIntervalId);
-        return;
-      }
-      const remainingMs = sleepTimerEnd - Date.now();
-      if (remainingMs <= 0) {
-        clearInterval(sleepIntervalId);
-        if (sleepTimerId) clearTimeout(sleepTimerId);
-        sleepTimerEnd = null;
-        audio.pause();
-        updatePlayPauseUI();
-        toast("スリープタイマーにより再生を停止しました");
-        if (el.timerStatus) el.timerStatus.textContent = "タイマーOFF";
-        document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
+    audio.addEventListener("ended", () => {
+      if(state.repeat) {
+        audio.currentTime = 0;
+        audio.play();
       } else {
-        const totalSec = Math.ceil(remainingMs / 1000);
-        const m = Math.floor(totalSec / 60);
-        const s = totalSec % 60;
-        if (el.timerStatus) el.timerStatus.textContent = `残り時間: ${m}分${String(s).padStart(2, "0")}秒`;
-      }
-    }, 1000);
-  }
-
-  function setSleepTimer(minutes) {
-    if (sleepTimerId) clearTimeout(sleepTimerId);
-    if (sleepIntervalId) clearInterval(sleepIntervalId);
-
-    if (minutes <= 0 || isNaN(minutes)) {
-      sleepTimerEnd = null;
-      if (el.timerStatus) el.timerStatus.textContent = "タイマーOFF";
-      toast("スリープタイマーを解除しました");
-    } else {
-      const ms = minutes * 60 * 1000;
-      sleepTimerEnd = Date.now() + ms;
-      const totalSec = Math.ceil(ms / 1000);
-      const m = Math.floor(totalSec / 60);
-      const s = totalSec % 60;
-      if (el.timerStatus) el.timerStatus.textContent = `残り時間: ${m}分${String(s).padStart(2, "0")}秒`;
-      toast(`${minutes}分タイマーを設定しました`);
-
-      sleepTimerId = setTimeout(() => {
-        audio.pause();
-        updatePlayPauseUI();
-        toast("スリープタイマーにより再生を停止しました");
-        if (el.timerStatus) el.timerStatus.textContent = "タイマーOFF";
-        document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
-      }, ms);
-      startSleepTimerCountdown();
-    }
-  }
-
-  document.querySelectorAll("[data-timer]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const val = btn.dataset.timer;
-      if (val === "off") setSleepTimer(0);
-      else setSleepTimer(parseInt(val, 10));
-    });
-  });
-
-  if (el.btnSetCustomTimer) {
-    el.btnSetCustomTimer.addEventListener("click", () => {
-      const val = parseInt(el.customTimerInput.value, 10);
-      if (val && val > 0) {
-        document.querySelectorAll("[data-timer]").forEach(b => b.classList.remove("active"));
-        setSleepTimer(val);
+        nextTrack();
       }
     });
-  }
 
-  if (el.btnThemeSystem) el.btnThemeSystem.addEventListener("click", () => { state.themeMode = "system"; saveState(); applyTheme(); });
-  if (el.btnThemeDark) el.btnThemeDark.addEventListener("click", () => { state.themeMode = "dark"; saveState(); applyTheme(); });
-  if (el.btnThemeLight) el.btnThemeLight.addEventListener("click", () => { state.themeMode = "light"; saveState(); applyTheme(); });
-  if (el.btnThemeCustom) el.btnThemeCustom.addEventListener("click", () => { state.themeMode = "custom"; saveState(); applyTheme(); renderColorPickers(); });
+    audio.addEventListener("play", updatePlayPauseUI);
+    audio.addEventListener("pause", updatePlayPauseUI);
 
-  const navTabs = document.querySelectorAll(".navTab");
-  const homeElements = document.getElementById("homeElements");
-  const playlistElements = document.getElementById("playlistElements");
-  const settingsTabContainer = document.getElementById("settingsTabContainer");
-
-  navTabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-      navTabs.forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      const target = tab.dataset.target;
-
-      if (target === "home") {
-        if (homeElements) homeElements.style.display = "block";
-        if (playlistElements) playlistElements.style.display = "none";
-        if (settingsTabContainer) settingsTabContainer.style.display = "none";
-      } else if (target === "playlist") {
-        if (homeElements) homeElements.style.display = "none";
-        if (playlistElements) playlistElements.style.display = "flex";
-        if (settingsTabContainer) settingsTabContainer.style.display = "none";
-        renderPlaylistsMain();
-      } else if (target === "settings") {
-        if (homeElements) homeElements.style.display = "none";
-        if (playlistElements) playlistElements.style.display = "none";
-        if (settingsTabContainer) {
-          settingsTabContainer.style.display = "block";
-          renderSettingsTab();
-        }
-      }
-    });
-  });
-
-  let playlistMainEventsBound = false;
-
-  function renderPlaylistsMain() {
-    const container = document.getElementById("playlistContainerMain");
-    if (!container || !el.playlistContainer) return;
-    container.innerHTML = el.playlistContainer.innerHTML;
-
-    if (!playlistMainEventsBound) {
-      playlistMainEventsBound = true;
-      container.addEventListener("click", e => {
-        const button = e.target.closest("button");
-        const card = e.target.closest(".sectionCard");
-        if (!card || !button) return;
-        const pName = button.dataset.playlistName;
-        if (!pName) return;
-
-        if (button.classList.contains("plToggleBtn")) {
-          const listDiv = card.querySelector(".plTrackList");
-          if (!listDiv) return;
-          const willOpen = listDiv.classList.contains("collapsed");
-          listDiv.classList.toggle("collapsed", !willOpen);
-          button.textContent = willOpen ? "▼" : "▶";
-          button.setAttribute("aria-expanded", String(willOpen));
-          return;
-        }
-
-        if (button.classList.contains("bulkAddPlBtn")) {
-          openBulkAddForPlaylist(pName);
-          return;
-        }
-
-        if (button.classList.contains("playPlBtn")) {
-          const songObjects = (state.playlists[pName] || []).map(n => state.playlist.find(x => x.name === n)).filter(Boolean);
-          if(songObjects.length) playSong(songObjects[0]);
-          else toast("このプレイリストに再生できる曲がありません");
-          return;
-        }
-
-        if (button.classList.contains("renamePlBtn")) {
-          const newName = prompt("新しいプレイリスト名を入力してください:", pName);
-          const trimmed = newName?.trim();
-          if(trimmed && trimmed !== pName) {
-            if (state.playlists[trimmed]) {
-              toast("その名前のプレイリストは既にあります");
-              return;
-            }
-            state.playlists[trimmed] = state.playlists[pName];
-            delete state.playlists[pName];
-            saveState();
-            renderPlaylists();
-            renderPlaylistsMain();
-          }
-          return;
-        }
-
-        if (button.classList.contains("delPlBtn")) {
-          if (!confirm(`プレイリスト「${pName}」を削除しますか？`)) return;
-          delete state.playlists[pName];
-          saveState();
-          renderPlaylists();
-          renderPlaylistsMain();
-          return;
-        }
-
-        if (button.classList.contains("playPlTrackBtn")) {
-          const found = state.playlist.find(x => x.name === button.dataset.songName);
-          if (found) playSong(found);
-          return;
-        }
-
-        if (button.classList.contains("removePlSongBtn")) {
-          const list = state.playlists[pName] || [];
-          const idx = list.indexOf(button.dataset.songName);
-          if (idx >= 0) list.splice(idx, 1);
-          saveState();
-          renderPlaylists();
-          renderPlaylistsMain();
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => playPause());
+      navigator.mediaSession.setActionHandler('pause', () => playPause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
+      navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined && audio.duration) {
+          audio.currentTime = details.seekTime;
+          updateMediaSessionPosition();
         }
       });
-
-      container.addEventListener("click", e => {
-        if (e.target.closest("button")) return;
-        const title = e.target.closest(".plTitleText");
-        if (!title) return;
-        const card = title.closest(".sectionCard");
-        const toggle = card?.querySelector(".plToggleBtn");
-        if (toggle) toggle.click();
-      });
     }
-  }
 
-  function renderSettingsTab() {
-    if (!settingsTabContainer || !el.sidebarInner) return;
-    if (!settingsTabContainer.children.length) {
-      const clone = el.sidebarInner.cloneNode(true);
-      clone.id = "settingsTabInner";
-      const closeBtn = clone.querySelector(".btnCloseMenu");
-      if (closeBtn) closeBtn.style.display = "none";
-      settingsTabContainer.appendChild(clone);
-      attachMenuItemEvents(settingsTabContainer);
-    }
-  }
-
-  document.addEventListener("keydown", e => {
-    if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
-
-    if (e.code === "Space") {
-      e.preventDefault();
-      playPause();
-    } else if (e.code === "ArrowLeft") {
-      e.preventDefault();
-      audio.currentTime = Math.max(0, audio.currentTime - 5);
-    } else if (e.code === "ArrowRight") {
-      e.preventDefault();
-      audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
-    } else if (e.code === "ArrowUp") {
-      e.preventDefault();
-      updateVolumeUI(Math.min(2, currentVolumeTarget + 0.05));
-    } else if (e.code === "ArrowDown") {
-      e.preventDefault();
-      updateVolumeUI(Math.max(0, currentVolumeTarget - 0.05));
-    } else if (e.key === "m" || e.key === "M") {
-      if (el.btnMuteToggle) el.btnMuteToggle.click();
-    } else if (e.key === "f" || e.key === "F") {
-      if (state.currentSong) toggleFav(state.currentSong.name);
-    } else if (e.key === "?") {
-      showShortcutModal();
-    }
-  });
-
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.setActionHandler('play', () => { audio.play(); updatePlayPauseUI(); });
-    navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); updatePlayPauseUI(); });
-    navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
-    navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.fastSeek && ('fastSeek' in audio)) {
-        audio.fastSeek(details.seekTime);
-      } else {
-        audio.currentTime = details.seekTime;
-      }
+    window.addEventListener("keydown", e => {
+      if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+      if (e.code === "Space") { e.preventDefault(); playPause(); }
+      else if (e.code === "ArrowLeft") { audio.currentTime = Math.max(0, audio.currentTime - 5); }
+      else if (e.code === "ArrowRight") { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5); }
+      else if (e.code === "ArrowUp") { updateVolumeUI(Math.min(2, currentVolumeTarget + 0.05)); }
+      else if (e.code === "ArrowDown") { updateVolumeUI(Math.max(0, currentVolumeTarget - 0.05)); }
+      else if (e.code === "KeyM") { if (el.btnMuteToggle) el.btnMuteToggle.click(); }
+      else if (e.code === "KeyF") { if (state.currentSong) toggleFav(state.currentSong.name); }
+      else if (e.key === "?") { showShortcutModal(); }
     });
   }
 
-  renderAll();
-  requestAnimationFrame(drawWaveform);
+  window.addEventListener("DOMContentLoaded", async () => {
+    await initDB();
+    initListeners();
+    await reloadPlaylistFromDB();
+    drawWave();
+  });
 })();
