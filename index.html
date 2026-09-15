@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v5.5</title>
+<title>Music Player v5.6</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -90,6 +90,8 @@
         <div class="field">
           <label>音楽ファイル / Zip / フォルダ追加</label>
           <input type="file" id="folder" multiple accept="audio/*,.zip" title="単体ファイル・Zipを選択">
+          <button class="btn small ghost" id="btnFolderPicker" type="button" style="width:100%; margin-top:6px;">📁 フォルダから追加</button>
+          <input type="file" id="folderPicker" webkitdirectory directory multiple accept="audio/*" style="display:none;">
         </div>
         <button class="btn danger small" id="btnResetFiles" style="width:100%;">全ファイルリセット</button>
       </div>
@@ -236,14 +238,14 @@
           <div class="field">
             <label>グラデーション方向</label>
             <div class="gradList" id="gradDirectionList">
-              <button class="gradOption" data-deg="180deg">↓ 縦 (上→下)</button>
-              <button class="gradOption" data-deg="0deg">↑ 縦 (下→上)</button>
-              <button class="gradOption" data-deg="90deg">→ 横 (左→右)</button>
-              <button class="gradOption" data-deg="270deg">← 横 (右→左)</button>
-              <button class="gradOption" data-deg="135deg">↘ 斜め (左上→右下)</button>
-              <button class="gradOption" data-deg="315deg">↖ 斜め (右下→左上)</button>
-              <button class="gradOption" data-deg="45deg">↗ 斜め (左下→右上)</button>
-              <button class="gradOption" data-deg="225deg">↙ 斜め (右上→左下)</button>
+              <button class="gradOption" data-deg="180deg"><span class="gradPreview" aria-hidden="true"></span><span>↓ 縦 (上→下)</span></button>
+              <button class="gradOption" data-deg="0deg"><span class="gradPreview" aria-hidden="true"></span><span>↑ 縦 (下→上)</span></button>
+              <button class="gradOption" data-deg="90deg"><span class="gradPreview" aria-hidden="true"></span><span>→ 横 (左→右)</span></button>
+              <button class="gradOption" data-deg="270deg"><span class="gradPreview" aria-hidden="true"></span><span>← 横 (右→左)</span></button>
+              <button class="gradOption" data-deg="135deg"><span class="gradPreview" aria-hidden="true"></span><span>↘ 斜め (左上→右下)</span></button>
+              <button class="gradOption" data-deg="315deg"><span class="gradPreview" aria-hidden="true"></span><span>↖ 斜め (右下→左上)</span></button>
+              <button class="gradOption" data-deg="45deg"><span class="gradPreview" aria-hidden="true"></span><span>↗ 斜め (左下→右上)</span></button>
+              <button class="gradOption" data-deg="225deg"><span class="gradPreview" aria-hidden="true"></span><span>↙ 斜め (右上→左下)</span></button>
             </div>
           </div>
         </div>
@@ -282,7 +284,6 @@
           </div>
           <div class="homeControls">
             <div class="seekbarContainer">
-              <canvas class="seekbarHeatmap" id="seekbarHeatmap"></canvas>
               <input type="range" id="progress" value="0" min="0" max="100">
             </div>
             <div class="timeLine">
@@ -405,6 +406,7 @@
       <button class="btn small ghost" id="btnClosePlSheet">✕</button>
     </div>
     <div class="bottomSheetList" id="plSelectList"></div>
+    <button class="btn small" id="btnBulkAddPl" type="button" style="width:100%; margin-top:12px; display:none;">選択した曲を追加</button>
   </div>
 </div>
 
