@@ -401,13 +401,57 @@
   function updateMediaSessionPosition() {
     if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        navigator.mediaSession.setPositionState({
-          duration: audio.duration,
-          playbackRate: audio.playbackRate || 1.0,
-          position: audio.currentTime || 0
-        });
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate || 1.0,
+            position: Math.min(audio.currentTime || 0, audio.duration)
+          });
+        } catch(e) {}
       }
     }
+  }
+
+  function setupMediaSessionRemoteControls() {
+    if (!('mediaSession' in navigator)) return;
+
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (audio.paused) playPause();
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (!audio.paused) playPause();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        prevTrack();
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        nextTrack();
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        audio.pause();
+        audio.currentTime = 0;
+        updatePlayPauseUI();
+      });
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const skip = details.seekOffset || 10;
+        audio.currentTime = Math.max(0, audio.currentTime - skip);
+        updateMediaSessionPosition();
+      });
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const skip = details.seekOffset || 10;
+        audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + skip);
+        updateMediaSessionPosition();
+      });
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.fastSeek && ('fastSeek' in audio)) {
+          audio.fastSeek(details.seekTime);
+        } else {
+          audio.currentTime = details.seekTime;
+        }
+        updateMediaSessionPosition();
+      });
+    } catch (e) {}
   }
 
   function adjustColorLightness(hex, percent) {
@@ -1925,18 +1969,6 @@
     });
   }
 
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.setActionHandler('play', playPause);
-    navigator.mediaSession.setActionHandler('pause', playPause);
-    navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
-    navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
-    navigator.mediaSession.setActionHandler('seekto', (details) => {
-      if (details.seekTime !== undefined && audio.duration) {
-        audio.currentTime = details.seekTime;
-      }
-    });
-  }
-
   function drawWave() {
     requestAnimationFrame(drawWave);
     if (!el.wave) return;
@@ -2108,6 +2140,7 @@
     setWaveMode(state.waveMode);
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
+    setupMediaSessionRemoteControls(); // イヤホン操作等のMediaSession登録を追加
     requestAnimationFrame(drawWave);
   })();
 })();
