@@ -135,7 +135,6 @@
 
   const audio = new Audio();
   audio.preload = "auto";
-  const heatMapData = {};
 
   let audioCtx = null, sourceNode = null, filters = [], masterGain = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let audioGraphReady = false;
@@ -196,6 +195,8 @@
   const el = {
     shell: document.getElementById("shell"),
     folder: document.getElementById("folder"),
+    btnFolderPicker: document.getElementById("btnFolderPicker"),
+    folderPicker: document.getElementById("folderPicker"),
     btnResetFiles: document.getElementById("btnResetFiles"),
     search: document.getElementById("search"),
     list: document.getElementById("list"),
@@ -246,7 +247,6 @@
     timeAll: document.getElementById("timeAll"),
     wave: document.getElementById("wave"),
     waveModeBtns: document.getElementById("waveModeBtns"),
-    seekbarHeatmap: document.getElementById("seekbarHeatmap"),
     shuffleState: document.getElementById("shuffleState"),
     btnQueueClear: document.getElementById("btnQueueClear"),
     btnQueueShuffle: document.getElementById("btnQueueShuffle"),
@@ -657,8 +657,12 @@
     if(el.txtL2) el.txtL2.textContent = `${el.sliderL2.value}%`;
     if(el.txtLText) el.txtLText.textContent = `${el.sliderLText.value}%`;
 
+    const previewC1 = adjustColorLightness(state.customTheme.c1 || "#1d3557", state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100);
+    const previewC2 = adjustColorLightness(state.customTheme.c2 || "#121212", state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100);
     document.querySelectorAll(".gradOption").forEach(opt => {
       opt.classList.toggle("selected", opt.dataset.deg === (state.customTheme.dir || "180deg"));
+      const preview = opt.querySelector(".gradPreview");
+      if (preview) preview.style.background = `linear-gradient(${opt.dataset.deg}, ${previewC1} 0%, ${previewC2} 100%)`;
     });
   }
 
@@ -802,12 +806,27 @@
   function updateArtwork(song) {
     const drawCanvas = (canvas, size) => {
       if(!canvas) return;
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.round(size * dpr);
+      canvas.height = Math.round(size * dpr);
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+
       const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
 
       if (song?.coverUrl) {
         const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, size, size);
+        img.onload = () => {
+          ctx.clearRect(0, 0, size, size);
+          const scale = Math.max(size / img.width, size / img.height);
+          const drawW = img.width * scale;
+          const drawH = img.height * scale;
+          const dx = (size - drawW) / 2;
+          const dy = (size - drawH) / 2;
+          ctx.drawImage(img, dx, dy, drawW, drawH);
+        };
         img.src = song.coverUrl;
         return;
       }
@@ -839,6 +858,7 @@
       audio.pause();
       audio.src = "";
       if (el.folder) el.folder.value = "";
+      if (el.folderPicker) el.folderPicker.value = "";
       updateArtwork(null);
       updateTitleTextAndScroll(el.nowTitle, "未再生");
       updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
@@ -900,8 +920,9 @@
 
     for (const f of directAudioFiles) {
       const meta = await parseID3(f);
+      const storageName = f.webkitRelativePath || f.name;
       saveTrackToDB({
-        name: f.name,
+        name: storageName,
         title: meta.title,
         artist: meta.artist,
         blob: f,
@@ -1058,7 +1079,6 @@
       n.classList.toggle("active", n.dataset.name === song?.name);
     });
     updatePlayPauseUI();
-    renderSeekbarHeatmap();
   }
 
   function playPause(){
@@ -1194,13 +1214,35 @@
       el.playlistContainer.innerHTML = `<div style="color:var(--muted); font-size:.86rem">プレイリストがありません</div>`;
       return;
     }
+
     names.forEach(pName => {
       const card = document.createElement("div");
       card.className = "sectionCard";
-      
-      const tracksInPl = state.playlists[pName];
+
+      const tracksInPl = Array.isArray(state.playlists[pName]) ? state.playlists[pName] : [];
+      state.playlists[pName] = tracksInPl;
+
+      const header = document.createElement("div");
+      header.className = "plHeader";
+      header.innerHTML = `
+        <div class="plHeaderLeft">
+          <button class="btn small ghost plToggleBtn" type="button" aria-expanded="false" title="曲を表示">▶</button>
+          <div class="plTitleText" title="曲を表示">${pName} (${tracksInPl.length}曲)</div>
+        </div>
+        <div class="plHeaderActions">
+          <button class="btn small bulkAddPlBtn" type="button">＋一覧から追加</button>
+          <button class="btn small renamePlBtn" type="button">名前変更</button>
+          <button class="btn small playPlBtn" type="button">▶ 全曲再生</button>
+          <button class="btn small ghost delPlBtn" type="button">✕</button>
+        </div>
+      `;
+      header.querySelectorAll("button").forEach(btn => {
+        btn.dataset.playlistName = pName;
+      });
+      card.appendChild(header);
+
       const listDiv = document.createElement("div");
-      listDiv.className = "plTrackList";
+      listDiv.className = "plTrackList collapsed";
 
       if (!tracksInPl.length) {
         listDiv.innerHTML = `<div style="color:var(--muted); font-size:.78rem">曲がありません</div>`;
@@ -1209,26 +1251,33 @@
           const found = state.playlist.find(x => x.name === songName);
           const row = document.createElement("div");
           row.className = "plTrackItem";
+          const displayTitle = found ? found.title : songName.replace(/\\.(mp3|m4a|wav|ogg|flac|aac)$/i, '');
           row.innerHTML = `
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
               ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
-              <strong>${found ? found.title : songName.replace(/\.(mp3|m4a|wav|ogg|flac|aac)$/i, '')}</strong>
+              <strong>${displayTitle}</strong>
             </span>
             <div style="display:flex; gap:6px; align-items:center;">
-              <button class="btn small playPlTrackBtn" style="padding:2px 8px;">▶</button>
-              <button class="btn small ghost removePlSongBtn" style="padding:2px 6px;">✕</button>
+              <button class="btn small playPlTrackBtn" type="button" style="padding:2px 8px;">▶</button>
+              <button class="btn small ghost removePlSongBtn" type="button" style="padding:2px 6px;">✕</button>
             </div>
           `;
-          
-          row.querySelector(".playPlTrackBtn").addEventListener("click", (e) => {
+
+          row.querySelector(".playPlTrackBtn").addEventListener("click", e => {
             e.stopPropagation();
             if (found) playSong(found);
           });
           row.addEventListener("click", () => {
             if (found) playSong(found);
           });
-
-          row.querySelector(".removePlSongBtn").addEventListener("click", (e) => {
+          row.dataset.playlistName = pName;
+          row.dataset.songName = songName;
+          row.dataset.index = String(idx);
+          row.querySelector(".playPlTrackBtn").dataset.playlistName = pName;
+          row.querySelector(".playPlTrackBtn").dataset.songName = songName;
+          row.querySelector(".removePlSongBtn").dataset.playlistName = pName;
+          row.querySelector(".removePlSongBtn").dataset.songName = songName;
+          row.querySelector(".removePlSongBtn").addEventListener("click", e => {
             e.stopPropagation();
             state.playlists[pName].splice(idx, 1);
             saveState();
@@ -1238,34 +1287,55 @@
         });
       }
 
-      card.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-weight:700; cursor:pointer;" class="plTitleText">${pName} (${tracksInPl.length}曲)</div>
-          <div style="display:flex; gap:4px;">
-            <button class="btn small renamePlBtn">名前変更</button>
-            <button class="btn small playPlBtn">▶ 全曲再生</button>
-            <button class="btn small ghost delPlBtn">✕</button>
-          </div>
-        </div>
-      `;
       card.appendChild(listDiv);
 
-      card.querySelector(".playPlBtn").addEventListener("click", () => {
-        const songObjects = state.playlists[pName].map(n => state.playlist.find(x => x.name === n)).filter(Boolean);
-        if(songObjects.length) playSong(songObjects[0]);
+      const toggleList = () => {
+        const willOpen = listDiv.classList.contains("collapsed");
+        listDiv.classList.toggle("collapsed", !willOpen);
+        const toggleBtn = header.querySelector(".plToggleBtn");
+        if (toggleBtn) {
+          toggleBtn.textContent = willOpen ? "▼" : "▶";
+          toggleBtn.setAttribute("aria-expanded", String(willOpen));
+          toggleBtn.title = willOpen ? "曲を隠す" : "曲を表示";
+        }
+      };
+      header.querySelector(".plToggleBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        toggleList();
+      });
+      header.querySelector(".plTitleText").addEventListener("click", toggleList);
+
+      header.querySelector(".bulkAddPlBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        openBulkAddForPlaylist(pName);
       });
 
-      card.querySelector(".renamePlBtn").addEventListener("click", () => {
+      header.querySelector(".playPlBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        const songObjects = state.playlists[pName].map(n => state.playlist.find(x => x.name === n)).filter(Boolean);
+        if(songObjects.length) playSong(songObjects[0]);
+        else toast("このプレイリストに再生できる曲がありません");
+      });
+
+      header.querySelector(".renamePlBtn").addEventListener("click", e => {
+        e.stopPropagation();
         const newName = prompt("新しいプレイリスト名を入力してください:", pName);
-        if(newName && newName.trim() && newName !== pName) {
-          state.playlists[newName.trim()] = state.playlists[pName];
+        const trimmed = newName?.trim();
+        if(trimmed && trimmed !== pName) {
+          if (state.playlists[trimmed]) {
+            toast("その名前のプレイリストは既にあります");
+            return;
+          }
+          state.playlists[trimmed] = state.playlists[pName];
           delete state.playlists[pName];
           saveState();
           renderPlaylists();
         }
       });
 
-      card.querySelector(".delPlBtn").addEventListener("click", () => {
+      header.querySelector(".delPlBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        if (!confirm(`プレイリスト「${pName}」を削除しますか？`)) return;
         delete state.playlists[pName];
         saveState();
         renderPlaylists();
@@ -1278,7 +1348,7 @@
   function addSongToPlaylist(songName) {
     const plNames = Object.keys(state.playlists);
     if(!plNames.length) {
-      toast("先にメニューのプレイリスト画面から作成してください");
+      toast("先にプレイリストを作成してください");
       return;
     }
     targetSongForPlaylist = songName;
@@ -1286,16 +1356,19 @@
     if (el.plSelectSheet) el.plSelectSheet.classList.add("show");
   }
 
-  function closePlSelectSheet() {
-    if (el.plSelectSheet) el.plSelectSheet.classList.remove("show");
-    targetSongForPlaylist = null;
-  }
+  let bulkTargetPlaylist = null;
 
   function renderPlSelectSheet() {
     if (!el.plSelectList) return;
     el.plSelectList.innerHTML = "";
+    bulkTargetPlaylist = null;
+    targetSongForPlaylist = targetSongForPlaylist || null;
+    const title = document.getElementById("plSelectSheetTitle");
+    const bulkBtn = el.btnBulkAddPl;
+    if (bulkBtn) bulkBtn.style.display = "none";
+    if (title) title.textContent = "プレイリストを選択";
+
     const plNames = Object.keys(state.playlists);
-    
     plNames.forEach(pName => {
       const item = document.createElement("div");
       item.className = "plSelectItem";
@@ -1306,14 +1379,71 @@
       `;
       item.addEventListener("click", () => {
         if(targetSongForPlaylist) {
-          state.playlists[pName].push(targetSongForPlaylist);
-          saveState();
-          renderPlaylists();
-          toast(`「${pName}」に追加しました`);
+          if (!state.playlists[pName].includes(targetSongForPlaylist)) {
+            state.playlists[pName].push(targetSongForPlaylist);
+            saveState();
+            renderPlaylists();
+            toast(`「${pName}」に追加しました`);
+          } else {
+            toast(`「${pName}」には既に入っています`);
+          }
         }
         closePlSelectSheet();
       });
       el.plSelectList.appendChild(item);
+    });
+  }
+
+  function openBulkAddForPlaylist(pName) {
+    if (!state.playlists[pName]) return;
+    bulkTargetPlaylist = pName;
+    targetSongForPlaylist = null;
+    if (!el.plSelectList) return;
+    el.plSelectList.innerHTML = "";
+
+    const title = document.getElementById("plSelectSheetTitle");
+    if (title) title.textContent = `「${pName}」へ追加する曲を選択`;
+    if (el.btnBulkAddPl) el.btnBulkAddPl.style.display = "block";
+
+    const current = new Set(state.playlists[pName]);
+    const songs = getVisibleSongs();
+    if (!songs.length) {
+      el.plSelectList.innerHTML = `<div style="color:var(--muted); font-size:.84rem; text-align:center; padding:12px;">追加できる曲がありません</div>`;
+    } else {
+      songs.forEach(song => {
+        const item = document.createElement("label");
+        item.className = "bulkPlItem";
+        const checked = current.has(song.name) ? " checked" : "";
+        item.innerHTML = `
+          <input type="checkbox" class="bulkSongCheck" value="${song.name.replace(/"/g, '&quot;')}"${checked}>
+          <span class="bulkSongName">${song.title}</span>
+        `;
+        el.plSelectList.appendChild(item);
+      });
+    }
+
+    if (el.plSelectSheet) el.plSelectSheet.classList.add("show");
+  }
+
+  function closePlSelectSheet() {
+    if (el.plSelectSheet) el.plSelectSheet.classList.remove("show");
+    targetSongForPlaylist = null;
+    bulkTargetPlaylist = null;
+    if (el.btnBulkAddPl) el.btnBulkAddPl.style.display = "none";
+  }
+
+  if (el.btnBulkAddPl) {
+    el.btnBulkAddPl.addEventListener("click", () => {
+      if (!bulkTargetPlaylist) return;
+      const checks = el.plSelectList?.querySelectorAll(".bulkSongCheck") || [];
+      const selected = Array.from(checks).filter(cb => cb.checked).map(cb => cb.value);
+      const existing = new Set(state.playlists[bulkTargetPlaylist] || []);
+      selected.forEach(name => existing.add(name));
+      state.playlists[bulkTargetPlaylist] = Array.from(existing);
+      saveState();
+      renderPlaylists();
+      toast(`${selected.length}曲を「${bulkTargetPlaylist}」に追加しました`);
+      closePlSelectSheet();
     });
   }
 
@@ -1673,42 +1803,6 @@
     }
   }
 
-  function renderSeekbarHeatmap() {
-    const canvas = el.seekbarHeatmap;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const w = canvas.width = canvas.clientWidth || 300;
-    const h = canvas.height = canvas.clientHeight || 36;
-
-    ctx.clearRect(0, 0, w, h);
-    if (!state.currentSong) return;
-
-    const key = state.currentSong.name;
-    const counts = heatMapData[key] || [];
-    if (!counts.length) return;
-
-    const max = Math.max(...counts, 1);
-    const step = w / counts.length;
-
-    ctx.fillStyle = "rgba(29, 185, 84, 0.45)";
-    for (let i = 0; i < counts.length; i++) {
-      const val = counts[i] / max;
-      const barH = val * h * 0.7;
-      ctx.fillRect(i * step, h - barH, step + 0.5, barH);
-    }
-  }
-
-  function recordHeatmapPoint() {
-    if (!state.currentSong || audio.paused || !audio.duration) return;
-    const key = state.currentSong.name;
-    if (!heatMapData[key]) heatMapData[key] = new Array(100).fill(0);
-    const idx = Math.floor((audio.currentTime / audio.duration) * 100);
-    if (idx >= 0 && idx < 100) {
-      heatMapData[key][idx]++;
-    }
-  }
-
-  setInterval(recordHeatmapPoint, 1000);
 
   function renderStats() {
     const totalPlays = Object.values(state.playCounts).reduce((a, b) => a + b, 0);
@@ -1897,7 +1991,17 @@
 
   attachMenuItemEvents();
 
-  if (el.folder) el.folder.addEventListener("change", e => loadFiles(e.target.files));
+  if (el.folder) el.folder.addEventListener("change", e => {
+    loadFiles(e.target.files);
+    e.target.value = "";
+  });
+  if (el.btnFolderPicker && el.folderPicker) {
+    el.btnFolderPicker.addEventListener("click", () => el.folderPicker.click());
+    el.folderPicker.addEventListener("change", e => {
+      loadFiles(e.target.files);
+      e.target.value = "";
+    });
+  }
 
   if (el.shell) {
     el.shell.addEventListener("dragover", e => {
@@ -2158,10 +2262,95 @@
     });
   });
 
+  let playlistMainEventsBound = false;
+
   function renderPlaylistsMain() {
     const container = document.getElementById("playlistContainerMain");
     if (!container || !el.playlistContainer) return;
     container.innerHTML = el.playlistContainer.innerHTML;
+
+    if (!playlistMainEventsBound) {
+      playlistMainEventsBound = true;
+      container.addEventListener("click", e => {
+        const button = e.target.closest("button");
+        const card = e.target.closest(".sectionCard");
+        if (!card || !button) return;
+        const pName = button.dataset.playlistName;
+        if (!pName) return;
+
+        if (button.classList.contains("plToggleBtn")) {
+          const listDiv = card.querySelector(".plTrackList");
+          if (!listDiv) return;
+          const willOpen = listDiv.classList.contains("collapsed");
+          listDiv.classList.toggle("collapsed", !willOpen);
+          button.textContent = willOpen ? "▼" : "▶";
+          button.setAttribute("aria-expanded", String(willOpen));
+          return;
+        }
+
+        if (button.classList.contains("bulkAddPlBtn")) {
+          openBulkAddForPlaylist(pName);
+          return;
+        }
+
+        if (button.classList.contains("playPlBtn")) {
+          const songObjects = (state.playlists[pName] || []).map(n => state.playlist.find(x => x.name === n)).filter(Boolean);
+          if(songObjects.length) playSong(songObjects[0]);
+          else toast("このプレイリストに再生できる曲がありません");
+          return;
+        }
+
+        if (button.classList.contains("renamePlBtn")) {
+          const newName = prompt("新しいプレイリスト名を入力してください:", pName);
+          const trimmed = newName?.trim();
+          if(trimmed && trimmed !== pName) {
+            if (state.playlists[trimmed]) {
+              toast("その名前のプレイリストは既にあります");
+              return;
+            }
+            state.playlists[trimmed] = state.playlists[pName];
+            delete state.playlists[pName];
+            saveState();
+            renderPlaylists();
+            renderPlaylistsMain();
+          }
+          return;
+        }
+
+        if (button.classList.contains("delPlBtn")) {
+          if (!confirm(`プレイリスト「${pName}」を削除しますか？`)) return;
+          delete state.playlists[pName];
+          saveState();
+          renderPlaylists();
+          renderPlaylistsMain();
+          return;
+        }
+
+        if (button.classList.contains("playPlTrackBtn")) {
+          const found = state.playlist.find(x => x.name === button.dataset.songName);
+          if (found) playSong(found);
+          return;
+        }
+
+        if (button.classList.contains("removePlSongBtn")) {
+          const list = state.playlists[pName] || [];
+          const idx = list.indexOf(button.dataset.songName);
+          if (idx >= 0) list.splice(idx, 1);
+          saveState();
+          renderPlaylists();
+          renderPlaylistsMain();
+        }
+      });
+
+      container.addEventListener("click", e => {
+        if (e.target.closest("button")) return;
+        const title = e.target.closest(".plTitleText");
+        if (!title) return;
+        const card = title.closest(".sectionCard");
+        const toggle = card?.querySelector(".plToggleBtn");
+        if (toggle) toggle.click();
+      });
+    }
   }
 
   function renderSettingsTab() {
