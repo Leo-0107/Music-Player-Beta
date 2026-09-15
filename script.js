@@ -1995,10 +1995,56 @@
     loadFiles(e.target.files);
     e.target.value = "";
   });
+  // フォルダごとの読み込み。File System Access API が使えるブラウザでは
+  // フォルダを直接走査し、非対応ブラウザでは webkitdirectory にフォールバックする。
+  async function loadFolderDirectly() {
+    if (!window.showDirectoryPicker) return false;
+
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: "read" });
+      const files = [];
+
+      async function walkDirectory(handle, path = "") {
+        for await (const entry of handle.values()) {
+          if (entry.kind === "file") {
+            const file = await entry.getFile();
+            if (file.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(file.name)) {
+              // 相対パスを保持して、別フォルダの同名曲も区別する。
+              Object.defineProperty(file, "webkitRelativePath", {
+                value: path ? `${path}/${file.name}` : file.name,
+                configurable: true
+              });
+              files.push(file);
+            }
+          } else if (entry.kind === "directory") {
+            await walkDirectory(entry, path ? `${path}/${entry.name}` : entry.name);
+          }
+        }
+      }
+
+      await walkDirectory(dirHandle);
+      if (!files.length) {
+        toast("選択したフォルダに対応する音声ファイルがありません");
+        return true;
+      }
+
+      await loadFiles(files);
+      return true;
+    } catch (e) {
+      // キャンセルはエラー表示せず、通常のフォルダ選択へ戻す。
+      if (e?.name === "AbortError") return true;
+      console.warn("直接フォルダ読み込みに失敗しました", e);
+      return false;
+    }
+  }
+
   if (el.btnFolderPicker && el.folderPicker) {
-    el.btnFolderPicker.addEventListener("click", () => el.folderPicker.click());
-    el.folderPicker.addEventListener("change", e => {
-      loadFiles(e.target.files);
+    el.btnFolderPicker.addEventListener("click", async () => {
+      const handled = await loadFolderDirectly();
+      if (!handled) el.folderPicker.click();
+    });
+    el.folderPicker.addEventListener("change", async e => {
+      await loadFiles(e.target.files);
       e.target.value = "";
     });
   }
