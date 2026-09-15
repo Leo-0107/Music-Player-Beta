@@ -381,7 +381,7 @@ input[type="range"] {
   font-size: 1.1rem;
 }
 
-/* ミニプレイヤー (再生バーを下に配置) */
+/* ミニプレイヤー */
 .miniPlayer {
   position: fixed;
   bottom: 56px;
@@ -445,7 +445,7 @@ input[type="range"] {
   height: 4px;
 }
 
-/* サイドバー (左側から出現するように変更) */
+/* サイドバー */
 .overlay {
   position: fixed;
   inset: 0;
@@ -509,7 +509,6 @@ input[type="range"] {
   overscroll-behavior: contain;
 }
 
-/* 設定画面での「ばってん」ボタン削除 */
 #settingsTabContainer .btnCloseMenu {
   display: none !important;
 }
@@ -533,7 +532,6 @@ input[type="range"] {
   transform: scale(1.15);
 }
 
-/* グラデーション方向リストのスタイリング */
 .gradList {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -587,7 +585,7 @@ input[type="range"] {
   margin-bottom: 8px;
 }
 
-/* イコライザーバー縦向き用のスタイリング */
+/* イコライザー */
 .vBand {
   display: flex;
   flex-direction: column;
@@ -669,11 +667,89 @@ input[type="range"] {
   transform: translateX(-50%) translateY(0);
 }
 
+/* プレイリストスタイリング（二段レイアウト＆バス液晶風スクロール） */
+.plCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plRow1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.plToggleBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.plTitleContainer {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+body.theme-light .plTitleContainer {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.plTitleText {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  cursor: pointer;
+  will-change: transform;
+}
+
+.plTitleText.scrolling {
+  animation: busMarquee var(--pl-scroll-duration, 8s) linear infinite alternate;
+}
+
+@keyframes busMarquee {
+  0%, 20% { transform: translateX(0); }
+  80%, 100% { transform: translateX(var(--pl-scroll-dist, -50%)); }
+}
+
+.delPlBtn {
+  flex: 0 0 auto;
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.plRow2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.plRow2 .btn {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+}
+
 .plTrackList {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 4px;
+}
+.plTrackList.collapsed {
+  display: none;
 }
 .plTrackItem {
   display: flex;
@@ -686,42 +762,6 @@ input[type="range"] {
   cursor: pointer;
 }
 
-.plHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-.plHeaderLeft {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.plToggleBtn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  flex: 0 0 auto;
-}
-.plTitleText {
-  font-weight: 700;
-  cursor: pointer;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.plHeaderActions {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.plTrackList.collapsed {
-  display: none;
-}
 .bulkPlItem {
   display: flex;
   align-items: center;
@@ -808,4 +848,8 @@ kbd {
   align-items: center;
 }
 .bottomSheetList { max-height: min(55vh, 520px); overflow-y: auto; }
-@media (max-width: 520px) { .gradList { grid-template-columns: 1fr; } .plHeader { align-items: flex-start; } .plHeaderActions { max-width: 100%; } }
+@media (max-width: 520px) {
+  .gradList { grid-template-columns: 1fr; }
+  .plRow2 { flex-direction: column; }
+  .plRow2 .btn { width: 100%; }
+}
