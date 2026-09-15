@@ -4,9 +4,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v5.4</title>
+<title>Music Player v5.5</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
+<style id="responsive-song-list-fix">
+/* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
+.song {
+  min-width: 0;
+}
+.songMain {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.songName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.songName.songNameScrolling {
+  display: block;
+  width: max-content;
+  max-width: none;
+  text-overflow: clip;
+  animation: songNameMarquee var(--song-scroll-duration, 10s) linear infinite;
+  animation-play-state: running;
+}
+@keyframes songNameMarquee {
+  0%, 40% { transform: translateX(0); }
+  60%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); }
+}
+
+@media (max-width: 700px) {
+  .song {
+    display: block !important;
+  }
+  .songMain {
+    width: 100%;
+  }
+  .songRight {
+    width: 100%;
+    margin-top: 8px;
+    margin-left: 0 !important;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 420px) {
+  .songRight button {
+    flex: 0 1 auto;
+  }
+}
+</style>
+
 <!-- Zip解析用ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
