@@ -1293,7 +1293,6 @@
         const tracksInPl = Array.isArray(state.playlists[pName]) ? state.playlists[pName] : [];
         state.playlists[pName] = tracksInPl;
 
-        // 1段目: 曲一覧表示ボタン、バス液晶スタイルのスクロール付きプレイリスト名、削除「✕」ボタン
         const row1 = document.createElement("div");
         row1.className = "plRow1";
         row1.innerHTML = `
@@ -1304,7 +1303,6 @@
           <button class="btn small ghost delPlBtn" type="button" title="プレイリストを削除">✕</button>
         `;
 
-        // 2段目: 一覧から追加、名前変更、全曲再生ボタン
         const row2 = document.createElement("div");
         row2.className = "plRow2";
         row2.innerHTML = `
@@ -2140,7 +2138,7 @@
     setWaveMode(state.waveMode);
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
-    setupMediaSessionRemoteControls(); // イヤホン操作等のMediaSession登録を追加
+    setupMediaSessionRemoteControls();
     requestAnimationFrame(drawWave);
   })();
 })();
