@@ -36,8 +36,11 @@
 
   const dbName = "Music Player v3.8";
   let db = null;
-  let activeObjectURLs = [];
+  const activeObjectURLMap = new Map();
   let isWaveAnimating = false;
+
+  let lastFrameTime = performance.now();
+  let silenceTimer = 0;
 
   function escapeHTML(str) {
     if (!str) return "";
@@ -49,9 +52,23 @@
       .replace(/'/g, "&#039;");
   }
 
+  function cleanUpObjectURLs() {
+    const currentName = state.currentSong?.name;
+    for (const [name, urls] of activeObjectURLMap.entries()) {
+      if (name !== currentName) {
+        if (urls.url) URL.revokeObjectURL(urls.url);
+        if (urls.coverUrl) URL.revokeObjectURL(urls.coverUrl);
+        activeObjectURLMap.delete(name);
+      }
+    }
+  }
+
   function revokeAllObjectURLs() {
-    activeObjectURLs.forEach(url => URL.revokeObjectURL(url));
-    activeObjectURLs = [];
+    for (const [name, urls] of activeObjectURLMap.entries()) {
+      if (urls.url) URL.revokeObjectURL(urls.url);
+      if (urls.coverUrl) URL.revokeObjectURL(urls.coverUrl);
+    }
+    activeObjectURLMap.clear();
   }
 
   function initDB() {
@@ -158,7 +175,7 @@
                 let p = 1;
                 while (p < frameData.length && frameData[p] !== 0) p++;
                 const mime = new TextDecoder("ascii").decode(frameData.subarray(1, p)) || "image/jpeg";
-                let imgStart = p + 2; // MIME終端ヌルとPicture Typeバイトをスキップ
+                let imgStart = p + 2;
                 if (encoding === 1 || encoding === 2) {
                   while (imgStart < frameData.length - 1) {
                     if (frameData[imgStart] === 0 && frameData[imgStart + 1] === 0) {
@@ -189,7 +206,7 @@
   const audio = new Audio();
   audio.preload = "auto";
 
-  let audioCtx = null, sourceNode = null, filters = [], masterGain = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
+  let audioCtx = null, sourceNode = null, filters = [], masterGain = null, limiterNode = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let audioGraphReady = false;
   let isSlidingRange = false;
   let currentRate = 1.0;
@@ -366,6 +383,7 @@
       }
     });
     if (document.visibilityState === "visible" && !audio.paused) {
+      lastFrameTime = performance.now();
       startWaveAnimation();
     }
   });
@@ -496,7 +514,7 @@
       });
       navigator.mediaSession.setActionHandler('seekforward', (details) => {
         const skip = details.seekOffset || 10;
-        audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + skip);
+        audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10);
         updateMediaSessionPosition();
       });
       navigator.mediaSession.setActionHandler('seekto', (details) => {
@@ -565,6 +583,14 @@
       masterGain.gain.value = currentVolumeTarget;
       audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
+      // --- DynamicsCompressorNode (リミッター) 挿入 ---
+      limiterNode = audioCtx.createDynamicsCompressor();
+      limiterNode.threshold.setValueAtTime(-0.5, audioCtx.currentTime);
+      limiterNode.knee.setValueAtTime(0, audioCtx.currentTime);
+      limiterNode.ratio.setValueAtTime(20, audioCtx.currentTime);
+      limiterNode.attack.setValueAtTime(0.003, audioCtx.currentTime);
+      limiterNode.release.setValueAtTime(0.1, audioCtx.currentTime);
+
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
@@ -585,8 +611,10 @@
         lastFilter = panner3DNode;
       }
 
+      // パイプライン: lastFilter -> masterGain -> limiterNode -> analyser -> destination
       lastFilter.connect(masterGain);
-      masterGain.connect(analyser);
+      masterGain.connect(limiterNode);
+      limiterNode.connect(analyser);
       analyser.connect(audioCtx.destination);
 
       audioGraphReady = true;
@@ -609,9 +637,11 @@
     updateMediaSessionPosition();
   }
 
-  function updateSpatialAudio() {
+  // --- 経過時間（dt）ベースの回転更新 ---
+  function updateSpatialAudio(dt) {
     if (!audioCtx || !panner3DNode || audio.paused) return;
-    spatialAngle += 0.025;
+    const rotationSpeed = 1.5; // ラジアン/秒
+    spatialAngle += rotationSpeed * dt;
     const t = spatialAngle;
     let x = 0, y = 0, z = 0;
 
@@ -1037,23 +1067,27 @@
     });
   }
 
+  // --- アクティブURLの保護型リロード ---
   async function reloadPlaylistFromDB() {
-    revokeAllObjectURLs();
+    cleanUpObjectURLs();
     const tracks = await loadTracksFromDB();
     state.playlist = tracks.map(t => {
-      const url = URL.createObjectURL(t.blob);
-      activeObjectURLs.push(url);
-      let coverUrl = null;
-      if (t.coverBlob) {
-        coverUrl = URL.createObjectURL(t.coverBlob);
-        activeObjectURLs.push(coverUrl);
+      let songUrls = activeObjectURLMap.get(t.name);
+      if (!songUrls) {
+        const url = URL.createObjectURL(t.blob);
+        let coverUrl = null;
+        if (t.coverBlob) {
+          coverUrl = URL.createObjectURL(t.coverBlob);
+        }
+        songUrls = { url, coverUrl };
+        activeObjectURLMap.set(t.name, songUrls);
       }
       return {
         name: t.name,
         title: t.title || t.name,
         artist: t.artist || "不明なアーティスト",
-        url: url,
-        coverUrl: coverUrl
+        url: songUrls.url,
+        coverUrl: songUrls.coverUrl
       };
     }).sort((a,b) => a.title.localeCompare(b.title, "ja", {numeric:true}));
     renderAll();
@@ -1063,13 +1097,11 @@
     if(!song) return;
     if(!confirm(`「${song.title}」を削除しますか？`)) return;
 
-    if (song.url) {
-      URL.revokeObjectURL(song.url);
-      activeObjectURLs = activeObjectURLs.filter(u => u !== song.url);
-    }
-    if (song.coverUrl) {
-      URL.revokeObjectURL(song.coverUrl);
-      activeObjectURLs = activeObjectURLs.filter(u => u !== song.coverUrl);
+    const urls = activeObjectURLMap.get(song.name);
+    if (urls) {
+      if (urls.url) URL.revokeObjectURL(urls.url);
+      if (urls.coverUrl) URL.revokeObjectURL(urls.coverUrl);
+      activeObjectURLMap.delete(song.name);
     }
 
     await deleteTrackFromDB(song.name);
@@ -1116,6 +1148,7 @@
   function startNewSong(song, pushHistory) {
     state.currentSong = song;
     hasCountedCurrentSong = false;
+    silenceTimer = 0;
     audio.src = song.url;
     applyPitchAndRate();
     
@@ -1136,8 +1169,22 @@
     resumeAudioCtx();
     audio.play().then(() => {
       requestWakeLock();
+      lastFrameTime = performance.now();
       startWaveAnimation();
     }).catch(()=>{});
+  }
+
+  // --- DOMのピンポイント更新 ---
+  function updateSongItemPlayCountUI(songName, count) {
+    if (!el.list) return;
+    const songRows = el.list.querySelectorAll(".song");
+    for (let i = 0; i < songRows.length; i++) {
+      if (songRows[i].dataset.name === songName) {
+        const metaEl = songRows[i].querySelector(".songMeta");
+        if (metaEl) metaEl.textContent = `再生数 ${count}回`;
+        break;
+      }
+    }
   }
 
   function recordPlayCount() {
@@ -1151,7 +1198,7 @@
 
     saveState();
     renderStats();
-    renderSongList();
+    updateSongItemPlayCountUI(songName, state.playCounts[songName]);
   }
 
   function updatePlayPauseUI(){
@@ -1208,6 +1255,7 @@
     if(audio.paused) {
       audio.play().then(() => {
         requestWakeLock();
+        lastFrameTime = performance.now();
         startWaveAnimation();
       }).catch(()=>{});
     } else {
@@ -1832,6 +1880,7 @@
 
   audio.addEventListener("play", () => {
     updatePlayPauseUI();
+    lastFrameTime = performance.now();
     startWaveAnimation();
   });
 
@@ -1859,16 +1908,6 @@
 
     if (cur > 30 || (dur > 0 && cur / dur > 0.5)) {
       recordPlayCount();
-    }
-
-    if (state.silenceSkip && analyser && analyserData && !audio.paused) {
-      analyser.getByteFrequencyData(analyserData);
-      let sum = 0;
-      for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
-      const avg = sum / analyserData.length;
-      if (avg < 2 && cur > 2 && dur - cur > 3) {
-        audio.currentTime += 0.5;
-      }
     }
 
     updateMediaSessionPosition();
@@ -1990,6 +2029,7 @@
   if (el.btnSilenceSkip) {
     el.btnSilenceSkip.addEventListener("click", () => {
       state.silenceSkip = !state.silenceSkip;
+      silenceTimer = 0;
       saveState();
       el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
     });
@@ -2066,6 +2106,7 @@
     });
   }
 
+  // --- 描画ループ & 連続無音判定 ---
   function drawWave() {
     if (audio.paused || document.visibilityState !== "visible") {
       isWaveAnimating = false;
@@ -2073,6 +2114,11 @@
     }
 
     requestAnimationFrame(drawWave);
+
+    const now = performance.now();
+    const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+    lastFrameTime = now;
+
     if (!el.wave) return;
     const canvas = el.wave;
     const ctx = canvas.getContext("2d");
@@ -2087,49 +2133,69 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    updateSpatialAudio();
+    updateSpatialAudio(dt);
 
-    if (!analyser || !analyserData) return;
-    analyser.getByteFrequencyData(analyserData);
+    if (analyser && analyserData) {
+      analyser.getByteFrequencyData(analyserData);
 
-    if (state.waveMode === "3d") {
-      const bars = analyserData.length;
-      const barWidth = width / bars;
-      for (let i = 0; i < bars; i++) {
-        const value = analyserData[i];
-        const percent = value / 255;
-        const barHeight = height * percent;
-        const x = i * barWidth;
-        const y = height - barHeight;
+      // 連続無音判定 (2.0秒以上の連続無音でスキップ)
+      if (state.silenceSkip && !audio.paused) {
+        let sum = 0;
+        for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+        const avg = sum / analyserData.length;
+        const cur = audio.currentTime, dur = audio.duration;
 
-        const hue = (i / bars) * 280 + 120;
-        ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;
-        ctx.fillRect(x, y, barWidth - 1, barHeight);
-
-        ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.3)`;
-        ctx.fillRect(x, y - 4, barWidth - 1, 3);
+        if (avg < 2 && cur > 2 && dur - cur > 3) {
+          silenceTimer += dt;
+          if (silenceTimer >= 2.0) {
+            audio.currentTime += 0.5;
+            silenceTimer = 0;
+          }
+        } else {
+          silenceTimer = 0;
+        }
       }
-    } else {
-      ctx.beginPath();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#1DB954";
-      const sliceWidth = width / analyserData.length;
-      let x = 0;
-      for (let i = 0; i < analyserData.length; i++) {
-        const v = analyserData[i] / 128.0;
-        const y = (v * height) / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-        x += sliceWidth;
+
+      if (state.waveMode === "3d") {
+        const bars = analyserData.length;
+        const barWidth = width / bars;
+        for (let i = 0; i < bars; i++) {
+          const value = analyserData[i];
+          const percent = value / 255;
+          const barHeight = height * percent;
+          const x = i * barWidth;
+          const y = height - barHeight;
+
+          const hue = (i / bars) * 280 + 120;
+          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;
+          ctx.fillRect(x, y, barWidth - 1, barHeight);
+
+          ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.3)`;
+          ctx.fillRect(x, y - 4, barWidth - 1, 3);
+        }
+      } else {
+        ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#1DB954";
+        const sliceWidth = width / analyserData.length;
+        let x = 0;
+        for (let i = 0; i < analyserData.length; i++) {
+          const v = analyserData[i] / 128.0;
+          const y = (v * height) / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
       }
-      ctx.lineTo(width, height / 2);
-      ctx.stroke();
     }
   }
 
   function startWaveAnimation() {
     if (!isWaveAnimating && !audio.paused) {
       isWaveAnimating = true;
+      lastFrameTime = performance.now();
       requestAnimationFrame(drawWave);
     }
   }
