@@ -36,42 +36,81 @@
 
   const dbName = "Music Player v3.8";
   let db = null;
+  let activeObjectURLs = [];
+  let isWaveAnimating = false;
+
+  function escapeHTML(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function revokeAllObjectURLs() {
+    activeObjectURLs.forEach(url => URL.revokeObjectURL(url));
+    activeObjectURLs = [];
+  }
 
   function initDB() {
     return new Promise(resolve => {
-      const req = indexedDB.open(dbName, 1);
-      req.onupgradeneeded = e => {
-        const d = e.target.result;
-        if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", { keyPath: "name" });
-      };
-      req.onsuccess = e => { db = e.target.result; resolve(); };
-      req.onerror = () => resolve();
+      try {
+        const req = indexedDB.open(dbName, 1);
+        req.onupgradeneeded = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", { keyPath: "name" });
+        };
+        req.onsuccess = e => { db = e.target.result; resolve(); };
+        req.onerror = () => {
+          toast("データベースの接続に失敗しました");
+          resolve();
+        };
+      } catch (e) {
+        toast("IndexedDBがサポートされていないかアクセスできません");
+        resolve();
+      }
     });
   }
 
   function saveTrackToDB(trackData) {
     if (!db) return;
-    const tx = db.transaction("tracks", "readwrite");
-    tx.objectStore("tracks").put(trackData);
+    try {
+      const tx = db.transaction("tracks", "readwrite");
+      tx.objectStore("tracks").put(trackData);
+      tx.onerror = () => toast("トラックの保存中にエラーが発生しました");
+    } catch (e) {}
   }
 
   function deleteTrackFromDB(name) {
     return new Promise(resolve => {
       if (!db) return resolve();
-      const tx = db.transaction("tracks", "readwrite");
-      tx.objectStore("tracks").delete(name);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      try {
+        const tx = db.transaction("tracks", "readwrite");
+        tx.objectStore("tracks").delete(name);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => {
+          toast("トラックの削除に失敗しました");
+          resolve();
+        };
+      } catch {
+        resolve();
+      }
     });
   }
 
   function loadTracksFromDB() {
     return new Promise(resolve => {
       if (!db) return resolve([]);
-      const tx = db.transaction("tracks", "readonly");
-      const req = tx.objectStore("tracks").getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
+      try {
+        const tx = db.transaction("tracks", "readonly");
+        const req = tx.objectStore("tracks").getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
     });
   }
 
@@ -103,7 +142,7 @@
         if (buf.byteLength > 10 && view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33) {
           let offset = 10;
           const size = (view.getUint8(6) << 21) | (view.getUint8(7) << 14) | (view.getUint8(8) << 7) | view.getUint8(9);
-          while (offset < size + 10 && offset + 10 < buf.byteLength) {
+          while (offset < size + 10 && offset + 10 <= buf.byteLength) {
             const frameID = String.fromCharCode(view.getUint8(offset), view.getUint8(offset+1), view.getUint8(offset+2), view.getUint8(offset+3));
             const frameSize = view.getUint32(offset + 4);
             if (frameSize <= 0 || offset + 10 + frameSize > buf.byteLength) break;
@@ -115,12 +154,26 @@
               } else if (frameID === "TPE1") {
                 artist = decodeID3String(frameData) || artist;
               } else if (frameID === "APIC") {
+                const encoding = frameData[0];
                 let p = 1;
-                while(p < frameData.length && frameData[p] !== 0) p++;
+                while (p < frameData.length && frameData[p] !== 0) p++;
                 const mime = new TextDecoder("ascii").decode(frameData.subarray(1, p)) || "image/jpeg";
-                let imgStart = p + 2;
-                while(imgStart < frameData.length && frameData[imgStart] === 0) imgStart++;
-                coverBlob = new Blob([frameData.subarray(imgStart)], { type: mime });
+                let imgStart = p + 2; // MIME終端ヌルとPicture Typeバイトをスキップ
+                if (encoding === 1 || encoding === 2) {
+                  while (imgStart < frameData.length - 1) {
+                    if (frameData[imgStart] === 0 && frameData[imgStart + 1] === 0) {
+                      imgStart += 2;
+                      break;
+                    }
+                    imgStart += 2;
+                  }
+                } else {
+                  while (imgStart < frameData.length && frameData[imgStart] !== 0) imgStart++;
+                  imgStart += 1;
+                }
+                if (imgStart < frameData.length) {
+                  coverBlob = new Blob([frameData.subarray(imgStart)], { type: mime });
+                }
               }
             } catch {}
             offset += 10 + frameSize;
@@ -312,6 +365,9 @@
         }
       }
     });
+    if (document.visibilityState === "visible" && !audio.paused) {
+      startWaveAnimation();
+    }
   });
 
   function updateTitleTextAndScroll(element, text) {
@@ -507,7 +563,7 @@
 
       masterGain = audioCtx.createGain();
       masterGain.gain.value = currentVolumeTarget;
-      audio.volume = 1.0;
+      audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -890,6 +946,7 @@
         const tx = db.transaction("tracks", "readwrite");
         tx.objectStore("tracks").clear();
       }
+      revokeAllObjectURLs();
       state.playlist = [];
       state.currentSong = null;
       state.queue = [];
@@ -981,20 +1038,39 @@
   }
 
   async function reloadPlaylistFromDB() {
+    revokeAllObjectURLs();
     const tracks = await loadTracksFromDB();
-    state.playlist = tracks.map(t => ({
-      name: t.name,
-      title: t.title || t.name,
-      artist: t.artist || "不明なアーティスト",
-      url: URL.createObjectURL(t.blob),
-      coverUrl: t.coverBlob ? URL.createObjectURL(t.coverBlob) : null
-    })).sort((a,b) => a.title.localeCompare(b.title, "ja", {numeric:true}));
+    state.playlist = tracks.map(t => {
+      const url = URL.createObjectURL(t.blob);
+      activeObjectURLs.push(url);
+      let coverUrl = null;
+      if (t.coverBlob) {
+        coverUrl = URL.createObjectURL(t.coverBlob);
+        activeObjectURLs.push(coverUrl);
+      }
+      return {
+        name: t.name,
+        title: t.title || t.name,
+        artist: t.artist || "不明なアーティスト",
+        url: url,
+        coverUrl: coverUrl
+      };
+    }).sort((a,b) => a.title.localeCompare(b.title, "ja", {numeric:true}));
     renderAll();
   }
 
   async function deleteSingleTrack(song) {
     if(!song) return;
     if(!confirm(`「${song.title}」を削除しますか？`)) return;
+
+    if (song.url) {
+      URL.revokeObjectURL(song.url);
+      activeObjectURLs = activeObjectURLs.filter(u => u !== song.url);
+    }
+    if (song.coverUrl) {
+      URL.revokeObjectURL(song.coverUrl);
+      activeObjectURLs = activeObjectURLs.filter(u => u !== song.coverUrl);
+    }
 
     await deleteTrackFromDB(song.name);
     
@@ -1060,6 +1136,7 @@
     resumeAudioCtx();
     audio.play().then(() => {
       requestWakeLock();
+      startWaveAnimation();
     }).catch(()=>{});
   }
 
@@ -1131,6 +1208,7 @@
     if(audio.paused) {
       audio.play().then(() => {
         requestWakeLock();
+        startWaveAnimation();
       }).catch(()=>{});
     } else {
       audio.pause();
@@ -1151,11 +1229,15 @@
     }
   }
 
-  function nextTrack(){
-    if(historyIndex < historyStack.length - 1) {
+  function nextTrack(isAuto = false){
+    if(!isAuto && historyIndex < historyStack.length - 1) {
       historyIndex++;
       playSong(historyStack[historyIndex], false);
       return;
+    }
+
+    if (isAuto && historyIndex < historyStack.length - 1) {
+      historyStack.splice(historyIndex + 1);
     }
 
     const vis = getVisibleSongs();
@@ -1177,22 +1259,22 @@
 
   function updateVolumeUI(targetVal, isMuteAction = false) {
     const prevVol = currentVolumeTarget;
-    currentVolumeTarget = targetVal;
-    if (el.volume) el.volume.value = targetVal;
-    if (el.volText) el.volText.textContent = `${Math.round(targetVal * 100)}%`;
-    if (el.btnMuteToggle) el.btnMuteToggle.textContent = targetVal === 0 ? "🔇" : targetVal < 0.5 ? "🔉" : "🔊";
+    currentVolumeTarget = Math.max(0, targetVal);
+    if (el.volume) el.volume.value = currentVolumeTarget;
+    if (el.volText) el.volText.textContent = `${Math.round(currentVolumeTarget * 100)}%`;
+    if (el.btnMuteToggle) el.btnMuteToggle.textContent = currentVolumeTarget === 0 ? "🔇" : currentVolumeTarget < 0.5 ? "🔉" : "🔊";
+
+    audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
     if(masterGain && audioCtx) {
       const now = audioCtx.currentTime;
       masterGain.gain.cancelScheduledValues(now);
 
-      if (targetVal > prevVol) {
-        masterGain.gain.setTargetAtTime(targetVal, now, 0.35);
+      if (currentVolumeTarget > prevVol) {
+        masterGain.gain.setTargetAtTime(currentVolumeTarget, now, 0.35);
       } else {
-        masterGain.gain.setTargetAtTime(targetVal, now, isMuteAction ? 0.02 : 0.05);
+        masterGain.gain.setTargetAtTime(currentVolumeTarget, now, isMuteAction ? 0.02 : 0.05);
       }
-    } else {
-      audio.volume = targetVal;
     }
     saveState();
   }
@@ -1298,7 +1380,7 @@
         row1.innerHTML = `
           <button class="btn small ghost plToggleBtn" type="button" aria-expanded="false" title="曲を表示">▶ 曲一覧 (${tracksInPl.length})</button>
           <div class="plTitleContainer">
-            <div class="plTitleText" title="${pName}">${pName}</div>
+            <div class="plTitleText" title="${escapeHTML(pName)}">${escapeHTML(pName)}</div>
           </div>
           <button class="btn small ghost delPlBtn" type="button" title="プレイリストを削除">✕</button>
         `;
@@ -1328,7 +1410,7 @@
             row.innerHTML = `
               <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
                 ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
-                <strong>${displayTitle}</strong>
+                <strong>${escapeHTML(displayTitle)}</strong>
               </span>
               <div style="display:flex; gap:6px; align-items:center;">
                 <button class="btn small playPlTrackBtn" type="button" style="padding:2px 8px;">▶</button>
@@ -1443,7 +1525,7 @@
       item.className = "plSelectItem";
       const count = state.playlists[pName].length;
       item.innerHTML = `
-        <div style="font-weight:600;">${pName}</div>
+        <div style="font-weight:600;">${escapeHTML(pName)}</div>
         <div style="color:var(--muted); font-size:.82rem;">${count}曲</div>
       `;
       item.addEventListener("click", () => {
@@ -1484,8 +1566,8 @@
         item.className = "bulkPlItem";
         const checked = current.has(song.name) ? " checked" : "";
         item.innerHTML = `
-          <input type="checkbox" class="bulkSongCheck" value="${song.name.replace(/"/g, '&quot;')}"${checked}>
-          <span class="bulkSongName">${song.title}</span>
+          <input type="checkbox" class="bulkSongCheck" value="${escapeHTML(song.name)}"${checked}>
+          <span class="bulkSongName">${escapeHTML(song.title)}</span>
         `;
         el.plSelectList.appendChild(item);
       });
@@ -1551,8 +1633,8 @@
       row.dataset.name = song.name;
       row.innerHTML = `
         <div class="songMain">
-          <div class="songName">${song.title}</div>
-          <div class="songArtist">${song.artist}</div>
+          <div class="songName">${escapeHTML(song.title)}</div>
+          <div class="songArtist">${escapeHTML(song.artist)}</div>
           <div class="songMeta">再生数 ${state.playCounts[song.name] || 0}回</div>
         </div>
         <div class="songRight">
@@ -1615,8 +1697,8 @@
       row.className = "song";
       row.innerHTML = `
         <div class="songMain">
-          <div class="songName">${s ? s.title : name}</div>
-          <div class="songArtist">${s ? s.artist : "不明"}</div>
+          <div class="songName">${escapeHTML(s ? s.title : name)}</div>
+          <div class="songArtist">${escapeHTML(s ? s.artist : "不明")}</div>
         </div>
         <div class="songRight">
           <button class="btn small danger delQueueBtn">削除</button>
@@ -1748,6 +1830,23 @@
     renderStats();
   }
 
+  audio.addEventListener("play", () => {
+    updatePlayPauseUI();
+    startWaveAnimation();
+  });
+
+  audio.addEventListener("pause", () => {
+    updatePlayPauseUI();
+  });
+
+  audio.addEventListener("playing", () => {
+    updatePlayPauseUI();
+  });
+
+  audio.addEventListener("waiting", () => {
+    updatePlayPauseUI();
+  });
+
   audio.addEventListener("timeupdate", () => {
     if(!audio.duration) return;
     const cur = audio.currentTime, dur = audio.duration;
@@ -1781,7 +1880,7 @@
       audio.currentTime = 0;
       audio.play().then(() => requestWakeLock()).catch(()=>{});
     } else {
-      nextTrack();
+      nextTrack(true);
     }
   });
 
@@ -1805,8 +1904,8 @@
   if (el.miniPlay) el.miniPlay.addEventListener("click", playPause);
   if (el.btnPrev) el.btnPrev.addEventListener("click", prevTrack);
   if (el.miniPrev) el.miniPrev.addEventListener("click", prevTrack);
-  if (el.btnNext) el.btnNext.addEventListener("click", nextTrack);
-  if (el.miniNext) el.miniNext.addEventListener("click", nextTrack);
+  if (el.btnNext) el.btnNext.addEventListener("click", () => nextTrack(false));
+  if (el.miniNext) el.miniNext.addEventListener("click", () => nextTrack(false));
 
   if (el.btnRewind10) el.btnRewind10.addEventListener("click", () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
   if (el.btnForward10) el.btnForward10.addEventListener("click", () => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10); });
@@ -1968,6 +2067,11 @@
   }
 
   function drawWave() {
+    if (audio.paused || document.visibilityState !== "visible") {
+      isWaveAnimating = false;
+      return;
+    }
+
     requestAnimationFrame(drawWave);
     if (!el.wave) return;
     const canvas = el.wave;
@@ -2020,6 +2124,13 @@
       }
       ctx.lineTo(width, height / 2);
       ctx.stroke();
+    }
+  }
+
+  function startWaveAnimation() {
+    if (!isWaveAnimating && !audio.paused) {
+      isWaveAnimating = true;
+      requestAnimationFrame(drawWave);
     }
   }
 
@@ -2078,14 +2189,7 @@
 
       if (homeEl) homeEl.style.display = target === "home" ? "block" : "none";
       if (plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
-      if (setEl) {
-        setEl.style.display = target === "settings" ? "block" : "none";
-        if (target === "settings" && el.sidebarInner) {
-          setEl.appendChild(el.sidebarInner);
-        } else if (target !== "settings" && el.sidebar && el.sidebarInner) {
-          el.sidebar.appendChild(el.sidebarInner);
-        }
-      }
+      if (setEl) setEl.style.display = target === "settings" ? "block" : "none";
     });
   });
 
@@ -2104,6 +2208,24 @@
 
   window.addEventListener("keydown", e => {
     if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+
+    const isModalOpen = el.shortcutModal?.classList.contains("show") ||
+                        el.plAlertModal?.classList.contains("show") ||
+                        el.plSelectSheet?.classList.contains("show");
+
+    if (e.key === "Escape") {
+      if (isModalOpen) {
+        hideShortcutModal();
+        hidePlAlertModal();
+        closePlSelectSheet();
+      } else if (state.menuOpen) {
+        closeSidebar();
+      }
+      return;
+    }
+
+    if (isModalOpen) return;
+
     if (e.code === "Space") {
       e.preventDefault();
       playPause();
@@ -2139,6 +2261,5 @@
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
-    requestAnimationFrame(drawWave);
   })();
 })();
