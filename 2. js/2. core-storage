@@ -386,3 +386,25 @@
       lastFrameTime = performance.now();
       startWaveAnimation();
     }
+  });
+
+  function updateTitleTextAndScroll(element, text) {
+    if (!element) return;
+    const container = element.closest(".scroll-container");
+    element.classList.remove("scrolling");
+    element.style.animationPlayState = "paused";
+    element.textContent = text;
+
+    requestAnimationFrame(() => {
+      if (!container) return;
+      const overflow = element.scrollWidth - container.clientWidth;
+      if (overflow > 6) {
+        element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
+        element.classList.add("scrolling");
+        if (container._isIntersecting && document.visibilityState === "visible") {
+          element.style.animationPlayState = "running";
+        }
+      }
+    });
+  }
+
