@@ -1,28 +1,41 @@
-// Main loader: keeps the original JavaScript execution as one exact program
-// while the source is physically split into six parts for easier maintenance.
+// 1. script.js
+// メインローダー: 2～7の機能別ファイルを元の順序で読み込み、元のコード構成をそのまま実行します。
 (() => {
+  const currentScript = document.currentScript;
+  if (!currentScript) {
+    console.error('1. script.js の読み込み元を特定できません');
+    return;
+  }
+  const baseUrl = new URL('./', currentScript.src);
   const parts = [
-    "2. script-part.js",
-    "3. script-part.js",
-    "4. script-part.js",
-    "5. script-part.js",
-    "6. script-part.js",
-    "7. script-part.js"
+    '2. core-storage.js',
+    '3. audio-engine.js',
+    '4. library.js',
+    '5. player.js',
+    '6. playlists.js',
+    '7. ui.js'
   ];
 
-  Promise.all(parts.map(path => fetch(path).then(response => {
-    if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
-    return response.text();
-  })))
-    .then(sourceParts => {
-      // Joining the parts recreates the original script byte-for-byte (apart from
-      // the final newline handling), so the original closure/state/event behavior
-      // is retained rather than refactored into separate modules.
-      const source = sourceParts.join("");
-      const run = new Function(`${source}\n//# sourceURL=1. script.bundle.js`);
-      run();
+  Promise.all(
+    parts.map(name =>
+      fetch(new URL(encodeURI(name), baseUrl).href).then(r => {
+        if (!r.ok) throw new Error(`JSファイルの読み込みに失敗しました: ${name}`);
+        return r.text();
+      })
+    )
+  )
+    .then(chunks => {
+      // 各ファイルは元のscript.jsを安全な位置で分割した断片です。
+      // 元と同じ順序で連結して実行することで、変数・関数のスコープと依存関係を維持します。
+      const source = chunks.join('');
+      new Function(source)();
     })
-    .catch(error => {
-      console.error("JavaScriptの分割ファイルを読み込めませんでした:", error);
+    .catch(err => {
+      console.error(err);
+      const toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = 'JavaScriptの読み込みに失敗しました';
+        toast.classList.add('show');
+      }
     });
 })();
