@@ -1,25 +1,3 @@
-  });
-
-  function updateTitleTextAndScroll(element, text) {
-    if (!element) return;
-    const container = element.closest(".scroll-container");
-    element.classList.remove("scrolling");
-    element.style.animationPlayState = "paused";
-    element.textContent = text;
-
-    requestAnimationFrame(() => {
-      if (!container) return;
-      const overflow = element.scrollWidth - container.clientWidth;
-      if (overflow > 6) {
-        element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
-        element.classList.add("scrolling");
-        if (container._isIntersecting && document.visibilityState === "visible") {
-          element.style.animationPlayState = "running";
-        }
-      }
-    });
-  }
-
   function saveState(){
     localStorage.setItem(STORAGE.favorites, JSON.stringify(state.favorites));
     localStorage.setItem(STORAGE.queue, JSON.stringify(state.queue));
@@ -386,4 +364,157 @@
         grid.appendChild(dot);
       });
     });
+
+    if(el.sliderL1) el.sliderL1.value = state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100;
+    if(el.sliderL2) el.sliderL2.value = state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100;
+    if(el.sliderLText) el.sliderLText.value = state.customTheme.lText !== undefined ? state.customTheme.lText : 100;
+    if(el.txtL1) el.txtL1.textContent = `${el.sliderL1.value}%`;
+    if(el.txtL2) el.txtL2.textContent = `${el.sliderL2.value}%`;
+    if(el.txtLText) el.txtLText.textContent = `${el.sliderLText.value}%`;
+
+    const previewC1 = adjustColorLightness(state.customTheme.c1 || "#1d3557", state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100);
+    const previewC2 = adjustColorLightness(state.customTheme.c2 || "#121212", state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100);
+    document.querySelectorAll(".gradOption").forEach(opt => {
+      opt.classList.toggle("selected", opt.dataset.deg === (state.customTheme.dir || "180deg"));
+      const preview = opt.querySelector(".gradPreview");
+      if (preview) preview.style.background = `linear-gradient(${opt.dataset.deg}, ${previewC1} 0%, ${previewC2} 100%)`;
+    });
+  }
+
+  document.querySelectorAll(".gradOption").forEach(opt => {
+    opt.addEventListener("click", () => {
+      state.customTheme.dir = opt.dataset.deg;
+      saveState();
+      applyTheme();
+      renderColorPickers();
+    });
+  });
+
+  [{ slider: el.sliderL1, txt: el.txtL1, key: "l1" },
+   { slider: el.sliderL2, txt: el.txtL2, key: "l2" },
+   { slider: el.sliderLText, txt: el.txtLText, key: "lText" }].forEach(({ slider, txt, key }) => {
+    if(!slider) return;
+    slider.addEventListener("input", () => {
+      const val = Number(slider.value);
+      state.customTheme[key] = val;
+      if (txt) txt.textContent = `${val}%`;
+      saveState();
+      applyTheme();
+    });
+  });
+
+  function renderEqualizer(){
+    if(!el.eqPresetRow || !el.eqBands) return;
+    el.eqPresetRow.innerHTML = "";
+    Object.keys(EQ_PRESETS).forEach(pName => {
+      const b = document.createElement("button");
+      b.className = "btn small" + (state.eqState.preset === pName ? " active" : "");
+      b.textContent = pName;
+      b.addEventListener("click", () => {
+        state.eqState.preset = pName;
+        animateEqPreset(EQ_PRESETS[pName]);
+        updatePresetButtonsUI();
+      });
+      el.eqPresetRow.appendChild(b);
+    });
+
+    el.eqBands.innerHTML = "";
+    const labels = ["60Hz", "250Hz", "1kHz", "4kHz", "12kHz"];
+    labels.forEach((lbl, idx) => {
+      const gainVal = Number(state.eqState.gains[idx] || 0);
+      const vBand = document.createElement("div");
+      vBand.className = "vBand";
+      vBand.innerHTML = `
+        <div class="vVal" id="eqVal_${idx}">${gainVal > 0 ? "+" + gainVal.toFixed(1) : gainVal.toFixed(1)}dB</div>
+        <div class="vTrack">
+          <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}">
+        </div>
+        <span style="font-size:.75rem; color:var(--muted); margin-top:4px">${lbl}</span>
+      `;
+      const slider = vBand.querySelector(".vSlider");
+
+      slider.addEventListener("input", () => {
+        if(eqAnimId) cancelAnimationFrame(eqAnimId);
+        const v = Number(slider.value);
+        state.eqState.preset = "Custom";
+        state.eqState.gains[idx] = v;
+        updatePresetButtonsUI();
+        applyEqGains(0.05);
+        updateEqUIValues();
+        saveState();
+      });
+      el.eqBands.appendChild(vBand);
+    });
+  }
+
+  function updatePresetButtonsUI(){
+    if (!el.eqPresetRow) return;
+    const btns = el.eqPresetRow.querySelectorAll("button");
+    btns.forEach(b => {
+      b.classList.toggle("active", b.textContent === state.eqState.preset);
+    });
+  }
+
+  function updateEqUIValues(){
+    state.eqState.gains.forEach((g, idx) => {
+      const slider = document.getElementById(`eqSlider_${idx}`);
+      const valDisp = document.getElementById(`eqVal_${idx}`);
+      if(slider) slider.value = g;
+      if(valDisp) valDisp.textContent = (g > 0 ? "+" + g.toFixed(1) : g.toFixed(1)) + "dB";
+    });
+  }
+
+  function animateEqPreset(targetGains) {
+    if(eqAnimId) cancelAnimationFrame(eqAnimId);
+    
+    const startGains = [...state.eqState.gains];
+    const duration = 300;
+    const startTime = performance.now();
+
+    function step(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      startGains.forEach((start, i) => {
+        state.eqState.gains[i] = start + (targetGains[i] - start) * ease;
+      });
+
+      applyEqGains(0.05);
+      updateEqUIValues();
+
+      if (progress < 1) {
+        eqAnimId = requestAnimationFrame(step);
+      } else {
+        state.eqState.gains = [...targetGains];
+        applyEqGains(0.05);
+        updateEqUIValues();
+        saveState();
+      }
+    }
+
+    eqAnimId = requestAnimationFrame(step);
+  }
+
+  function applyEqGains(timeConstant = 0.1){
+    if(!filters.length) return;
+    const now = audioCtx ? audioCtx.currentTime : 0;
+    state.eqState.gains.forEach((g, i) => {
+      if(filters[i]) {
+        if(audioCtx) {
+          filters[i].gain.setTargetAtTime(g, now, timeConstant);
+        } else {
+          filters[i].gain.value = g;
+        }
+      }
+    });
+  }
+
+  if (el.btnEqReset) {
+    el.btnEqReset.addEventListener("click", () => {
+      state.eqState.preset = "Normal";
+      animateEqPreset([0,0,0,0,0]);
+      updatePresetButtonsUI();
+    });
+  }
 
