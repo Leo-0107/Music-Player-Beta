@@ -1,10 +1,9 @@
-<!-- 1. index.html -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v6.2</title>
+<title>Music Player v6.3</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -61,6 +60,13 @@
 
 <!-- Zip解析用ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- 分割されたJavaScriptモジュールの読み込み -->
+<script src="js/state.js"></script>
+<script src="js/db.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
 </head>
 <body>
 
@@ -408,10 +414,5 @@
   </div>
 </div>
 
-<script src="js/1. state.js"></script>
-<script src="js/2. db.js"></script>
-<script src="js/3. audio.js"></script>
-<script src="js/4. ui.js"></script>
-<script src="js/5. main.js"></script>
 </body>
 </html>
