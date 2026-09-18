@@ -172,6 +172,11 @@ function applyTheme(){
 
   document.body.style.removeProperty("--text");
   document.body.style.removeProperty("--muted");
+  document.body.style.removeProperty("--bg");
+  document.body.style.removeProperty("--panel");
+  document.body.style.removeProperty("--panel2");
+  document.body.style.removeProperty("--panel3");
+  document.body.style.removeProperty("--line");
 
   let activeMode = state.themeMode;
   if(activeMode === "system"){
@@ -203,6 +208,11 @@ function applyTheme(){
     
     document.body.style.setProperty("--text", computedText);
     document.body.style.setProperty("--muted", computedMuted);
+    document.body.style.setProperty("--bg", computedC1);
+    document.body.style.setProperty("--panel", "rgba(255,255,255,0.06)");
+    document.body.style.setProperty("--panel2", "rgba(255,255,255,0.09)");
+    document.body.style.setProperty("--panel3", "rgba(255,255,255,0.12)");
+    document.body.style.setProperty("--line", "rgba(255,255,255,0.12)");
   } else {
     document.body.style.background = "";
     document.body.style.color = "";
@@ -893,7 +903,7 @@ function renderStats(){
   const h = 180;
   el.playHistoryChart.width = w * dpr;
   el.playHistoryChart.height = h * dpr;
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
   const dates = [];
