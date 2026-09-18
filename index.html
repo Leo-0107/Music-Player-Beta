@@ -8,66 +8,19 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
-/* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
-.song {
-  min-width: 0;
-}
-.songMain {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.songName {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.songName.songNameScrolling {
-  display: block;
-  width: max-content;
-  max-width: none;
-  text-overflow: clip;
-  animation: songNameMarquee var(--song-scroll-duration, 10s) linear infinite;
-  animation-play-state: running;
-}
-@keyframes songNameMarquee {
-  0%, 40% { transform: translateX(0); }
-  60%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); }
-}
-
-@media (max-width: 700px) {
-  .song {
-    display: block !important;
-  }
-  .songMain {
-    width: 100%;
-  }
-  .songRight {
-    width: 100%;
-    margin-top: 8px;
-    margin-left: 0 !important;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-}
-
-@media (max-width: 420px) {
-  .songRight button {
-    flex: 0 1 auto;
-  }
-}
+.song { min-width: 0; }
+.songMain { min-width: 0; flex: 1 1 auto; }
+.songName { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.songName.songNameScrolling { display: block; width: max-content; max-width: none; text-overflow: clip; animation: songNameMarquee var(--song-scroll-duration, 10s) linear infinite; animation-play-state: running; }
+@keyframes songNameMarquee { 0%, 40% { transform: translateX(0); } 60%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); } }
+@media (max-width: 700px) { .song { display: block !important; } .songMain { width: 100%; } .songRight { width: 100%; margin-top: 8px; margin-left: 0 !important; justify-content: flex-start; flex-wrap: wrap; gap: 6px; } }
+@media (max-width: 420px) { .songRight button { flex: 0 1 auto; } }
 </style>
-
-<!-- Zip解析用ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
-
 <div class="toast" id="toast"></div>
 <div class="overlay" id="overlay"></div>
-
-<!-- サイドバー（左からスライド表示） -->
 <div class="sidebar" id="sidebar">
   <div class="sidebarInner" id="sidebarInner">
     <div class="sideHead">
@@ -93,8 +46,6 @@
         </div>
         <button class="btn danger small" id="btnResetFiles" style="width:100%;">全ファイルリセット</button>
       </div>
-
-      <!-- パネルセクション群 -->
       <div class="panelSection" id="optionsSection">
         <div class="sectionCard">
           <div class="sectionTitle">再生速度・ピッチ</div>
@@ -129,7 +80,6 @@
           </div>
         </div>
       </div>
-
       <div class="panelSection" id="playlistSection">
         <div class="sectionCard">
           <div class="sectionTitle">新規プレイリスト作成</div>
@@ -140,7 +90,6 @@
         </div>
         <div id="playlistContainer"></div>
       </div>
-
       <div class="panelSection" id="queueSection">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <button class="btn small" id="btnQueueShuffle">シャッフル</button>
@@ -148,7 +97,6 @@
         </div>
         <div id="queueList" class="songList"></div>
       </div>
-
       <div class="panelSection" id="eqSection">
         <div class="sectionCard">
           <div class="sectionTitle">プリセット</div>
@@ -162,7 +110,6 @@
           <div id="eqBands" style="display:flex; justify-content:space-between; gap:8px;"></div>
         </div>
       </div>
-
       <div class="panelSection" id="timerSection">
         <div class="sectionCard">
           <div class="sectionTitle">スリープタイマー</div>
@@ -182,7 +129,6 @@
           <div style="margin-top:12px; font-weight:600; color:var(--accent);" id="timerStatus">タイマーOFF</div>
         </div>
       </div>
-
       <div class="panelSection" id="statsSection">
         <div class="sectionCard">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -196,7 +142,6 @@
           <canvas id="playHistoryChart" style="width:100%; height:180px;"></canvas>
         </div>
       </div>
-
       <div class="panelSection" id="themeSection">
         <div class="sectionCard">
           <div class="sectionTitle">テーマ選択</div>
@@ -248,23 +193,17 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </div>
-
 <div class="app" id="shell">
   <div class="shell">
     <div class="header">
       <div class="brand">
         <button class="menuBtn" id="btnMenu">☰</button>
         <div class="titleArea">
-          <div class="scroll-container">
-            <h1 class="scroll-text" id="nowTitle">未再生</h1>
-          </div>
-          <div class="scroll-container">
-            <div class="scroll-text" id="nowSub">ファイルをドロップまたは選択してください</div>
-          </div>
+          <div class="scroll-container"><h1 class="scroll-text" id="nowTitle">未再生</h1></div>
+          <div class="scroll-container"><div class="scroll-text" id="nowSub">ファイルをドロップまたは選択してください</div></div>
         </div>
       </div>
       <div class="headerRight">
@@ -273,22 +212,13 @@
         <button class="btn small ghost" id="btnShortcutHelp">?</button>
       </div>
     </div>
-
     <div class="mainContent">
       <div id="homeElements">
         <div class="homeLayout">
-          <div class="coverBox">
-            <canvas id="nowCoverCanvas"></canvas>
-          </div>
+          <div class="coverBox"><canvas id="nowCoverCanvas"></canvas></div>
           <div class="homeControls">
-            <div class="seekbarContainer">
-              <input type="range" id="progress" value="0" min="0" max="100">
-            </div>
-            <div class="timeLine">
-              <span id="timeNow">0:00</span>
-              <span id="timeAll">0:00</span>
-            </div>
-
+            <div class="seekbarContainer"><input type="range" id="progress" value="0" min="0" max="100"></div>
+            <div class="timeLine"><span id="timeNow">0:00</span><span id="timeAll">0:00</span></div>
             <div class="controls" style="justify-content:center;">
               <button class="btn small" id="btnRewind10">-10秒</button>
               <button class="btn small" id="btnPrev">◀◀</button>
@@ -296,14 +226,11 @@
               <button class="btn small" id="btnNext">▶▶</button>
               <button class="btn small" id="btnForward10">+10秒</button>
             </div>
-
             <div class="controls" style="justify-content:center;">
               <button class="btn small" id="btnFav">☆</button>
               <button class="btn small" id="btnMainShuffle">シャッフル</button>
               <button class="btn small" id="btnMainRepeat">リピート</button>
             </div>
-
-            <!-- 音量バー: 0%〜200%、100%（1.0）が中央に来る設定 -->
             <div class="meter">
               <button class="btn small ghost" id="btnMuteToggle" style="padding:4px 8px;">🔊</button>
               <input type="range" id="volume" min="0" max="2" step="0.01" value="1" style="flex:1;">
@@ -311,7 +238,6 @@
             </div>
           </div>
         </div>
-
         <div class="waveWrap">
           <div style="position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:4px;" id="waveModeBtns">
             <button class="btn small ghost" data-wave="3d" style="padding:2px 8px; font-size:.75rem;">3D</button>
@@ -319,37 +245,26 @@
           </div>
           <canvas class="wave" id="wave"></canvas>
         </div>
-
         <div style="margin-top:20px;">
-          <div class="songHead">
-            <div style="font-weight:700;">曲一覧</div>
-            <input type="text" id="search" placeholder="検索..." style="max-width:200px;">
-          </div>
+          <div class="songHead"><div style="font-weight:700;">曲一覧</div><input type="text" id="search" placeholder="検索..." style="max-width:200px;"></div>
           <div id="list" class="songList"></div>
         </div>
       </div>
-
       <div id="playlistElements" style="display:none; flex-direction:column; gap:16px;">
         <div class="sectionTitle">プレイリスト一覧</div>
         <div id="playlistContainerMain"></div>
       </div>
-
       <div id="settingsTabContainer" style="display:none;"></div>
     </div>
   </div>
 </div>
-
 <div class="miniPlayer">
   <div class="miniInner">
-    <div class="miniProgressWrap">
-      <input type="range" id="miniProgress" value="0" min="0" max="100">
-    </div>
+    <div class="miniProgressWrap"><input type="range" id="miniProgress" value="0" min="0" max="100"></div>
     <div class="miniRow">
       <div class="miniNow">
         <canvas class="miniCoverCanvas" id="miniCoverCanvas"></canvas>
-        <div class="scroll-container" style="flex:1;">
-          <div class="scroll-text" id="miniTitle">停止中</div>
-        </div>
+        <div class="scroll-container" style="flex:1;"><div class="scroll-text" id="miniTitle">停止中</div></div>
       </div>
       <div class="miniBtns">
         <button class="btn small ghost" id="miniPrev">◀◀</button>
@@ -359,55 +274,14 @@
     </div>
   </div>
 </div>
-
 <div class="bottomNav">
-  <button class="navTab active" data-target="home">
-    <span class="icon">🎵</span>
-    <span>ホーム</span>
-  </button>
-  <button class="navTab" data-target="playlist">
-    <span class="icon">📜</span>
-    <span>リスト</span>
-  </button>
-  <button class="navTab" data-target="settings">
-    <span class="icon">⚙️</span>
-    <span>設定</span>
-  </button>
+  <button class="navTab active" data-target="home"><span class="icon">🎵</span><span>ホーム</span></button>
+  <button class="navTab" data-target="playlist"><span class="icon">📜</span><span>リスト</span></button>
+  <button class="navTab" data-target="settings"><span class="icon">⚙️</span><span>設定</span></button>
 </div>
-
-<div class="modalBackdrop" id="plAlertModal">
-  <div class="modalCard">
-    <div class="modalTextRed">プレイリスト名を入力してください</div>
-    <button class="btn small" id="btnClosePlModal" style="width:100%;">OK</button>
-  </div>
-</div>
-
-<div class="modalBackdrop" id="shortcutModal">
-  <div class="modalCard">
-    <div class="sectionTitle">ショートカットキーヘルプ</div>
-    <div class="shortcutGrid">
-      <kbd>Space</kbd><span>再生 / 一時停止</span>
-      <kbd>← / →</kbd><span>5秒巻き戻し / 早送り</span>
-      <kbd>↑ / ↓</kbd><span>音量調整</span>
-      <kbd>M</kbd><span>ミュート切り替え</span>
-      <kbd>F</kbd><span>お気に入り登録</span>
-      <kbd>?</kbd><span>ヘルプ表示</span>
-    </div>
-    <button class="btn small" id="btnCloseShortcutModal" style="width:100%;">閉じる</button>
-  </div>
-</div>
-
-<div class="bottomSheetOverlay" id="plSelectSheet">
-  <div class="bottomSheetCard">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <div class="sectionTitle" id="plSelectSheetTitle" style="margin:0;">プレイリストを選択</div>
-      <button class="btn small ghost" id="btnClosePlSheet">✕</button>
-    </div>
-    <div class="bottomSheetList" id="plSelectList"></div>
-    <button class="btn small" id="btnBulkAddPl" type="button" style="width:100%; margin-top:12px; display:none;">選択した曲を追加</button>
-  </div>
-</div>
-
-<script src="script.js"></script>
+<div class="modalBackdrop" id="plAlertModal"><div class="modalCard"><div class="modalTextRed">プレイリスト名を入力してください</div><button class="btn small" id="btnClosePlModal" style="width:100%;">OK</button></div></div>
+<div class="modalBackdrop" id="shortcutModal"><div class="modalCard"><div class="sectionTitle">ショートカットキーヘルプ</div><div class="shortcutGrid"><kbd>Space</kbd><span>再生 / 一時停止</span><kbd>← / →</kbd><span>5秒巻き戻し / 早送り</span><kbd>↑ / ↓</kbd><span>音量調整</span><kbd>M</kbd><span>ミュート切り替え</span><kbd>F</kbd><span>お気に入り登録</span><kbd>?</kbd><span>ヘルプ表示</span></div><button class="btn small" id="btnCloseShortcutModal" style="width:100%;">閉じる</button></div></div>
+<div class="bottomSheetOverlay" id="plSelectSheet"><div class="bottomSheetCard"><div style="display:flex; justify-content:space-between; align-items:center;"><div class="sectionTitle" id="plSelectSheetTitle" style="margin:0;">プレイリストを選択</div><button class="btn small ghost" id="btnClosePlSheet">✕</button></div><div class="bottomSheetList" id="plSelectList"></div><button class="btn small" id="btnBulkAddPl" type="button" style="width:100%; margin-top:12px; display:none;">選択した曲を追加</button></div></div>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
