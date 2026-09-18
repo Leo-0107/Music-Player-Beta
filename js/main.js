@@ -1,47 +1,67 @@
-// Compatibility bootstrap for the refactor branch.
-// Keep the original runtime as the source of truth while preventing duplicate
-// audio graph and event registrations during the migration.
+(() => {
+  const install = () => {
+    const runtime = window.__MUSIC_PLAYER_RUNTIME__ || {};
+    if (!runtime.loaded) {
+      runtime.loaded = true;
+      window.__MUSIC_PLAYER_RUNTIME__ = runtime;
+    }
+    return runtime;
+  };
 
-const bootstrap = window.__MUSIC_PLAYER_BOOTSTRAP__ || (window.__MUSIC_PLAYER_BOOTSTRAP__ = {
-  started: false,
-  ready: false,
-  promise: null,
-  script: null,
-});
+  const bootstrap = window.__MUSIC_PLAYER_BOOTSTRAP__ || (window.__MUSIC_PLAYER_BOOTSTRAP__ = {
+    started: false,
+    ready: false,
+    promise: null,
+    script: null,
+    loader: null,
+  });
 
-if (!bootstrap.started) {
+  if (bootstrap.started) {
+    document.documentElement.dataset.musicPlayerReady = bootstrap.ready ? "true" : "loading";
+    return;
+  }
+
   bootstrap.started = true;
+  install();
 
   bootstrap.promise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector('script[data-music-player-runtime="legacy"]');
-    if (existingScript) {
-      existingScript.addEventListener('load', () => {
-        bootstrap.ready = true;
-        resolve();
-      }, { once: true });
-      existingScript.addEventListener('error', () => reject(new Error('Legacy runtime failed to load.')), { once: true });
-      return;
-    }
+    const existing = document.querySelector('script[data-music-player-runtime="legacy"]');
 
-    const legacyRuntime = document.createElement('script');
-    legacyRuntime.src = './script.js';
-    legacyRuntime.async = false;
-    legacyRuntime.dataset.musicPlayerRuntime = 'legacy';
-
-    legacyRuntime.onload = () => {
+    const finalize = () => {
       bootstrap.ready = true;
+      document.documentElement.dataset.musicPlayerReady = "true";
       resolve();
     };
 
-    legacyRuntime.onerror = () => {
-      reject(new Error('Legacy runtime failed to load.'));
+    const fail = (reason) => {
+      bootstrap.ready = false;
+      document.documentElement.dataset.musicPlayerReady = "error";
+      reject(reason || new Error("Legacy runtime failed to load."));
     };
 
-    bootstrap.script = legacyRuntime;
-    document.head.appendChild(legacyRuntime);
+    const loadLegacy = () => {
+      const legacyRuntime = document.createElement("script");
+      legacyRuntime.src = "./script.js";
+      legacyRuntime.async = false;
+      legacyRuntime.dataset.musicPlayerRuntime = "legacy";
+      legacyRuntime.onload = finalize;
+      legacyRuntime.onerror = () => fail(new Error("Legacy runtime failed to load."));
+      bootstrap.script = legacyRuntime;
+      document.head.appendChild(legacyRuntime);
+    };
+
+    if (existing) {
+      existing.addEventListener("load", finalize, { once: true });
+      existing.addEventListener("error", () => fail(new Error("Legacy runtime failed to load.")), { once: true });
+      if (existing.dataset.musicPlayerRuntime === "legacy") {
+        if (existing.dataset.loaded === "true") finalize();
+      }
+      return;
+    }
+
+    loadLegacy();
   });
-}
 
-window.musicPlayerBootstrapReady = bootstrap.promise;
-
-document.documentElement.dataset.musicPlayerReady = bootstrap.ready ? 'true' : 'loading';
+  window.musicPlayerBootstrapReady = bootstrap.promise;
+  document.documentElement.dataset.musicPlayerReady = bootstrap.ready ? "true" : "loading";
+})();
