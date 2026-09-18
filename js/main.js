@@ -1,6 +1,6 @@
 import { state, el } from "./state.js";
-import { loadJSON, saveState } from "./storage.js";
-import { getVisibleSongs, toggleFav, addToQueue, shuffleQueue } from "./library.js";
+import { loadJSON } from "./storage.js";
+import { audio, ensureGraph, applyPitchAndRate, updateVolumeUI } from "./audio.js";
 import { renderSongList, renderQueue, renderStats, bindUI } from "./ui.js";
 
 export async function initApp() {
@@ -12,6 +12,10 @@ export async function initApp() {
     playlists: loadJSON("mp_playlists_v12", {})
   });
 
+  ensureGraph();
+  applyPitchAndRate();
+  updateVolumeUI(1);
+
   bindUI();
   renderSongList();
   renderQueue();
@@ -22,12 +26,11 @@ export async function initApp() {
       if (!state.currentSong && state.playlist.length) {
         state.currentSong = state.playlist[0];
       }
-      if (state.currentSong) {
-        if (document.querySelector("audio")?.paused) {
-          document.querySelector("audio")?.play().catch(() => {});
-        } else {
-          document.querySelector("audio")?.pause();
-        }
+      if (!state.currentSong) return;
+      if (audio.paused) {
+        audio.play().catch(() => {});
+      } else {
+        audio.pause();
       }
     });
   }
