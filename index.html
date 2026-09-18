@@ -84,7 +84,7 @@
         <button class="menuItem" data-section="queueSection">再生キュー<span>次に再生する曲</span></button>
         <button class="menuItem" data-section="eqSection">イコライザー<span>音質調整</span></button>
         <button class="menuItem" data-section="timerSection">スリープタイマー<span>自動停止設定</span></button>
-        <button class="menuItem" data-section="statsSection">再生統計<span>データ確認</span></button>
+        <button class="menuItem" data-section="statsSection">再生統計<span>デ���タ確認</span></button>
         <button class="menuItem" data-section="themeSection">テーマ設定<span>見た目のカスタマイズ</span></button>
         <hr style="border:0; border-top:1px solid var(--line); margin:12px 0;">
         <div class="field">
@@ -94,7 +94,6 @@
         <button class="btn danger small" id="btnResetFiles" style="width:100%;">全ファイルリセット</button>
       </div>
 
-      <!-- パネルセクション群 -->
       <div class="panelSection" id="optionsSection">
         <div class="sectionCard">
           <div class="sectionTitle">再生速度・ピッチ</div>
@@ -303,7 +302,6 @@
               <button class="btn small" id="btnMainRepeat">リピート</button>
             </div>
 
-            <!-- 音量バー: 0%〜200%、100%（1.0）が中央に来る設定 -->
             <div class="meter">
               <button class="btn small ghost" id="btnMuteToggle" style="padding:4px 8px;">🔊</button>
               <input type="range" id="volume" min="0" max="2" step="0.01" value="1" style="flex:1;">
@@ -408,6 +406,6 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
