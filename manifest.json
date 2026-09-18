@@ -1,10 +1,10 @@
 {
-  "short_name": "Music Player",
-  "name": "Music Player v6.4",
-  "start_url": ".",
-  "background_color": "#121212",
-  "theme_color": "#1DB954",
+  "name": "Music Player v6.2",
+  "short_name": "MusicPlayer",
+  "start_url": "./index.html",
   "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1d3557",
   "icons": [
     {
       "src": "icon-192.png",
