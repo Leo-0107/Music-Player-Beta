@@ -69,6 +69,7 @@ export const el = {
   btnNext: document.getElementById("btnNext"),
   btnFav: document.getElementById("btnFav"),
   volume: document.getElementById("volume"),
+  volText: document.getElementById("volText"),
   toast: document.getElementById("toast"),
   queueList: document.getElementById("queueList"),
   btnMainShuffle: document.getElementById("btnMainShuffle"),
@@ -79,7 +80,12 @@ export const el = {
   timeNow: document.getElementById("timeNow"),
   timeAll: document.getElementById("timeAll"),
   pillSongs: document.getElementById("pillSongs"),
-  pillFavs: document.getElementById("pillFavs")
+  pillFavs: document.getElementById("pillFavs"),
+  statPlays: document.getElementById("statPlays"),
+  statSongs: document.getElementById("statSongs"),
+  playHistoryChart: document.getElementById("playHistoryChart"),
+  btnResetStats: document.getElementById("btnResetStats"),
+  btnResetFiles: document.getElementById("btnResetFiles")
 };
 
 export function escapeHTML(str) {
