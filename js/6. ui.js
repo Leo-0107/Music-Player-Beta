@@ -1,5 +1,6 @@
 // ui.js - UI管理および描画ロジック
 
+// タイトルテキストの画面内判定用Observer
 const titleObserver = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     const container = entry.target;
@@ -15,8 +16,10 @@ const titleObserver = new IntersectionObserver((entries) => {
   });
 }, { threshold: 0.1 });
 
+// スクロールコンテナの監視開始
 document.querySelectorAll(".scroll-container").forEach(c => titleObserver.observe(c));
 
+// タブの表示/非表示状態の切り替え制御
 document.addEventListener("visibilitychange", () => {
   document.querySelectorAll(".scroll-container").forEach(container => {
     const textEl = container.querySelector(".scroll-text");
@@ -34,6 +37,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+// タイトルのスクロールアニメーション設定
 function updateTitleTextAndScroll(element, text) {
   if (!element) return;
   const container = element.closest(".scroll-container");
@@ -54,12 +58,14 @@ function updateTitleTextAndScroll(element, text) {
   });
 }
 
+// 時間フォーマット（秒 -> mm:ss）
 function fmtTime(sec){
   if(!Number.isFinite(sec) || sec < 0) return "0:00";
   const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// トースト通知表示
 function toast(msg){
   if (!el.toast) return;
   el.toast.textContent = msg;
@@ -68,9 +74,14 @@ function toast(msg){
   toast._t = setTimeout(() => el.toast.classList.remove("show"), 1400);
 }
 
+// テーマ適用処理
 function applyTheme(){
   document.body.classList.remove("theme-light");
-  [el.btnThemeSystem, el.btnThemeDark, el.btnThemeLight, el.btnThemeCustom].forEach(b => b?.classList.remove("active"));
+  if (el.btnThemeSystem) el.btnThemeSystem.classList.remove("active");
+  if (el.btnThemeDark) el.btnThemeDark.classList.remove("active");
+  if (el.btnThemeLight) el.btnThemeLight.classList.remove("active");
+  if (el.btnThemeCustom) el.btnThemeCustom.classList.remove("active");
+
   if (el.customThemeArea) el.customThemeArea.style.display = "none";
 
   document.body.style.removeProperty("--text");
@@ -113,10 +124,12 @@ function applyTheme(){
   }
 }
 
+// OSのダークモード変更イベント検知
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if(state.themeMode === "system") applyTheme();
 });
 
+// カラーピッカー描画
 function renderColorPickers(){
   const targets = [
     { grid: el.gridColor1, key: "c1" },
@@ -152,12 +165,17 @@ function renderColorPickers(){
   const previewC1 = adjustColorLightness(state.customTheme.c1 || "#1d3557", state.customTheme.l1 !== undefined ? state.customTheme.l1 : 100);
   const previewC2 = adjustColorLightness(state.customTheme.c2 || "#121212", state.customTheme.l2 !== undefined ? state.customTheme.l2 : 100);
   document.querySelectorAll(".gradOption").forEach(opt => {
-    opt.classList.toggle("selected", opt.dataset.deg === (state.customTheme.dir || "180deg"));
+    if (opt.dataset.deg === (state.customTheme.dir || "180deg")) {
+      opt.classList.add("selected");
+    } else {
+      opt.classList.remove("selected");
+    }
     const preview = opt.querySelector(".gradPreview");
     if (preview) preview.style.background = `linear-gradient(${opt.dataset.deg}, ${previewC1} 0%, ${previewC2} 100%)`;
   });
 }
 
+// グラデーション方向クリック
 document.querySelectorAll(".gradOption").forEach(opt => {
   opt.addEventListener("click", () => {
     state.customTheme.dir = opt.dataset.deg;
@@ -167,19 +185,38 @@ document.querySelectorAll(".gradOption").forEach(opt => {
   });
 });
 
-[{ slider: el.sliderL1, txt: el.txtL1, key: "l1" },
- { slider: el.sliderL2, txt: el.txtL2, key: "l2" },
- { slider: el.sliderLText, txt: el.txtLText, key: "lText" }].forEach(({ slider, txt, key }) => {
-  if(!slider) return;
-  slider.addEventListener("input", () => {
-    const val = Number(slider.value);
-    state.customTheme[key] = val;
-    if (txt) txt.textContent = `${val}%`;
+// 明度スライダーイベント設定
+if (el.sliderL1) {
+  el.sliderL1.addEventListener("input", () => {
+    const val = Number(el.sliderL1.value);
+    state.customTheme.l1 = val;
+    if (el.txtL1) el.txtL1.textContent = `${val}%`;
     saveState();
     applyTheme();
   });
-});
+}
 
+if (el.sliderL2) {
+  el.sliderL2.addEventListener("input", () => {
+    const val = Number(el.sliderL2.value);
+    state.customTheme.l2 = val;
+    if (el.txtL2) el.txtL2.textContent = `${val}%`;
+    saveState();
+    applyTheme();
+  });
+}
+
+if (el.sliderLText) {
+  el.sliderLText.addEventListener("input", () => {
+    const val = Number(el.sliderLText.value);
+    state.customTheme.lText = val;
+    if (el.txtLText) el.txtLText.textContent = `${val}%`;
+    saveState();
+    applyTheme();
+  });
+}
+
+// アートワーク画像を描画
 function updateArtwork(song) {
   const drawCanvas = (canvas, size) => {
     if(!canvas) return;
@@ -193,7 +230,7 @@ function updateArtwork(song) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
 
-    if (song?.coverUrl) {
+    if (song && song.coverUrl) {
       const img = new Image();
       img.onload = () => {
         ctx.clearRect(0, 0, size, size);
@@ -221,27 +258,39 @@ function updateArtwork(song) {
   drawCanvas(el.miniCoverCanvas, 32);
 }
 
+// 楽曲要素の再生回数表示のみ更新
 function updateSongItemPlayCountUI(songName, count) {
   if (!el.list) return;
   const songRows = el.list.querySelectorAll(".song");
   for (let i = 0; i < songRows.length; i++) {
     if (songRows[i].dataset.name === songName) {
       const metaEl = songRows[i].querySelector(".songMeta");
-      if (metaEl) metaEl.textContent = `再生数 ${count}回`;
+      if (metaEl) {
+        metaEl.textContent = `再生数 ${count}回`;
+      }
       break;
     }
   }
 }
 
+// 再生/停止状態のボタンUI更新
 function updatePlayPauseUI(){
   const isPlaying = !audio.paused && audio.src;
   if (el.btnPlay) {
     el.btnPlay.textContent = isPlaying ? "❚❚ 一時停止" : "▶ 再生";
-    el.btnPlay.classList.toggle("playing", isPlaying);
+    if (isPlaying) {
+      el.btnPlay.classList.add("playing");
+    } else {
+      el.btnPlay.classList.remove("playing");
+    }
   }
   if (el.miniPlay) {
     el.miniPlay.textContent = isPlaying ? "❚❚" : "▶";
-    el.miniPlay.classList.toggle("playing", isPlaying);
+    if (isPlaying) {
+      el.miniPlay.classList.add("playing");
+    } else {
+      el.miniPlay.classList.remove("playing");
+    }
   }
 
   if ('mediaSession' in navigator) {
@@ -255,6 +304,7 @@ function updatePlayPauseUI(){
   }
 }
 
+// 現在再生中の曲表示UI更新
 function updateNowPlayingUI(song){
   if(song){
     updateTitleTextAndScroll(el.nowTitle, song.title);
@@ -262,7 +312,11 @@ function updateNowPlayingUI(song){
     updateTitleTextAndScroll(el.nowSub, song.artist);
     if (el.btnFav) {
       el.btnFav.textContent = state.favorites.includes(song.name) ? "★" : "☆";
-      el.btnFav.classList.toggle("active", state.favorites.includes(song.name));
+      if (state.favorites.includes(song.name)) {
+        el.btnFav.classList.add("active");
+      } else {
+        el.btnFav.classList.remove("active");
+      }
     }
 
     if ('mediaSession' in navigator) {
@@ -276,18 +330,37 @@ function updateNowPlayingUI(song){
       navigator.mediaSession.metadata = new MediaMetadata(metadataInit);
     }
   }
-  document.querySelectorAll(".song").forEach(n => {
-    n.classList.toggle("active", n.dataset.name === song?.name);
-  });
+  
+  if (el.list) {
+    const rows = el.list.querySelectorAll(".song");
+    rows.forEach(n => {
+      if (song && n.dataset.name === song.name) {
+        n.classList.add("active");
+      } else {
+        n.classList.remove("active");
+      }
+    });
+  }
+  
   updatePlayPauseUI();
 }
 
+// 音量UIとGainの連動更新
 function updateVolumeUI(targetVal, isMuteAction = false) {
   const prevVol = currentVolumeTarget;
   currentVolumeTarget = Math.max(0, targetVal);
   if (el.volume) el.volume.value = currentVolumeTarget;
   if (el.volText) el.volText.textContent = `${Math.round(currentVolumeTarget * 100)}%`;
-  if (el.btnMuteToggle) el.btnMuteToggle.textContent = currentVolumeTarget === 0 ? "🔇" : currentVolumeTarget < 0.5 ? "🔉" : "🔊";
+  
+  if (el.btnMuteToggle) {
+    if (currentVolumeTarget === 0) {
+      el.btnMuteToggle.textContent = "🔇";
+    } else if (currentVolumeTarget < 0.5) {
+      el.btnMuteToggle.textContent = "🔉";
+    } else {
+      el.btnMuteToggle.textContent = "🔊";
+    }
+  }
 
   audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
@@ -304,6 +377,7 @@ function updateVolumeUI(targetVal, isMuteAction = false) {
   saveState();
 }
 
+// イコライザーUIの生成と描画
 function renderEqualizer(){
   if(!el.eqPresetRow || !el.eqBands) return;
   el.eqPresetRow.innerHTML = "";
@@ -325,14 +399,35 @@ function renderEqualizer(){
     const gainVal = Number(state.eqState.gains[idx] || 0);
     const vBand = document.createElement("div");
     vBand.className = "vBand";
-    vBand.innerHTML = `
-      <div class="vVal" id="eqVal_${idx}">${gainVal > 0 ? "+" + gainVal.toFixed(1) : gainVal.toFixed(1)}dB</div>
-      <div class="vTrack">
-        <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}">
-      </div>
-      <span style="font-size:.75rem; color:var(--muted); margin-top:4px">${lbl}</span>
-    `;
-    const slider = vBand.querySelector(".vSlider");
+    
+    const vVal = document.createElement("div");
+    vVal.className = "vVal";
+    vVal.id = `eqVal_${idx}`;
+    vVal.textContent = (gainVal > 0 ? "+" + gainVal.toFixed(1) : gainVal.toFixed(1)) + "dB";
+    
+    const vTrack = document.createElement("div");
+    vTrack.className = "vTrack";
+    
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "vSlider";
+    slider.id = `eqSlider_${idx}`;
+    slider.min = "-12";
+    slider.max = "12";
+    slider.step = "0.5";
+    slider.value = gainVal;
+
+    vTrack.appendChild(slider);
+
+    const lblSpan = document.createElement("span");
+    lblSpan.style.fontSize = ".75rem";
+    lblSpan.style.color = "var(--muted)";
+    lblSpan.style.marginTop = "4px";
+    lblSpan.textContent = lbl;
+
+    vBand.appendChild(vVal);
+    vBand.appendChild(vTrack);
+    vBand.appendChild(lblSpan);
 
     slider.addEventListener("input", () => {
       if(eqAnimId) cancelAnimationFrame(eqAnimId);
@@ -348,14 +443,20 @@ function renderEqualizer(){
   });
 }
 
+// プリセットボタンの選択状態UI更新
 function updatePresetButtonsUI(){
   if (!el.eqPresetRow) return;
   const btns = el.eqPresetRow.querySelectorAll("button");
   btns.forEach(b => {
-    b.classList.toggle("active", b.textContent === state.eqState.preset);
+    if (b.textContent === state.eqState.preset) {
+      b.classList.add("active");
+    } else {
+      b.classList.remove("active");
+    }
   });
 }
 
+// スライダーとdB数値表示の更新
 function updateEqUIValues(){
   state.eqState.gains.forEach((g, idx) => {
     const slider = document.getElementById(`eqSlider_${idx}`);
@@ -365,6 +466,7 @@ function updateEqUIValues(){
   });
 }
 
+// モーダル表示/非表示関数群
 function showPlAlertModal() { if (el.plAlertModal) el.plAlertModal.classList.add("show"); }
 function hidePlAlertModal() { if (el.plAlertModal) el.plAlertModal.classList.remove("show"); }
 if (el.btnClosePlModal) el.btnClosePlModal.addEventListener("click", hidePlAlertModal);
@@ -376,6 +478,7 @@ if (el.btnShortcutHelp) el.btnShortcutHelp.addEventListener("click", showShortcu
 if (el.btnCloseShortcutModal) el.btnCloseShortcutModal.addEventListener("click", hideShortcutModal);
 if (el.shortcutModal) el.shortcutModal.addEventListener("click", e => { if(e.target === el.shortcutModal) hideShortcutModal(); });
 
+// プレイリスト名スクロール初期化
 function setupPlNameScroll(element) {
   if (!element) return;
 
@@ -395,11 +498,12 @@ function setupPlNameScroll(element) {
   });
 }
 
+// プレイリスト一覧の描画
 function renderPlaylists(){
-  const containers = [
-    el.playlistContainer,
-    document.getElementById("playlistContainerMain")
-  ].filter(Boolean);
+  const containers = [];
+  if (el.playlistContainer) containers.push(el.playlistContainer);
+  const mainPlContainer = document.getElementById("playlistContainerMain");
+  if (mainPlContainer) containers.push(mainPlContainer);
 
   if (!containers.length) return;
 
@@ -407,7 +511,11 @@ function renderPlaylists(){
     container.innerHTML = "";
     const names = Object.keys(state.playlists);
     if(!names.length) {
-      container.innerHTML = `<div style="color:var(--muted); font-size:.86rem">プレイリストがありません</div>`;
+      const emptyMsg = document.createElement("div");
+      emptyMsg.style.color = "var(--muted)";
+      emptyMsg.style.fontSize = ".86rem";
+      emptyMsg.textContent = "プレイリストがありません";
+      container.appendChild(emptyMsg);
       return;
     }
 
@@ -420,21 +528,54 @@ function renderPlaylists(){
 
       const row1 = document.createElement("div");
       row1.className = "plRow1";
-      row1.innerHTML = `
-        <button class="btn small ghost plToggleBtn" type="button" aria-expanded="false" title="曲を表示">▶ 曲一覧 (${tracksInPl.length})</button>
-        <div class="plTitleContainer">
-          <div class="plTitleText" title="${escapeHTML(pName)}">${escapeHTML(pName)}</div>
-        </div>
-        <button class="btn small ghost delPlBtn" type="button" title="プレイリストを削除">✕</button>
-      `;
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className = "btn small ghost plToggleBtn";
+      toggleBtn.type = "button";
+      toggleBtn.setAttribute("aria-expanded", "false");
+      toggleBtn.title = "曲を表示";
+      toggleBtn.textContent = `▶ 曲一覧 (${tracksInPl.length})`;
+
+      const titleContainer = document.createElement("div");
+      titleContainer.className = "plTitleContainer";
+
+      const titleText = document.createElement("div");
+      titleText.className = "plTitleText";
+      titleText.title = pName;
+      titleText.textContent = pName;
+      titleContainer.appendChild(titleText);
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn small ghost delPlBtn";
+      delBtn.type = "button";
+      delBtn.title = "プレイリストを削除";
+      delBtn.textContent = "✕";
+
+      row1.appendChild(toggleBtn);
+      row1.appendChild(titleContainer);
+      row1.appendChild(delBtn);
 
       const row2 = document.createElement("div");
       row2.className = "plRow2";
-      row2.innerHTML = `
-        <button class="btn small bulkAddPlBtn" type="button">＋一覧から追加</button>
-        <button class="btn small renamePlBtn" type="button">名前変更</button>
-        <button class="btn small playPlBtn" type="button">▶ 全曲再生</button>
-      `;
+
+      const bulkAddBtn = document.createElement("button");
+      bulkAddBtn.className = "btn small bulkAddPlBtn";
+      bulkAddBtn.type = "button";
+      bulkAddBtn.textContent = "＋一覧から追加";
+
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "btn small renamePlBtn";
+      renameBtn.type = "button";
+      renameBtn.textContent = "名前変更";
+
+      const playAllBtn = document.createElement("button");
+      playAllBtn.className = "btn small playPlBtn";
+      playAllBtn.type = "button";
+      playAllBtn.textContent = "▶ 全曲再生";
+
+      row2.appendChild(bulkAddBtn);
+      row2.appendChild(renameBtn);
+      row2.appendChild(playAllBtn);
 
       card.appendChild(row1);
       card.appendChild(row2);
@@ -443,32 +584,67 @@ function renderPlaylists(){
       listDiv.className = "plTrackList collapsed";
 
       if (!tracksInPl.length) {
-        listDiv.innerHTML = `<div style="color:var(--muted); font-size:.78rem">曲がありません</div>`;
+        const noTrackMsg = document.createElement("div");
+        noTrackMsg.style.color = "var(--muted)";
+        noTrackMsg.style.fontSize = ".78rem";
+        noTrackMsg.textContent = "曲がありません";
+        listDiv.appendChild(noTrackMsg);
       } else {
         tracksInPl.forEach((songName, idx) => {
           const found = state.playlist.find(x => x.name === songName);
           const row = document.createElement("div");
           row.className = "plTrackItem";
-          const displayTitle = found ? found.title : songName.replace(/\.[^/.]+$/, '');
-          row.innerHTML = `
-            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-              ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
-              <strong>${escapeHTML(displayTitle)}</strong>
-            </span>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <button class="btn small playPlTrackBtn" type="button" style="padding:2px 8px;">▶</button>
-              <button class="btn small ghost removePlSongBtn" type="button" style="padding:2px 6px;">✕</button>
-            </div>
-          `;
 
-          row.querySelector(".playPlTrackBtn").addEventListener("click", e => {
+          const titleSpan = document.createElement("span");
+          titleSpan.style.overflow = "hidden";
+          titleSpan.style.textOverflow = "ellipsis";
+          titleSpan.style.whiteSpace = "nowrap";
+          titleSpan.style.flex = "1";
+
+          if (!found) {
+            const warnSpan = document.createElement("span");
+            warnSpan.style.color = "#f8d25c";
+            warnSpan.style.marginRight = "4px";
+            warnSpan.title = "ファイルが見つかりません";
+            warnSpan.textContent = "▲ ";
+            titleSpan.appendChild(warnSpan);
+          }
+
+          const strongTitle = document.createElement("strong");
+          strongTitle.textContent = found ? found.title : songName.replace(/\.[^/.]+$/, '');
+          titleSpan.appendChild(strongTitle);
+
+          const actionDiv = document.createElement("div");
+          actionDiv.style.display = "flex";
+          actionDiv.style.gap = "6px";
+          actionDiv.style.alignItems = "center";
+
+          const playTrackBtn = document.createElement("button");
+          playTrackBtn.className = "btn small playPlTrackBtn";
+          playTrackBtn.type = "button";
+          playTrackBtn.style.padding = "2px 8px";
+          playTrackBtn.textContent = "▶";
+
+          const removeSongBtn = document.createElement("button");
+          removeSongBtn.className = "btn small ghost removePlSongBtn";
+          removeSongBtn.type = "button";
+          removeSongBtn.style.padding = "2px 6px";
+          removeSongBtn.textContent = "✕";
+
+          actionDiv.appendChild(playTrackBtn);
+          actionDiv.appendChild(removeSongBtn);
+
+          row.appendChild(titleSpan);
+          row.appendChild(actionDiv);
+
+          playTrackBtn.addEventListener("click", e => {
             e.stopPropagation();
             if (found) playSong(found);
           });
           row.addEventListener("click", () => {
             if (found) playSong(found);
           });
-          row.querySelector(".removePlSongBtn").addEventListener("click", e => {
+          removeSongBtn.addEventListener("click", e => {
             e.stopPropagation();
             state.playlists[pName].splice(idx, 1);
             saveState();
@@ -482,50 +658,56 @@ function renderPlaylists(){
 
       const toggleList = () => {
         const willOpen = listDiv.classList.contains("collapsed");
-        listDiv.classList.toggle("collapsed", !willOpen);
-        const toggleBtn = row1.querySelector(".plToggleBtn");
-        if (toggleBtn) {
-          toggleBtn.textContent = willOpen ? `▼ 曲一覧 (${tracksInPl.length})` : `▶ 曲一覧 (${tracksInPl.length})`;
-          toggleBtn.setAttribute("aria-expanded", String(willOpen));
-          toggleBtn.title = willOpen ? "曲を隠す" : "曲を表示";
+        if (willOpen) {
+          listDiv.classList.remove("collapsed");
+        } else {
+          listDiv.classList.add("collapsed");
         }
+        toggleBtn.textContent = willOpen ? `▼ 曲一覧 (${tracksInPl.length})` : `▶ 曲一覧 (${tracksInPl.length})`;
+        toggleBtn.setAttribute("aria-expanded", String(willOpen));
+        toggleBtn.title = willOpen ? "曲を隠す" : "曲を表示";
       };
 
-      row1.querySelector(".plToggleBtn").addEventListener("click", e => {
+      toggleBtn.addEventListener("click", e => {
         e.stopPropagation();
         toggleList();
       });
-      row1.querySelector(".plTitleText").addEventListener("click", toggleList);
+      titleText.addEventListener("click", toggleList);
 
-      row2.querySelector(".bulkAddPlBtn").addEventListener("click", e => {
+      bulkAddBtn.addEventListener("click", e => {
         e.stopPropagation();
         openBulkAddForPlaylist(pName);
       });
 
-      row2.querySelector(".playPlBtn").addEventListener("click", e => {
+      playAllBtn.addEventListener("click", e => {
         e.stopPropagation();
         const songObjects = state.playlists[pName].map(n => state.playlist.find(x => x.name === n)).filter(Boolean);
-        if(songObjects.length) playSong(songObjects[0]);
-        else toast("このプレイリストに再生できる曲がありません");
-      });
-
-      row2.querySelector(".renamePlBtn").addEventListener("click", e => {
-        e.stopPropagation();
-        const newName = prompt("新しいプレイリスト名を入力してください:", pName);
-        const trimmed = newName?.trim();
-        if(trimmed && trimmed !== pName) {
-          if (state.playlists[trimmed]) {
-            toast("その名前のプレイリストは既にあります");
-            return;
-          }
-          state.playlists[trimmed] = state.playlists[pName];
-          delete state.playlists[pName];
-          saveState();
-          renderPlaylists();
+        if(songObjects.length) {
+          playSong(songObjects[0]);
+        } else {
+          toast("このプレイリストに再生できる曲がありません");
         }
       });
 
-      row1.querySelector(".delPlBtn").addEventListener("click", e => {
+      renameBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        const newName = prompt("新しいプレイリスト名を入力してください:", pName);
+        if(newName !== null) {
+          const trimmed = newName.trim();
+          if(trimmed && trimmed !== pName) {
+            if (state.playlists[trimmed]) {
+              toast("その名前のプレイリストは既にあります");
+              return;
+            }
+            state.playlists[trimmed] = state.playlists[pName];
+            delete state.playlists[pName];
+            saveState();
+            renderPlaylists();
+          }
+        }
+      });
+
+      delBtn.addEventListener("click", e => {
         e.stopPropagation();
         if (!confirm(`プレイリスト「${pName}」を削除しますか？`)) return;
         delete state.playlists[pName];
@@ -534,11 +716,12 @@ function renderPlaylists(){
       });
 
       container.appendChild(card);
-      setupPlNameScroll(row1.querySelector(".plTitleText"));
+      setupPlNameScroll(titleText);
     });
   });
 }
 
+// プレイリスト選択ボトムシート表示
 function renderPlSelectSheet() {
   if (!el.plSelectList) return;
   el.plSelectList.innerHTML = "";
@@ -554,10 +737,19 @@ function renderPlSelectSheet() {
     const item = document.createElement("div");
     item.className = "plSelectItem";
     const count = state.playlists[pName].length;
-    item.innerHTML = `
-      <div style="font-weight:600;">${escapeHTML(pName)}</div>
-      <div style="color:var(--muted); font-size:.82rem;">${count}曲</div>
-    `;
+    
+    const nameDiv = document.createElement("div");
+    nameDiv.style.fontWeight = "600";
+    nameDiv.textContent = pName;
+    
+    const countDiv = document.createElement("div");
+    countDiv.style.color = "var(--muted)";
+    countDiv.style.fontSize = ".82rem";
+    countDiv.textContent = `${count}曲`;
+
+    item.appendChild(nameDiv);
+    item.appendChild(countDiv);
+
     item.addEventListener("click", () => {
       if(targetSongForPlaylist) {
         if (!state.playlists[pName].includes(targetSongForPlaylist)) {
@@ -575,6 +767,7 @@ function renderPlSelectSheet() {
   });
 }
 
+// 楽曲名スクロール初期化
 function setupSongNameScroll(element) {
   if (!element) return;
 
@@ -583,7 +776,7 @@ function setupSongNameScroll(element) {
   element.style.removeProperty("--song-scroll-duration");
 
   requestAnimationFrame(() => {
-    const available = element.parentElement?.clientWidth || 0;
+    const available = element.parentElement ? element.parentElement.clientWidth : 0;
     const overflow = element.scrollWidth - available;
     if (overflow > 8) {
       element.style.setProperty("--song-scroll-dist", `-${overflow + 18}px`);
@@ -593,37 +786,75 @@ function setupSongNameScroll(element) {
   });
 }
 
+// 楽曲メインリストの描画
 function renderSongList(){
   const vis = getVisibleSongs();
   if (!el.list) return;
   el.list.innerHTML = "";
   vis.forEach(song => {
     const row = document.createElement("div");
-    row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
+    row.className = "song" + (state.currentSong && song.name === state.currentSong.name ? " active" : "");
     row.dataset.name = song.name;
-    row.innerHTML = `
-      <div class="songMain">
-        <div class="songName">${escapeHTML(song.title)}</div>
-        <div class="songArtist">${escapeHTML(song.artist)}</div>
-        <div class="songMeta">再生数 ${state.playCounts[song.name] || 0}回</div>
-      </div>
-      <div class="songRight">
-        <button class="addPlBtn">リスト追加</button>
-        <button class="queueBtn">＋キュー</button>
-        <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
-        <button class="delTrackBtn">🗑</button>
-      </div>
-    `;
-    row.querySelector(".addPlBtn").addEventListener("click", e => { e.stopPropagation(); addSongToPlaylist(song.name); });
-    row.querySelector(".queueBtn").addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
-    row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
-    row.querySelector(".delTrackBtn").addEventListener("click", e => { e.stopPropagation(); deleteSingleTrack(song); });
+
+    const mainDiv = document.createElement("div");
+    mainDiv.className = "songMain";
+
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "songName";
+    nameDiv.textContent = song.title;
+
+    const artistDiv = document.createElement("div");
+    artistDiv.className = "songArtist";
+    artistDiv.textContent = song.artist;
+
+    const metaDiv = document.createElement("div");
+    metaDiv.className = "songMeta";
+    metaDiv.textContent = `再生数 ${state.playCounts[song.name] || 0}回`;
+
+    mainDiv.appendChild(nameDiv);
+    mainDiv.appendChild(artistDiv);
+    mainDiv.appendChild(metaDiv);
+
+    const rightDiv = document.createElement("div");
+    rightDiv.className = "songRight";
+
+    const addPlBtn = document.createElement("button");
+    addPlBtn.className = "addPlBtn";
+    addPlBtn.textContent = "リスト追加";
+
+    const queueBtn = document.createElement("button");
+    queueBtn.className = "queueBtn";
+    queueBtn.textContent = "＋キュー";
+
+    const starBtn = document.createElement("button");
+    const isFav = state.favorites.includes(song.name);
+    starBtn.className = "starBtn" + (isFav ? " active" : "");
+    starBtn.textContent = isFav ? "★" : "☆";
+
+    const delTrackBtn = document.createElement("button");
+    delTrackBtn.className = "delTrackBtn";
+    delTrackBtn.textContent = "🗑";
+
+    rightDiv.appendChild(addPlBtn);
+    rightDiv.appendChild(queueBtn);
+    rightDiv.appendChild(starBtn);
+    rightDiv.appendChild(delTrackBtn);
+
+    row.appendChild(mainDiv);
+    row.appendChild(rightDiv);
+
+    addPlBtn.addEventListener("click", e => { e.stopPropagation(); addSongToPlaylist(song.name); });
+    queueBtn.addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
+    starBtn.addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
+    delTrackBtn.addEventListener("click", e => { e.stopPropagation(); deleteSingleTrack(song); });
     row.addEventListener("click", () => playSong(song));
+
     el.list.appendChild(row);
-    setupSongNameScroll(row.querySelector(".songName"));
+    setupSongNameScroll(nameDiv);
   });
 }
 
+// リサイズ時のスクロール再計算タイマー
 let songListResizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(songListResizeTimer);
@@ -633,42 +864,68 @@ window.addEventListener("resize", () => {
   }, 120);
 });
 
+// 再生キューの描画
 function renderQueue(){
   if (!el.queueList) return;
   el.queueList.innerHTML = "";
   if(!state.queue.length){
-    el.queueList.innerHTML = `<div style="color:var(--muted); font-size:.86rem">キューは空です</div>`;
+    const emptyMsg = document.createElement("div");
+    emptyMsg.style.color = "var(--muted)";
+    emptyMsg.style.fontSize = ".86rem";
+    emptyMsg.textContent = "キューは空です";
+    el.queueList.appendChild(emptyMsg);
     return;
   }
   state.queue.forEach((name, idx) => {
     const s = state.playlist.find(x => x.name === name);
     const row = document.createElement("div");
     row.className = "song";
-    row.innerHTML = `
-      <div class="songMain">
-        <div class="songName">${escapeHTML(s ? s.title : name)}</div>
-        <div class="songArtist">${escapeHTML(s ? s.artist : "不明")}</div>
-      </div>
-      <div class="songRight">
-        <button class="btn small danger delQueueBtn">削除</button>
-      </div>
-    `;
-    row.querySelector(".delQueueBtn").addEventListener("click", e => {
+
+    const mainDiv = document.createElement("div");
+    mainDiv.className = "songMain";
+
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "songName";
+    nameDiv.textContent = s ? s.title : name;
+
+    const artistDiv = document.createElement("div");
+    artistDiv.className = "songArtist";
+    artistDiv.textContent = s ? s.artist : "不明";
+
+    mainDiv.appendChild(nameDiv);
+    mainDiv.appendChild(artistDiv);
+
+    const rightDiv = document.createElement("div");
+    rightDiv.className = "songRight";
+
+    const delQueueBtn = document.createElement("button");
+    delQueueBtn.className = "btn small danger delQueueBtn";
+    delQueueBtn.textContent = "削除";
+
+    rightDiv.appendChild(delQueueBtn);
+
+    row.appendChild(mainDiv);
+    row.appendChild(rightDiv);
+
+    delQueueBtn.addEventListener("click", e => {
       e.stopPropagation();
       state.queue.splice(idx, 1);
       saveState();
       renderQueue();
     });
+
     row.addEventListener("click", () => {
       state.queue.splice(idx, 1);
       saveState();
       renderQueue();
       if(s) playSong(s);
     });
+
     el.queueList.appendChild(row);
   });
 }
 
+// 統計画面（グラフ・各種数値）の描画
 function renderStats(){
   let totalPlays = 0;
   Object.values(state.playCounts).forEach(c => totalPlays += c);
@@ -739,6 +996,7 @@ function renderStats(){
   });
 }
 
+// 全UIの一括更新
 function renderAll(){
   renderSongList();
   renderQueue();
@@ -746,6 +1004,7 @@ function renderAll(){
   renderStats();
 }
 
+// サイドバー開閉操作
 function openSidebar() {
   state.menuOpen = true;
   if (el.sidebar) el.sidebar.classList.add("open");
@@ -772,6 +1031,7 @@ if (el.btnMenu) el.btnMenu.addEventListener("click", openSidebar);
 if (el.btnCloseMenu) el.btnCloseMenu.addEventListener("click", closeSidebar);
 if (el.overlay) el.overlay.addEventListener("click", closeSidebar);
 
+// サイドバーメニュー項目の切り替え
 document.querySelectorAll(".menuItem").forEach(item => {
   item.addEventListener("click", () => {
     const secId = item.dataset.section;
@@ -789,6 +1049,7 @@ if (el.btnSideBack) {
   el.btnSideBack.addEventListener("click", resetSidebarView);
 }
 
+// ナビゲーションタブ切り替え
 document.querySelectorAll(".navTab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
