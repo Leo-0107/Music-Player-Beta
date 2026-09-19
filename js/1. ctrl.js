@@ -2,9 +2,9 @@
 (() => {
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '4. storage.js',
-    '3. state.js',
     '2. audio.js',
+    '3. state.js',
+    '4. storage.js',
     '5. library.js',
     '6. ui.js'
   ];
