@@ -184,8 +184,10 @@
       state.crossfade = !state.crossfade;
       saveState();
       el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
+      el.btnCrossfade.classList.toggle("active", state.crossfade);
     });
     el.btnCrossfade.textContent = `クロスフェード: ${state.crossfade ? "ON" : "OFF"}`;
+    el.btnCrossfade.classList.toggle("active", state.crossfade);
   }
 
   if (el.btnSilenceSkip) {
@@ -194,8 +196,10 @@
       silenceTimer = 0;
       saveState();
       el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+      el.btnSilenceSkip.classList.toggle("active", state.silenceSkip);
     });
     el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+    el.btnSilenceSkip.classList.toggle("active", state.silenceSkip);
   }
 
   if (el.pannerSlider) {
@@ -339,16 +343,15 @@
         ctx.beginPath();
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#1DB954";
-        const sliceWidth = width / analyserData.length;
-        let x = 0;
-        for (let i = 0; i < analyserData.length; i++) {
+        const sampleCount = analyserData.length;
+        const sliceWidth = sampleCount > 1 ? width / (sampleCount - 1) : width;
+        for (let i = 0; i < sampleCount; i++) {
           const v = analyserData[i] / 128.0;
           const y = (v * height) / 2;
+          const x = i * sliceWidth;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
-          x += sliceWidth;
         }
-        ctx.lineTo(width, height / 2);
         ctx.stroke();
       }
     }
