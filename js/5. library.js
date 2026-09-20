@@ -8,6 +8,8 @@
       audio.pause();
       audio.src = "";
       if (el.folder) el.folder.value = "";
+      const directoryInput = document.getElementById("folderDirectory");
+      if (directoryInput) directoryInput.value = "";
       updateArtwork(null);
       updateTitleTextAndScroll(el.nowTitle, "未再生");
       updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
@@ -84,10 +86,57 @@
     toast(`読み込み完了！`);
   }
 
+  const folderDirectoryInput = document.getElementById("folderDirectory");
+  const btnAddMusic = document.getElementById("btnAddMusic");
+
+  function showAddSourcePicker() {
+    const existing = document.getElementById("sourcePickerModal");
+    if (existing) existing.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "sourcePickerModal";
+    modal.className = "sourcePickerModal";
+    modal.innerHTML = `
+      <div class="sourcePickerCard" role="dialog" aria-modal="true" aria-labelledby="sourcePickerTitle">
+        <div class="sectionTitle" id="sourcePickerTitle">追加方法を選択</div>
+        <div class="sourcePickerMessage">読み込みたいものを選んでください。</div>
+        <div class="sourcePickerActions">
+          <button type="button" class="btn small" data-source-file>🎵 音楽ファイル / ZIP</button>
+          <button type="button" class="btn small" data-source-folder>📁 フォルダ</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+
+    modal.querySelector("[data-source-file]").addEventListener("click", () => {
+      close();
+      if (el.folder) el.folder.click();
+    });
+    modal.querySelector("[data-source-folder]").addEventListener("click", () => {
+      close();
+      if (folderDirectoryInput) folderDirectoryInput.click();
+    });
+    modal.addEventListener("click", e => {
+      if (e.target === modal) close();
+    });
+  }
+
+  if (btnAddMusic) {
+    btnAddMusic.addEventListener("click", showAddSourcePicker);
+  }
+
   if (el.folder) {
     el.folder.addEventListener("change", e => {
       loadFiles(e.target.files);
       el.folder.value = "";
+    });
+  }
+
+  if (folderDirectoryInput) {
+    folderDirectoryInput.addEventListener("change", e => {
+      loadFiles(e.target.files);
+      folderDirectoryInput.value = "";
     });
   }
 
