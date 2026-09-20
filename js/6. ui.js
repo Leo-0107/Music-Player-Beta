@@ -1,10 +1,44 @@
-      if(!confirm("再生統計データをリセットしますか？")) return;
-      state.playCounts = {};
+  function showHistoryResetModal(onConfirm) {
+    const existing = document.getElementById("historyResetModal");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "historyResetModal";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.45);";
+
+    const card = document.createElement("div");
+    card.style.cssText = "width:min(420px,calc(100vw - 40px));box-sizing:border-box;padding:22px;border-radius:16px;background:var(--panel,#202124);color:var(--text,#fff);box-shadow:0 18px 60px rgba(0,0,0,.35);";
+    card.innerHTML = `
+      <div style="font-size:18px;font-weight:700;">再生履歴を削除しますか？</div>
+      <div style="margin-top:8px;color:var(--muted,#aaa);">再生回数と再生履歴のデータを削除します。</div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button type="button" class="btn small" data-history-cancel>キャンセル</button>
+        <button type="button" class="btn small danger" data-history-confirm>削除する</button>
+      </div>`;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    card.querySelector("[data-history-cancel]").addEventListener("click", close);
+    card.querySelector("[data-history-confirm]").addEventListener("click", () => {
+      close();
+      onConfirm();
+    });
+    overlay.addEventListener("click", e => {
+      if (e.target === overlay) close();
+    });
+  }
+
+
+      showHistoryResetModal(() => {
+        state.playCounts = {};
       state.playHistory = {};
       saveState();
       renderStats();
       renderSongList();
       toast("再生統計をリセットしました");
+      });
     });
   }
 
@@ -171,6 +205,13 @@
       el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
     });
     el.btnSilenceSkip.textContent = `無音スキップ: ${state.silenceSkip ? "ON" : "OFF"}`;
+  }
+
+  if (el.btnClippingProtection) {
+    el.btnClippingProtection.addEventListener("click", () => {
+      setClippingProtection(!state.clippingProtection);
+    });
+    el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
   }
 
   if (el.pannerSlider) {
