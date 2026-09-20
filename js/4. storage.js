@@ -14,6 +14,7 @@
     playlists: "mp_playlists_v12",
     crossfade: "mp_crossfade_v12",
     silenceSkip: "mp_silenceskip_v12",
+    clippingProtection: "mp_clippingprotection_v1",
     dMode: "mp_dmode_v12",
     waveMode: "mp_wavemode_v12"
   };
