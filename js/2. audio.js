@@ -68,6 +68,7 @@
     localStorage.setItem(STORAGE.playlists, JSON.stringify(state.playlists));
     localStorage.setItem(STORAGE.crossfade, String(state.crossfade));
     localStorage.setItem(STORAGE.silenceSkip, String(state.silenceSkip));
+    localStorage.setItem(STORAGE.clippingProtection, String(state.clippingProtection));
     localStorage.setItem(STORAGE.dMode, state.dMode);
     localStorage.setItem(STORAGE.waveMode, state.waveMode);
   }
@@ -255,14 +256,41 @@
         lastFilter = panner3DNode;
       }
 
-      // パイプライン: lastFilter -> masterGain -> limiterNode -> analyser -> destination
+      // パイプライン: lastFilter -> masterGain -> (limiterNode or bypass) -> analyser -> destination
       lastFilter.connect(masterGain);
-      masterGain.connect(limiterNode);
-      limiterNode.connect(analyser);
+      if (state.clippingProtection) {
+        masterGain.connect(limiterNode);
+        limiterNode.connect(analyser);
+      } else {
+        masterGain.connect(analyser);
+      }
       analyser.connect(audioCtx.destination);
 
       audioGraphReady = true;
     } catch(e) {}
+  }
+
+  function setClippingProtection(enabled) {
+    state.clippingProtection = !!enabled;
+
+    if (audioGraphReady && audioCtx && masterGain && limiterNode && analyser) {
+      try {
+        masterGain.disconnect();
+        limiterNode.disconnect();
+
+        if (state.clippingProtection) {
+          masterGain.connect(limiterNode);
+          limiterNode.connect(analyser);
+        } else {
+          masterGain.connect(analyser);
+        }
+      } catch (e) {}
+    }
+
+    saveState();
+    if (el.btnClippingProtection) {
+      el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
+    }
   }
 
   async function resumeAudioCtx(){
