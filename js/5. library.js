@@ -979,21 +979,25 @@
           <div class="plTitleContainer">
             <div class="plTitleText" title="${escapeHTML(pName)}">${escapeHTML(pName)}</div>
           </div>
+          <button class="btn small ghost plOpenBtn" type="button" title="曲一覧を開く" aria-label="曲一覧を開く">${tracksInPl.length}曲・曲一覧</button>
           <button class="btn small ghost plMenuBtn" type="button" title="プレイリストメニュー" aria-label="プレイリストメニュー">︙</button>
           <div class="plMenuPopup" hidden>
             <button type="button" class="plMenuItem" data-pl-rename>名前変更</button>
             <button type="button" class="plMenuItem dangerText" data-pl-delete>プレイリストの削除</button>
           </div>`;
 
-        const detail = document.createElement("div");
-        detail.className = "plCardHint";
-        detail.innerHTML = `<span>${tracksInPl.length}曲</span><span>タップで曲一覧</span>`;
-
         card.appendChild(row);
-        card.appendChild(detail);
         container.appendChild(card);
 
         setupPlNameScroll(row.querySelector(".plTitleText"));
+
+        const openBtn = row.querySelector(".plOpenBtn");
+        openBtn.addEventListener("pointerdown", e => e.stopPropagation());
+        openBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(m => { m.hidden = true; });
+          openPlaylistTrackSheet(pName);
+        });
 
         const menuBtn = row.querySelector(".plMenuBtn");
         const menu = row.querySelector(".plMenuPopup");
