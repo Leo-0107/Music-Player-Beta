@@ -880,3 +880,185 @@ kbd {
 @media (max-width:520px) {
   .sourcePickerActions { grid-template-columns:1fr; }
 }
+
+
+/* 出力スピーカー + L/R個別音量 */
+.speakerPanel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.speakerNameLine {
+  color: var(--muted);
+  font-size: .82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.speakerNameLine strong { color: var(--text); }
+.channelVolumeWrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 46px;
+  margin-top: 12px;
+}
+.channelVolume {
+  min-width: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.channelValue {
+  font-size: .76rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.channelSlider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 26px;
+  height: 120px;
+  appearance: slider-vertical;
+  -webkit-appearance: slider-vertical;
+  cursor: pointer;
+  accent-color: var(--accent);
+  touch-action: pan-x;
+}
+
+/* プレイリストを名前 + ︙だけで表示 */
+.plSingleRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.plSingleRow .plTitleContainer { flex: 1 1 auto; min-width: 0; }
+.plMenuBtn {
+  flex: 0 0 auto;
+  min-width: 42px;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  font-size: 1.2rem !important;
+  line-height: 1;
+}
+.plMenuPopup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 180px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+.plMenuPopup[hidden] { display: none; }
+.plMenuItem {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.plMenuItem + .plMenuItem { border-top: 1px solid var(--line); }
+.plMenuItem:hover { background: var(--panel2); }
+.dangerText { color: var(--danger); }
+.plCardHint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+/* 長押し並べ替え */
+.reorder-dragging { user-select: none; }
+.song, .plTrackItem, .plCard { touch-action: manipulation; }
+.longPressDragging {
+  opacity: .62;
+  transform: scale(.985);
+  box-shadow: 0 0 0 2px rgba(29,185,84,.28) inset;
+}
+
+/* プレイリスト曲一覧：画面下からフェイドイン */
+.playlistTrackSheet {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+}
+.playlistTrackSheet.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.playlistTrackSheetCard {
+  width: min(720px, 100vw);
+  max-height: min(78vh, 760px);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  padding: 16px;
+  box-shadow: 0 -18px 60px rgba(0,0,0,.32);
+  transform: translateY(100%);
+  opacity: .92;
+  transition: transform .26s cubic-bezier(.1,.9,.2,1), opacity .22s ease;
+}
+.playlistTrackSheet.show .playlistTrackSheetCard {
+  transform: translateY(0);
+  opacity: 1;
+}
+.playlistTrackSheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.playlistTrackSheetActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.playlistTrackSheetActions .btn { flex: 1 1 0; }
+.playlistTrackHint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: .76rem;
+  text-align: center;
+}
+.playlistTrackSheet .bottomSheetList {
+  max-height: min(58vh, 560px);
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.plTrackText {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plTrackActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+@media (max-width: 520px) {
+  .channelVolumeWrap { gap: 34px; }
+  .playlistTrackSheetCard { padding: 14px; }
+}
