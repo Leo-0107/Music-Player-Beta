@@ -1201,3 +1201,95 @@ body.theme-light .waveWrap {
     height: 34px;
   }
 }
+
+
+/* 設定タブ */
+#settingsTabContainer {
+  min-width: 0;
+}
+.settingsHome {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settingsDescription {
+  color: var(--muted);
+  font-size: .84rem;
+  margin-top: -6px;
+  margin-bottom: 2px;
+}
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.settingsCard {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  transition: transform .12s ease, background .15s ease, border-color .15s ease;
+}
+.settingsCard:hover { filter: brightness(.92); border-color: rgba(29,185,84,.35); }
+.settingsCard:active { transform: scale(.985); filter: brightness(.84); }
+.settingsIcon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--panel2);
+  font-size: 1.05rem;
+}
+.settingsCardText {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.settingsCardText strong {
+  font-size: .9rem;
+}
+.settingsCardText small {
+  color: var(--muted);
+  font-size: .74rem;
+  line-height: 1.35;
+}
+.settingsArrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.settingsTools {
+  margin-top: 2px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.settingsToolRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.settingsToolRow .btn {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  .settingsGrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .settingsToolRow { grid-template-columns: 1fr; }
+}
