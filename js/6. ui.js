@@ -394,16 +394,20 @@
       // ボタン2D → 以前の3D表示 / ボタン3D → 以前の2D表示。
       if (state.waveMode === "2d") {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
+        const meterGap = 8;
+        const waveLeft = meterW + meterGap;
+        const waveRight = width - meterW - meterGap;
+        const waveWidth = Math.max(1, waveRight - waveLeft);
         const bars = Math.min(72, dataLen);
         const step = dataLen / bars;
         const barGap = 2;
-        const barWidth = Math.max(1, width / bars - barGap);
+        const barWidth = Math.max(1, waveWidth / bars - barGap);
         for (let i = 0; i < bars; i++) {
           const begin = Math.floor(i * step);
           const finish = Math.max(begin + 1, Math.floor((i + 1) * step));
           let level = 0;
           for (let j = begin; j < finish && j < dataLen; j++) level = Math.max(level, waveSmoothData[j]);
-          const x = i * (width / bars);
+          const x = waveLeft + i * (waveWidth / bars);
           const barHeight = Math.max(1, height * level);
           const y = height - barHeight;
           const hue = (i / Math.max(1, bars - 1)) * 280 + 120;
@@ -419,7 +423,8 @@
             const sample = (data[i] - 128) / 128;
             sum += sample * sample;
           }
-          return Math.min(1, Math.sqrt(sum / data.length) * 2.2);
+          // フルスケール正弦波でも常時MAXになりにくい表示スケール。
+          return Math.min(1, Math.sqrt(sum / data.length) * 1.25);
         };
         let leftTarget = 0, rightTarget = 0;
         if (isPlaying && leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
