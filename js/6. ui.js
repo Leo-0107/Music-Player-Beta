@@ -17,7 +17,8 @@
     modal.querySelector(".inSiteConfirmMessage").textContent = message;
     modal.querySelector("[data-confirm-ok]").textContent = confirmText;
     document.body.appendChild(modal);
-    const close = () => modal.remove();
+    document.body.classList.add("site-modal-open");
+    const close = () => { modal.remove(); if (!document.querySelector(".inSiteConfirmModal")) document.body.classList.remove("site-modal-open"); };
     modal.querySelector("[data-confirm-cancel]").addEventListener("click", close);
     modal.querySelector("[data-confirm-ok]").addEventListener("click", () => { close(); onConfirm?.(); });
     modal.addEventListener("click", e => { if (e.target === modal) close(); });
@@ -45,7 +46,8 @@
     const input = modal.querySelector("[data-prompt-input]");
     input.value = initialValue || "";
     document.body.appendChild(modal);
-    const close = () => modal.remove();
+    document.body.classList.add("site-modal-open");
+    const close = () => { modal.remove(); if (!document.querySelector(".inSiteConfirmModal")) document.body.classList.remove("site-modal-open"); };
     const submit = () => {
       const value = input.value.trim();
       if (!value) {
@@ -170,8 +172,10 @@
   if (el.btnMainShuffle) {
     el.btnMainShuffle.addEventListener("click", () => {
       state.shuffle = !state.shuffle;
+      resetHomeCycle();
       saveState();
       el.btnMainShuffle.classList.toggle("active", state.shuffle);
+      renderQueue();
       toast(`シャッフル: ${state.shuffle ? "ON" : "OFF"}`);
     });
     el.btnMainShuffle.classList.toggle("active", state.shuffle);
@@ -198,6 +202,7 @@
   if (el.search) {
     el.search.addEventListener("input", e => {
       state.search = e.target.value;
+      resetHomeCycle();
       renderSongList();
     });
   }
@@ -386,7 +391,9 @@
         silenceTimer = 0;
       }
 
-      if (state.waveMode === "3d") {
+      // ボタン2D → 以前の3D表示 / ボタン3D → 以前の2D表示。
+      if (state.waveMode === "2d") {
+        const meterW = Math.min(18, Math.max(12, width * 0.022));
         const bars = Math.min(72, dataLen);
         const step = dataLen / bars;
         const barGap = 2;
@@ -405,6 +412,46 @@
           ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.25)`;
           ctx.fillRect(x, Math.max(0, y - 4), barWidth, 3);
         }
+        const calcRms = (data) => {
+          if (!data || !data.length) return 0;
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const sample = (data[i] - 128) / 128;
+            sum += sample * sample;
+          }
+          return Math.min(1, Math.sqrt(sum / data.length) * 2.2);
+        };
+        let leftTarget = 0, rightTarget = 0;
+        if (isPlaying && leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
+          leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+          rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+          leftTarget = calcRms(leftLevelData);
+          rightTarget = calcRms(rightLevelData);
+        }
+        const meterSmoothing = isPlaying ? 0.105 : 0.035;
+        leftDisplayLevel += (leftTarget - leftDisplayLevel) * meterSmoothing;
+        rightDisplayLevel += (rightTarget - rightDisplayLevel) * meterSmoothing;
+
+        const drawLevelMeter = (x, level, label) => {
+          const trackTop = 18;
+          const trackBottom = height - 18;
+          const trackH = Math.max(1, trackBottom - trackTop);
+          const fillH = trackH * Math.min(1, Math.max(0, level));
+          const meterGradient = ctx.createLinearGradient(0, trackBottom, 0, trackTop);
+          meterGradient.addColorStop(0, "#1DB954");
+          meterGradient.addColorStop(0.58, "#d7df28");
+          meterGradient.addColorStop(1, "#ff3b30");
+          ctx.fillStyle = "rgba(255,255,255,.08)";
+          ctx.fillRect(x, trackTop, meterW, trackH);
+          ctx.fillStyle = meterGradient;
+          ctx.fillRect(x, trackBottom - fillH, meterW, fillH);
+          ctx.fillStyle = "rgba(255,255,255,.72)";
+          ctx.font = "9px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(label, x + meterW / 2, Math.max(11, trackTop - 5));
+        };
+        drawLevelMeter(0, leftDisplayLevel, "L");
+        drawLevelMeter(width - meterW, rightDisplayLevel, "R");
       } else {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
         const meterGap = 8;
@@ -431,48 +478,7 @@
           ctx.fillRect(x + barGap / 2, y, barWidth, barHeight);
         }
 
-        const calcRms = (data) => {
-          if (!data || !data.length) return 0;
-          let sum = 0;
-          for (let i = 0; i < data.length; i++) {
-            const sample = (data[i] - 128) / 128;
-            sum += sample * sample;
-          }
-          return Math.min(1, Math.sqrt(sum / data.length) * 2.2);
-        };
-        let leftTarget = 0, rightTarget = 0;
-        if (isPlaying && leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
-          leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-          rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-          leftTarget = calcRms(leftLevelData);
-          rightTarget = calcRms(rightLevelData);
-        }
-        const meterSmoothing = isPlaying ? 0.22 : 0.10;
-        leftDisplayLevel += (leftTarget - leftDisplayLevel) * meterSmoothing;
-        rightDisplayLevel += (rightTarget - rightDisplayLevel) * meterSmoothing;
-
-        const drawLevelMeter = (x, level, label) => {
-          const trackTop = 18;
-          const trackBottom = height - 18;
-          const trackH = Math.max(1, trackBottom - trackTop);
-          const fillH = trackH * Math.min(1, Math.max(0, level));
-          const meterGradient = ctx.createLinearGradient(0, trackBottom, 0, trackTop);
-          meterGradient.addColorStop(0, "#1DB954");
-          meterGradient.addColorStop(0.58, "#d7df28");
-          meterGradient.addColorStop(1, "#ff3b30");
-          ctx.fillStyle = "rgba(255,255,255,.08)";
-          ctx.fillRect(x, trackTop, meterW, trackH);
-          ctx.fillStyle = meterGradient;
-          ctx.fillRect(x, trackBottom - fillH, meterW, fillH);
-          ctx.fillStyle = "rgba(255,255,255,.72)";
-          ctx.font = "9px sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(label, x + meterW / 2, Math.max(11, trackTop - 5));
-        };
-        drawLevelMeter(0, leftDisplayLevel, "L");
-        drawLevelMeter(width - meterW, rightDisplayLevel, "R");
-      }
-    }
+      }    }
 
     if (!isPlaying && waveDecayActive) {
       let maxWave = 0;
