@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v6.8</title>
+<title>Music Player v6.9</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -33,7 +33,9 @@
 @keyframes songNameMarquee {
   0%, 18% { transform: translateX(0); opacity: 1; }
   72% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 1; }
-  88%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 0; }
+  82% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 0; }
+  83% { transform: translateX(0); opacity: 0; }
+  92%, 100% { transform: translateX(0); opacity: 1; }
 }
 
 @media (max-width: 700px) {
@@ -408,8 +410,7 @@
     <div class="sectionTitle">ショートカットキーヘルプ</div>
     <div class="shortcutGrid">
       <kbd>Space</kbd><span>再生 / 一時停止</span>
-      <kbd>← / →</kbd><span>5秒巻き戻し / 早送り</span>
-      <kbd>↑ / ↓</kbd><span>音量調整</span>
+      <kbd>↑ / ↓ / ← / →</kbd><span>曲一覧の選択移動</span>
       <kbd>M</kbd><span>ミュート切り替え</span>
       <kbd>F</kbd><span>お気に入り登録</span>
       <kbd>?</kbd><span>ヘルプ表示</span>
