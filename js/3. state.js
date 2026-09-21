@@ -90,6 +90,9 @@
   
   const historyStack = [];
   let historyIndex = -1;
+  let homeCycleOrder = [];
+  let homeCycleIndex = -1;
+  let homeCycleSourceKey = "";
 
   let sleepTimerId = null;
   let sleepIntervalId = null;
