@@ -1,29 +1,3 @@
-        tx.objectStore("tracks").clear();
-      }
-      revokeAllObjectURLs();
-      state.playlist = [];
-      state.playlistOrder = [];
-      state.currentSong = null;
-      state.queue = [];
-      state.playlists = {};
-      state.playlistSettings = {};
-      clearPlaylistContext();
-      audio.pause();
-      audio.src = "";
-      if (el.folder) el.folder.value = "";
-      const directoryInput = document.getElementById("folderDirectory");
-      if (directoryInput) directoryInput.value = "";
-      updateArtwork(null);
-      updateTitleTextAndScroll(el.nowTitle, "未再生");
-      updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
-      updateTitleTextAndScroll(el.miniTitle, "停止中");
-      saveState();
-      renderAll();
-      toast("全ファイルをリセットしました");
-      });
-    });
-  }
-
   async function loadFiles(fileList){
     const files = Array.from(fileList || []);
     if(!files.length) return;
@@ -364,6 +338,51 @@
     return state.playlist.find(song => song.name === nextName) || null;
   }
 
+  function resetHomeCycle() {
+    homeCycleOrder = [];
+    homeCycleIndex = -1;
+    homeCycleSourceKey = "";
+  }
+
+  function ensureHomeCycle() {
+    const visible = getVisibleSongs();
+    const names = visible.map(song => song.name);
+    const sourceKey = `${state.shuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
+    const valid = homeCycleOrder.length === names.length && homeCycleOrder.every(name => names.includes(name));
+    const currentName = state.currentSong?.name || null;
+
+    if (sourceKey !== homeCycleSourceKey || !valid) {
+      homeCycleOrder = state.shuffle ? shuffleNames(names) : names.slice();
+      homeCycleSourceKey = sourceKey;
+      homeCycleIndex = currentName ? homeCycleOrder.indexOf(currentName) : -1;
+      if (homeCycleIndex < 0 && homeCycleOrder.length) homeCycleIndex = -1;
+      return;
+    }
+
+    if (currentName) {
+      const currentIndex = homeCycleOrder.indexOf(currentName);
+      if (currentIndex >= 0 && currentIndex !== homeCycleIndex) homeCycleIndex = currentIndex;
+    }
+  }
+
+  function getNextHomeSong() {
+    ensureHomeCycle();
+    if (!homeCycleOrder.length) return null;
+    let nextIndex = homeCycleIndex + 1;
+    if (nextIndex >= homeCycleOrder.length) {
+      homeCycleOrder = state.shuffle ? shuffleNames(homeCycleOrder) : homeCycleOrder.slice();
+      const currentName = state.currentSong?.name || null;
+      if (homeCycleOrder.length > 1 && currentName && homeCycleOrder[0] === currentName) {
+        [homeCycleOrder[0], homeCycleOrder[1]] = [homeCycleOrder[1], homeCycleOrder[0]];
+      }
+      homeCycleIndex = 0;
+    } else {
+      homeCycleIndex = nextIndex;
+    }
+    const nextName = homeCycleOrder[homeCycleIndex];
+    return state.playlist.find(song => song.name === nextName) || null;
+  }
+
   function getVisibleSongs(){
     let list = state.playlist.slice();
     if(state.search){
@@ -583,19 +602,13 @@
       const s = state.playlist.find(x => x.name === name);
       if(s) return playSong(s);
     }
-    if(state.shuffle){
-      let candidates = vis.filter(s => s.name !== state.currentSong?.name);
-      if (!candidates.length) candidates = vis;
-      const next = candidates[Math.floor(Math.random() * candidates.length)];
-      return playSong(next);
-    }
-    const idx = vis.findIndex(s => s.name === state.currentSong?.name);
-    playSong(vis[(idx + 1) % vis.length]);
+    const next = getNextHomeSong();
+    if (next) return playSong(next);
   }
 
   function updateVolumeUI(targetVal, isMuteAction = false) {
     const prevVol = currentVolumeTarget;
-    currentVolumeTarget = Math.max(0, targetVal);
+    currentVolumeTarget = Math.max(0, Math.min(2, snapToDefault(targetVal, 1, 0.07)));
     if (el.volume) el.volume.value = currentVolumeTarget;
     if (el.volText) el.volText.textContent = `${Math.round(currentVolumeTarget * 100)}%`;
     if (el.btnMuteToggle) el.btnMuteToggle.textContent = currentVolumeTarget === 0 ? "🔇" : currentVolumeTarget < 0.5 ? "🔉" : "🔊";
@@ -765,16 +778,25 @@
         if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) clearTimer();
         return;
       }
-      const elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
-      const target = elAtPoint?.closest(selector);
-      if (!target || target === row || target.parentElement !== container) return;
-      const rect = target.getBoundingClientRect();
-      const after = e.clientY > rect.top + rect.height / 2;
-      if (after) {
-        if (target.nextSibling !== row) container.insertBefore(row, target.nextSibling);
-      } else {
-        if (target !== row.nextSibling) container.insertBefore(row, target);
+      e.preventDefault();
+      const rows = Array.from(container.querySelectorAll(selector)).filter(item => item !== row);
+      if (!rows.length) return;
+
+      let insertBefore = null;
+      let nearestDistance = Infinity;
+      for (const candidate of rows) {
+        const rect = candidate.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        const distance = Math.abs(e.clientY - center);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          insertBefore = e.clientY < center ? candidate : candidate.nextElementSibling;
+        }
       }
+
+      if (insertBefore === row) insertBefore = row.nextElementSibling;
+      if (insertBefore) container.insertBefore(row, insertBefore);
+      else container.appendChild(row);
     });
 
     const finish = e => {
@@ -975,16 +997,19 @@
 
         const menuBtn = row.querySelector(".plMenuBtn");
         const menu = row.querySelector(".plMenuPopup");
+        menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
         menuBtn.addEventListener("click", e => {
           e.stopPropagation();
           document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(m => { m.hidden = true; });
           menu.hidden = !menu.hidden;
         });
+        row.querySelector("[data-pl-rename]").addEventListener("pointerdown", e => e.stopPropagation());
         row.querySelector("[data-pl-rename]").addEventListener("click", e => {
           e.stopPropagation();
           menu.hidden = true;
           renamePlaylist(pName);
         });
+        row.querySelector("[data-pl-delete]").addEventListener("pointerdown", e => e.stopPropagation());
         row.querySelector("[data-pl-delete]").addEventListener("click", e => {
           e.stopPropagation();
           menu.hidden = true;
@@ -1261,15 +1286,16 @@
   function addToQueue(name){
     normalizeQueue();
     if (!name) return;
+    if (!state.playlist.some(song => song.name === name)) return;
     if (state.queue.includes(name)) {
-      toast("その曲はすでにキューに入っています");
+      state.queue = [name, ...state.queue.filter(item => item !== name)];
+      saveState();
+      renderQueue();
+      toast("その曲を次に再生する位置へ移しました");
       return;
     }
-    if (state.queue.length >= 10) {
-      toast("再生キューは10曲まで追加できます");
-      return;
-    }
-    state.queue.unshift(name);
+    // 手動追加分は10曲制限なし。既存の自動予定を消さず、次に再生する位置へ割り込ませる。
+    state.queue = [name, ...state.queue.filter(item => item !== name)];
     saveState();
     renderQueue();
     toast("次に再生する曲として追加しました");
@@ -1286,36 +1312,38 @@
       }
     });
 
-    const result = manual.slice(0, limit);
-    if (result.length >= limit) return result;
-
+    // 10曲制限は自動で補う「予定」側だけ。手動追加は何曲でも表示する。
+    const result = manual.slice();
+    let plannedCount = 0;
     const addCandidate = name => {
-      if (!name || name === state.currentSong?.name || seen.has(name)) return;
+      if (!name || name === state.currentSong?.name || seen.has(name) || plannedCount >= limit) return;
       seen.add(name);
       result.push(name);
+      plannedCount++;
     };
 
     if (state.activePlaylistName) {
       const order = Array.isArray(state.playlistCycleOrder) ? state.playlistCycleOrder : [];
-      for (let i = state.playlistCycleIndex + 1; i < order.length && result.length < limit; i++) addCandidate(order[i]);
-      if (result.length < limit && getPlaylistSettings(state.activePlaylistName).repeat) {
+      for (let i = state.playlistCycleIndex + 1; i < order.length && plannedCount < limit; i++) {
+        addCandidate(order[i]);
+      }
+      if (plannedCount < limit && getPlaylistSettings(state.activePlaylistName).repeat) {
         const names = getPlaylistNames(state.activePlaylistName);
         for (const name of names) {
-          if (result.length >= limit) break;
+          if (plannedCount >= limit) break;
           addCandidate(name);
         }
       }
     } else {
-      const visible = getVisibleSongs().map(song => song.name);
-      if (state.shuffle) {
-        shuffleNames(visible).forEach(name => addCandidate(name));
-      } else {
-        const currentIndex = visible.indexOf(state.currentSong?.name);
-        const ordered = currentIndex >= 0 ? visible.slice(currentIndex + 1).concat(visible.slice(0, currentIndex)) : visible;
-        ordered.forEach(name => addCandidate(name));
+      ensureHomeCycle();
+      if (homeCycleOrder.length) {
+        const startIndex = homeCycleIndex + 1;
+        for (let offset = 0; offset < homeCycleOrder.length && plannedCount < limit; offset++) {
+          addCandidate(homeCycleOrder[(startIndex + offset) % homeCycleOrder.length]);
+        }
       }
     }
-    return result.slice(0, limit);
+    return result;
   }
 
   function renderQueue(){
@@ -1367,6 +1395,7 @@
     const idx = state.favorites.indexOf(name);
     if(idx >= 0) state.favorites.splice(idx, 1);
     else state.favorites.push(name);
+    resetHomeCycle();
     saveState();
     renderSongList();
     if(state.currentSong?.name === name) {
