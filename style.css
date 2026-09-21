@@ -1,3 +1,4 @@
+body.site-modal-open { overflow: hidden !important; }
 /* 2. style.css */
 :root {
   --bg: #121212;
@@ -114,13 +115,16 @@ body.theme-light select option {
 }
 
 .scroll-text.scrolling {
-  animation: marqueeScroll 8s linear infinite alternate;
+  animation: marqueeScroll 9s linear infinite;
   animation-play-state: paused;
 }
 
 @keyframes marqueeScroll {
-  0%, 15% { transform: translateX(0); }
-  85%, 100% { transform: translateX(var(--scroll-dist, -50%)); }
+  0%, 18% { transform: translateX(0); opacity: 1; }
+  72% { transform: translateX(var(--scroll-dist, -50%)); opacity: 1; }
+  82% { transform: translateX(var(--scroll-dist, -50%)); opacity: 0; }
+  83% { transform: translateX(0); opacity: 0; }
+  92%, 100% { transform: translateX(0); opacity: 1; }
 }
 
 .menuBtn {
@@ -258,10 +262,17 @@ input[type="range"] {
 .btn.ghost { background: transparent; border: 1px solid var(--line); }
 
 .btnPlayMain {
-  padding: 12px 20px;
+  width: 138px;
+  min-width: 138px;
+  height: 44px;
+  padding: 0 14px;
   font-weight: 700;
   border-radius: 16px;
   background: var(--panel3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 .btnPlayMain.playing {
   background: var(--accent) !important;
@@ -403,9 +414,9 @@ input[type="range"] {
 }
 .miniRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 .miniNow {
   display: flex;
@@ -440,7 +451,9 @@ input[type="range"] {
   display: flex;
   gap: 6px;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  min-height: 36px;
 }
 .miniProgressWrap {
   width: 100%;
@@ -958,7 +971,7 @@ kbd {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 30;
+  z-index: 15000;
   min-width: 180px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -990,10 +1003,12 @@ kbd {
 
 /* 長押し並べ替え */
 .reorder-dragging { user-select: none; }
-.song, .plTrackItem, .plCard { touch-action: manipulation; }
+.song, .plTrackItem, .plCard { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
 .longPressDragging {
   opacity: .62;
   transform: scale(.985);
+  touch-action: none;
+  cursor: grabbing;
   box-shadow: 0 0 0 2px rgba(29,185,84,.28) inset;
 }
 
@@ -1079,14 +1094,15 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
 
 /* 今回の表示・操作調整 */
 .btnPlayMain { min-width: 138px; width: 138px; box-sizing: border-box; white-space: nowrap; }
-#miniPlay { width: 42px; min-width: 42px; box-sizing: border-box; }
+#miniPlay { width: 42px; min-width: 42px; height: 36px; box-sizing: border-box; display:inline-flex; align-items:center; justify-content:center; }
 
 #waveModeBtns .btn.active, #dModeBtns .btn.active, .playlistTrackSheetActions .btn.active {
   background: var(--accent) !important;
-  color: #000 !important;
+  color: #07120a !important;
   opacity: 1 !important;
   filter: none !important;
-  box-shadow: 0 0 0 1px rgba(29,185,84,.35), 0 0 10px rgba(29,185,84,.16);
+  border-color: rgba(255,255,255,.28) !important;
+  box-shadow: 0 0 0 2px rgba(29,185,84,.28), 0 0 12px rgba(29,185,84,.20);
 }
 #waveModeBtns .btn.active:hover, #dModeBtns .btn.active:hover, .playlistTrackSheetActions .btn.active:hover { filter: none !important; }
 
@@ -1102,3 +1118,4 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
 
 .channelValue { color: var(--text); font-size: .78rem; font-weight: 700; min-height: 1.1em; }
 .channelVolume strong { font-size: .84rem; color: var(--text); }
+
