@@ -414,8 +414,7 @@ input[type="range"] {
 }
 .miniRow {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
 }
 .miniNow {
@@ -425,10 +424,17 @@ input[type="range"] {
   min-width: 0;
   flex: 1;
 }
-.miniTextWrap {
+.miniInfo {
+  min-width: 0;
+  flex: 1;
+}
+.miniTitleRow {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.miniTitleRow .scroll-container {
   min-width: 0;
   flex: 1;
 }
@@ -451,9 +457,8 @@ input[type="range"] {
   display: flex;
   gap: 6px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   flex-shrink: 0;
-  min-height: 36px;
 }
 .miniProgressWrap {
   width: 100%;
@@ -466,6 +471,12 @@ input[type="range"] {
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 8px; height: 8px; }
 .miniProgressWrap input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; }
+
+@media (max-width: 520px) {
+  .miniTitleRow { gap: 5px; }
+  .miniBtns { gap: 3px; }
+  .miniBtns .btn.small { padding-left: 7px; padding-right: 7px; }
+}
 
 /* サイドバー */
 .overlay {
@@ -1118,4 +1129,3 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
 
 .channelValue { color: var(--text); font-size: .78rem; font-weight: 700; min-height: 1.1em; }
 .channelVolume strong { font-size: .84rem; color: var(--text); }
-
