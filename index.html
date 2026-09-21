@@ -355,7 +355,64 @@
         <div id="playlistContainerMain"></div>
       </div>
 
-      <div id="settingsTabContainer" style="display:none;"></div>
+      <div id="settingsTabContainer" style="display:none;">
+  <div class="settingsHome">
+    <div class="sectionTitle">設定</div>
+    <div class="settingsDescription">再生・音響・プレイリスト・テーマなどの設定をまとめています。</div>
+
+    <div class="settingsGrid">
+      <button class="settingsCard" data-settings-section="optionsSection">
+        <span class="settingsIcon">🎛️</span>
+        <span class="settingsCardText"><strong>再生オプション</strong><small>速度・ピッチ・クロスフェード・無音スキップ・立体音響</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="playlistSection">
+        <span class="settingsIcon">📋</span>
+        <span class="settingsCardText"><strong>プレイリスト</strong><small>作成・管理・再生設定</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="queueSection">
+        <span class="settingsIcon">⏭️</span>
+        <span class="settingsCardText"><strong>再生キュー</strong><small>次に再生する曲の確認・並べ替え</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="eqSection">
+        <span class="settingsIcon">🎚️</span>
+        <span class="settingsCardText"><strong>イコライザー</strong><small>プリセット・周波数・左右チャンネル音量</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="timerSection">
+        <span class="settingsIcon">⏱️</span>
+        <span class="settingsCardText"><strong>スリープタイマー</strong><small>再生を自動停止する時間を設定</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="statsSection">
+        <span class="settingsIcon">📊</span>
+        <span class="settingsCardText"><strong>再生統計</strong><small>再生回数などの統計を確認</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="themeSection">
+        <span class="settingsIcon">🎨</span>
+        <span class="settingsCardText"><strong>テーマ設定</strong><small>システム・ダーク・ライト・カスタム</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+    </div>
+
+    <div class="settingsTools">
+      <div class="sectionTitle">音楽データ</div>
+      <div class="settingsToolRow">
+        <button class="btn" id="btnSettingsAddMusic">音楽 / ZIP / フォルダを追加</button>
+        <button class="btn danger" id="btnSettingsResetFiles">全ファイルリセット</button>
+      </div>
+    </div>
+  </div>
+</div>
     </div>
   </div>
 </div>
