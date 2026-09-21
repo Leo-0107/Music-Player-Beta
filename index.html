@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v6.9</title>
+<title>Music Player v7.0</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -365,19 +365,21 @@
     <div class="miniRow">
       <div class="miniNow">
         <canvas class="miniCoverCanvas" id="miniCoverCanvas"></canvas>
-        <div class="miniTextWrap">
-          <div class="scroll-container">
-            <div class="scroll-text" id="miniTitle">停止中</div>
+        <div class="miniInfo">
+          <div class="miniTitleRow">
+            <div class="scroll-container">
+              <div class="scroll-text" id="miniTitle">停止中</div>
+            </div>
+            <div class="miniBtns">
+              <button class="btn small ghost" id="miniPrev">◀◀</button>
+              <button class="btn small ghost" id="miniPlay">▶</button>
+              <button class="btn small ghost" id="miniNext">▶▶</button>
+            </div>
           </div>
           <div class="miniProgressWrap">
             <input type="range" id="miniProgress" value="0" min="0" max="100" aria-label="再生進捗">
           </div>
         </div>
-      </div>
-      <div class="miniBtns">
-        <button class="btn small ghost" id="miniPrev">◀◀</button>
-        <button class="btn small ghost" id="miniPlay">▶</button>
-        <button class="btn small ghost" id="miniNext">▶▶</button>
       </div>
     </div>
   </div>
