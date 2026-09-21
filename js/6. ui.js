@@ -546,6 +546,35 @@
     el.btnSideBack.addEventListener("click", resetSidebarView);
   }
 
+
+  document.querySelectorAll(".settingsCard").forEach(card => {
+    card.addEventListener("click", () => {
+      const secId = card.dataset.settingsSection;
+      if (!secId) return;
+      const menuItem = document.querySelector(`.menuItem[data-section="${secId}"]`);
+      if (menuItem) {
+        openSidebar();
+        menuItem.click();
+      }
+    });
+  });
+
+  const settingsAddMusic = document.getElementById("btnSettingsAddMusic");
+  if (settingsAddMusic) {
+    settingsAddMusic.addEventListener("click", () => {
+      const sourceBtn = document.getElementById("btnAddMusic");
+      if (sourceBtn) sourceBtn.click();
+    });
+  }
+
+  const settingsResetFiles = document.getElementById("btnSettingsResetFiles");
+  if (settingsResetFiles) {
+    settingsResetFiles.addEventListener("click", () => {
+      const sourceBtn = document.getElementById("btnResetFiles");
+      if (sourceBtn) sourceBtn.click();
+    });
+  }
+
   document.querySelectorAll(".navTab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
