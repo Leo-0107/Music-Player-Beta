@@ -1497,5 +1497,75 @@
     });
   }
 
+function showInSiteConfirm(title, message, onConfirm, confirmText = "確認") {
+    const existing = document.getElementById("inSiteConfirmModal");
+    if (existing) existing.remove();
+    const modal = document.createElement("div");
+    modal.id = "inSiteConfirmModal";
+    modal.className = "inSiteConfirmModal";
+    modal.innerHTML = `
+      <div class="inSiteConfirmCard" role="dialog" aria-modal="true" aria-labelledby="inSiteConfirmTitle">
+        <div class="sectionTitle" id="inSiteConfirmTitle"></div>
+        <div class="inSiteConfirmMessage"></div>
+        <div class="inSiteConfirmActions">
+          <button type="button" class="btn small" data-confirm-cancel>キャンセル</button>
+          <button type="button" class="btn small danger" data-confirm-ok></button>
+        </div>
+      </div>`;
+    modal.querySelector("#inSiteConfirmTitle").textContent = title;
+    modal.querySelector(".inSiteConfirmMessage").textContent = message;
+    modal.querySelector("[data-confirm-ok]").textContent = confirmText;
+    document.body.appendChild(modal);
+    document.body.classList.add("site-modal-open");
+    const close = () => { modal.remove(); if (!document.querySelector(".inSiteConfirmModal")) document.body.classList.remove("site-modal-open"); };
+    modal.querySelector("[data-confirm-cancel]").addEventListener("click", close);
+    modal.querySelector("[data-confirm-ok]").addEventListener("click", () => { close(); onConfirm?.(); });
+    modal.addEventListener("click", e => { if (e.target === modal) close(); });
+    requestAnimationFrame(() => modal.querySelector("[data-confirm-ok]")?.focus());
+  }
+
+  function showInSitePrompt(title, message, initialValue, onConfirm) {
+    const existing = document.getElementById("inSitePromptModal");
+    if (existing) existing.remove();
+    const modal = document.createElement("div");
+    modal.id = "inSitePromptModal";
+    modal.className = "inSiteConfirmModal";
+    modal.innerHTML = `
+      <div class="inSiteConfirmCard" role="dialog" aria-modal="true" aria-labelledby="inSitePromptTitle">
+        <div class="sectionTitle" id="inSitePromptTitle"></div>
+        <div class="inSiteConfirmMessage"></div>
+        <input type="text" class="inSitePromptInput" data-prompt-input maxlength="120" autocomplete="off">
+        <div class="inSiteConfirmActions">
+          <button type="button" class="btn small" data-prompt-cancel>キャンセル</button>
+          <button type="button" class="btn small" data-prompt-ok>変更する</button>
+        </div>
+      </div>`;
+    modal.querySelector("#inSitePromptTitle").textContent = title;
+    modal.querySelector(".inSiteConfirmMessage").textContent = message;
+    const input = modal.querySelector("[data-prompt-input]");
+    input.value = initialValue || "";
+    document.body.appendChild(modal);
+    document.body.classList.add("site-modal-open");
+    const close = () => { modal.remove(); if (!document.querySelector(".inSiteConfirmModal")) document.body.classList.remove("site-modal-open"); };
+    const submit = () => {
+      const value = input.value.trim();
+      if (!value) {
+        input.classList.add("invalid");
+        input.focus();
+        return;
+      }
+      close();
+      onConfirm?.(value);
+    };
+    modal.querySelector("[data-prompt-cancel]").addEventListener("click", close);
+    modal.querySelector("[data-prompt-ok]").addEventListener("click", submit);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); submit(); }
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+    });
+    modal.addEventListener("click", e => { if (e.target === modal) close(); });
+    requestAnimationFrame(() => { input.focus(); input.select(); });
+  }
+
   if (el.btnResetStats) {
     el.btnResetStats.addEventListener("click", () => {
