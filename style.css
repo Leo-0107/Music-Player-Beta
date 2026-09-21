@@ -1129,3 +1129,51 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
 
 .channelValue { color: var(--text); font-size: .78rem; font-weight: 700; min-height: 1.1em; }
 .channelVolume strong { font-size: .84rem; color: var(--text); }
+
+
+/* 2026-09-21 グラフィック調整 */
+/* オーディオ機能の3ボタン間隔を統一 */
+#optionsSection .sectionCard:nth-child(2) .btn {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+#optionsSection .sectionCard:nth-child(2) {
+  padding-bottom: 14px;
+}
+#optionsSection .sectionCard:nth-child(2) .btn + .btn {
+  margin-top: 8px !important;
+}
+/* 2D/3Dモード切替ボタンを波形バー上の端に寄せ、描画と干渉しにくくする */
+#waveModeBtns {
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 6 !important;
+  padding: 2px;
+  border-radius: 10px;
+  background: rgba(8,8,10,.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+/* ライトテーマでも波形エリアが浮かないようにする */
+body.theme-light .waveWrap {
+  background: #15171a;
+}
+/* ミニプレイヤーの前・再生・次ボタンのサイズを統一 */
+.miniBtns .btn.small {
+  width: 42px;
+  min-width: 42px;
+  height: 36px;
+  padding: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 520px) {
+  .miniBtns .btn.small {
+    width: 38px;
+    min-width: 38px;
+    height: 34px;
+    padding: 0;
+  }
+}
