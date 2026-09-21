@@ -1075,3 +1075,30 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
   .channelVolumeWrap { gap: 34px; }
   .playlistTrackSheetCard { padding: 14px; }
 }
+
+
+/* 今回の表示・操作調整 */
+.btnPlayMain { min-width: 138px; width: 138px; box-sizing: border-box; white-space: nowrap; }
+#miniPlay { width: 42px; min-width: 42px; box-sizing: border-box; }
+
+#waveModeBtns .btn.active, #dModeBtns .btn.active, .playlistTrackSheetActions .btn.active {
+  background: var(--accent) !important;
+  color: #000 !important;
+  opacity: 1 !important;
+  filter: none !important;
+  box-shadow: 0 0 0 1px rgba(29,185,84,.35), 0 0 10px rgba(29,185,84,.16);
+}
+#waveModeBtns .btn.active:hover, #dModeBtns .btn.active:hover, .playlistTrackSheetActions .btn.active:hover { filter: none !important; }
+
+#playlistContainer, #playlistContainerMain { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.playlistTrackSheetActions { display: flex; gap: 8px; margin-top: 10px; }
+.playlistTrackSheetActions .btn { flex: 1 1 0; min-width: 0; }
+.playlistTrackAddBtn { width: 100%; margin-top: 8px; }
+.queuePreviewRow .queuePlanBadge { color: var(--muted); font-size: .75rem; padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
+
+.inSitePromptInput { width: 100%; box-sizing: border-box; margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); outline: none; }
+.inSitePromptInput:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(29,185,84,.16); }
+.inSitePromptInput.invalid { border-color: var(--danger); }
+
+.channelValue { color: var(--text); font-size: .78rem; font-weight: 700; min-height: 1.1em; }
+.channelVolume strong { font-size: .84rem; color: var(--text); }
