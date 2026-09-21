@@ -750,8 +750,60 @@
     drawCanvas(el.miniCoverCanvas, 32);
   }
 
+  async function clearAllTracksFromDB() {
+    if (!db) return;
+    await new Promise(resolve => {
+      try {
+        const tx = db.transaction("tracks", "readwrite");
+        tx.objectStore("tracks").clear();
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+        tx.onabort = resolve;
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  async function resetAllFiles() {
+    await clearAllTracksFromDB();
+    revokeAllObjectURLs();
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    state.playlist = [];
+    state.playlistOrder = [];
+    state.currentSong = null;
+    state.queue = [];
+    state.favorites = [];
+    state.playlists = {};
+    state.playlistSettings = {};
+    clearPlaylistContext();
+    resetHomeCycle();
+    try {
+      localStorage.removeItem(STORAGE.lastSong);
+      localStorage.removeItem(STORAGE.lastPosition);
+    } catch (e) {}
+    if (el.folder) el.folder.value = "";
+    const directoryInput = document.getElementById("folderDirectory");
+    if (directoryInput) directoryInput.value = "";
+    updateArtwork(null);
+    updateTitleTextAndScroll(el.nowTitle, "未再生");
+    updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
+    updateTitleTextAndScroll(el.miniTitle, "停止中");
+    updatePlayPauseUI();
+    saveState();
+    renderAll();
+    toast("全ファイルをリセットしました");
+  }
+
   if (el.btnResetFiles) {
     el.btnResetFiles.addEventListener("click", () => {
-      showInSiteConfirm("保存された全トラックを削除しますか？", "曲ファイル・プレイリスト・キューなど、このサイトに保存されている音楽データをリセットします。", () => {
-      if (db) {
-        const tx = db.transaction("tracks", "readwrite");
+      showInSiteConfirm(
+        "保存された全ファイルを削除しますか？",
+        "曲ファイル、プレイリスト、キュー、お気に入りなどの音楽データをすべて削除します。設定はそのままです。",
+        () => { resetAllFiles(); },
+        "すべて削除"
+      );
+    });
+  }
