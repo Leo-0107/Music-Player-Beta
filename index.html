@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Music Player v6.7</title>
+<title>Music Player v6.8</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -31,8 +31,9 @@
   animation-play-state: running;
 }
 @keyframes songNameMarquee {
-  0%, 40% { transform: translateX(0); }
-  60%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); }
+  0%, 18% { transform: translateX(0); opacity: 1; }
+  72% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 1; }
+  88%, 100% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 0; }
 }
 
 @media (max-width: 700px) {
@@ -168,14 +169,14 @@
           <div class="speakerNameLine">現在のスピーカー: <strong id="outputDeviceName">確認中...</strong></div>
           <div class="channelVolumeWrap">
             <div class="channelVolume">
-              <strong>L</strong>
-              <input class="channelSlider" id="channelLeft" type="range" min="0" max="2" step="0.01" value="1" aria-label="左チャンネル音量">
               <span class="channelValue" id="channelLeftText">100%</span>
+              <input class="channelSlider" id="channelLeft" type="range" min="0" max="2" step="0.01" value="1" aria-label="左チャンネル音量">
+              <strong>L</strong>
             </div>
             <div class="channelVolume">
-              <strong>R</strong>
-              <input class="channelSlider" id="channelRight" type="range" min="0" max="2" step="0.01" value="1" aria-label="右チャンネル音量">
               <span class="channelValue" id="channelRightText">100%</span>
+              <input class="channelSlider" id="channelRight" type="range" min="0" max="2" step="0.01" value="1" aria-label="右チャンネル音量">
+              <strong>R</strong>
             </div>
           </div>
         </div>
@@ -424,9 +425,11 @@
       <button class="btn small ghost" id="btnClosePlaylistTrackSheet">✕</button>
     </div>
     <div class="playlistTrackSheetActions">
-      <button class="btn small" id="btnPlaylistTrackAdd">＋一覧から追加</button>
-      <button class="btn small" id="btnPlaylistTrackPlay">▶ 全曲再生</button>
+      <button class="btn small" id="btnPlaylistTrackShuffle">🔀 シャッフル</button>
+      <button class="btn small" id="btnPlaylistTrackRepeat">🔁 リピート</button>
+      <button class="btn small" id="btnPlaylistTrackPlay">▶ 再生</button>
     </div>
+    <button class="btn small ghost playlistTrackAddBtn" id="btnPlaylistTrackAdd">＋一覧から追加</button>
     <div class="playlistTrackHint">曲を長押しすると順番を入れ替えできます</div>
     <div class="bottomSheetList" id="playlistTrackList"></div>
   </div>
