@@ -21,8 +21,7 @@
     channelLeft: "mp_channel_left_v12",
     channelRight: "mp_channel_right_v12",
     playlistSettings: "mp_playlist_settings_v12",
-    lastSong: "mp_last_song_v12",
-    lastPosition: "mp_last_position_v12"
+    lastSong: "mp_last_song_v12"
   };
 
   const EQ_PRESETS = {
