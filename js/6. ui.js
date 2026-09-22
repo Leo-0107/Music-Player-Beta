@@ -534,24 +534,6 @@
     });
   }
 
-  let keyboardSelectedSongName = null;
-
-  function moveKeyboardSongSelection(delta) {
-    const songs = getVisibleSongs();
-    if (!songs.length) return;
-    let idx = keyboardSelectedSongName ? songs.findIndex(song => song.name === keyboardSelectedSongName) : -1;
-    if (idx < 0 && state.currentSong) idx = songs.findIndex(song => song.name === state.currentSong.name);
-    if (idx < 0) idx = 0;
-    idx = (idx + delta + songs.length) % songs.length;
-    keyboardSelectedSongName = songs[idx].name;
-    document.querySelectorAll(".song.keyboard-selected").forEach(node => node.classList.remove("keyboard-selected"));
-    const target = Array.from(el.list?.querySelectorAll(".song") || []).find(node => node.dataset.name === keyboardSelectedSongName);
-    if (target) {
-      target.classList.add("keyboard-selected");
-      target.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }
-
   window.addEventListener("keydown", e => {
     if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
 
@@ -593,16 +575,18 @@
     if (e.code === "Space") {
       e.preventDefault();
       playPause();
-    } else if (e.code === "ArrowUp" || e.code === "ArrowLeft") {
+    } else if (e.code === "ArrowUp") {
       e.preventDefault();
-      moveKeyboardSongSelection(-1);
-    } else if (e.code === "ArrowDown" || e.code === "ArrowRight") {
+      updateVolumeUI(currentVolumeTarget + 0.05);
+    } else if (e.code === "ArrowDown") {
       e.preventDefault();
-      moveKeyboardSongSelection(1);
-    } else if (e.key === "Enter" && keyboardSelectedSongName) {
+      updateVolumeUI(currentVolumeTarget - 0.05);
+    } else if (e.code === "ArrowLeft") {
       e.preventDefault();
-      const selected = state.playlist.find(song => song.name === keyboardSelectedSongName);
-      if (selected) playSong(selected);
+      prevTrack();
+    } else if (e.code === "ArrowRight") {
+      e.preventDefault();
+      nextTrack();
     } else if (e.key === "m" || e.key === "M") {
       if (el.btnMuteToggle) el.btnMuteToggle.click();
     } else if (e.key === "f" || e.key === "F") {
