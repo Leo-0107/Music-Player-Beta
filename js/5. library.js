@@ -332,17 +332,19 @@
     homeCycleOrder = [];
     homeCycleIndex = -1;
     homeCycleSourceKey = "";
+    homeCycleForceShuffle = false;
   }
 
   function ensureHomeCycle() {
     const visible = getVisibleSongs();
     const names = visible.map(song => song.name);
-    const sourceKey = `${state.shuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
+    const useShuffle = state.shuffle || homeCycleForceShuffle;
+    const sourceKey = `${useShuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
     const valid = homeCycleOrder.length === names.length && homeCycleOrder.every(name => names.includes(name));
     const currentName = state.currentSong?.name || null;
 
     if (sourceKey !== homeCycleSourceKey || !valid) {
-      homeCycleOrder = state.shuffle ? shuffleNames(names) : names.slice();
+      homeCycleOrder = (state.shuffle || homeCycleForceShuffle) ? shuffleNames(names) : names.slice();
       homeCycleSourceKey = sourceKey;
       homeCycleIndex = currentName ? homeCycleOrder.indexOf(currentName) : -1;
       if (homeCycleIndex < 0 && homeCycleOrder.length) homeCycleIndex = -1;
@@ -360,12 +362,13 @@
     if (!homeCycleOrder.length) return null;
     let nextIndex = homeCycleIndex + 1;
     if (nextIndex >= homeCycleOrder.length) {
-      homeCycleOrder = state.shuffle ? shuffleNames(homeCycleOrder) : homeCycleOrder.slice();
+      homeCycleOrder = (state.shuffle || homeCycleForceShuffle) ? shuffleNames(homeCycleOrder) : homeCycleOrder.slice();
       const currentName = state.currentSong?.name || null;
       if (homeCycleOrder.length > 1 && currentName && homeCycleOrder[0] === currentName) {
         [homeCycleOrder[0], homeCycleOrder[1]] = [homeCycleOrder[1], homeCycleOrder[0]];
       }
       homeCycleIndex = 0;
+      homeCycleForceShuffle = false;
     } else {
       homeCycleIndex = nextIndex;
     }
@@ -1343,16 +1346,21 @@
     if (!selectedName) return;
 
     if (state.activePlaylistName) {
-      const names = getPlaylistNames(state.activePlaylistName);
-      const remaining = shuffleNames(names.filter(name => name !== selectedName));
+      const order = Array.isArray(state.playlistCycleOrder) ? state.playlistCycleOrder : [];
+      const selectedIndex = order.indexOf(selectedName);
+      if (selectedIndex < 0) return;
+      const remaining = shuffleNames(order.slice(selectedIndex + 1));
       state.playlistCycleOrder = [selectedName, ...remaining];
       state.playlistCycleIndex = 0;
       state.playlistCycleSeen = [selectedName];
     } else {
-      const names = getVisibleSongs().map(song => song.name).filter(name => name !== selectedName);
-      homeCycleOrder = [selectedName, ...shuffleNames(names)];
+      ensureHomeCycle();
+      const selectedIndex = homeCycleOrder.indexOf(selectedName);
+      if (selectedIndex < 0) return;
+      const remaining = shuffleNames(homeCycleOrder.slice(selectedIndex + 1));
+      homeCycleForceShuffle = true;
+      homeCycleOrder = [selectedName, ...remaining];
       homeCycleIndex = 0;
-      homeCycleSourceKey = (state.shuffle ? "shuffle" : "order") + "|" + homeCycleOrder.join("\u0001");
     }
     saveState();
   }
