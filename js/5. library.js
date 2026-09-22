@@ -175,7 +175,6 @@
       state.currentSong = null;
       try {
         localStorage.removeItem(STORAGE.lastSong);
-        localStorage.removeItem(STORAGE.lastPosition);
       } catch (e) {}
       updateArtwork(null);
       updateTitleTextAndScroll(el.nowTitle, "未再生");
@@ -201,7 +200,6 @@
     const write = () => {
       try {
         localStorage.setItem(STORAGE.lastSong, state.currentSong?.name || "");
-        localStorage.setItem(STORAGE.lastPosition, String(Number.isFinite(audio.currentTime) ? Math.max(0, audio.currentTime) : 0));
       } catch (e) {}
     };
     if (force) { write(); return; }
@@ -214,7 +212,6 @@
 
   function restoreLastPlaybackMemory() {
     const songName = loadStr(STORAGE.lastSong, "");
-    const savedPosition = loadNum(STORAGE.lastPosition, 0);
     if (!songName) return;
     const song = state.playlist.find(item => item.name === songName);
     if (!song) return;
@@ -222,17 +219,10 @@
     audio.src = song.url;
     updateArtwork(song);
     updateNowPlayingUI(song);
-    const applyPosition = () => {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        audio.currentTime = Math.min(Math.max(0, savedPosition), Math.max(0, audio.duration - 0.05));
-      }
-      if (el.progress && audio.duration) el.progress.value = (audio.currentTime / audio.duration) * 100;
-      if (el.miniProgress && audio.duration) el.miniProgress.value = (audio.currentTime / audio.duration) * 100;
-      if (el.timeNow) el.timeNow.textContent = fmtTime(audio.currentTime);
-      if (el.timeAll) el.timeAll.textContent = fmtTime(audio.duration);
-    };
-    if (audio.readyState >= 1) applyPosition();
-    else audio.addEventListener("loadedmetadata", applyPosition, { once: true });
+    if (el.progress && audio.duration) el.progress.value = 0;
+    if (el.miniProgress && audio.duration) el.miniProgress.value = 0;
+    if (el.timeNow) el.timeNow.textContent = fmtTime(0);
+    if (el.timeAll && audio.duration) el.timeAll.textContent = fmtTime(audio.duration);
   }
 
   audio.addEventListener("timeupdate", () => savePlaybackMemory(false));
@@ -412,7 +402,6 @@
     silenceTimer = 0;
     try {
       localStorage.setItem(STORAGE.lastSong, song.name);
-      localStorage.setItem(STORAGE.lastPosition, "0");
     } catch (e) {}
     audio.src = song.url;
     applyPitchAndRate();
