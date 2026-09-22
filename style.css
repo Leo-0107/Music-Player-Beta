@@ -508,6 +508,28 @@ input[type="range"] {
 .sidebar.open {
   transform: translateX(0);
 }
+
+/* 設定タブから開く詳細設定は、左からではなく下から大きく表示 */
+.sidebar.settingsBottomSheet {
+  top: auto;
+  left: 50%;
+  right: auto;
+  bottom: 0;
+  width: min(760px, 100vw);
+  height: min(88vh, 900px);
+  max-height: calc(100vh - 48px);
+  border-radius: 24px 24px 0 0;
+  transform: translate(-50%, 100%);
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.28);
+}
+
+.sidebar.settingsBottomSheet.open {
+  transform: translate(-50%, 0);
+}
+
+.sidebar.settingsBottomSheet .sideBody {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
 .sidebarInner {
   display: flex;
   flex-direction: column;
