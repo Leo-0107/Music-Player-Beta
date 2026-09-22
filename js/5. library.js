@@ -1339,6 +1339,24 @@
     return result;
   }
 
+  function restartUpcomingRandomFrom(selectedName) {
+    if (!selectedName) return;
+
+    if (state.activePlaylistName) {
+      const names = getPlaylistNames(state.activePlaylistName);
+      const remaining = shuffleNames(names.filter(name => name !== selectedName));
+      state.playlistCycleOrder = [selectedName, ...remaining];
+      state.playlistCycleIndex = 0;
+      state.playlistCycleSeen = [selectedName];
+    } else {
+      const names = getVisibleSongs().map(song => song.name).filter(name => name !== selectedName);
+      homeCycleOrder = [selectedName, ...shuffleNames(names)];
+      homeCycleIndex = 0;
+      homeCycleSourceKey = (state.shuffle ? "shuffle" : "order") + "|" + homeCycleOrder.join("\u0001");
+    }
+    saveState();
+  }
+
   function renderQueue(){
     if (!el.queueList) return;
     el.queueList.innerHTML = "";
@@ -1348,11 +1366,14 @@
       return;
     }
     const manualSet = new Set(state.queue);
+    let plannedIndex = -1;
     names.forEach((name) => {
       const s = state.playlist.find(x => x.name === name);
       if (!s) return;
       const row = document.createElement("div");
       const isManual = manualSet.has(name);
+      if (!isManual) plannedIndex++;
+      const currentPlannedIndex = plannedIndex;
       row.className = "song queuePreviewRow";
       row.innerHTML = `
         <div class="songMain">
@@ -1374,10 +1395,20 @@
         });
       }
       row.addEventListener("click", () => {
-        const idx = state.queue.indexOf(name);
-        if (idx >= 0) state.queue.splice(idx, 1);
-        saveState();
-        renderQueue();
+        const wasManual = state.queue.includes(name);
+        if (wasManual) {
+          const idx = state.queue.indexOf(name);
+          if (idx >= 0) state.queue.splice(idx, 1);
+          saveState();
+          playSong(s, true, { preservePlaylistContext: !!state.activePlaylistName });
+          return;
+        }
+
+        // 自動予定の先頭以外を選んだ場合は、その曲を新しい起点にして
+        // その先の自動予定をすべてランダムに組み直す。
+        if (currentPlannedIndex > 0) {
+          restartUpcomingRandomFrom(name);
+        }
         playSong(s, true, { preservePlaylistContext: !!state.activePlaylistName });
       });
       el.queueList.appendChild(row);
