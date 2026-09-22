@@ -135,7 +135,7 @@ body.theme-light select option {
   background: var(--panel2);
   color: var(--text);
   flex: 0 0 auto;
-  font-size: 1.1rem;
+  font-size: .98rem;
 }
 
 #nowTitle {
@@ -361,7 +361,7 @@ input[type="range"] {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  height: 48px;
   z-index: 1000;
   display: flex;
   justify-content: space-around;
@@ -379,8 +379,8 @@ input[type="range"] {
   background: transparent;
   border: 0;
   color: var(--muted);
-  font-size: .75rem;
-  gap: 2px;
+  font-size: .7rem;
+  gap: 1px;
   flex: 1;
   height: 100%;
 }
@@ -395,7 +395,7 @@ input[type="range"] {
 /* ミニプレイヤー */
 .miniPlayer {
   position: fixed;
-  bottom: 56px;
+  bottom: 48px;
   left: 0;
   right: 0;
   z-index: 999;
