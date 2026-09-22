@@ -509,7 +509,6 @@ input[type="range"] {
   transform: translateX(0);
 }
 
-/* 設定タブから開く詳細設定は、左からではなく下から大きく表示 */
 .sidebar.settingsBottomSheet {
   top: auto;
   left: 50%;
