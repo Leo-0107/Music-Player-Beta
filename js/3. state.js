@@ -93,6 +93,7 @@
   let homeCycleOrder = [];
   let homeCycleIndex = -1;
   let homeCycleSourceKey = "";
+  let homeCycleForceShuffle = false;
 
   let sleepTimerId = null;
   let sleepIntervalId = null;
