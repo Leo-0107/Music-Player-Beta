@@ -441,7 +441,7 @@
 
   function closeSidebar() {
     state.menuOpen = false;
-    if (el.sidebar) el.sidebar.classList.remove("open");
+    if (el.sidebar) el.sidebar.classList.remove("open", "settingsBottomSheet");
     if (el.overlay) el.overlay.classList.remove("open");
     document.body.classList.remove("menu-open");
     resetSidebarView();
@@ -482,6 +482,7 @@
       if (!secId) return;
       const menuItem = document.querySelector(`.menuItem[data-section="${secId}"]`);
       if (menuItem) {
+        if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
         openSidebar();
         menuItem.click();
       }
