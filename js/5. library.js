@@ -552,8 +552,6 @@
   }
 
   function nextTrack(isAuto = false){
-    // プレイリスト再生中はホームのシャッフル/リピート/履歴を使わず、
-    // プレイリスト専用の順番を優先する。手動キューだけは最優先で割り込ませる。
     if (state.activePlaylistName) {
       if (state.queue.length) {
         const name = state.queue.shift();
@@ -1290,7 +1288,6 @@
       toast("その曲を次に再生する位置へ移しました");
       return;
     }
-    // 手動追加分は10曲制限なし。既存の自動予定を消さず、次に再生する位置へ割り込ませる。
     state.queue = [name, ...state.queue.filter(item => item !== name)];
     saveState();
     renderQueue();
@@ -1308,7 +1305,6 @@
       }
     });
 
-    // 10曲制限は自動で補う「予定」側だけ。手動追加は何曲でも表示する。
     const result = manual.slice();
     let plannedCount = 0;
     const addCandidate = name => {
@@ -1360,11 +1356,9 @@
 
     if (selectedIndex < 0) return;
 
-    // Cを選んだ場合: Cを予定から外し、A/B/D/E/Fの順番はそのまま維持する。
     const remaining = cycleOrder.filter(name => name !== selectedName && !manualNames.includes(name));
     const used = new Set([...manualNames, ...remaining, selectedName]);
 
-    // 現在のABDEF（残っている予定）以外から、新しい曲を1曲だけ追加。
     const sourceSongs = state.activePlaylistName
       ? getPlaylistNames(state.activePlaylistName)
           .map(name => state.playlist.find(song => song.name === name))
@@ -1437,8 +1431,6 @@
           return;
         }
 
-        // 自動予定の先頭以外を選んだ場合は、その曲を新しい起点にして
-        // その先の自動予定をすべてランダムに組み直す。
         if (currentPlannedIndex > 0) {
           restartUpcomingRandomFrom(name);
         }
