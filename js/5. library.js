@@ -303,8 +303,9 @@
     const settings = getPlaylistSettings(pName);
 
     if (!Array.isArray(state.playlistCycleOrder) ||
-        state.playlistCycleOrder.length !== names.length ||
-        state.playlistCycleOrder.some(name => !names.includes(name))) {
+        state.playlistCycleOrder.length < names.length ||
+        !names.every(name => state.playlistCycleOrder.includes(name)) ||
+        new Set(state.playlistCycleOrder).size !== state.playlistCycleOrder.length) {
       activatePlaylistContext(pName, state.currentSong?.name || names[0]);
     }
 
@@ -338,7 +339,9 @@
     const visible = getVisibleSongs();
     const names = visible.map(song => song.name);
     const sourceKey = `${state.shuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
-    const valid = homeCycleOrder.length === names.length && homeCycleOrder.every(name => names.includes(name));
+    const valid = homeCycleOrder.length >= names.length &&
+      names.every(name => homeCycleOrder.includes(name)) &&
+      new Set(homeCycleOrder).size === homeCycleOrder.length;
     const currentName = state.currentSong?.name || null;
 
     if (sourceKey !== homeCycleSourceKey || !valid) {
@@ -1343,39 +1346,44 @@
     if (!selectedName) return;
 
     const manualNames = Array.isArray(state.queue) ? state.queue.slice() : [];
-    let plannedNames = [];
+    let cycleOrder = [];
+    let selectedIndex = -1;
 
     if (state.activePlaylistName) {
-      const order = Array.isArray(state.playlistCycleOrder) ? state.playlistCycleOrder : [];
-      const selectedIndex = order.indexOf(selectedName);
-      if (selectedIndex < 0) return;
-      plannedNames = order.slice(selectedIndex + 1);
+      cycleOrder = Array.isArray(state.playlistCycleOrder) ? state.playlistCycleOrder.slice() : [];
+      selectedIndex = cycleOrder.indexOf(selectedName);
     } else {
       ensureHomeCycle();
-      const selectedIndex = homeCycleOrder.indexOf(selectedName);
-      if (selectedIndex < 0) return;
-      plannedNames = homeCycleOrder.slice(selectedIndex + 1);
+      cycleOrder = homeCycleOrder.slice();
+      selectedIndex = cycleOrder.indexOf(selectedName);
     }
 
-    // 選択した曲だけを予定から外し、残りの順番はそのまま維持する。
-    const remaining = plannedNames.filter(name => name !== selectedName);
+    if (selectedIndex < 0) return;
+
+    // Cを選んだ場合: Cを予定から外し、A/B/D/E/Fの順番はそのまま維持する。
+    const remaining = cycleOrder.filter(name => name !== selectedName && !manualNames.includes(name));
     const used = new Set([...manualNames, ...remaining, selectedName]);
 
-    // 残りの予定・手動キューに入っていない曲から最後に1曲だけ追加する。
+    // 現在のABDEF（残っている予定）以外から、新しい曲を1曲だけ追加。
     const sourceSongs = state.activePlaylistName
-      ? getPlaylistNames(state.activePlaylistName).map(name => state.playlist.find(song => song.name === name)).filter(Boolean)
+      ? getPlaylistNames(state.activePlaylistName)
+          .map(name => state.playlist.find(song => song.name === name))
+          .filter(Boolean)
       : getVisibleSongs();
 
     const candidates = sourceSongs.filter(song => !used.has(song.name));
-    const randomSong = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
-    if (randomSong) remaining.push(randomSong.name);
+    if (candidates.length) {
+      remaining.push(candidates[Math.floor(Math.random() * candidates.length)].name);
+    }
+
+    const nextOrder = [selectedName, ...remaining];
 
     if (state.activePlaylistName) {
-      state.playlistCycleOrder = [selectedName, ...remaining];
+      state.playlistCycleOrder = nextOrder;
       state.playlistCycleIndex = 0;
       state.playlistCycleSeen = [selectedName];
     } else {
-      homeCycleOrder = [selectedName, ...remaining];
+      homeCycleOrder = nextOrder;
       homeCycleIndex = 0;
     }
 
