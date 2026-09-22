@@ -332,19 +332,17 @@
     homeCycleOrder = [];
     homeCycleIndex = -1;
     homeCycleSourceKey = "";
-    homeCycleForceShuffle = false;
   }
 
   function ensureHomeCycle() {
     const visible = getVisibleSongs();
     const names = visible.map(song => song.name);
-    const useShuffle = state.shuffle || homeCycleForceShuffle;
-    const sourceKey = `${useShuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
+    const sourceKey = `${state.shuffle ? "shuffle" : "order"}|${names.join("\u0001")}`;
     const valid = homeCycleOrder.length === names.length && homeCycleOrder.every(name => names.includes(name));
     const currentName = state.currentSong?.name || null;
 
     if (sourceKey !== homeCycleSourceKey || !valid) {
-      homeCycleOrder = (state.shuffle || homeCycleForceShuffle) ? shuffleNames(names) : names.slice();
+      homeCycleOrder = state.shuffle ? shuffleNames(names) : names.slice();
       homeCycleSourceKey = sourceKey;
       homeCycleIndex = currentName ? homeCycleOrder.indexOf(currentName) : -1;
       if (homeCycleIndex < 0 && homeCycleOrder.length) homeCycleIndex = -1;
@@ -362,13 +360,12 @@
     if (!homeCycleOrder.length) return null;
     let nextIndex = homeCycleIndex + 1;
     if (nextIndex >= homeCycleOrder.length) {
-      homeCycleOrder = (state.shuffle || homeCycleForceShuffle) ? shuffleNames(homeCycleOrder) : homeCycleOrder.slice();
+      homeCycleOrder = state.shuffle ? shuffleNames(homeCycleOrder) : homeCycleOrder.slice();
       const currentName = state.currentSong?.name || null;
       if (homeCycleOrder.length > 1 && currentName && homeCycleOrder[0] === currentName) {
         [homeCycleOrder[0], homeCycleOrder[1]] = [homeCycleOrder[1], homeCycleOrder[0]];
       }
       homeCycleIndex = 0;
-      homeCycleForceShuffle = false;
     } else {
       homeCycleIndex = nextIndex;
     }
@@ -1345,23 +1342,43 @@
   function restartUpcomingRandomFrom(selectedName) {
     if (!selectedName) return;
 
+    const manualNames = Array.isArray(state.queue) ? state.queue.slice() : [];
+    let plannedNames = [];
+
     if (state.activePlaylistName) {
       const order = Array.isArray(state.playlistCycleOrder) ? state.playlistCycleOrder : [];
       const selectedIndex = order.indexOf(selectedName);
       if (selectedIndex < 0) return;
-      const remaining = shuffleNames(order.slice(selectedIndex + 1));
-      state.playlistCycleOrder = [selectedName, ...remaining];
-      state.playlistCycleIndex = 0;
-      state.playlistCycleSeen = [selectedName];
+      plannedNames = order.slice(selectedIndex + 1);
     } else {
       ensureHomeCycle();
       const selectedIndex = homeCycleOrder.indexOf(selectedName);
       if (selectedIndex < 0) return;
-      const remaining = shuffleNames(homeCycleOrder.slice(selectedIndex + 1));
-      homeCycleForceShuffle = true;
+      plannedNames = homeCycleOrder.slice(selectedIndex + 1);
+    }
+
+    // 選択した曲だけを予定から外し、残りの順番はそのまま維持する。
+    const remaining = plannedNames.filter(name => name !== selectedName);
+    const used = new Set([...manualNames, ...remaining, selectedName]);
+
+    // 残りの予定・手動キューに入っていない曲から最後に1曲だけ追加する。
+    const sourceSongs = state.activePlaylistName
+      ? getPlaylistNames(state.activePlaylistName).map(name => state.playlist.find(song => song.name === name)).filter(Boolean)
+      : getVisibleSongs();
+
+    const candidates = sourceSongs.filter(song => !used.has(song.name));
+    const randomSong = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+    if (randomSong) remaining.push(randomSong.name);
+
+    if (state.activePlaylistName) {
+      state.playlistCycleOrder = [selectedName, ...remaining];
+      state.playlistCycleIndex = 0;
+      state.playlistCycleSeen = [selectedName];
+    } else {
       homeCycleOrder = [selectedName, ...remaining];
       homeCycleIndex = 0;
     }
+
     saveState();
   }
 
