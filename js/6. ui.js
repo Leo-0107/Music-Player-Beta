@@ -388,7 +388,7 @@
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
       } else {
         const SAMPLE_INTERVAL = 0.04;
-        const HISTORY_SECONDS = 4;
+        const HISTORY_SECONDS = 3;
         const BANDS_3D = 72;
         const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
 
