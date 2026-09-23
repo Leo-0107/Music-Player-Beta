@@ -387,15 +387,11 @@
         drawLevelMeter(0, leftDisplayLevel, "L");
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
       } else {
+        const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 4;
-        const SAMPLE_INTERVAL = 0.05;
-        const BANDS_3D = 42;
-        const maxHistoryFrames = Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL);
+        const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
 
-        if (!Array.isArray(drawWave._wave3DHistory)) drawWave._wave3DHistory = [];
-        if (!Number.isFinite(drawWave._wave3DSampleElapsed)) drawWave._wave3DSampleElapsed = 0;
-        if (!Number.isFinite(drawWave._wave3DLastAudioTime)) drawWave._wave3DLastAudioTime = -1;
-        if (drawWave._wave3DMode !== state.waveMode) {
+        if (!drawWave._wave3DHistory || drawWave._wave3DMode !== state.waveMode) {
           drawWave._wave3DHistory = [];
           drawWave._wave3DSampleElapsed = 0;
           drawWave._wave3DLastAudioTime = -1;
@@ -403,145 +399,118 @@
         }
 
         if (isPlaying && analyserData?.length) {
-          if (drawWave._wave3DLastAudioTime >= 0 && Math.abs(audio.currentTime - drawWave._wave3DLastAudioTime) > 0.35) {
+          const audioTime = Number(audio.currentTime) || 0;
+
+          if (drawWave._wave3DLastAudioTime >= 0 &&
+              (audioTime < drawWave._wave3DLastAudioTime ||
+               audioTime - drawWave._wave3DLastAudioTime > 0.4)) {
             drawWave._wave3DHistory = [];
             drawWave._wave3DSampleElapsed = 0;
           }
 
           drawWave._wave3DSampleElapsed += dt;
-          if (drawWave._wave3DSampleElapsed >= SAMPLE_INTERVAL) {
+
+          if (drawWave._wave3DHistory.length === 0 ||
+              drawWave._wave3DSampleElapsed >= SAMPLE_INTERVAL) {
             drawWave._wave3DSampleElapsed %= SAMPLE_INTERVAL;
 
-            const raw = new Float32Array(BANDS_3D);
-            const maxBin = analyserData.length - 1;
-
-            for (let b = 0; b < BANDS_3D; b++) {
-              const lo = Math.floor(Math.pow(b / BANDS_3D, 1.55) * maxBin);
-              const hi = Math.max(lo + 1, Math.floor(Math.pow((b + 1) / BANDS_3D, 1.55) * maxBin));
-              let sum = 0;
-              let count = 0;
-
-              for (let k = lo; k <= hi && k <= maxBin; k++) {
-                const v = waveSmoothData[k] || 0;
-                sum += v * v;
-                count++;
-              }
-
-              raw[b] = count ? Math.min(1, Math.sqrt(sum / count) * 1.45) : 0;
+            let sum = 0;
+            for (let i = 0; i < analyserData.length; i++) {
+              const value = waveSmoothData?.[i] || 0;
+              sum += value * value;
             }
 
-            const smooth = new Float32Array(BANDS_3D);
-            for (let b = 0; b < BANDS_3D; b++) {
-              let sum = 0;
-              let weight = 0;
+            const target = Math.min(
+              1,
+              Math.sqrt(sum / Math.max(1, analyserData.length)) * 2.2
+            );
 
-              for (let o = -2; o <= 2; o++) {
-                const idx = b + o;
-                if (idx < 0 || idx >= BANDS_3D) continue;
-                const w = o === 0 ? 3 : (Math.abs(o) === 1 ? 2 : 1);
-                sum += raw[idx] * w;
-                weight += w;
-              }
+            const last = drawWave._wave3DHistory.length
+              ? drawWave._wave3DHistory[drawWave._wave3DHistory.length - 1]
+              : target;
 
-              smooth[b] = Math.pow(sum / weight, 0.92);
+            const level = last + (target - last) * 0.36;
+            drawWave._wave3DHistory.push(level);
+
+            if (drawWave._wave3DHistory.length > maxHistory) {
+              drawWave._wave3DHistory.shift();
             }
 
-            drawWave._wave3DHistory.unshift(smooth);
-            if (drawWave._wave3DHistory.length > maxHistoryFrames) {
-              drawWave._wave3DHistory.length = maxHistoryFrames;
-            }
-            drawWave._wave3DLastAudioTime = audio.currentTime;
+            drawWave._wave3DLastAudioTime = audioTime;
           }
         } else {
           drawWave._wave3DSampleElapsed = 0;
         }
 
-        const rows = drawWave._wave3DHistory;
-        const meterW = Math.min(18, Math.max(12, width * 0.022));
-        const waveLeft = meterW + 8;
-        const waveWidth = Math.max(1, width - waveLeft - meterW - 8);
-        const baseY = height * 0.82;
-        const timeSpan = waveWidth * 0.76;
-        const freqSpan = waveWidth * 0.18;
-        const timeDepthY = height * 0.06;
-        const freqDepthY = height * 0.18;
-        const heightScale = height * 0.54;
+        const waveHistory = drawWave._wave3DHistory;
+        const left = 28;
+        const right = width - 28;
+        const centerY = height * 0.60;
+        const verticalScale = height * 0.48;
 
-        if (rows.length) {
-          const project3D = (t, f, level) => {
-            const tn = rows.length <= 1 ? 0 : t / (rows.length - 1);
-            const fn = f / (BANDS_3D - 1);
-            const x = waveLeft + tn * timeSpan + fn * freqSpan;
-            const y = baseY - tn * timeDepthY - fn * freqDepthY - level * heightScale;
-            return [x, y];
-          };
+        if (waveHistory.length) {
+          const neonGradient = ctx.createLinearGradient(left, 0, right, 0);
+          neonGradient.addColorStop(0, "#00f6ff");
+          neonGradient.addColorStop(0.48, "#8a2cff");
+          neonGradient.addColorStop(1, "#ff2bd6");
 
-          const surfaceColor = (level, fade, current) => {
-            const hue = 118 - Math.min(118, Math.max(0, level * 135));
-            const light = 47 + Math.min(18, level * 18);
-            const alpha = current ? 0.9 : Math.max(0.08, 0.52 * fade);
-            return `hsla(${hue}, 82%, ${light}%, ${alpha})`;
-          };
-
-          for (let t = rows.length - 1; t >= 0; t--) {
-            const row = rows[t];
-            const prev = rows[t + 1];
-            const fade = 1 - (t / Math.max(1, rows.length - 1)) * 0.72;
-
-            if (prev) {
-              for (let f = 0; f < BANDS_3D - 1; f++) {
-                const a = project3D(t, f, row[f]);
-                const b = project3D(t, f + 1, row[f + 1]);
-                const c = project3D(t + 1, f + 1, prev[f + 1]);
-                const d = project3D(t + 1, f, prev[f]);
-
-                const avg = (row[f] + row[f + 1] + prev[f] + prev[f + 1]) * 0.25;
-                ctx.beginPath();
-                ctx.moveTo(a[0], a[1]);
-                ctx.lineTo(b[0], b[1]);
-                ctx.lineTo(c[0], c[1]);
-                ctx.lineTo(d[0], d[1]);
-                ctx.closePath();
-                ctx.fillStyle = surfaceColor(avg, fade, t < 2);
-                ctx.fill();
-              }
-            }
+          const points = [];
+          for (let i = 0; i < waveHistory.length; i++) {
+            const x = waveHistory.length === 1
+              ? right
+              : left + (i / Math.max(1, maxHistory - 1)) * (right - left);
+            const y = centerY - Math.min(1, Math.max(0, waveHistory[i])) * verticalScale;
+            points.push([x, y]);
           }
 
+          ctx.lineCap = "round";
           ctx.lineJoin = "round";
 
-          for (let t = rows.length - 1; t >= 0; t -= 2) {
-            const row = rows[t];
-            ctx.beginPath();
-
-            for (let f = 0; f < BANDS_3D; f++) {
-              const p = project3D(t, f, row[f]);
-              if (f === 0) ctx.moveTo(p[0], p[1]);
-              else ctx.lineTo(p[0], p[1]);
-            }
-
-            const fade = 1 - (t / Math.max(1, rows.length - 1)) * 0.76;
-            ctx.strokeStyle = t === 0
-              ? "rgba(255,240,190,.95)"
-              : `rgba(225,235,255,${Math.max(0.04, 0.28 * fade)})`;
-            ctx.lineWidth = t === 0 ? 2.1 : 0.75;
-            ctx.stroke();
+          ctx.beginPath();
+          for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            if (i === 0) ctx.moveTo(p[0], p[1] + 7);
+            else ctx.lineTo(p[0], p[1] + 7);
           }
+          ctx.strokeStyle = "rgba(0,246,255,.18)";
+          ctx.lineWidth = 18;
+          ctx.shadowColor = "#00f6ff";
+          ctx.shadowBlur = 28;
+          ctx.stroke();
 
-          for (let f = 0; f < BANDS_3D; f += 3) {
-            ctx.beginPath();
-
-            for (let t = rows.length - 1; t >= 0; t--) {
-              const row = rows[t];
-              const p = project3D(t, f, row[f]);
-              if (t === rows.length - 1) ctx.moveTo(p[0], p[1]);
-              else ctx.lineTo(p[0], p[1]);
-            }
-
-            ctx.strokeStyle = "rgba(190,205,235,.12)";
-            ctx.lineWidth = 0.65;
-            ctx.stroke();
+          ctx.beginPath();
+          for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            if (i === 0) ctx.moveTo(p[0], p[1]);
+            else ctx.lineTo(p[0], p[1]);
           }
+          ctx.strokeStyle = neonGradient;
+          ctx.lineWidth = 8;
+          ctx.shadowColor = "#7a2cff";
+          ctx.shadowBlur = 22;
+          ctx.stroke();
+
+          ctx.beginPath();
+          for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            if (i === 0) ctx.moveTo(p[0], p[1] - 1);
+            else ctx.lineTo(p[0], p[1] - 1);
+          }
+          ctx.strokeStyle = "rgba(255,255,255,.94)";
+          ctx.lineWidth = 1.8;
+          ctx.shadowColor = "#ff2bd6";
+          ctx.shadowBlur = 10;
+          ctx.stroke();
+
+          const current = points[points.length - 1];
+          ctx.fillStyle = "#ffffff";
+          ctx.shadowColor = "#ff2bd6";
+          ctx.shadowBlur = 24;
+          ctx.beginPath();
+          ctx.arc(current[0], current[1], 4.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 0;
         }
       }    }
 
