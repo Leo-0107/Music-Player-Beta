@@ -467,8 +467,6 @@
           }
           ctx.strokeStyle = "rgba(0,246,255,.18)";
           ctx.lineWidth = 12;
-          ctx.shadowColor = "#00f6ff";
-          ctx.shadowBlur = 22;
           ctx.stroke();
 
           ctx.beginPath();
@@ -479,8 +477,6 @@
           }
           ctx.strokeStyle = neon;
           ctx.lineWidth = 4.5;
-          ctx.shadowColor = "#8a2cff";
-          ctx.shadowBlur = 18;
           ctx.stroke();
 
           ctx.beginPath();
@@ -490,8 +486,6 @@
           }
           ctx.strokeStyle = "rgba(255,255,255,.96)";
           ctx.lineWidth = 1.6;
-          ctx.shadowColor = "#ff2bd6";
-          ctx.shadowBlur = 9;
           ctx.stroke();
 
           ctx.beginPath();
@@ -499,17 +493,13 @@
           ctx.lineTo(right, baseY);
           ctx.strokeStyle = "rgba(180,210,255,.13)";
           ctx.lineWidth = 1;
-          ctx.shadowBlur = 0;
           ctx.stroke();
 
           const current = points[points.length - 1];
           ctx.fillStyle = "#ffffff";
-          ctx.shadowColor = "#ff2bd6";
-          ctx.shadowBlur = 24;
           ctx.beginPath();
           ctx.arc(current[0], current[1], 4.5, 0, Math.PI * 2);
           ctx.fill();
-          ctx.shadowBlur = 0;
         }
       }    }
 
