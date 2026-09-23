@@ -451,37 +451,38 @@
         }
 
         const rows = drawWave._wave3DHistory;
-        const timeLeft = width * 0.08;
-        const timeRight = width * 0.92;
-        const baseY = height * 0.84;
-        const maxHeight = height * 0.62;
-        const timeSpan = Math.max(1, timeRight - timeLeft);
-        const sideDepth = Math.min(width * 0.035, 26);
-        const sideTilt = Math.min(height * 0.06, 42);
+        const nearY = height * 0.88;
+        const farY = height * 0.34;
+        const centerX = width * 0.50;
+        const nearHalfWidth = width * 0.43;
+        const farHalfWidth = width * 0.13;
+        const maxHeight = height * 0.56;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const x = timeRight - age * timeSpan;
-            const fade = 0.16 + 0.84 * (1 - age);
+            const depth = 1 - age;
+            const rowY = nearY + (farY - nearY) * depth;
+            const halfWidth = nearHalfWidth + (farHalfWidth - nearHalfWidth) * depth;
+            const fade = 0.18 + 0.82 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
             ctx.beginPath();
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const depth = freqRatio - 0.5;
+              const x = centerX - halfWidth + freqRatio * halfWidth * 2;
               const amplitude = Math.min(1, Math.max(0, row[b] || 0));
-              const drawX = x + depth * sideDepth;
-              const y = baseY - amplitude * maxHeight - depth * sideTilt;
-              if (b === 0) ctx.moveTo(drawX, y);
-              else ctx.lineTo(drawX, y);
+              const y = rowY - amplitude * maxHeight * (0.45 + 0.55 * (1 - depth));
+
+              if (b === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
             }
 
             ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
             ctx.globalAlpha = fade;
-            ctx.lineWidth = t === 0 ? 2.6 : 1.1;
+            ctx.lineWidth = t === 0 ? 2.6 : 1.05;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
             ctx.stroke();
@@ -489,13 +490,6 @@
 
           ctx.globalAlpha = 1;
         }
-      }
-    } {
-      let maxWave = 0;
-      if (waveSmoothData) for (let i = 0; i < waveSmoothData.length; i++) maxWave = Math.max(maxWave, waveSmoothData[i]);
-      if (maxWave < 0.008 && leftDisplayLevel < 0.008 && rightDisplayLevel < 0.008) {
-        waveDecayActive = false;
-        isWaveAnimating = false;
       }
     }
   }
