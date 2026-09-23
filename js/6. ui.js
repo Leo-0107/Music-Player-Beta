@@ -451,19 +451,18 @@
         }
 
         const rows = drawWave._wave3DHistory;
-        const left = 30;
-        const right = width - 30;
-        const baseY = height * 0.78;
-        const maxHeight = height * 0.48;
-        const lineTravel = Math.max(1, right - left);
-        const lineWidth = Math.min(lineTravel * 0.42, width * 0.42);
-        const lineStart = left;
+        const freqLeft = width * 0.08;
+        const freqRight = width * 0.92;
+        const timeTop = height * 0.12;
+        const timeBottom = height * 0.86;
+        const timeSpan = Math.max(1, timeBottom - timeTop);
+        const amplitudeHeight = Math.min(height * 0.16, Math.max(10, timeSpan / Math.max(1, rows.length)));
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const xOffset = age * lineTravel;
+            const baseY = timeBottom - age * timeSpan;
             const fade = 0.16 + 0.84 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
@@ -471,8 +470,8 @@
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const x = left + xOffset + freqRatio * lineWidth;
-              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight;
+              const x = freqLeft + freqRatio * (freqRight - freqLeft);
+              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * amplitudeHeight;
               if (b === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
             }
