@@ -525,6 +525,11 @@
   }
 
   function prevTrack(){
+    if (state.currentSong && Number.isFinite(audio.currentTime) && audio.currentTime > 7) {
+      audio.currentTime = 0;
+      return;
+    }
+
     if (state.activePlaylistName) {
       const order = state.playlistCycleOrder || [];
       let idx = state.playlistCycleIndex - 1;
