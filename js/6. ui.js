@@ -389,6 +389,7 @@
       } else {
         const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 4;
+        const BANDS_3D = 72;
         const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
 
         if (!drawWave._wave3DHistory || drawWave._wave3DMode !== state.waveMode) {
@@ -414,20 +415,33 @@
               drawWave._wave3DSampleElapsed >= SAMPLE_INTERVAL) {
             drawWave._wave3DSampleElapsed %= SAMPLE_INTERVAL;
 
-            let sum = 0;
-            for (let i = 0; i < analyserData.length; i++) {
-              const value = waveSmoothData?.[i] || 0;
-              sum += value * value;
+            const bands = new Float32Array(BANDS_3D);
+            const maxBin = analyserData.length - 1;
+
+            for (let b = 0; b < BANDS_3D; b++) {
+              const lo = Math.floor(Math.pow(b / BANDS_3D, 1.45) * maxBin);
+              const hi = Math.max(
+                lo + 1,
+                Math.floor(Math.pow((b + 1) / BANDS_3D, 1.45) * maxBin)
+              );
+
+              let sum = 0;
+              let count = 0;
+
+              for (let k = lo; k <= hi && k <= maxBin; k++) {
+                const value = waveSmoothData?.[k] || 0;
+                sum += value * value;
+                count++;
+              }
+
+              bands[b] = count
+                ? Math.min(1, Math.sqrt(sum / count) * 2.0)
+                : 0;
             }
 
-            const level = Math.min(
-              1,
-              Math.sqrt(sum / Math.max(1, analyserData.length)) * 2.2
-            );
-
-            drawWave._wave3DHistory.push(level);
+            drawWave._wave3DHistory.unshift(bands);
             if (drawWave._wave3DHistory.length > maxHistory) {
-              drawWave._wave3DHistory.shift();
+              drawWave._wave3DHistory.length = maxHistory;
             }
 
             drawWave._wave3DLastAudioTime = audioTime;
@@ -436,74 +450,45 @@
           drawWave._wave3DSampleElapsed = 0;
         }
 
-        const waveHistory = drawWave._wave3DHistory;
-        const left = 28;
-        const right = width - 28;
-        const baseY = height * 0.82;
-        const heightScale = height * 0.58;
-        const slotsBeforeCurrent = Math.max(0, maxHistory - waveHistory.length);
+        const rows = drawWave._wave3DHistory;
+        const left = 30;
+        const right = width - 30;
+        const baseY = height * 0.78;
+        const maxHeight = height * 0.48;
+        const lineTravel = Math.max(1, right - left);
+        const lineWidth = Math.min(lineTravel * 0.42, width * 0.42);
+        const lineStart = right - lineWidth;
 
-        if (waveHistory.length) {
-          const points = waveHistory.map((level, index) => {
-            const slot = slotsBeforeCurrent + index;
-            const x = left + (slot / Math.max(1, maxHistory - 1)) * (right - left);
-            const y = baseY - Math.min(1, Math.max(0, level)) * heightScale;
-            return [x, y];
-          });
+        if (rows.length) {
+          for (let t = rows.length - 1; t >= 0; t--) {
+            const row = rows[t];
+            const age = t / Math.max(1, rows.length - 1);
+            const xOffset = age * lineTravel;
+            const fade = 0.16 + 0.84 * (1 - age);
+            const hue = 180 + (1 - age) * 100;
 
-          const neon = ctx.createLinearGradient(left, 0, right, 0);
-          neon.addColorStop(0, "#00f6ff");
-          neon.addColorStop(0.48, "#8a2cff");
-          neon.addColorStop(1, "#ff2bd6");
+            ctx.beginPath();
 
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
+            for (let b = 0; b < BANDS_3D; b++) {
+              const freqRatio = b / Math.max(1, BANDS_3D - 1);
+              const x = lineStart - xOffset + freqRatio * lineWidth;
+              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight;
+              if (b === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
 
-          ctx.beginPath();
-          ctx.moveTo(points[0][0], baseY);
-          for (let i = 0; i < points.length; i++) {
-            ctx.lineTo(points[i][0], points[i][1]);
-            ctx.lineTo(points[i][0], baseY);
+            ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
+            ctx.globalAlpha = fade;
+            ctx.lineWidth = t === 0 ? 2.6 : 1.1;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.stroke();
           }
-          ctx.strokeStyle = "rgba(0,246,255,.18)";
-          ctx.lineWidth = 12;
-          ctx.stroke();
 
-          ctx.beginPath();
-          ctx.moveTo(points[0][0], baseY);
-          for (let i = 0; i < points.length; i++) {
-            ctx.lineTo(points[i][0], points[i][1]);
-            ctx.lineTo(points[i][0], baseY);
-          }
-          ctx.strokeStyle = neon;
-          ctx.lineWidth = 4.5;
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(points[0][0], points[0][1]);
-          for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i][0], points[i][1]);
-          }
-          ctx.strokeStyle = "rgba(255,255,255,.96)";
-          ctx.lineWidth = 1.6;
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(left, baseY);
-          ctx.lineTo(right, baseY);
-          ctx.strokeStyle = "rgba(180,210,255,.13)";
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          const current = points[points.length - 1];
-          ctx.fillStyle = "#ffffff";
-          ctx.beginPath();
-          ctx.arc(current[0], current[1], 4.5, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.globalAlpha = 1;
         }
-      }    }
-
-    if (!isPlaying && waveDecayActive) {
+      }
+    } {
       let maxWave = 0;
       if (waveSmoothData) for (let i = 0; i < waveSmoothData.length; i++) maxWave = Math.max(maxWave, waveSmoothData[i]);
       if (maxWave < 0.008 && leftDisplayLevel < 0.008 && rightDisplayLevel < 0.008) {
