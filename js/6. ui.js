@@ -456,7 +456,7 @@
         const centerX = width * 0.50;
         const nearHalfWidth = width * 0.43;
         const farHalfWidth = width * 0.13;
-        const maxHeight = height * 1.18;
+        const maxHeight = height * 2.20;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
