@@ -420,18 +420,12 @@
               sum += value * value;
             }
 
-            const target = Math.min(
+            const level = Math.min(
               1,
               Math.sqrt(sum / Math.max(1, analyserData.length)) * 2.2
             );
 
-            const last = drawWave._wave3DHistory.length
-              ? drawWave._wave3DHistory[drawWave._wave3DHistory.length - 1]
-              : target;
-
-            const level = last + (target - last) * 0.36;
             drawWave._wave3DHistory.push(level);
-
             if (drawWave._wave3DHistory.length > maxHistory) {
               drawWave._wave3DHistory.shift();
             }
@@ -445,61 +439,67 @@
         const waveHistory = drawWave._wave3DHistory;
         const left = 28;
         const right = width - 28;
-        const centerY = height * 0.60;
-        const verticalScale = height * 0.48;
+        const baseY = height * 0.82;
+        const heightScale = height * 0.58;
+        const slotsBeforeCurrent = Math.max(0, maxHistory - waveHistory.length);
 
         if (waveHistory.length) {
-          const neonGradient = ctx.createLinearGradient(left, 0, right, 0);
-          neonGradient.addColorStop(0, "#00f6ff");
-          neonGradient.addColorStop(0.48, "#8a2cff");
-          neonGradient.addColorStop(1, "#ff2bd6");
+          const points = waveHistory.map((level, index) => {
+            const slot = slotsBeforeCurrent + index;
+            const x = left + (slot / Math.max(1, maxHistory - 1)) * (right - left);
+            const y = baseY - Math.min(1, Math.max(0, level)) * heightScale;
+            return [x, y];
+          });
 
-          const points = [];
-          for (let i = 0; i < waveHistory.length; i++) {
-            const x = waveHistory.length === 1
-              ? right
-              : left + (i / Math.max(1, maxHistory - 1)) * (right - left);
-            const y = centerY - Math.min(1, Math.max(0, waveHistory[i])) * verticalScale;
-            points.push([x, y]);
-          }
+          const neon = ctx.createLinearGradient(left, 0, right, 0);
+          neon.addColorStop(0, "#00f6ff");
+          neon.addColorStop(0.48, "#8a2cff");
+          neon.addColorStop(1, "#ff2bd6");
 
           ctx.lineCap = "round";
           ctx.lineJoin = "round";
 
           ctx.beginPath();
+          ctx.moveTo(points[0][0], baseY);
           for (let i = 0; i < points.length; i++) {
-            const p = points[i];
-            if (i === 0) ctx.moveTo(p[0], p[1] + 7);
-            else ctx.lineTo(p[0], p[1] + 7);
+            ctx.lineTo(points[i][0], points[i][1]);
+            ctx.lineTo(points[i][0], baseY);
           }
           ctx.strokeStyle = "rgba(0,246,255,.18)";
-          ctx.lineWidth = 18;
+          ctx.lineWidth = 12;
           ctx.shadowColor = "#00f6ff";
-          ctx.shadowBlur = 28;
-          ctx.stroke();
-
-          ctx.beginPath();
-          for (let i = 0; i < points.length; i++) {
-            const p = points[i];
-            if (i === 0) ctx.moveTo(p[0], p[1]);
-            else ctx.lineTo(p[0], p[1]);
-          }
-          ctx.strokeStyle = neonGradient;
-          ctx.lineWidth = 8;
-          ctx.shadowColor = "#7a2cff";
           ctx.shadowBlur = 22;
           ctx.stroke();
 
           ctx.beginPath();
+          ctx.moveTo(points[0][0], baseY);
           for (let i = 0; i < points.length; i++) {
-            const p = points[i];
-            if (i === 0) ctx.moveTo(p[0], p[1] - 1);
-            else ctx.lineTo(p[0], p[1] - 1);
+            ctx.lineTo(points[i][0], points[i][1]);
+            ctx.lineTo(points[i][0], baseY);
           }
-          ctx.strokeStyle = "rgba(255,255,255,.94)";
-          ctx.lineWidth = 1.8;
+          ctx.strokeStyle = neon;
+          ctx.lineWidth = 4.5;
+          ctx.shadowColor = "#8a2cff";
+          ctx.shadowBlur = 18;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], points[0][1]);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i][0], points[i][1]);
+          }
+          ctx.strokeStyle = "rgba(255,255,255,.96)";
+          ctx.lineWidth = 1.6;
           ctx.shadowColor = "#ff2bd6";
-          ctx.shadowBlur = 10;
+          ctx.shadowBlur = 9;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(left, baseY);
+          ctx.lineTo(right, baseY);
+          ctx.strokeStyle = "rgba(180,210,255,.13)";
+          ctx.lineWidth = 1;
+          ctx.shadowBlur = 0;
           ctx.stroke();
 
           const current = points[points.length - 1];
@@ -509,7 +509,6 @@
           ctx.beginPath();
           ctx.arc(current[0], current[1], 4.5, 0, Math.PI * 2);
           ctx.fill();
-
           ctx.shadowBlur = 0;
         }
       }    }
