@@ -454,16 +454,16 @@
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
         const baseY = height * 0.84;
-        const maxHeight = height * 0.60;
+        const maxHeight = height * 0.62;
         const timeSpan = Math.max(1, timeRight - timeLeft);
-        const depthX = Math.min(width * 0.30, 260);
-        const depthY = Math.min(height * 0.10, 70);
+        const sideDepth = Math.min(width * 0.035, 26);
+        const sideTilt = Math.min(height * 0.06, 42);
 
         if (rows.length) {
-          for (let t = 0; t < rows.length; t++) {
+          for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const x = timeLeft + age * timeSpan;
+            const x = timeRight - age * timeSpan;
             const fade = 0.16 + 0.84 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
@@ -472,8 +472,9 @@
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
               const depth = freqRatio - 0.5;
-              const drawX = x + depth * depthX;
-              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight - depth * depthY;
+              const amplitude = Math.min(1, Math.max(0, row[b] || 0));
+              const drawX = x + depth * sideDepth;
+              const y = baseY - amplitude * maxHeight - depth * sideTilt;
               if (b === 0) ctx.moveTo(drawX, y);
               else ctx.lineTo(drawX, y);
             }
