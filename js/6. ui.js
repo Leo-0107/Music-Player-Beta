@@ -451,18 +451,17 @@
         }
 
         const rows = drawWave._wave3DHistory;
-        const freqLeft = width * 0.08;
-        const freqRight = width * 0.92;
-        const timeTop = height * 0.12;
-        const timeBottom = height * 0.86;
-        const timeSpan = Math.max(1, timeBottom - timeTop);
-        const amplitudeHeight = Math.min(height * 0.16, Math.max(10, timeSpan / Math.max(1, rows.length)));
+        const timeLeft = width * 0.08;
+        const timeRight = width * 0.92;
+        const baseY = height * 0.82;
+        const maxHeight = height * 0.58;
+        const timeSpan = Math.max(1, timeRight - timeLeft);
 
         if (rows.length) {
-          for (let t = rows.length - 1; t >= 0; t--) {
+          for (let t = 0; t < rows.length; t++) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const baseY = timeBottom - age * timeSpan;
+            const x = timeLeft + age * timeSpan;
             const fade = 0.16 + 0.84 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
@@ -470,10 +469,11 @@
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const x = freqLeft + freqRatio * (freqRight - freqLeft);
-              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * amplitudeHeight;
-              if (b === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
+              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight;
+              const depthOffset = (freqRatio - 0.5) * Math.min(height * 0.06, 28);
+              const drawX = x + depthOffset;
+              if (b === 0) ctx.moveTo(drawX, y);
+              else ctx.lineTo(drawX, y);
             }
 
             ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
