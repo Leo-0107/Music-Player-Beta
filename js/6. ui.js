@@ -451,20 +451,18 @@
         }
 
         const rows = drawWave._wave3DHistory;
-        const nearY = height * 0.88;
-        const farY = height * 0.50;
-        const centerX = width * 0.50;
-        const nearHalfWidth = width * 0.43;
-        const farHalfWidth = width * 0.13;
+        const timeLeft = width * 0.08;
+        const timeRight = width * 0.92;
+        const baseY = height * 0.82;
         const maxHeight = height * 1.70;
+        const freqDepth = width * 0.28;
+        const freqTilt = height * 0.20;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const depth = 1 - age;
-            const rowY = nearY + (farY - nearY) * depth;
-            const halfWidth = nearHalfWidth + (farHalfWidth - nearHalfWidth) * depth;
+            const timeX = timeLeft + age * (timeRight - timeLeft);
             const fade = 0.18 + 0.82 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
@@ -472,9 +470,11 @@
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const x = centerX - halfWidth + freqRatio * halfWidth * 2;
+              const depth = freqRatio - 0.5;
+              const x = timeX + depth * freqDepth;
               const amplitude = Math.min(1, Math.max(0, row[b] || 0));
-              const y = rowY - amplitude * maxHeight * (0.45 + 0.55 * (1 - depth));
+              const y = baseY + depth * freqTilt -
+                amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
 
               if (b === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
