@@ -452,7 +452,7 @@
 
         const rows = drawWave._wave3DHistory;
         const nearY = height * 0.88;
-        const farY = height * 0.34;
+        const farY = height * 0.50;
         const centerX = width * 0.50;
         const nearHalfWidth = width * 0.43;
         const farHalfWidth = width * 0.13;
