@@ -457,7 +457,7 @@
         const maxHeight = height * 0.48;
         const lineTravel = Math.max(1, right - left);
         const lineWidth = Math.min(lineTravel * 0.42, width * 0.42);
-        const lineStart = right - lineWidth;
+        const lineStart = left;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
@@ -471,7 +471,7 @@
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const x = lineStart - xOffset + freqRatio * lineWidth;
+              const x = left + xOffset + freqRatio * lineWidth;
               const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight;
               if (b === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
