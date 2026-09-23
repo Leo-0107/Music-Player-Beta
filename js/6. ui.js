@@ -453,9 +453,11 @@
         const rows = drawWave._wave3DHistory;
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
-        const baseY = height * 0.82;
-        const maxHeight = height * 0.58;
+        const baseY = height * 0.84;
+        const maxHeight = height * 0.60;
         const timeSpan = Math.max(1, timeRight - timeLeft);
+        const depthX = Math.min(width * 0.30, 260);
+        const depthY = Math.min(height * 0.10, 70);
 
         if (rows.length) {
           for (let t = 0; t < rows.length; t++) {
@@ -469,9 +471,9 @@
 
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight;
-              const depthOffset = (freqRatio - 0.5) * Math.min(height * 0.06, 28);
-              const drawX = x + depthOffset;
+              const depth = freqRatio - 0.5;
+              const drawX = x + depth * depthX;
+              const y = baseY - Math.min(1, Math.max(0, row[b] || 0)) * maxHeight - depth * depthY;
               if (b === 0) ctx.moveTo(drawX, y);
               else ctx.lineTo(drawX, y);
             }
