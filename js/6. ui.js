@@ -443,7 +443,7 @@
               }
 
               bands[b] = count
-                ? Math.min(1, Math.sqrt(sum / count) * 2.0)
+                ? Math.sqrt(sum / count) * 2.0
                 : 0;
             }
 
@@ -483,7 +483,7 @@
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
               const depth = freqRatio - 0.5;
               const x = timeX + depth * freqDepth - age * timeDepth;
-              const amplitude = Math.min(1, Math.max(0, row[b] || 0));
+              const amplitude = Math.max(0, row[b] || 0);
               const y = timeY + depth * freqTilt -
                 amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
 
