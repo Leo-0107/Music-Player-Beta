@@ -511,6 +511,7 @@
   function playPause(){
     if(!state.currentSong && state.playlist.length) return playSong(getVisibleSongs()[0]);
     if(audio.paused) {
+      ensureGraph();
       audio.play().then(() => {
         requestWakeLock();
         lastFrameTime = performance.now();
