@@ -396,11 +396,19 @@
           drawWave._wave3DHistory = [];
           drawWave._wave3DSampleElapsed = 0;
           drawWave._wave3DLastAudioTime = -1;
+          drawWave._wave3DTrackKey = null;
           drawWave._wave3DMode = state.waveMode;
         }
 
         if (isPlaying && analyserData?.length) {
           const audioTime = Number(audio.currentTime) || 0;
+          const trackKey = state.currentSong?.name || audio.src || "";
+
+          if (drawWave._wave3DTrackKey !== trackKey) {
+            drawWave._wave3DTrackKey = trackKey;
+            drawWave._wave3DLastAudioTime = -1;
+            drawWave._wave3DSampleElapsed = 0;
+          }
 
           if (drawWave._wave3DLastAudioTime >= 0 &&
               (audioTime < drawWave._wave3DLastAudioTime ||
