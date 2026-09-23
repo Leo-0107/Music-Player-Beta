@@ -453,18 +453,19 @@
         const rows = drawWave._wave3DHistory;
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
-        const baseY = height * 0.82;
-        const maxHeight = height * 1.70;
-        const freqDepth = width * 0.28;
-        const freqTilt = height * 0.32;
-        const timeTilt = height * 0.16;
+        const baseY = height * 0.86;
+        const maxHeight = height * 0.80;
+        const freqDepth = width * 0.30;
+        const freqTilt = height * 0.36;
+        const timeDepth = width * 0.24;
+        const timeLift = height * 0.22;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const age = t / Math.max(1, rows.length - 1);
-            const timeX = timeRight - age * (timeRight - timeLeft);
-            const timeY = baseY + age * timeTilt;
+            const timeX = timeLeft + age * (timeRight - timeLeft);
+            const timeY = baseY - age * timeLift;
             const fade = 0.18 + 0.82 * (1 - age);
             const hue = 180 + (1 - age) * 100;
 
@@ -473,7 +474,7 @@
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
               const depth = freqRatio - 0.5;
-              const x = timeX + depth * freqDepth;
+              const x = timeX + depth * freqDepth - age * timeDepth;
               const amplitude = Math.min(1, Math.max(0, row[b] || 0));
               const y = timeY + depth * freqTilt -
                 amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
