@@ -146,6 +146,7 @@
     shell: document.getElementById("shell"),
     folder: document.getElementById("folder"),
     btnResetFiles: document.getElementById("btnResetFiles"),
+    btnResetSettings: document.getElementById("btnResetSettings"),
     search: document.getElementById("search"),
     list: document.getElementById("list"),
     nowTitle: document.getElementById("nowTitle"),

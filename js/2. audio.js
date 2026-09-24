@@ -743,7 +743,7 @@
       ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("11", size / 2, size / 2);
+      ctx.fillText("12", size / 2, size / 2);
     };
 
     drawCanvas(el.nowCoverCanvas, 160);
