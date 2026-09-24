@@ -18,8 +18,8 @@
     dMode: "mp_dmode_v12",
     waveMode: "mp_wavemode_v12",
     clippingProtection: "mp_clipping_v12",
-    channelLeft: "mp_channel_left_v12",
-    channelRight: "mp_channel_right_v12",
+    channelLeft: "mp_channel_left_v13",
+    channelRight: "mp_channel_right_v13",
     playlistSettings: "mp_playlist_settings_v12",
     lastSong: "mp_last_song_v12"
   };
