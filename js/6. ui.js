@@ -467,7 +467,7 @@
         const rows = drawWave._wave3DHistory;
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
-        const baseY = height * 0.86;
+        const baseY = height * 0.91;
         const maxHeight = height * 0.80;
         const freqDepth = width * 0.30;
         const freqTilt = height * 0.52;
@@ -491,7 +491,7 @@
               const x = timeX + depth * freqDepth - age * timeDepth;
               const amplitude = Math.max(0, row[b] || 0);
               const y = timeY + depth * freqTilt -
-                amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
+                amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
 
               if (b === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
