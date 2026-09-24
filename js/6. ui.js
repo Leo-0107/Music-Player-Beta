@@ -470,9 +470,9 @@
         const baseY = height * 0.86;
         const maxHeight = height * 0.80;
         const freqDepth = width * 0.30;
-        const freqTilt = height * 0.36;
+        const freqTilt = height * 0.52;
         const timeDepth = width * 0.24;
-        const timeLift = height * 0.22;
+        const timeLift = height * 0.30;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
