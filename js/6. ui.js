@@ -18,12 +18,22 @@
 
   audio.addEventListener("play", () => {
     updatePlayPauseUI();
+    if (typeof drawWave === "function" && drawWave._wave3DHistory) {
+      drawWave._wave3DHistory = [];
+      drawWave._wave3DSampleElapsed = 0;
+      drawWave._wave3DLastAudioTime = -1;
+    }
     lastFrameTime = performance.now();
     startWaveAnimation();
   });
 
   audio.addEventListener("pause", () => {
     updatePlayPauseUI();
+    if (typeof drawWave === "function" && drawWave._wave3DHistory) {
+      drawWave._wave3DHistory = [];
+      drawWave._wave3DSampleElapsed = 0;
+      drawWave._wave3DLastAudioTime = -1;
+    }
     requestWaveVisualDecay?.();
   });
 
@@ -404,11 +414,7 @@
           const audioTime = Number(audio.currentTime) || 0;
           const trackKey = state.currentSong?.name || audio.src || "";
 
-          if (drawWave._wave3DTrackKey !== trackKey) {
-            drawWave._wave3DTrackKey = trackKey;
-            drawWave._wave3DLastAudioTime = -1;
-            drawWave._wave3DSampleElapsed = 0;
-          }
+          drawWave._wave3DTrackKey = trackKey;
 
           if (drawWave._wave3DLastAudioTime >= 0 &&
               (audioTime < drawWave._wave3DLastAudioTime ||
