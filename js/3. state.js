@@ -83,8 +83,8 @@
   let targetSongForPlaylist = null;
   let lastUnmutedVolume = 1.0;
   let currentVolumeTarget = loadNum(STORAGE.volume, 1.0);
-  let currentLeftVolumeTarget = loadNum(STORAGE.channelLeft, 1.0);
-  let currentRightVolumeTarget = loadNum(STORAGE.channelRight, 1.0);
+  let currentLeftVolumeTarget = localStorage.getItem(STORAGE.channelLeft) === null ? 1.0 : loadNum(STORAGE.channelLeft, 1.0);
+  let currentRightVolumeTarget = localStorage.getItem(STORAGE.channelRight) === null ? 1.0 : loadNum(STORAGE.channelRight, 1.0);
   let eqAnimId = null;
   let wakeLock = null;
   
