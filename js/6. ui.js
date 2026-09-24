@@ -468,11 +468,11 @@
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
         const baseY = height * 0.91;
-        const maxHeight = height * 0.80;
-        const freqDepth = width * 0.30;
-        const freqTilt = height * 0.52;
-        const timeDepth = width * 0.24;
-        const timeLift = height * 0.30;
+        const maxHeight = height * 0.68;
+        const freqDepth = width * 0.25;
+        const freqTilt = height * 0.58;
+        const timeDepth = width * 0.20;
+        const timeLift = height * 0.27;
 
         if (rows.length) {
           for (let t = rows.length - 1; t >= 0; t--) {
