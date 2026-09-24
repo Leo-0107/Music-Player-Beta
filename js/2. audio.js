@@ -743,7 +743,7 @@
       ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("7", size / 2, size / 2);
+      ctx.fillText("8", size / 2, size / 2);
     };
 
     drawCanvas(el.nowCoverCanvas, 160);
@@ -804,6 +804,43 @@
         "曲ファイル、プレイリスト、キュー、お気に入りなどの音楽データをすべて削除します。設定はそのままです。",
         () => { resetAllFiles(); },
         "すべて削除"
+      );
+    });
+  }
+
+  if (el.btnResetSettings) {
+    el.btnResetSettings.addEventListener("click", () => {
+      showInSiteConfirm(
+        "すべての設定を初期化しますか？",
+        "音楽ファイルやプレイリストなどのデータは残したまま、設定だけを初回アクセス時の状態に戻します。",
+        () => {
+          [
+            STORAGE.eqState,
+            STORAGE.volume,
+            STORAGE.pitch,
+            STORAGE.shuffle,
+            STORAGE.repeat,
+            STORAGE.favOnly,
+            STORAGE.themeMode,
+            STORAGE.customTheme,
+            STORAGE.crossfade,
+            STORAGE.silenceSkip,
+            STORAGE.dMode,
+            STORAGE.waveMode,
+            STORAGE.clippingProtection,
+            STORAGE.channelLeft,
+            STORAGE.channelRight,
+            STORAGE.playlistSettings,
+            STORAGE.lastSong,
+            STORAGE.lastPosition
+          ].forEach(key => localStorage.removeItem(key));
+
+          if (sleepTimerId) clearTimeout(sleepTimerId);
+          if (sleepIntervalId) clearInterval(sleepIntervalId);
+
+          location.reload();
+        },
+        "初期化"
       );
     });
   }
