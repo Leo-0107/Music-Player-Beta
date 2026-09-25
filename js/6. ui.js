@@ -511,7 +511,7 @@
       } else if (state.waveMode === "a3") {
         const sideBars = Math.min(32, waveLeftOutputAnalyser?.frequencyBinCount || 32);
         const centerX = width * 0.5;
-        const centerY = height * 0.5;
+        const centerY = height * 0.65;
         const maxBarHeight = height * 0.43;
         const sideWidth = width * 0.46;
         const stepX = sideWidth / Math.max(1, sideBars);
@@ -547,8 +547,8 @@
           };
 
           for (let i = 0; i < sideBars; i++) {
-            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i));
-            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i));
+            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i) * 2);
+            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i) * 2);
 
             leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.16;
             rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.16;
