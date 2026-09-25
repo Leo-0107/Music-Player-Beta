@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 20;
+  const BUILD_REVISION = 21;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -262,6 +262,14 @@
         }
       }
 
+      // PannerNode の3D経路は入力を明示的に1chへ整えてから渡し、出力のL/Rを安定して確保する。
+      let panner3DInputGainNode = null;
+      if (panner3DNode) {
+        panner3DInputGainNode = audioCtx.createGain();
+        panner3DInputGainNode.channelCountMode = "explicit";
+        panner3DInputGainNode.channelCount = 1;
+      }
+
       channelSplitter = audioCtx.createChannelSplitter(2);
       leftGainNode = audioCtx.createGain();
       rightGainNode = audioCtx.createGain();
@@ -319,8 +327,9 @@
       spatialDirectGainNode = audioCtx.createGain();
       spatial3DGainNode = audioCtx.createGain();
       spatialSourceNode.connect(spatialDirectGainNode);
-      if (panner3DNode) {
-        spatialSourceNode.connect(panner3DNode);
+      if (panner3DNode && panner3DInputGainNode) {
+        spatialSourceNode.connect(panner3DInputGainNode);
+        panner3DInputGainNode.connect(panner3DNode);
         panner3DNode.connect(spatial3DGainNode);
       }
 
