@@ -551,7 +551,6 @@
             const hue = (distanceIndex / Math.max(1, bars / 2)) * 280 + 120;
             ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
             ctx.fillRect(x - barWidth * 0.5, centerY - barHeight, barWidth, barHeight);
-            ctx.fillRect(x - barWidth * 0.5, centerY, barWidth, barHeight);
           }
         }
 
