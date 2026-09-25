@@ -451,8 +451,8 @@
       } else if (state.waveMode === "a2") {
         if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
           if (!waveLeftOutputAnalyser._displayData || waveLeftOutputAnalyser._displayData.length !== waveLeftOutputAnalyser.fftSize) {
-            waveLeftOutputAnalyser._displayData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
-            waveRightOutputAnalyser._displayData = new Uint8Array(waveRightOutputAnalyser.fftSize);
+            waveLeftOutputAnalyser._displayData = new Float32Array(waveLeftOutputAnalyser.fftSize);
+            waveRightOutputAnalyser._displayData = new Float32Array(waveRightOutputAnalyser.fftSize);
             waveLeftOutputAnalyser._displayData.fill(128);
             waveRightOutputAnalyser._displayData.fill(128);
           }
@@ -505,8 +505,8 @@
             ctx.fillText(label, 8, Math.max(12, top + 12));
           };
 
-          drawChannelWave(leftLevelData, 0, height * 0.5, "L");
-          drawChannelWave(rightLevelData, height * 0.5, height, "R");
+          drawChannelWave(leftDisplay, 0, height * 0.5, "L");
+          drawChannelWave(rightDisplay, height * 0.5, height, "R");
         }
       } else if (state.waveMode === "a3") {
         const bars = Math.min(64, waveLeftOutputData?.length || 64);
@@ -774,11 +774,12 @@
             ctx.stroke();
           }
 
-          // 最前面は現在の解析値を毎フレーム描画し、0.04秒刻みの段差を目立たせない
+          // 最前面は現在の解析値を毎フレーム描画し、0.04秒刻みの段差を目立たせない。
+          // 履歴より明るく目立たせる専用のネオン色にはせず、波形全体の色調に合わせる。
           if (liveBands) {
             ctx.globalAlpha = pauseFade;
-            ctx.strokeStyle = "hsl(180, 100%, 60%)";
-            ctx.lineWidth = 2.7;
+            ctx.strokeStyle = "hsl(280, 100%, 60%)";
+            ctx.lineWidth = 1.6;
             ctx.beginPath();
             for (let b = 0; b < BANDS_3D; b++) {
               const point = project3DPoint(currentAudioTime, liveBands, b);
