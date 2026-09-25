@@ -1,3 +1,5 @@
+  const BUILD_REVISION = 14;
+
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       const container = entry.target;
@@ -753,7 +755,7 @@
       ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("13", size / 2, size / 2);
+      ctx.fillText(`NO IMAGE #${BUILD_REVISION}`, size / 2, size / 2);
     };
 
     drawCanvas(el.nowCoverCanvas, 160);
