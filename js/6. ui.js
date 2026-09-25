@@ -22,6 +22,7 @@
       drawWave._wave3DHistory = [];
       drawWave._wave3DSampleElapsed = 0;
       drawWave._wave3DLastAudioTime = -1;
+      drawWave._wave3DLastSampleTime = -1;
     }
     lastFrameTime = performance.now();
     startWaveAnimation();
@@ -33,6 +34,7 @@
       drawWave._wave3DHistory = [];
       drawWave._wave3DSampleElapsed = 0;
       drawWave._wave3DLastAudioTime = -1;
+      drawWave._wave3DLastSampleTime = -1;
     }
     requestWaveVisualDecay?.();
   });
@@ -406,6 +408,7 @@
           drawWave._wave3DHistory = [];
           drawWave._wave3DSampleElapsed = 0;
           drawWave._wave3DLastAudioTime = -1;
+          drawWave._wave3DLastSampleTime = -1;
           drawWave._wave3DTrackKey = null;
           drawWave._wave3DMode = state.waveMode;
         }
@@ -418,17 +421,14 @@
 
           if (drawWave._wave3DLastAudioTime >= 0 &&
               (audioTime < drawWave._wave3DLastAudioTime ||
-               audioTime - drawWave._wave3DLastAudioTime > 0.4)) {
+               Math.abs(audioTime - drawWave._wave3DLastAudioTime) > 0.4)) {
             drawWave._wave3DHistory = [];
             drawWave._wave3DSampleElapsed = 0;
+            drawWave._wave3DLastSampleTime = -1;
           }
 
-          drawWave._wave3DSampleElapsed += dt;
-
-          if (drawWave._wave3DHistory.length === 0 ||
-              drawWave._wave3DSampleElapsed >= SAMPLE_INTERVAL) {
-            drawWave._wave3DSampleElapsed %= SAMPLE_INTERVAL;
-
+          if (drawWave._wave3DLastSampleTime < 0 ||
+              audioTime - drawWave._wave3DLastSampleTime >= SAMPLE_INTERVAL) {
             const bands = new Float32Array(BANDS_3D);
             const maxBin = analyserData.length - 1;
 
@@ -443,7 +443,7 @@
               let count = 0;
 
               for (let k = lo; k <= hi && k <= maxBin; k++) {
-                const value = waveSmoothData?.[k] || 0;
+                const value = (analyserData[k] || 0) / 255;
                 sum += value * value;
                 count++;
               }
@@ -453,15 +453,24 @@
                 : 0;
             }
 
-            drawWave._wave3DHistory.unshift(bands);
-            if (drawWave._wave3DHistory.length > maxHistory) {
-              drawWave._wave3DHistory.length = maxHistory;
-            }
+            drawWave._wave3DHistory.unshift({ time: audioTime, bands });
+            drawWave._wave3DLastSampleTime = audioTime;
 
-            drawWave._wave3DLastAudioTime = audioTime;
+            while (
+              drawWave._wave3DHistory.length > 1 &&
+              audioTime - drawWave._wave3DHistory[drawWave._wave3DHistory.length - 1].time > HISTORY_SECONDS
+            ) {
+              drawWave._wave3DHistory.pop();
+            }
+            if (drawWave._wave3DHistory.length > 256) {
+              drawWave._wave3DHistory.length = 256;
+            }
           }
+
+          drawWave._wave3DLastAudioTime = audioTime;
         } else {
           drawWave._wave3DSampleElapsed = 0;
+          drawWave._wave3DLastSampleTime = -1;
         }
 
         const rows = drawWave._wave3DHistory;
@@ -475,9 +484,11 @@
         const timeLift = height * 0.27;
 
         if (rows.length) {
+          const currentAudioTime = Number(audio.currentTime) || 0;
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
-            const age = t / Math.max(1, rows.length - 1);
+            const ageSeconds = Math.max(0, currentAudioTime - row.time);
+            const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
             const timeX = timeLeft + age * (timeRight - timeLeft);
             const timeY = baseY - age * timeLift;
             const fade = 0.18 + 0.82 * (1 - age);
@@ -489,7 +500,7 @@
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
               const depth = freqRatio - 0.5;
               const x = timeX + depth * freqDepth - age * timeDepth;
-              const amplitude = Math.max(0, row[b] || 0);
+              const amplitude = Math.max(0, row.bands?.[b] || 0);
               const y = timeY + depth * freqTilt -
                 amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
 

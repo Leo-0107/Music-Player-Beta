@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 14;
+  const BUILD_REVISION = 15;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -284,21 +284,27 @@
       sourceNode.connect(filters[0]);
       for(let i=0; i<filters.length-1; i++) filters[i].connect(filters[i+1]);
       
-      let lastFilter = filters[filters.length-1];
-      if (pannerNode && panner3DNode) {
-        lastFilter.connect(pannerNode);
-        pannerNode.connect(panner3DNode);
-        lastFilter = panner3DNode;
-      } else if (pannerNode) {
-        lastFilter.connect(pannerNode);
-        lastFilter = pannerNode;
-      } else if (panner3DNode) {
-        lastFilter.connect(panner3DNode);
-        lastFilter = panner3DNode;
+      let spatialSourceNode = filters[filters.length - 1];
+      if (pannerNode) {
+        spatialSourceNode.connect(pannerNode);
+        spatialSourceNode = pannerNode;
       }
 
-      // パイプライン: lastFilter -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
-      lastFilter.connect(channelSplitter);
+      spatialDirectGainNode = audioCtx.createGain();
+      spatial3DGainNode = audioCtx.createGain();
+      spatialSourceNode.connect(spatialDirectGainNode);
+      if (panner3DNode) {
+        spatialSourceNode.connect(panner3DNode);
+        panner3DNode.connect(spatial3DGainNode);
+      }
+
+      const use3DSpatialRoute = state.dMode !== "2D" && !!panner3DNode;
+      spatialDirectGainNode.gain.value = use3DSpatialRoute ? 0 : 1;
+      spatial3DGainNode.gain.value = use3DSpatialRoute ? 1 : 0;
+
+      // パイプライン: 空間処理ルート -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
+      spatialDirectGainNode.connect(channelSplitter);
+      spatial3DGainNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
       channelSplitter.connect(rightGainNode, 1, 0);
       leftGainNode.connect(channelMerger, 0, 0);
@@ -432,7 +438,7 @@
 
   // --- 経過時間（dt）ベースの回転更新 ---
   function updateSpatialAudio(dt) {
-    if (!audioCtx || !panner3DNode || audio.paused) return;
+    if (!audioCtx || !panner3DNode || audio.paused || state.dMode === "2D") return;
     const rotationSpeed = 1.5; // ラジアン/秒
     spatialAngle += rotationSpeed * dt;
     const t = spatialAngle;
@@ -463,6 +469,18 @@
     }
   }
 
+  function updateSpatialAudioRouting() {
+    if (!spatialDirectGainNode || !spatial3DGainNode) return;
+    const use3DSpatialRoute = state.dMode !== "2D" && !!panner3DNode;
+    const now = audioCtx ? audioCtx.currentTime : 0;
+    const timeConstant = 0.02;
+
+    spatialDirectGainNode.gain.cancelScheduledValues(now);
+    spatial3DGainNode.gain.cancelScheduledValues(now);
+    spatialDirectGainNode.gain.setTargetAtTime(use3DSpatialRoute ? 0 : 1, now, timeConstant);
+    spatial3DGainNode.gain.setTargetAtTime(use3DSpatialRoute ? 1 : 0, now, timeConstant);
+  }
+
   function setDMode(mode) {
     state.dMode = mode;
     saveState();
@@ -486,6 +504,7 @@
         panner3DNode.setPosition(0, 0, 0);
       }
     }
+    updateSpatialAudioRouting();
   }
 
   if (el.dModeBtns) {

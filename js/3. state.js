@@ -74,6 +74,7 @@
 
   let audioCtx = null, sourceNode = null, filters = [], masterGain = null, limiterNode = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
+  let spatialDirectGainNode = null, spatial3DGainNode = null;
   let outputSplitter = null, leftLevelAnalyser = null, rightLevelAnalyser = null;
   let leftLevelData = null, rightLevelData = null;
   let audioGraphReady = false;
