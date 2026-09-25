@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 24;
+  const BUILD_REVISION = 25;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -271,9 +271,13 @@
       }
 
       channelSplitter = audioCtx.createChannelSplitter(2);
+      channelSplitter.channelCountMode = "explicit";
+      channelSplitter.channelCount = 2;
+      channelSplitter.channelInterpretation = "speakers";
       leftGainNode = audioCtx.createGain();
       rightGainNode = audioCtx.createGain();
       channelMerger = audioCtx.createChannelMerger(2);
+      channelMerger.channelInterpretation = "speakers";
       leftGainNode.gain.value = currentLeftVolumeTarget;
       rightGainNode.gain.value = currentRightVolumeTarget;
 
