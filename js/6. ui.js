@@ -464,13 +464,13 @@
             waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputData);
             waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputData);
             for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * WAVE_TIME_SMOOTHING;
-              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * WAVE_TIME_SMOOTHING;
+              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * 0.16;
+              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * 0.16;
             }
           } else {
             for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (128 - leftDisplay[i]) * WAVE_TIME_SMOOTHING;
-              rightDisplay[i] += (128 - rightDisplay[i]) * WAVE_TIME_SMOOTHING;
+              leftDisplay[i] += (128 - leftDisplay[i]) * 0.16;
+              rightDisplay[i] += (128 - rightDisplay[i]) * 0.16;
             }
           }
 
@@ -509,17 +509,18 @@
           drawChannelWave(rightDisplay, height * 0.5, height, "R");
         }
       } else if (state.waveMode === "a3") {
-        const bars = Math.min(64, waveLeftOutputData?.length || 64);
+        const sideBars = Math.min(32, waveLeftOutputAnalyser?.frequencyBinCount || 32);
         const centerX = width * 0.5;
         const centerY = height * 0.5;
         const maxBarHeight = height * 0.43;
-        const stepX = (width * 0.92) / Math.max(1, bars);
+        const sideWidth = width * 0.46;
+        const stepX = sideWidth / Math.max(1, sideBars);
         const barWidth = Math.max(1.5, stepX * 0.72);
 
         if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
-          if (!waveLeftOutputAnalyser._spectrumSmooth || waveLeftOutputAnalyser._spectrumSmooth.length !== bars) {
-            waveLeftOutputAnalyser._spectrumSmooth = new Float32Array(bars);
-            waveRightOutputAnalyser._spectrumSmooth = new Float32Array(bars);
+          if (!waveLeftOutputAnalyser._spectrumSmooth || waveLeftOutputAnalyser._spectrumSmooth.length !== sideBars) {
+            waveLeftOutputAnalyser._spectrumSmooth = new Float32Array(sideBars);
+            waveRightOutputAnalyser._spectrumSmooth = new Float32Array(sideBars);
           }
 
           waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
@@ -528,29 +529,42 @@
           const leftSmooth = waveLeftOutputAnalyser._spectrumSmooth;
           const rightSmooth = waveRightOutputAnalyser._spectrumSmooth;
 
-          for (let i = 0; i < bars; i++) {
-            const beginL = Math.floor(i * waveLeftOutputData.length / bars);
-            const finishL = Math.max(beginL + 1, Math.floor((i + 1) * waveLeftOutputData.length / bars));
-            const beginR = Math.floor(i * waveRightOutputData.length / bars);
-            const finishR = Math.max(beginR + 1, Math.floor((i + 1) * waveRightOutputData.length / bars));
-            let leftTarget = 0;
-            let rightTarget = 0;
+          const getBandLevel = (data, bandIndex) => {
+            const start = Math.floor(Math.pow(bandIndex / sideBars, 1.35) * data.length);
+            const end = Math.min(
+              data.length,
+              Math.max(start + 1, Math.floor(Math.pow((bandIndex + 1) / sideBars, 1.35) * data.length))
+            );
 
-            for (let j = beginL; j < finishL && j < waveLeftOutputData.length; j++) leftTarget = Math.max(leftTarget, waveLeftOutputData[j] / 255);
-            for (let j = beginR; j < finishR && j < waveRightOutputData.length; j++) rightTarget = Math.max(rightTarget, waveRightOutputData[j] / 255);
+            let sum = 0;
+            let count = 0;
+            for (let i = start; i < end; i++) {
+              const value = (data[i] || 0) / 255;
+              sum += value * value;
+              count++;
+            }
+            return count ? Math.sqrt(sum / count) * 1.55 : 0;
+          };
 
-            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.24;
-            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.24;
+          for (let i = 0; i < sideBars; i++) {
+            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i));
+            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i));
 
-            const distanceIndex = Math.floor(i / 2) + 1;
-            const side = i % 2 === 0 ? -1 : 1;
-            const x = centerX + side * distanceIndex * stepX;
-            const level = side < 0 ? leftSmooth[i] : rightSmooth[i];
-            const barHeight = Math.max(1, maxBarHeight * level);
+            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.16;
+            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.16;
 
-            const hue = (distanceIndex / Math.max(1, bars / 2)) * 280 + 120;
+            const distanceIndex = i + 1;
+            const xLeft = centerX - distanceIndex * stepX;
+            const xRight = centerX + distanceIndex * stepX;
+
+            const leftHeight = Math.max(1, maxBarHeight * leftSmooth[i]);
+            const rightHeight = Math.max(1, maxBarHeight * rightSmooth[i]);
+
+            const hue = (i / Math.max(1, sideBars - 1)) * 280 + 120;
             ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
-            ctx.fillRect(x - barWidth * 0.5, centerY - barHeight, barWidth, barHeight);
+
+            ctx.fillRect(xLeft - barWidth * 0.5, centerY - leftHeight, barWidth, leftHeight);
+            ctx.fillRect(xRight - barWidth * 0.5, centerY - rightHeight, barWidth, rightHeight);
           }
         }
 
