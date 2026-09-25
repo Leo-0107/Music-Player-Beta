@@ -82,7 +82,8 @@
     </div>
     <div class="sideBody">
       <div class="menuList" id="mainMenuList">
-        <button class="menuItem" data-section="optionsSection">再生オプション<span>スピード・ピッチ・立体音響</span></button>
+        <button class="menuItem" data-section="optionsSection">再生オプション<span>スピード・ピッチ・クロスフェード・立体音響</span></button>
+        <button class="menuItem" data-section="waveSection">波形表示<span>表示する波形の種類を選択</span></button>
         <button class="menuItem" data-section="playlistSection">プレイリスト<span>管理・再生</span></button>
         <button class="menuItem" data-section="queueSection">再生キュー<span>次に再生する曲</span></button>
         <button class="menuItem" data-section="eqSection">イコライザー<span>音質調整</span></button>
@@ -133,6 +134,19 @@
           <div class="field" style="margin-top:10px;">
             <label>左右パン: <span id="pannerValText">中央</span></label>
             <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="panelSection" id="waveSection">
+        <div class="sectionCard">
+          <div class="sectionTitle">波形の表示方法</div>
+          <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">表示する波形の種類を選択できます。</div>
+          <div class="controls" id="waveModeSettingsBtns">
+            <button class="btn small" data-wave="3d">3D波形</button>
+            <button class="btn small" data-wave="2d">2D波形</button>
+            <button class="btn small" data-wave="a1">案1</button>
+            <button class="btn small" data-wave="a2">案2</button>
           </div>
         </div>
       </div>
@@ -365,6 +379,12 @@
       <button class="settingsCard" data-settings-section="optionsSection">
         <span class="settingsIcon">🎛️</span>
         <span class="settingsCardText"><strong>再生オプション</strong><small>速度・ピッチ・クロスフェード・無音スキップ・立体音響</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="waveSection">
+        <span class="settingsIcon">〰️</span>
+        <span class="settingsCardText"><strong>波形表示</strong><small>3D・2D・案1・案2から表示方法を選択</small></span>
         <span class="settingsArrow">›</span>
       </button>
 

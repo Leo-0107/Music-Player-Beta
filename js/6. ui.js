@@ -332,7 +332,11 @@
         silenceTimer = 0;
       }
 
-      // ボタン2D → 以前の3D表示 / ボタン3D → 以前の2D表示。
+      // 波形表示:
+      // 2d = 現在のスペクトラム表示
+      // a1  = 時間波形（中央基準）
+      // a2  = L/Rを上下に分けた時間波形
+      // 3d  = 現在の3Dスペクトラム表示
       if (state.waveMode === "2d") {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
         const meterGap = 8;
@@ -398,6 +402,79 @@
         };
         drawLevelMeter(0, leftDisplayLevel, "L");
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
+      } else if (state.waveMode === "a1") {
+        if (analyser && typeof waveTimeData !== "undefined" && waveTimeData) {
+          if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
+          else waveTimeData.fill(128);
+
+          const centerY = height * 0.5;
+          const amplitudeScale = height * 0.43;
+
+          ctx.beginPath();
+          for (let i = 0; i < waveTimeData.length; i++) {
+            const x = (i / Math.max(1, waveTimeData.length - 1)) * width;
+            const sample = (waveTimeData[i] - 128) / 128;
+            const y = centerY - sample * amplitudeScale;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = "rgba(95, 214, 255, 0.92)";
+          ctx.lineWidth = 2;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+
+          ctx.strokeStyle = "rgba(255,255,255,0.14)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, centerY);
+          ctx.lineTo(width, centerY);
+          ctx.stroke();
+        }
+      } else if (state.waveMode === "a2") {
+        if (leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
+          if (isPlaying) {
+            leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+            rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+          } else {
+            leftLevelData.fill(128);
+            rightLevelData.fill(128);
+          }
+
+          const drawChannelWave = (data, top, bottom, label) => {
+            const centerY = (top + bottom) * 0.5;
+            const amplitudeScale = (bottom - top) * 0.42;
+
+            ctx.beginPath();
+            for (let i = 0; i < data.length; i++) {
+              const x = (i / Math.max(1, data.length - 1)) * width;
+              const sample = (data[i] - 128) / 128;
+              const y = centerY - sample * amplitudeScale;
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = "rgba(95, 214, 255, 0.92)";
+            ctx.lineWidth = 1.8;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(255,255,255,0.12)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+
+            ctx.fillStyle = "rgba(255,255,255,0.72)";
+            ctx.font = "10px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText(label, 8, Math.max(12, top + 12));
+          };
+
+          drawChannelWave(leftLevelData, 0, height * 0.5, "L");
+          drawChannelWave(rightLevelData, height * 0.5, height, "R");
+        }
       } else {
         const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 3;

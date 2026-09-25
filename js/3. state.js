@@ -197,6 +197,7 @@
     timeAll: document.getElementById("timeAll"),
     wave: document.getElementById("wave"),
     waveModeBtns: document.getElementById("waveModeBtns"),
+    waveModeSettingsBtns: document.getElementById("waveModeSettingsBtns"),
     btnQueueClear: document.getElementById("btnQueueClear"),
     btnQueueShuffle: document.getElementById("btnQueueShuffle"),
     btnEqReset: document.getElementById("btnEqReset"),

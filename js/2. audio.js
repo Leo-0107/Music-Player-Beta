@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 15;
+  const BUILD_REVISION = 16;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -18,6 +18,7 @@
   document.querySelectorAll(".scroll-container").forEach(c => titleObserver.observe(c));
 
   let waveSmoothData = null;
+  let waveTimeData = null;
   let leftDisplayLevel = 0;
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
@@ -86,20 +87,24 @@
   }
 
   function setWaveMode(mode) {
-    state.waveMode = mode === "2d" ? "2d" : "3d";
+    const validModes = ["3d", "2d", "a1", "a2"];
+    state.waveMode = validModes.includes(mode) ? mode : "2d";
     saveState();
-    if (el.waveModeBtns) {
-      el.waveModeBtns.querySelectorAll("button").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.wave === mode);
-      });
-    }
-  }
 
-  if (el.waveModeBtns) {
-    el.waveModeBtns.querySelectorAll("button").forEach(btn => {
-      btn.addEventListener("click", () => setWaveMode(btn.dataset.wave));
+    [el.waveModeBtns, el.waveModeSettingsBtns].forEach(group => {
+      if (!group) return;
+      group.querySelectorAll("button").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.wave === state.waveMode);
+      });
     });
   }
+
+  [el.waveModeBtns, el.waveModeSettingsBtns].forEach(group => {
+    if (!group) return;
+    group.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => setWaveMode(btn.dataset.wave));
+    });
+  });
 
   function requestWaveVisualDecay() {
     waveDecayActive = true;
@@ -280,6 +285,7 @@
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
+      waveTimeData = new Uint8Array(analyser.fftSize);
 
       sourceNode.connect(filters[0]);
       for(let i=0; i<filters.length-1; i++) filters[i].connect(filters[i+1]);
