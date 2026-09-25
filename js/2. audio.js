@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 26;
+  const BUILD_REVISION = 27;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -289,8 +289,8 @@
       waveRightOutputAnalyser.fftSize = 128;
       leftLevelData = new Uint8Array(leftLevelAnalyser.fftSize);
       rightLevelData = new Uint8Array(rightLevelAnalyser.fftSize);
-      waveLeftOutputData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
-      waveRightOutputData = new Uint8Array(waveRightOutputAnalyser.fftSize);
+      waveLeftOutputData = new Uint8Array(waveLeftOutputAnalyser.frequencyBinCount);
+      waveRightOutputData = new Uint8Array(waveRightOutputAnalyser.frequencyBinCount);
 
       masterGain = audioCtx.createGain();
       masterGain.gain.value = currentVolumeTarget;
@@ -326,6 +326,11 @@
 
       spatialDirectGainNode = audioCtx.createGain();
       spatial3DGainNode = audioCtx.createGain();
+      [spatialDirectGainNode, spatial3DGainNode].forEach(node => {
+        node.channelCountMode = "explicit";
+        node.channelCount = 2;
+        node.channelInterpretation = "speakers";
+      });
       spatialSourceNode.connect(spatialDirectGainNode);
       if (panner3DNode && panner3DInputGainNode) {
         spatialSourceNode.connect(panner3DInputGainNode);
