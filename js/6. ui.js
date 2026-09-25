@@ -464,13 +464,13 @@
             waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputData);
             waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputData);
             for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * 0.16;
-              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * 0.16;
+              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * 0.13;
+              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * 0.13;
             }
           } else {
             for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (128 - leftDisplay[i]) * 0.16;
-              rightDisplay[i] += (128 - rightDisplay[i]) * 0.16;
+              leftDisplay[i] += (128 - leftDisplay[i]) * 0.13;
+              rightDisplay[i] += (128 - rightDisplay[i]) * 0.13;
             }
           }
 
@@ -536,35 +536,37 @@
               Math.max(start + 1, Math.floor(Math.pow((bandIndex + 1) / sideBars, 1.35) * data.length))
             );
 
-            let sum = 0;
-            let count = 0;
+            let level = 0;
             for (let i = start; i < end; i++) {
-              const value = (data[i] || 0) / 255;
-              sum += value * value;
-              count++;
+              level = Math.max(level, (data[i] || 0) / 255);
             }
-            return count ? Math.sqrt(sum / count) * 1.55 : 0;
+            return level;
           };
 
           for (let i = 0; i < sideBars; i++) {
+            // 2Dと同じく各帯域の現在値を0から表示し、前回の2倍感度は維持する。
             const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i) * 2);
             const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i) * 2);
 
-            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.16;
-            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.16;
+            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.13;
+            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.13;
 
             const distanceIndex = i + 1;
             const xLeft = centerX - distanceIndex * stepX;
             const xRight = centerX + distanceIndex * stepX;
 
-            const leftHeight = Math.max(1, maxBarHeight * leftSmooth[i]);
-            const rightHeight = Math.max(1, maxBarHeight * rightSmooth[i]);
+            const leftHeight = maxBarHeight * leftSmooth[i];
+            const rightHeight = maxBarHeight * rightSmooth[i];
 
             const hue = (i / Math.max(1, sideBars - 1)) * 280 + 120;
             ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
 
-            ctx.fillRect(xLeft - barWidth * 0.5, centerY - leftHeight, barWidth, leftHeight);
-            ctx.fillRect(xRight - barWidth * 0.5, centerY - rightHeight, barWidth, rightHeight);
+            if (leftHeight > 0.5) {
+              ctx.fillRect(xLeft - barWidth * 0.5, centerY - leftHeight, barWidth, leftHeight);
+            }
+            if (rightHeight > 0.5) {
+              ctx.fillRect(xRight - barWidth * 0.5, centerY - rightHeight, barWidth, rightHeight);
+            }
           }
         }
 
@@ -599,7 +601,7 @@
           waveBandBaseline[i] += (level - waveBandBaseline[i]) * baselineFollow;
 
           const change = Math.abs(level - previous);
-          const displayLevel = Math.min(1, Math.sqrt(change) * 3.8);
+          const displayLevel = Math.min(1, Math.sqrt(change) * 2.6);
           const barHeight = Math.max(1, height * displayLevel);
           const x = waveLeft + i * (waveWidth / bars);
           const y = height - barHeight;
@@ -617,7 +619,7 @@
         ctx.stroke();
       } else {
         const SAMPLE_INTERVAL = 0.04;
-        const HISTORY_SECONDS = 3.5;
+        const HISTORY_SECONDS = 5.5;
         const BANDS_3D = 72;
         const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
 
@@ -711,14 +713,14 @@
               return bands;
             })()
           : null;
-        const timeLeft = width * 0.015;
-        const timeRight = width * 0.985;
+        const timeLeft = width * 0.01;
+        const timeRight = width * 1.10;
         const baseY = height * 0.97;
         const maxHeight = height * 0.78;
-        const freqDepth = width * 0.46;
+        const freqDepth = width * 0.54;
         const freqTilt = height * 0.74;
-        const timeDepth = width * 0.34;
-        const timeLift = height * 0.38;
+        const timeDepth = width * 0.40;
+        const timeLift = height * 0.40;
 
         if (rows.length) {
           const currentAudioTime = Number(audio.currentTime) || 0;
