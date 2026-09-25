@@ -511,19 +511,20 @@ input[type="range"] {
 
 .sidebar.settingsBottomSheet {
   top: auto;
-  left: 50%;
-  right: auto;
+  left: 0;
+  right: 0;
   bottom: 0;
-  width: min(760px, 100vw);
-  height: min(88vh, 900px);
+  width: 100vw;
+  height: min(96vh, 1000px);
   max-height: calc(100vh - 48px);
   border-radius: 24px 24px 0 0;
-  transform: translate(-50%, 100%);
-  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.28);
+  transform: translateY(100%);
+  transition: transform 0.26s cubic-bezier(.1,.9,.2,1);
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.32);
 }
 
 .sidebar.settingsBottomSheet.open {
-  transform: translate(-50%, 0);
+  transform: translateY(0);
 }
 
 .sidebar.settingsBottomSheet .sideBody {
@@ -1330,4 +1331,14 @@ body.theme-light .waveWrap {
 }
 @media (max-width: 420px) {
   .settingsToolRow { grid-template-columns: 1fr; }
+}
+
+
+#playHistoryChart {
+  display: block;
+  width: 100%;
+  height: auto !important;
+  aspect-ratio: 2.2 / 1;
+  min-height: 150px;
+  max-height: 240px;
 }

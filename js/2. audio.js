@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 19;
+  const BUILD_REVISION = 20;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -19,7 +19,9 @@
 
   let waveSmoothData = null;
   let waveTimeData = null;
+  let waveTimeTargetData = null;
   const WAVE_TIME_UPDATE_INTERVAL = 0.1;
+  const WAVE_TIME_SMOOTHING = 0.24;
   let waveTimeDisplayElapsed = 0;
   let waveBandBaseline = null;
   let leftDisplayLevel = 0;
@@ -270,10 +272,17 @@
       outputSplitter = audioCtx.createChannelSplitter(2);
       leftLevelAnalyser = audioCtx.createAnalyser();
       rightLevelAnalyser = audioCtx.createAnalyser();
+      waveOutputSplitter = audioCtx.createChannelSplitter(2);
+      waveLeftOutputAnalyser = audioCtx.createAnalyser();
+      waveRightOutputAnalyser = audioCtx.createAnalyser();
       leftLevelAnalyser.fftSize = 128;
       rightLevelAnalyser.fftSize = 128;
+      waveLeftOutputAnalyser.fftSize = 128;
+      waveRightOutputAnalyser.fftSize = 128;
       leftLevelData = new Uint8Array(leftLevelAnalyser.fftSize);
       rightLevelData = new Uint8Array(rightLevelAnalyser.fftSize);
+      waveLeftOutputData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
+      waveRightOutputData = new Uint8Array(waveRightOutputAnalyser.fftSize);
 
       masterGain = audioCtx.createGain();
       masterGain.gain.value = currentVolumeTarget;
@@ -282,6 +291,8 @@
       // マイクモニターはプレイヤー音声の最終ミックスへ入れ、マイク音量だけ別調整する
       micGainNode = audioCtx.createGain();
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
+      finalMixGainNode = audioCtx.createGain();
+      finalMixGainNode.gain.value = 1;
 
       // --- DynamicsCompressorNode (リミッター) 挿入 ---
       limiterNode = audioCtx.createDynamicsCompressor();
@@ -325,10 +336,11 @@
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
       channelMerger.connect(masterGain);
-      micGainNode.connect(masterGain);
+      masterGain.connect(finalMixGainNode);
+      micGainNode.connect(finalMixGainNode);
 
-      // マスター音量後のL/Rを個別に測定して2D波形へ表示
-      masterGain.connect(outputSplitter);
+      // 最終ミックス後の信号を測定し、実際に出力デバイスへ送る信号を波形の基準にする。
+      finalMixGainNode.connect(outputSplitter);
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
 
@@ -336,9 +348,14 @@
         outputSplitter.connect(limiterNode, 0, 0);
         outputSplitter.connect(limiterNode, 1, 1);
         limiterNode.connect(analyser);
+        limiterNode.connect(waveOutputSplitter);
       } else {
-        masterGain.connect(analyser);
+        outputSplitter.connect(analyser);
+        outputSplitter.connect(waveOutputSplitter);
       }
+
+      waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
+      waveOutputSplitter.connect(waveRightOutputAnalyser, 1);
       analyser.connect(audioCtx.destination);
 
       audioGraphReady = true;
@@ -412,15 +429,19 @@
     saveState();
     if (audioCtx && masterGain && analyser && limiterNode) {
       try {
-        masterGain.disconnect();
-        limiterNode.disconnect();
         try { outputSplitter?.disconnect(limiterNode); } catch (e) {}
+        try { outputSplitter?.disconnect(analyser); } catch (e) {}
+        try { limiterNode?.disconnect(analyser); } catch (e) {}
+        try { limiterNode?.disconnect(waveOutputSplitter); } catch (e) {}
+        try { outputSplitter?.disconnect(waveOutputSplitter); } catch (e) {}
         if (state.clippingProtection) {
           outputSplitter.connect(limiterNode, 0, 0);
           outputSplitter.connect(limiterNode, 1, 1);
           limiterNode.connect(analyser);
+          limiterNode.connect(waveOutputSplitter);
         } else {
-          masterGain.connect(analyser);
+          outputSplitter.connect(analyser);
+          outputSplitter.connect(waveOutputSplitter);
         }
       } catch (e) {}
     }
@@ -500,9 +521,11 @@
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
+          deviceId: { ideal: "default" },
+          echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false
+          autoGainControl: false,
+          channelCount: { ideal: 2 }
         }
       });
 
@@ -518,6 +541,7 @@
       micSourceNode = audioCtx.createMediaStreamSource(stream);
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
       micSourceNode.connect(micGainNode);
+      toast("マイクモニターを開始しました");
 
       const track = stream.getAudioTracks()[0];
       if (track) {
@@ -536,10 +560,12 @@
       updateMicMonitorUI();
 
       const message = e?.name === "NotAllowedError"
-        ? "マイクの使用が許可されていません"
+        ? "マイクの使用が許可されていません。サイトのマイク権限も確認してください"
         : e?.name === "NotFoundError"
           ? "使用できるマイクが見つかりません"
-          : "マイクを開始できませんでした";
+          : e?.name === "NotReadableError"
+            ? "マイクは見つかりましたが、別のアプリで使用中などの理由で読み取れません"
+            : "マイクを開始できませんでした";
       toast(message);
     }
   }

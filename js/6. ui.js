@@ -408,13 +408,20 @@
         drawLevelMeter(0, leftDisplayLevel, "L");
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
       } else if (state.waveMode === "a1") {
-        if (analyser && typeof waveTimeData !== "undefined" && waveTimeData) {
-          waveTimeDisplayElapsed += dt;
-          if (isPlaying && waveTimeDisplayElapsed >= WAVE_TIME_UPDATE_INTERVAL) {
-            waveTimeDisplayElapsed %= WAVE_TIME_UPDATE_INTERVAL;
-            analyser.getByteTimeDomainData(waveTimeData);
-          } else if (!isPlaying) {
-            waveTimeData.fill(128);
+        if (analyser && waveTimeData) {
+          if (!waveTimeTargetData || waveTimeTargetData.length !== waveTimeData.length) {
+            waveTimeTargetData = new Uint8Array(waveTimeData.length);
+            waveTimeTargetData.fill(128);
+          }
+          if (isPlaying) {
+            analyser.getByteTimeDomainData(waveTimeTargetData);
+            for (let i = 0; i < waveTimeData.length; i++) {
+              waveTimeData[i] += (waveTimeTargetData[i] - waveTimeData[i]) * WAVE_TIME_SMOOTHING;
+            }
+          } else {
+            for (let i = 0; i < waveTimeData.length; i++) {
+              waveTimeData[i] += (128 - waveTimeData[i]) * WAVE_TIME_SMOOTHING;
+            }
           }
 
           const centerY = height * 0.5;
@@ -442,15 +449,29 @@
           ctx.stroke();
         }
       } else if (state.waveMode === "a2") {
-        if (leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
-          waveTimeDisplayElapsed += dt;
-          if (isPlaying && waveTimeDisplayElapsed >= WAVE_TIME_UPDATE_INTERVAL) {
-            waveTimeDisplayElapsed %= WAVE_TIME_UPDATE_INTERVAL;
-            leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-            rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-          } else if (!isPlaying) {
-            leftLevelData.fill(128);
-            rightLevelData.fill(128);
+        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
+          if (!waveLeftOutputAnalyser._displayData || waveLeftOutputAnalyser._displayData.length !== waveLeftOutputAnalyser.fftSize) {
+            waveLeftOutputAnalyser._displayData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
+            waveRightOutputAnalyser._displayData = new Uint8Array(waveRightOutputAnalyser.fftSize);
+            waveLeftOutputAnalyser._displayData.fill(128);
+            waveRightOutputAnalyser._displayData.fill(128);
+          }
+
+          const leftDisplay = waveLeftOutputAnalyser._displayData;
+          const rightDisplay = waveRightOutputAnalyser._displayData;
+
+          if (isPlaying) {
+            waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputData);
+            waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputData);
+            for (let i = 0; i < leftDisplay.length; i++) {
+              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * WAVE_TIME_SMOOTHING;
+              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * WAVE_TIME_SMOOTHING;
+            }
+          } else {
+            for (let i = 0; i < leftDisplay.length; i++) {
+              leftDisplay[i] += (128 - leftDisplay[i]) * WAVE_TIME_SMOOTHING;
+              rightDisplay[i] += (128 - rightDisplay[i]) * WAVE_TIME_SMOOTHING;
+            }
           }
 
           const drawChannelWave = (data, top, bottom, label) => {
@@ -488,30 +509,50 @@
           drawChannelWave(rightLevelData, height * 0.5, height, "R");
         }
       } else if (state.waveMode === "a3") {
-        const bars = Math.min(72, dataLen);
+        const bars = Math.min(64, waveLeftOutputData?.length || 64);
         const centerX = width * 0.5;
         const centerY = height * 0.5;
         const maxBarHeight = height * 0.43;
         const stepX = (width * 0.92) / Math.max(1, bars);
         const barWidth = Math.max(1.5, stepX * 0.72);
 
-        for (let i = 0; i < bars; i++) {
-          const begin = Math.floor(i * (dataLen / bars));
-          const finish = Math.max(begin + 1, Math.floor((i + 1) * (dataLen / bars)));
-          let level = 0;
-          for (let j = begin; j < finish && j < dataLen; j++) {
-            level = Math.max(level, waveSmoothData[j]);
+        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
+          if (!waveLeftOutputAnalyser._spectrumSmooth || waveLeftOutputAnalyser._spectrumSmooth.length !== bars) {
+            waveLeftOutputAnalyser._spectrumSmooth = new Float32Array(bars);
+            waveRightOutputAnalyser._spectrumSmooth = new Float32Array(bars);
           }
 
-          const distanceIndex = i % 2 === 0 ? i / 2 : (i + 1) / 2;
-          const side = i % 2 === 0 ? -1 : 1;
-          const x = centerX + side * distanceIndex * stepX;
-          const barHeight = Math.max(1, maxBarHeight * level);
+          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
 
-          const hue = (distanceIndex / Math.max(1, bars / 2)) * 280 + 120;
-          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
-          ctx.fillRect(x - barWidth * 0.5, centerY - barHeight, barWidth, barHeight);
-          ctx.fillRect(x - barWidth * 0.5, centerY, barWidth, barHeight);
+          const leftSmooth = waveLeftOutputAnalyser._spectrumSmooth;
+          const rightSmooth = waveRightOutputAnalyser._spectrumSmooth;
+
+          for (let i = 0; i < bars; i++) {
+            const beginL = Math.floor(i * waveLeftOutputData.length / bars);
+            const finishL = Math.max(beginL + 1, Math.floor((i + 1) * waveLeftOutputData.length / bars));
+            const beginR = Math.floor(i * waveRightOutputData.length / bars);
+            const finishR = Math.max(beginR + 1, Math.floor((i + 1) * waveRightOutputData.length / bars));
+            let leftTarget = 0;
+            let rightTarget = 0;
+
+            for (let j = beginL; j < finishL && j < waveLeftOutputData.length; j++) leftTarget = Math.max(leftTarget, waveLeftOutputData[j] / 255);
+            for (let j = beginR; j < finishR && j < waveRightOutputData.length; j++) rightTarget = Math.max(rightTarget, waveRightOutputData[j] / 255);
+
+            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.24;
+            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.24;
+
+            const distanceIndex = Math.floor(i / 2) + 1;
+            const side = i % 2 === 0 ? -1 : 1;
+            const x = centerX + side * distanceIndex * stepX;
+            const level = side < 0 ? leftSmooth[i] : rightSmooth[i];
+            const barHeight = Math.max(1, maxBarHeight * level);
+
+            const hue = (distanceIndex / Math.max(1, bars / 2)) * 280 + 120;
+            ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
+            ctx.fillRect(x - barWidth * 0.5, centerY - barHeight, barWidth, barHeight);
+            ctx.fillRect(x - barWidth * 0.5, centerY, barWidth, barHeight);
+          }
         }
 
         ctx.strokeStyle = "rgba(255,255,255,0.14)";
@@ -563,7 +604,7 @@
         ctx.stroke();
       } else {
         const SAMPLE_INTERVAL = 0.04;
-        const HISTORY_SECONDS = 3;
+        const HISTORY_SECONDS = 3.5;
         const BANDS_3D = 72;
         const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
 
@@ -657,14 +698,14 @@
               return bands;
             })()
           : null;
-        const timeLeft = width * 0.08;
-        const timeRight = width * 0.92;
-        const baseY = height * 0.91;
-        const maxHeight = height * 0.68;
-        const freqDepth = width * 0.25;
-        const freqTilt = height * 0.58;
-        const timeDepth = width * 0.20;
-        const timeLift = height * 0.27;
+        const timeLeft = width * 0.015;
+        const timeRight = width * 0.985;
+        const baseY = height * 0.97;
+        const maxHeight = height * 0.78;
+        const freqDepth = width * 0.46;
+        const freqTilt = height * 0.74;
+        const timeDepth = width * 0.34;
+        const timeLift = height * 0.38;
 
         if (rows.length) {
           const currentAudioTime = Number(audio.currentTime) || 0;
@@ -849,6 +890,12 @@
     settingsResetFiles.addEventListener("click", () => {
       const sourceBtn = document.getElementById("btnResetFiles");
       if (sourceBtn) sourceBtn.click();
+    });
+  }
+
+  if (el.btnSettingsResetSettings) {
+    el.btnSettingsResetSettings.addEventListener("click", () => {
+      if (el.btnResetSettings) el.btnResetSettings.click();
     });
   }
 

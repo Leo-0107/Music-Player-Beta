@@ -76,6 +76,9 @@
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
   let spatialDirectGainNode = null, spatial3DGainNode = null;
   let micGainNode = null, micSourceNode = null, micStream = null;
+  let finalMixGainNode = null;
+  let waveOutputSplitter = null, waveLeftOutputAnalyser = null, waveRightOutputAnalyser = null;
+  let waveLeftOutputData = null, waveRightOutputData = null;
   let micMonitorRequestId = 0;
   let outputSplitter = null, leftLevelAnalyser = null, rightLevelAnalyser = null;
   let leftLevelData = null, rightLevelData = null;
@@ -229,6 +232,7 @@
     btnMicMonitor: document.getElementById("btnMicMonitor"),
     micMonitorVolume: document.getElementById("micMonitorVolume"),
     micMonitorVolumeText: document.getElementById("micMonitorVolumeText"),
+    btnSettingsResetSettings: document.getElementById("btnSettingsResetSettings"),
     outputDeviceName: document.getElementById("outputDeviceName"),
     channelLeft: document.getElementById("channelLeft"),
     channelRight: document.getElementById("channelRight"),

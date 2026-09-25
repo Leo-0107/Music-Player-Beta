@@ -1500,11 +1500,11 @@
     if(!el.playHistoryChart) return;
     const ctx = el.playHistoryChart.getContext("2d");
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const w = el.playHistoryChart.clientWidth || 300;
-    const h = 180;
-    el.playHistoryChart.width = w * dpr;
-    el.playHistoryChart.height = h * dpr;
-    ctx.scale(dpr, dpr);
+    const w = Math.max(240, el.playHistoryChart.clientWidth || 300);
+    const h = Math.max(150, Math.min(240, w / 2.2));
+    el.playHistoryChart.width = Math.round(w * dpr);
+    el.playHistoryChart.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
     const dates = [];
