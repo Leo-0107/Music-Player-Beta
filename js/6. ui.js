@@ -336,6 +336,8 @@
       // 2d = 現在のスペクトラム表示
       // a1  = 時間波形（中央基準）
       // a2  = L/Rを上下に分けた時間波形
+      // a3  = 中央から左右へ広がる対称スペクトラム
+      // a4  = 各帯域の変化量を強調するスペクトラム
       // 3d  = 現在の3Dスペクトラム表示
       if (state.waveMode === "2d") {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
@@ -475,6 +477,80 @@
           drawChannelWave(leftLevelData, 0, height * 0.5, "L");
           drawChannelWave(rightLevelData, height * 0.5, height, "R");
         }
+      } else if (state.waveMode === "a3") {
+        const bars = Math.min(72, dataLen);
+        const centerX = width * 0.5;
+        const centerY = height * 0.5;
+        const maxBarHeight = height * 0.43;
+        const stepX = (width * 0.92) / Math.max(1, bars);
+        const barWidth = Math.max(1.5, stepX * 0.72);
+
+        for (let i = 0; i < bars; i++) {
+          const begin = Math.floor(i * (dataLen / bars));
+          const finish = Math.max(begin + 1, Math.floor((i + 1) * (dataLen / bars)));
+          let level = 0;
+          for (let j = begin; j < finish && j < dataLen; j++) {
+            level = Math.max(level, waveSmoothData[j]);
+          }
+
+          const distanceIndex = i % 2 === 0 ? i / 2 : (i + 1) / 2;
+          const side = i % 2 === 0 ? -1 : 1;
+          const x = centerX + side * distanceIndex * stepX;
+          const barHeight = Math.max(1, maxBarHeight * level);
+
+          const hue = (distanceIndex / Math.max(1, bars / 2)) * 280 + 120;
+          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
+          ctx.fillRect(x - barWidth * 0.5, centerY - barHeight, barWidth, barHeight);
+          ctx.fillRect(x - barWidth * 0.5, centerY, barWidth, barHeight);
+        }
+
+        ctx.strokeStyle = "rgba(255,255,255,0.14)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+      } else if (state.waveMode === "a4") {
+        const bars = Math.min(72, dataLen);
+        const step = dataLen / bars;
+        const barGap = 2;
+        const waveLeft = width * 0.04;
+        const waveWidth = width * 0.92;
+        const barWidth = Math.max(1, waveWidth / bars - barGap);
+
+        if (!waveBandBaseline || waveBandBaseline.length !== bars) {
+          waveBandBaseline = new Float32Array(bars);
+        }
+
+        for (let i = 0; i < bars; i++) {
+          const begin = Math.floor(i * step);
+          const finish = Math.max(begin + 1, Math.floor((i + 1) * step));
+          let level = 0;
+          for (let j = begin; j < finish && j < dataLen; j++) {
+            level = Math.max(level, waveSmoothData[j]);
+          }
+
+          const previous = waveBandBaseline[i];
+          const baselineFollow = isPlaying ? 0.018 : 0.08;
+          waveBandBaseline[i] += (level - waveBandBaseline[i]) * baselineFollow;
+
+          const change = Math.abs(level - previous);
+          const displayLevel = Math.min(1, Math.sqrt(change) * 3.8);
+          const barHeight = Math.max(1, height * displayLevel);
+          const x = waveLeft + i * (waveWidth / bars);
+          const y = height - barHeight;
+          const hue = (i / Math.max(1, bars - 1)) * 280 + 120;
+
+          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
+          ctx.fillRect(x, y, barWidth, barHeight);
+        }
+
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(waveLeft, height - 1);
+        ctx.lineTo(waveLeft + waveWidth, height - 1);
+        ctx.stroke();
       } else {
         const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 3;

@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 16;
+  const BUILD_REVISION = 17;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -19,6 +19,7 @@
 
   let waveSmoothData = null;
   let waveTimeData = null;
+  let waveBandBaseline = null;
   let leftDisplayLevel = 0;
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
@@ -87,7 +88,7 @@
   }
 
   function setWaveMode(mode) {
-    const validModes = ["3d", "2d", "a1", "a2"];
+    const validModes = ["3d", "2d", "a1", "a2", "a3", "a4"];
     state.waveMode = validModes.includes(mode) ? mode : "2d";
     saveState();
 
