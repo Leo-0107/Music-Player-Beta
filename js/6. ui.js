@@ -25,17 +25,20 @@
       drawWave._wave3DLastSampleTime = -1;
     }
     lastFrameTime = performance.now();
+    waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
+    if (typeof drawWave === "function") drawWave._wave3DPauseFade = 1;
     startWaveAnimation();
   });
 
   audio.addEventListener("pause", () => {
     updatePlayPauseUI();
     if (typeof drawWave === "function" && drawWave._wave3DHistory) {
-      drawWave._wave3DHistory = [];
       drawWave._wave3DSampleElapsed = 0;
-      drawWave._wave3DLastAudioTime = -1;
+      drawWave._wave3DLastAudioTime = Number(audio.currentTime) || 0;
       drawWave._wave3DLastSampleTime = -1;
+      drawWave._wave3DPauseFade = 1;
     }
+    waveTimeDisplayElapsed = 0;
     requestWaveVisualDecay?.();
   });
 
@@ -406,8 +409,13 @@
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
       } else if (state.waveMode === "a1") {
         if (analyser && typeof waveTimeData !== "undefined" && waveTimeData) {
-          if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
-          else waveTimeData.fill(128);
+          waveTimeDisplayElapsed += dt;
+          if (isPlaying && waveTimeDisplayElapsed >= WAVE_TIME_UPDATE_INTERVAL) {
+            waveTimeDisplayElapsed %= WAVE_TIME_UPDATE_INTERVAL;
+            analyser.getByteTimeDomainData(waveTimeData);
+          } else if (!isPlaying) {
+            waveTimeData.fill(128);
+          }
 
           const centerY = height * 0.5;
           const amplitudeScale = height * 0.43;
@@ -435,10 +443,12 @@
         }
       } else if (state.waveMode === "a2") {
         if (leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
-          if (isPlaying) {
+          waveTimeDisplayElapsed += dt;
+          if (isPlaying && waveTimeDisplayElapsed >= WAVE_TIME_UPDATE_INTERVAL) {
+            waveTimeDisplayElapsed %= WAVE_TIME_UPDATE_INTERVAL;
             leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
             rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-          } else {
+          } else if (!isPlaying) {
             leftLevelData.fill(128);
             rightLevelData.fill(128);
           }
@@ -562,6 +572,7 @@
           drawWave._wave3DSampleElapsed = 0;
           drawWave._wave3DLastAudioTime = -1;
           drawWave._wave3DLastSampleTime = -1;
+          drawWave._wave3DPauseFade = 1;
           drawWave._wave3DTrackKey = null;
           drawWave._wave3DMode = state.waveMode;
         }
@@ -644,7 +655,12 @@
             const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
             const timeX = timeLeft + age * (timeRight - timeLeft);
             const timeY = baseY - age * timeLift;
-            const fade = 0.18 + 0.82 * (1 - age);
+            const pauseFade = isPlaying
+              ? 1
+              : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
+            if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
+
+            const fade = (0.18 + 0.82 * (1 - age)) * pauseFade;
             const hue = 180 + (1 - age) * 100;
 
             ctx.beginPath();
@@ -669,6 +685,23 @@
             ctx.stroke();
           }
 
+          ctx.globalAlpha = 1;
+
+          if (!isPlaying) {
+            const pauseFade = Math.max(0, drawWave._wave3DPauseFade ?? 0);
+            const restAlpha = 0.18 + 0.62 * (1 - pauseFade);
+            ctx.strokeStyle = "rgba(95, 214, 255, 1)";
+            ctx.globalAlpha = restAlpha;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(timeLeft, baseY);
+            ctx.lineTo(timeRight, baseY);
+            ctx.stroke();
+
+            if (pauseFade <= 0) {
+              waveDecayActive = false;
+            }
+          }
           ctx.globalAlpha = 1;
         }
       }

@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 17;
+  const BUILD_REVISION = 18;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -19,6 +19,8 @@
 
   let waveSmoothData = null;
   let waveTimeData = null;
+  const WAVE_TIME_UPDATE_INTERVAL = 0.1;
+  let waveTimeDisplayElapsed = 0;
   let waveBandBaseline = null;
   let leftDisplayLevel = 0;
   let rightDisplayLevel = 0;
@@ -91,6 +93,7 @@
     const validModes = ["3d", "2d", "a1", "a2", "a3", "a4"];
     state.waveMode = validModes.includes(mode) ? mode : "2d";
     saveState();
+    waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
 
     [el.waveModeBtns, el.waveModeSettingsBtns].forEach(group => {
       if (!group) return;
