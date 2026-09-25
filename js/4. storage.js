@@ -20,6 +20,7 @@
     clippingProtection: "mp_clipping_v12",
     channelLeft: "mp_channel_left_v13",
     channelRight: "mp_channel_right_v13",
+    micMonitorVolume: "mp_mic_monitor_volume_v1",
     playlistSettings: "mp_playlist_settings_v12",
     lastSong: "mp_last_song_v12"
   };

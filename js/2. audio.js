@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 18;
+  const BUILD_REVISION = 19;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -86,6 +86,7 @@
     localStorage.setItem(STORAGE.clippingProtection, String(state.clippingProtection));
     localStorage.setItem(STORAGE.channelLeft, String(currentLeftVolumeTarget));
     localStorage.setItem(STORAGE.channelRight, String(currentRightVolumeTarget));
+    localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
     localStorage.setItem(STORAGE.playlistSettings, JSON.stringify(state.playlistSettings || {}));
   }
 
@@ -278,6 +279,10 @@
       masterGain.gain.value = currentVolumeTarget;
       audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
+      // マイクモニターはプレイヤー音声の最終ミックスへ入れ、マイク音量だけ別調整する
+      micGainNode = audioCtx.createGain();
+      micGainNode.gain.value = currentMicMonitorVolumeTarget;
+
       // --- DynamicsCompressorNode (リミッター) 挿入 ---
       limiterNode = audioCtx.createDynamicsCompressor();
       limiterNode.threshold.setValueAtTime(-0.5, audioCtx.currentTime);
@@ -320,6 +325,7 @@
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
       channelMerger.connect(masterGain);
+      micGainNode.connect(masterGain);
 
       // マスター音量後のL/Rを個別に測定して2D波形へ表示
       masterGain.connect(outputSplitter);
@@ -429,6 +435,128 @@
     el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
     el.btnClippingProtection.classList.toggle("active", state.clippingProtection);
   }
+
+  function updateMicMonitorUI() {
+    if (el.btnMicMonitor) {
+      el.btnMicMonitor.textContent = `マイクモニター: ${state.micMonitor ? "ON" : "OFF"}`;
+      el.btnMicMonitor.classList.toggle("active", state.micMonitor);
+    }
+    if (el.micMonitorVolume) el.micMonitorVolume.value = currentMicMonitorVolumeTarget;
+    if (el.micMonitorVolumeText) {
+      el.micMonitorVolumeText.textContent = `${Math.round(currentMicMonitorVolumeTarget * 100)}%`;
+    }
+  }
+
+  function stopMicMonitor() {
+    if (micSourceNode) {
+      try { micSourceNode.disconnect(); } catch (e) {}
+      micSourceNode = null;
+    }
+    if (micStream) {
+      micStream.getTracks().forEach(track => {
+        try { track.stop(); } catch (e) {}
+      });
+      micStream = null;
+    }
+  }
+
+  function updateMicMonitorVolumeUI(value) {
+    const n = Number(value);
+    currentMicMonitorVolumeTarget = Math.max(0, Math.min(2, Number.isFinite(n) ? n : 1));
+    state.micMonitorVolume = currentMicMonitorVolumeTarget;
+    if (micGainNode) {
+      micGainNode.gain.setTargetAtTime(
+        currentMicMonitorVolumeTarget,
+        audioCtx ? audioCtx.currentTime : 0,
+        0.045
+      );
+    }
+    updateMicMonitorUI();
+    saveState();
+  }
+
+  async function setMicMonitorEnabled(enabled) {
+    state.micMonitor = !!enabled;
+    const requestId = ++micMonitorRequestId;
+    updateMicMonitorUI();
+
+    if (!state.micMonitor) {
+      stopMicMonitor();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      state.micMonitor = false;
+      updateMicMonitorUI();
+      toast("このブラウザではマイク入力を利用できません");
+      return;
+    }
+
+    ensureGraph();
+    if (audioCtx && audioCtx.state === "suspended") {
+      try { await audioCtx.resume(); } catch {}
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      if (requestId !== micMonitorRequestId || !state.micMonitor) {
+        stream.getTracks().forEach(track => {
+          try { track.stop(); } catch (e) {}
+        });
+        return;
+      }
+
+      stopMicMonitor();
+      micStream = stream;
+      micSourceNode = audioCtx.createMediaStreamSource(stream);
+      micGainNode.gain.value = currentMicMonitorVolumeTarget;
+      micSourceNode.connect(micGainNode);
+
+      const track = stream.getAudioTracks()[0];
+      if (track) {
+        track.addEventListener("ended", () => {
+          if (micStream !== stream) return;
+          stopMicMonitor();
+          state.micMonitor = false;
+          updateMicMonitorUI();
+          toast("マイクが切断されたため、マイクモニターをOFFにしました");
+        });
+      }
+    } catch (e) {
+      if (requestId !== micMonitorRequestId) return;
+      state.micMonitor = false;
+      stopMicMonitor();
+      updateMicMonitorUI();
+
+      const message = e?.name === "NotAllowedError"
+        ? "マイクの使用が許可されていません"
+        : e?.name === "NotFoundError"
+          ? "使用できるマイクが見つかりません"
+          : "マイクを開始できませんでした";
+      toast(message);
+    }
+  }
+
+  if (el.btnMicMonitor) {
+    el.btnMicMonitor.addEventListener("click", () => {
+      setMicMonitorEnabled(!state.micMonitor);
+    });
+  }
+
+  if (el.micMonitorVolume) {
+    el.micMonitorVolume.value = currentMicMonitorVolumeTarget;
+    el.micMonitorVolume.addEventListener("input", e => {
+      updateMicMonitorVolumeUI(e.target.value);
+    });
+  }
+  updateMicMonitorUI();
 
   async function resumeAudioCtx(){
     ensureGraph();
@@ -871,6 +999,7 @@
             STORAGE.clippingProtection,
             STORAGE.channelLeft,
             STORAGE.channelRight,
+            STORAGE.micMonitorVolume,
             STORAGE.playlistSettings,
             STORAGE.lastSong,
             STORAGE.lastPosition

@@ -120,6 +120,14 @@
           <button class="btn small" id="btnCrossfade" style="width:100%; margin-bottom:8px;">クロスフェード: ON</button>
           <button class="btn small" id="btnSilenceSkip" style="width:100%;">無音スキップ: ON</button>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
+          <button class="btn small" id="btnMicMonitor" style="width:100%; margin-top:10px;">マイクモニター: OFF</button>
+          <div class="field" style="margin-top:10px;">
+            <label>マイク音量: <span id="micMonitorVolumeText">100%</span></label>
+            <input type="range" id="micMonitorVolume" min="0" max="2" step="0.01" value="1">
+          </div>
+          <div style="font-size:.82rem; color:var(--muted); margin-top:8px;">
+            ONにすると既定のマイクをリアルタイムでスピーカーへ出力します。ヘッドホンでの使用を推奨します。
+          </div>
         </div>
         <div class="sectionCard">
           <div class="sectionTitle">立体音響 (3D / 8D モード)</div>

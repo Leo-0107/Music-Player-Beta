@@ -75,6 +75,8 @@
   let audioCtx = null, sourceNode = null, filters = [], masterGain = null, limiterNode = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
   let spatialDirectGainNode = null, spatial3DGainNode = null;
+  let micGainNode = null, micSourceNode = null, micStream = null;
+  let micMonitorRequestId = 0;
   let outputSplitter = null, leftLevelAnalyser = null, rightLevelAnalyser = null;
   let leftLevelData = null, rightLevelData = null;
   let audioGraphReady = false;
@@ -86,6 +88,7 @@
   let currentVolumeTarget = loadNum(STORAGE.volume, 1.0);
   let currentLeftVolumeTarget = localStorage.getItem(STORAGE.channelLeft) === null ? 1.0 : loadNum(STORAGE.channelLeft, 1.0);
   let currentRightVolumeTarget = localStorage.getItem(STORAGE.channelRight) === null ? 1.0 : loadNum(STORAGE.channelRight, 1.0);
+  let currentMicMonitorVolumeTarget = loadNum(STORAGE.micMonitorVolume, 1.0);
   let eqAnimId = null;
   let wakeLock = null;
   
@@ -132,6 +135,8 @@
     dMode: loadStr(STORAGE.dMode, "3D"),
     waveMode: loadStr(STORAGE.waveMode, "2d"),
     clippingProtection: loadBool(STORAGE.clippingProtection, true),
+    micMonitor: false,
+    micMonitorVolume: currentMicMonitorVolumeTarget,
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
@@ -221,6 +226,9 @@
     btnCrossfade: document.getElementById("btnCrossfade"),
     btnSilenceSkip: document.getElementById("btnSilenceSkip"),
     btnClippingProtection: document.getElementById("btnClippingProtection"),
+    btnMicMonitor: document.getElementById("btnMicMonitor"),
+    micMonitorVolume: document.getElementById("micMonitorVolume"),
+    micMonitorVolumeText: document.getElementById("micMonitorVolumeText"),
     outputDeviceName: document.getElementById("outputDeviceName"),
     channelLeft: document.getElementById("channelLeft"),
     channelRight: document.getElementById("channelRight"),

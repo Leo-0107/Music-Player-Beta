@@ -638,6 +638,25 @@
         }
 
         const rows = drawWave._wave3DHistory;
+        const liveBands = isPlaying && waveSmoothData?.length
+          ? (() => {
+              const bands = new Float32Array(BANDS_3D);
+              const maxBin = waveSmoothData.length - 1;
+              for (let b = 0; b < BANDS_3D; b++) {
+                const lo = Math.floor(Math.pow(b / BANDS_3D, 1.45) * maxBin);
+                const hi = Math.max(
+                  lo + 1,
+                  Math.floor(Math.pow((b + 1) / BANDS_3D, 1.45) * maxBin)
+                );
+                let level = 0;
+                for (let k = lo; k <= hi && k <= maxBin; k++) {
+                  level = Math.max(level, waveSmoothData[k] || 0);
+                }
+                bands[b] = level * 2.0;
+              }
+              return bands;
+            })()
+          : null;
         const timeLeft = width * 0.08;
         const timeRight = width * 0.92;
         const baseY = height * 0.91;
@@ -649,16 +668,32 @@
 
         if (rows.length) {
           const currentAudioTime = Number(audio.currentTime) || 0;
+          const pauseFade = isPlaying
+            ? 1
+            : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
+
+          if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
+
+          const project3DPoint = (time, amplitudeBands, bandIndex) => {
+            const ageSeconds = Math.max(0, currentAudioTime - time);
+            const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
+            const freqRatio = bandIndex / Math.max(1, BANDS_3D - 1);
+            const depth = freqRatio - 0.5;
+            const timeX = timeLeft + age * (timeRight - timeLeft);
+            const timeY = baseY - age * timeLift;
+            const x = timeX + depth * freqDepth - age * timeDepth;
+            const amplitude = Math.max(0, amplitudeBands?.[bandIndex] || 0);
+            const y = timeY + depth * freqTilt -
+              amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
+            return { x, y, age };
+          };
+
           for (let t = rows.length - 1; t >= 0; t--) {
             const row = rows[t];
             const ageSeconds = Math.max(0, currentAudioTime - row.time);
             const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
             const timeX = timeLeft + age * (timeRight - timeLeft);
             const timeY = baseY - age * timeLift;
-            const pauseFade = isPlaying
-              ? 1
-              : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
-            if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
 
             const fade = (0.18 + 0.82 * (1 - age)) * pauseFade;
             const hue = 180 + (1 - age) * 100;
@@ -682,6 +717,34 @@
             ctx.lineWidth = t === 0 ? 2.6 : 1.05;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
+            ctx.stroke();
+          }
+
+          // 周波数方向の線だけでなく、時間方向にも各波形を接続して連続した面にする
+          ctx.globalAlpha = 0.28 * pauseFade;
+          ctx.strokeStyle = "rgba(95, 214, 255, 0.72)";
+          ctx.lineWidth = 0.65;
+          for (let b = 0; b < BANDS_3D; b++) {
+            ctx.beginPath();
+            for (let t = rows.length - 1; t >= 0; t--) {
+              const point = project3DPoint(rows[t].time, rows[t].bands, b);
+              if (t === rows.length - 1) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
+            }
+            ctx.stroke();
+          }
+
+          // 最前面は現在の解析値を毎フレーム描画し、0.04秒刻みの段差を目立たせない
+          if (liveBands) {
+            ctx.globalAlpha = pauseFade;
+            ctx.strokeStyle = "hsl(180, 100%, 60%)";
+            ctx.lineWidth = 2.7;
+            ctx.beginPath();
+            for (let b = 0; b < BANDS_3D; b++) {
+              const point = project3DPoint(currentAudioTime, liveBands, b);
+              if (b === 0) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
+            }
             ctx.stroke();
           }
 
