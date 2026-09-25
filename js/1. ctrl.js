@@ -1,5 +1,8 @@
 // ctrl.js
 (() => {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.error('Service Worker registration failed:', err));
+  }
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
     '4. storage.js',

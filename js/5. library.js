@@ -445,13 +445,20 @@
     }
   }
 
+  function localDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   function recordPlayCount() {
     if (!state.currentSong || hasCountedCurrentSong) return;
     hasCountedCurrentSong = true;
     const songName = state.currentSong.name;
     state.playCounts[songName] = (state.playCounts[songName] || 0) + 1;
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateKey();
     state.playHistory[today] = (state.playHistory[today] || 0) + 1;
 
     saveState();
@@ -1504,7 +1511,7 @@
     for(let i=6; i>=0; i--){
       const d = new Date();
       d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
+      dates.push(localDateKey(d));
     }
 
     const counts = dates.map(d => state.playHistory[d] || 0);

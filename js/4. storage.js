@@ -74,6 +74,10 @@
     }
     activeObjectURLMap.clear();
   }
+  window.addEventListener("pagehide", event => {
+    if (!event.persisted) revokeAllObjectURLs();
+  });
+
 
   function initDB() {
     return new Promise(resolve => {

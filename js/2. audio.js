@@ -157,8 +157,18 @@
       try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) {}
     };
 
-    bindAction('play', () => { if (audio.paused) playPause(); });
-    bindAction('pause', () => { if (!audio.paused) playPause(); });
+    bindAction('play', () => {
+      if (audio.paused) {
+        ensureGraph();
+        audio.play().catch(() => {});
+      }
+    });
+    bindAction('pause', () => {
+      if (!audio.paused) {
+        audio.pause();
+        updatePlayPauseUI();
+      }
+    });
     bindAction('previoustrack', () => { prevTrack(); });
     bindAction('nexttrack', () => { nextTrack(); });
     bindAction('stop', () => {
@@ -743,7 +753,7 @@
       ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("12", size / 2, size / 2);
+      ctx.fillText("13", size / 2, size / 2);
     };
 
     drawCanvas(el.nowCoverCanvas, 160);
