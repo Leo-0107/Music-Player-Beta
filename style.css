@@ -953,6 +953,15 @@ kbd {
   white-space: nowrap;
 }
 .speakerNameLine strong { color: var(--text); }
+.speakerDeviceActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+.speakerDeviceActions .btn {
+  width: 100%;
+  max-width: 260px;
+}
 .channelVolumeWrap {
   display: flex;
   justify-content: center;
