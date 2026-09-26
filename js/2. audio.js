@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 28;
+  const BUILD_REVISION = 29;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -326,11 +326,6 @@
 
       spatialDirectGainNode = audioCtx.createGain();
       spatial3DGainNode = audioCtx.createGain();
-      [spatialDirectGainNode, spatial3DGainNode].forEach(node => {
-        node.channelCountMode = "explicit";
-        node.channelCount = 2;
-        node.channelInterpretation = "speakers";
-      });
       spatialSourceNode.connect(spatialDirectGainNode);
       if (panner3DNode && panner3DInputGainNode) {
         spatialSourceNode.connect(panner3DInputGainNode);
@@ -342,9 +337,17 @@
       spatialDirectGainNode.gain.value = use3DSpatialRoute ? 0 : 1;
       spatial3DGainNode.gain.value = use3DSpatialRoute ? 1 : 0;
 
-      // パイプライン: 空間処理ルート -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
-      spatialDirectGainNode.connect(channelSplitter);
-      spatial3DGainNode.connect(channelSplitter);
+      // 空間処理の出力をここで確実に2chへ整えてからL/Rを分離する。
+      // mono入力ならL/Rへ均等にアップミックスし、stereo入力なら左右をそのまま維持する。
+      const channelNormalizeNode = audioCtx.createGain();
+      channelNormalizeNode.channelCountMode = "explicit";
+      channelNormalizeNode.channelCount = 2;
+      channelNormalizeNode.channelInterpretation = "speakers";
+      spatialDirectGainNode.connect(channelNormalizeNode);
+      spatial3DGainNode.connect(channelNormalizeNode);
+
+      // パイプライン: 空間処理ルート -> 2ch正規化 -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
+      channelNormalizeNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
       channelSplitter.connect(rightGainNode, 1, 0);
       leftGainNode.connect(channelMerger, 0, 0);
@@ -423,14 +426,55 @@
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const outputs = devices.filter(d => d.kind === "audiooutput");
-      const sinkId = audio.sinkId || "default";
+      const sinkId = audioCtx?.sinkId || audio.sinkId || "default";
       const current = outputs.find(d => d.deviceId === sinkId)
-        || outputs.find(d => d.deviceId === "default")
+        || (sinkId === "default" ? outputs.find(d => d.deviceId === "default") : null)
         || outputs[0];
       el.outputDeviceName.textContent = current?.label || "既定のスピーカー";
     } catch (e) {
       el.outputDeviceName.textContent = "既定のスピーカー";
     }
+  }
+
+  async function selectOutputDevice() {
+    if (!el.btnSelectOutput) return;
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (
+      !navigator.mediaDevices?.selectAudioOutput ||
+      !AudioContextCtor ||
+      !("setSinkId" in AudioContextCtor.prototype)
+    ) {
+      toast("このブラウザではスピーカー選択に対応していません");
+      return;
+    }
+
+    try {
+      ensureGraph();
+      if (!audioCtx || audioCtx.state === "closed") throw new Error("AudioContext unavailable");
+
+      const device = await navigator.mediaDevices.selectAudioOutput();
+      if (!device?.deviceId) return;
+
+      if (audioCtx.sinkId !== device.deviceId) {
+        await audioCtx.setSinkId(device.deviceId);
+      }
+
+      el.outputDeviceName.textContent = device.label || "選択したスピーカー";
+      await updateOutputDeviceName();
+      toast(String(device.label || "選択したスピーカー") + " に出力先を変更しました");
+    } catch (e) {
+      await updateOutputDeviceName();
+      if (e?.name === "NotAllowedError") {
+        toast("スピーカーの選択がキャンセルされました");
+      } else {
+        toast("スピーカーの切り替えに失敗しました");
+      }
+    }
+  }
+
+  if (el.btnSelectOutput) {
+    el.btnSelectOutput.addEventListener("click", selectOutputDevice);
   }
 
   updateOutputDeviceName();
