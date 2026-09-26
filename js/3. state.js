@@ -234,6 +234,7 @@
     micMonitorVolumeText: document.getElementById("micMonitorVolumeText"),
     btnSettingsResetSettings: document.getElementById("btnSettingsResetSettings"),
     outputDeviceName: document.getElementById("outputDeviceName"),
+    btnSelectOutput: document.getElementById("btnSelectOutput"),
     channelLeft: document.getElementById("channelLeft"),
     channelRight: document.getElementById("channelRight"),
     channelLeftText: document.getElementById("channelLeftText"),
