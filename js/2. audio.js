@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 47;
+  const BUILD_REVISION = 48;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -511,10 +511,10 @@
     el.mainOutputDelay.addEventListener("change", e => setMainOutputDelay(e.target.value));
   }
   if (el.btnMainOutputDelayDown) {
-    el.btnMainOutputDelayDown.addEventListener("click", () => adjustMainOutputDelay(-10));
+    el.btnMainOutputDelayDown.addEventListener("click", () => adjustMainOutputDelay(-0.1));
   }
   if (el.btnMainOutputDelayUp) {
-    el.btnMainOutputDelayUp.addEventListener("click", () => adjustMainOutputDelay(10));
+    el.btnMainOutputDelayUp.addEventListener("click", () => adjustMainOutputDelay(0.1));
   }
   if (el.btnAutoCalibrateSpeakers) {
     el.btnAutoCalibrateSpeakers.addEventListener("click", autoEstimateSpeakerDelay);
@@ -804,14 +804,14 @@
       delayDown.className = "btn small ghost";
       delayDown.type = "button";
       delayDown.textContent = "▼";
-      delayDown.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を10ミリ秒減らす");
+      delayDown.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を0.1ミリ秒減らす");
 
       const delayInput = document.createElement("input");
       delayInput.className = "speakerDelayInput";
       delayInput.type = "number";
-      delayInput.min = "0";
+      delayInput.min = "-1000";
       delayInput.max = "1000";
-      delayInput.step = "1";
+      delayInput.step = "0.1";
       delayInput.value = String(clampSpeakerDelay(route.delayMs));
       delayInput.inputMode = "numeric";
       delayInput.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延ミリ秒");
@@ -824,10 +824,10 @@
       delayUp.className = "btn small ghost";
       delayUp.type = "button";
       delayUp.textContent = "▲";
-      delayUp.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を10ミリ秒増やす");
+      delayUp.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を0.1ミリ秒増やす");
 
-      delayDown.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs - 10));
-      delayUp.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs + 10));
+      delayDown.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs - 0.1));
+      delayUp.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs + 0.1));
       delayInput.addEventListener("change", e => setAdditionalOutputDelay(index, e.target.value));
 
       delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
