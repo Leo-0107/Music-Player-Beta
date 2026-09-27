@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 38;
+  const BUILD_REVISION = 39;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -488,6 +488,12 @@
     }
   }
 
+  function moveOutputDeviceModalToBody() {
+    if (el.outputDeviceModal && el.outputDeviceModal.parentElement !== document.body) {
+      document.body.appendChild(el.outputDeviceModal);
+    }
+  }
+
   function closeOutputDeviceModal() {
     if (el.outputDeviceModal) el.outputDeviceModal.hidden = true;
     document.body.classList.remove("output-device-modal-open");
@@ -928,6 +934,7 @@
 
   async function openOutputDeviceModal() {
     if (!el.outputDeviceModal) return;
+    moveOutputDeviceModalToBody();
     ensureGraph();
     el.outputDeviceModal.hidden = false;
     document.body.classList.add("output-device-modal-open");
