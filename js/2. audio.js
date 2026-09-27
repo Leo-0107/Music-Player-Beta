@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 55;
+  const BUILD_REVISION = 56;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1237,7 +1237,15 @@
     renderOutputDeviceAddPicker();
   }
 
-  if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
+  async function chooseMainOutputDevice() {
+    if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+      await selectOutputDeviceForMain();
+      return;
+    }
+    openOutputDeviceModal();
+  }
+
+  if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", chooseMainOutputDevice);
   if (el.btnSelectOutputDirect) el.btnSelectOutputDirect.addEventListener("click", selectOutputDeviceForMain);
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
   if (el.btnSelectOutputToAdd) el.btnSelectOutputToAdd.addEventListener("click", selectAndAddOutputDevice);
