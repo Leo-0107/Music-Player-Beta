@@ -144,7 +144,13 @@
     micMonitorVolume: currentMicMonitorVolumeTarget,
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
-    outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string"),
+    outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string").map(route => ({
+      ...route,
+      enabled: route.enabled !== false,
+      delayMs: Math.max(0, Math.min(1000, Number(route.delayMs) || 0))
+    })),
+    mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
+    speakerSettings: loadJSON(STORAGE.speakerSettings, {}),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
