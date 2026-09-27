@@ -674,14 +674,21 @@
   async function setMainOutputDevice(deviceId) {
     ensureGraph();
     const normalized = deviceId || "";
-
-    if (normalized && hasAdditionalOutput(normalized)) {
-      toast("そのスピーカーは登録済みです");
-      return false;
-    }
-
     const previousId = outputBridgeAudio?.sinkId || state.mainOutputDeviceId || "";
     const wasPlaying = !audio.paused;
+    const selectedRouteIndex = normalized
+      ? state.outputRoutes.findIndex(route => route.deviceId === normalized)
+      : -1;
+    const selectedRoute = selectedRouteIndex >= 0 ? state.outputRoutes[selectedRouteIndex] : null;
+
+    const oldMain = {
+      deviceId: previousId,
+      label: state.speakerSettings?.mainOutputLabel || "",
+      left: currentLeftVolumeTarget,
+      right: currentRightVolumeTarget,
+      delayMs: getMainOutputDelay()
+    };
+
     try {
       ensureOutputBridge();
       if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
@@ -689,30 +696,70 @@
       }
 
       await outputBridgeAudio.setSinkId(normalized);
-
-      if (mainDelayNode && outputStreamDestination) {
-        try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
-        try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
-        mainDelayNode.connect(outputStreamDestination);
-      }
-
       if (wasPlaying) {
         await outputBridgeAudio.play();
-        if (outputBridgeAudio.paused) {
-          throw new Error("Output bridge did not resume");
+        if (outputBridgeAudio.paused) throw new Error("Output bridge did not resume");
+      }
+
+      if (selectedRoute) {
+        const newMain = {
+          deviceId: selectedRoute.deviceId,
+          label: selectedRoute.label,
+          left: Number.isFinite(Number(selectedRoute.left)) ? Number(selectedRoute.left) : 1,
+          right: Number.isFinite(Number(selectedRoute.right)) ? Number(selectedRoute.right) : 1,
+          delayMs: clampSpeakerDelay(selectedRoute.delayMs)
+        };
+
+        const selectedRuntime = additionalOutputRuntimes.get(selectedRoute.deviceId);
+        if (selectedRuntime) {
+          try { speakerBusNode?.disconnect(selectedRuntime.splitter); } catch (ignore) {}
+          try { selectedRuntime.audio.pause(); } catch (ignore) {}
+          try { selectedRuntime.audio.srcObject = null; } catch (ignore) {}
+          selectedRuntime.audio.remove();
+          additionalOutputRuntimes.delete(selectedRoute.deviceId);
         }
+
+        state.outputRoutes.splice(selectedRouteIndex, 1);
+
+        if (oldMain.deviceId &&
+            oldMain.deviceId !== newMain.deviceId &&
+            !hasAdditionalOutput(oldMain.deviceId)) {
+          state.outputRoutes.push({
+            deviceId: oldMain.deviceId,
+            label: oldMain.label || oldMain.deviceId,
+            left: oldMain.left,
+            right: oldMain.right,
+            delayMs: oldMain.delayMs,
+            enabled: true
+          });
+        }
+
+        currentLeftVolumeTarget = newMain.left;
+        currentRightVolumeTarget = newMain.right;
+        state.channelLeft = newMain.left;
+        state.channelRight = newMain.right;
+        if (leftGainNode) leftGainNode.gain.setTargetAtTime(newMain.left, audioCtx.currentTime, 0.045);
+        if (rightGainNode) rightGainNode.gain.setTargetAtTime(newMain.right, audioCtx.currentTime, 0.045);
+
+        state.speakerSettings.mainDelayMs = newMain.delayMs;
+        if (mainDelayNode) {
+          mainDelayNode.delayTime.setTargetAtTime(newMain.delayMs / 1000, audioCtx.currentTime, 0.01);
+        }
+        state.speakerSettings.mainOutputLabel = newMain.label;
+      } else {
+        const outputs = await enumerateAudioOutputs();
+        const current = outputs.find(device => device.deviceId === normalized);
+        state.speakerSettings.mainOutputLabel =
+          current?.label ||
+          (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "既定のスピーカー");
       }
 
       state.mainOutputDeviceId = normalized;
-      const outputs = await enumerateAudioOutputs();
-      const current = outputs.find(device => device.deviceId === normalized);
-      state.speakerSettings.mainOutputLabel =
-        current?.label || (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "");
       saveState();
+      await syncAdditionalOutputRuntimes();
       await updateOutputDeviceName();
       renderAdditionalOutputSpeakers();
       renderOutputDevicePicker();
-      toast("スピーカーを変更しました");
       return true;
     } catch (e) {
       try {
@@ -747,7 +794,26 @@
     if (!el.additionalOutputSpeakers) return;
     el.additionalOutputSpeakers.innerHTML = "";
 
-    state.outputRoutes.forEach((route, index) => {
+    const mainId = getMainOutputIdentity();
+    const mainLabel = state.speakerSettings?.mainOutputLabel || "既定のスピーカー";
+    const entries = [{
+      kind: "selected",
+      deviceId: mainId === "default" ? "" : mainId,
+      label: mainLabel,
+      left: currentLeftVolumeTarget,
+      right: currentRightVolumeTarget,
+      delayMs: getMainOutputDelay()
+    }, ...state.outputRoutes.map((route, index) => ({
+      kind: "additional",
+      route,
+      index,
+      deviceId: route.deviceId,
+      label: route.label
+    }))];
+
+    for (const entry of entries) {
+      if (!String(entry.label || "").trim()) continue;
+
       const card = document.createElement("div");
       card.className = "additionalOutputSpeakerCard";
 
@@ -756,29 +822,38 @@
 
       const name = document.createElement("strong");
       name.className = "additionalOutputSpeakerName";
-      if (!String(route.label || "").trim()) return;
-      name.textContent = route.label;
+      name.textContent = entry.label;
 
       const actions = document.createElement("div");
       actions.className = "additionalOutputSpeakerActions";
 
-      const toggle = document.createElement("button");
-      toggle.className = "btn small additionalOutputSpeakerToggle";
-      toggle.type = "button";
-      const isEnabled = route.enabled !== false;
-      toggle.textContent = isEnabled ? "使用中" : "停止中";
-      toggle.classList.toggle("active", isEnabled);
-      toggle.setAttribute("aria-pressed", String(isEnabled));
-      toggle.setAttribute("aria-label", route.label + "の使用状態を切り替える");
-      toggle.addEventListener("click", () => toggleAdditionalOutputSpeaker(index));
+      const status = document.createElement("small");
+      status.textContent = entry.kind === "selected"
+        ? "選択中"
+        : (entry.route.enabled !== false ? "使用中" : "停止中");
+      status.style.marginRight = "8px";
 
-      const remove = document.createElement("button");
-      remove.className = "btn small ghost";
-      remove.type = "button";
-      remove.textContent = "削除";
-      remove.addEventListener("click", () => removeAdditionalOutputSpeaker(index));
+      if (entry.kind === "additional") {
+        const toggle = document.createElement("button");
+        toggle.className = "btn small additionalOutputSpeakerToggle";
+        toggle.type = "button";
+        const isEnabled = entry.route.enabled !== false;
+        toggle.textContent = isEnabled ? "使用中" : "停止中";
+        toggle.classList.toggle("active", isEnabled);
+        toggle.setAttribute("aria-pressed", String(isEnabled));
+        toggle.setAttribute("aria-label", entry.label + "の使用状態を切り替える");
+        toggle.addEventListener("click", () => toggleAdditionalOutputSpeaker(entry.index));
 
-      actions.append(toggle, remove);
+        const remove = document.createElement("button");
+        remove.className = "btn small ghost";
+        remove.type = "button";
+        remove.textContent = "削除";
+        remove.addEventListener("click", () => removeAdditionalOutputSpeaker(entry.index));
+
+        actions.append(toggle, remove);
+      }
+
+      actions.prepend(status);
       head.append(name, actions);
 
       const wrap = document.createElement("div");
@@ -799,16 +874,27 @@
         slider.max = "2";
         slider.step = "0.01";
         slider.value = String(value);
-        slider.setAttribute("aria-label", (side === "left" ? "左" : "右") + "チャンネル音量");
+        slider.setAttribute("aria-label", entry.label + " " + (side === "left" ? "左" : "右") + "チャンネル音量");
+
+        slider.addEventListener("input", e => {
+          if (entry.kind === "selected") {
+            updateChannelVolumeUI(side, e.target.value);
+            valueEl.textContent = Math.round(
+              (side === "left" ? currentLeftVolumeTarget : currentRightVolumeTarget) * 100
+            ) + "%";
+          } else {
+            updateAdditionalOutputVolume(entry.index, side, e.target.value);
+            const route = state.outputRoutes[entry.index];
+            if (route) {
+              valueEl.textContent = Math.round(
+                (side === "left" ? route.left : route.right) * 100
+              ) + "%";
+            }
+          }
+        });
 
         const label = document.createElement("strong");
         label.textContent = side === "left" ? "L" : "R";
-
-        slider.addEventListener("input", e => {
-          updateAdditionalOutputVolume(index, side, e.target.value);
-          valueEl.textContent = Math.round(state.outputRoutes[index][side === "left" ? "left" : "right"] * 100) + "%";
-        });
-
         item.append(valueEl, slider, label);
         return item;
       };
@@ -824,7 +910,6 @@
       delayDown.className = "btn small ghost";
       delayDown.type = "button";
       delayDown.textContent = "▼";
-      delayDown.setAttribute("aria-label", route.label + "の遅延を0.1ミリ秒減らす");
 
       const delayInput = document.createElement("input");
       delayInput.className = "speakerDelayInput";
@@ -832,9 +917,10 @@
       delayInput.min = "0";
       delayInput.max = "1000";
       delayInput.step = "0.1";
-      delayInput.value = String(clampSpeakerDelay(route.delayMs));
       delayInput.inputMode = "numeric";
-      delayInput.setAttribute("aria-label", route.label + "の遅延ミリ秒");
+      delayInput.value = String(
+        entry.kind === "selected" ? getMainOutputDelay() : clampSpeakerDelay(entry.route.delayMs)
+      );
 
       const delayUnit = document.createElement("span");
       delayUnit.className = "speakerDelayUnit";
@@ -844,23 +930,31 @@
       delayUp.className = "btn small ghost";
       delayUp.type = "button";
       delayUp.textContent = "▲";
-      delayUp.setAttribute("aria-label", (route.label || "登録スピーカー") + "の遅延を0.1ミリ秒増やす");
 
-      delayDown.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs - 0.1));
-      delayUp.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs + 0.1));
-      delayInput.addEventListener("change", e => setAdditionalOutputDelay(index, e.target.value));
+      delayDown.addEventListener("click", () => {
+        if (entry.kind === "selected") setMainOutputDelay(getMainOutputDelay() - 0.1);
+        else setAdditionalOutputDelay(entry.index, entry.route.delayMs - 0.1);
+      });
+      delayUp.addEventListener("click", () => {
+        if (entry.kind === "selected") setMainOutputDelay(getMainOutputDelay() + 0.1);
+        else setAdditionalOutputDelay(entry.index, entry.route.delayMs + 0.1);
+      });
+      delayInput.addEventListener("change", e => {
+        if (entry.kind === "selected") setMainOutputDelay(e.target.value);
+        else setAdditionalOutputDelay(entry.index, e.target.value);
+      });
 
       delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
-
       wrap.append(
-        makeChannel("left", Number(route.left) || 1),
-        makeChannel("right", Number(route.right) || 1)
+        makeChannel("left", Number(entry.kind === "selected" ? currentLeftVolumeTarget : entry.route.left) || 1),
+        makeChannel("right", Number(entry.kind === "selected" ? currentRightVolumeTarget : entry.route.right) || 1)
       );
 
       card.append(head, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
-    });
+    }
   }
+
   function getMainOutputIdentity() {
     return getCurrentMainOutputSinkId() || "default";
   }
