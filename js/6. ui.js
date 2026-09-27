@@ -283,8 +283,12 @@
       return;
     }
 
-    requestAnimationFrame(drawWave);
     const now = performance.now();
+    if (isPlaying || waveDecayActive) {
+      requestAnimationFrame(drawWave);
+    } else {
+      isWaveAnimating = false;
+    }
     const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
     lastFrameTime = now;
 
@@ -305,21 +309,33 @@
 
     updateSpatialAudio(isPlaying ? dt : 0);
 
+    if (!analyser || !analyserData) {
+      if (state.waveMode === "2d") {
+        const meterW = Math.min(18, Math.max(12, width * 0.022));
+        const trackTop = 18;
+        const trackBottom = height - 18;
+        const trackH = Math.max(1, trackBottom - trackTop);
+        const drawStaticMeter = (x, label) => {
+          ctx.fillStyle = "rgba(255,255,255,.08)";
+          ctx.fillRect(x, trackTop, meterW, trackH);
+          ctx.fillStyle = "rgba(255,255,255,.72)";
+          ctx.font = "9px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(label, x + meterW / 2, Math.max(11, trackTop - 5));
+        };
+        drawStaticMeter(0, "L");
+        drawStaticMeter(width - meterW, "R");
+      }
+      return;
+    }
+
     if (analyser && analyserData) {
       const dataLen = analyserData.length;
       if (!waveSmoothData || waveSmoothData.length !== dataLen) waveSmoothData = new Float32Array(dataLen);
       if (isPlaying) {
         analyser.getByteFrequencyData(analyserData);
       } else {
-        // 未再生時は、実音声ではなく小さなアイドル動作を表示する。
-        // 2Dの音量メーターが止まったままにならないようにする。
-        const idleTime = now / 1000;
-        for (let i = 0; i < dataLen; i++) {
-          const primary = 0.5 + 0.5 * Math.sin(idleTime * 2.0 + i * 0.24);
-          const secondary = 0.5 + 0.5 * Math.sin(idleTime * 1.17 - i * 0.11);
-          const level = 0.035 + 0.095 * (primary * 0.68 + secondary * 0.32);
-          analyserData[i] = Math.round(level * 255);
-        }
+        analyserData.fill(0);
       }
 
       const smoothing = isPlaying ? 0.24 : 0.16;
@@ -393,12 +409,8 @@
           rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
           leftTarget = calcRms(leftLevelData);
           rightTarget = calcRms(rightLevelData);
-        } else {
-          const idleTime = now / 1000;
-          leftTarget = 0.09 + 0.10 * (0.5 + 0.5 * Math.sin(idleTime * 1.85));
-          rightTarget = 0.09 + 0.10 * (0.5 + 0.5 * Math.sin(idleTime * 2.15 + 1.1));
         }
-        const meterSmoothing = isPlaying ? 0.105 : 0.08;
+        const meterSmoothing = isPlaying ? 0.105 : 1;
         leftDisplayLevel += (leftTarget - leftDisplayLevel) * meterSmoothing;
         rightDisplayLevel += (rightTarget - rightDisplayLevel) * meterSmoothing;
 
@@ -844,11 +856,18 @@
   }
 
   function startWaveAnimation(force = false) {
-    if (!isWaveAnimating && document.visibilityState === "visible") {
+    if (!isWaveAnimating && document.visibilityState === "visible" && (!audio.paused || force)) {
       isWaveAnimating = true;
       lastFrameTime = performance.now();
       requestAnimationFrame(drawWave);
     }
+  }
+
+  function requestWaveStaticFrame() {
+    if (document.visibilityState !== "visible" || !el.wave || isWaveAnimating) return;
+    isWaveAnimating = true;
+    lastFrameTime = performance.now();
+    requestAnimationFrame(drawWave);
   }
 
   function openSidebar() {
@@ -1043,7 +1062,7 @@
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
-    startWaveAnimation(true);
+    requestWaveStaticFrame();
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
