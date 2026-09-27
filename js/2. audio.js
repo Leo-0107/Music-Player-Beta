@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 42;
+  const BUILD_REVISION = 43;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -454,6 +454,20 @@
     applyMainOutputDelayNode();
     renderAdditionalOutputSpeakers();
     toast("ブラウザ推定の遅延 " + estimated + " ms を適用しました");
+  }
+
+  if (el.mainOutputDelay) {
+    el.mainOutputDelay.value = String(getMainOutputDelay());
+    el.mainOutputDelay.addEventListener("change", e => setMainOutputDelay(e.target.value));
+  }
+  if (el.btnMainOutputDelayDown) {
+    el.btnMainOutputDelayDown.addEventListener("click", () => adjustMainOutputDelay(-10));
+  }
+  if (el.btnMainOutputDelayUp) {
+    el.btnMainOutputDelayUp.addEventListener("click", () => adjustMainOutputDelay(10));
+  }
+  if (el.btnAutoCalibrateSpeakers) {
+    el.btnAutoCalibrateSpeakers.addEventListener("click", autoEstimateSpeakerDelay);
   }
 
   function snapToDefault(value, defaultValue, threshold) {
@@ -978,6 +992,12 @@
     return !!defaultDevice && areSameOutputDevice(defaultDevice, device);
   }
 
+  function getOutputDevicePriority(device) {
+    const label = String(device?.label || "").toLowerCase();
+    const externalPattern = /(hdmi|displayport|headphone|headset|earphone|bluetooth|usb|wireless|ヘッドホン|ヘッドセット|イヤホン|bluetooth|無線|usb)/i;
+    return externalPattern.test(label) ? 0 : 1;
+  }
+
   async function renderOutputDevicePicker() {
     if (!el.outputDeviceList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
@@ -987,7 +1007,13 @@
       el.outputDeviceList.innerHTML = "";
 
       const defaultDevice = outputs.find(d => d.deviceId === "default") || { deviceId: "", label: "既定のスピーカー" };
-      const physicalOutputs = outputs.filter(d => d.deviceId && d.deviceId !== "default");
+      const physicalOutputs = outputs
+        .filter(d => d.deviceId && d.deviceId !== "default")
+        .sort((a, b) => {
+          const priorityDiff = getOutputDevicePriority(a) - getOutputDevicePriority(b);
+          if (priorityDiff !== 0) return priorityDiff;
+          return String(a.label || "").localeCompare(String(b.label || ""), "ja");
+        });
       const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
 
       const list = [
@@ -1050,7 +1076,13 @@
 
       el.outputDeviceAddList.innerHTML = "";
 
-      const physicalOutputs = outputs.filter(d => d.deviceId && d.deviceId !== "default");
+      const physicalOutputs = outputs
+        .filter(d => d.deviceId && d.deviceId !== "default")
+        .sort((a, b) => {
+          const priorityDiff = getOutputDevicePriority(a) - getOutputDevicePriority(b);
+          if (priorityDiff !== 0) return priorityDiff;
+          return String(a.label || "").localeCompare(String(b.label || ""), "ja");
+        });
       const seen = new Set();
 
       for (const device of physicalOutputs) {
