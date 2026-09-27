@@ -90,6 +90,8 @@
     localStorage.setItem(STORAGE.channelRight, String(currentRightVolumeTarget));
     localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
     localStorage.setItem(STORAGE.outputRoutes, JSON.stringify(state.outputRoutes || []));
+    localStorage.setItem(STORAGE.mainOutputDevice, state.mainOutputDeviceId || "");
+    localStorage.setItem(STORAGE.speakerSettings, JSON.stringify(state.speakerSettings || {}));
     localStorage.setItem(STORAGE.playlistSettings, JSON.stringify(state.playlistSettings || {}));
   }
 
@@ -384,10 +386,18 @@
         ensureOutputBridge();
       }
 
+      mainDelayNode = audioCtx.createDelay(1.5);
+      mainDelayNode.delayTime.value = Math.max(
+        0,
+        Math.min(1, Number(state.speakerSettings?.mainDelayMs) || 0)
+      ) / 1000;
+
       if (outputBridgeAudio && outputStreamDestination) {
-        analyser.connect(outputStreamDestination);
+        analyser.connect(mainDelayNode);
+        mainDelayNode.connect(outputStreamDestination);
       } else {
-        analyser.connect(audioCtx.destination);
+        analyser.connect(mainDelayNode);
+        mainDelayNode.connect(audioCtx.destination);
       }
 
       audioGraphReady = true;
