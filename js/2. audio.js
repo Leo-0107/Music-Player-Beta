@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 31;
+  const BUILD_REVISION = 32;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -89,6 +89,7 @@
     localStorage.setItem(STORAGE.channelLeft, String(currentLeftVolumeTarget));
     localStorage.setItem(STORAGE.channelRight, String(currentRightVolumeTarget));
     localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
+    localStorage.setItem(STORAGE.outputRoutes, JSON.stringify(state.outputRoutes || []));
     localStorage.setItem(STORAGE.playlistSettings, JSON.stringify(state.playlistSettings || {}));
   }
 
@@ -390,6 +391,7 @@
       }
 
       audioGraphReady = true;
+      syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {}
   }
 
@@ -435,202 +437,376 @@
     });
   }
 
+  function getCurrentMainOutputSinkId() {
+    if (outputBridgeAudio) return outputBridgeAudio.sinkId || "";
+    const sink = audioCtx?.sinkId;
+    return typeof sink === "string" ? sink : "";
+  }
+
+  function getOutputDeviceLabel(device, fallback = "音声出力デバイス") {
+    return device?.label || fallback;
+  }
+
   async function updateOutputDeviceName() {
-    if (!el.outputDeviceName || !navigator.mediaDevices?.enumerateDevices) return;
+    if (!el.outputDeviceName) return;
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const devices = navigator.mediaDevices?.enumerateDevices
+        ? await navigator.mediaDevices.enumerateDevices()
+        : [];
       const outputs = devices.filter(d => d.kind === "audiooutput");
-      const sinkId = audioCtx?.sinkId || audio.sinkId || "default";
-      const current = outputs.find(d => d.deviceId === sinkId)
-        || (sinkId === "default" ? outputs.find(d => d.deviceId === "default") : null)
-        || outputs[0];
-      el.outputDeviceName.textContent = current?.label || "既定のスピーカー";
+      const sinkId = getCurrentMainOutputSinkId();
+      const current = outputs.find(d => d.deviceId === sinkId);
+      el.outputDeviceName.textContent =
+        current?.label || (sinkId ? "選択したスピーカー" : "既定のスピーカー");
     } catch (e) {
       el.outputDeviceName.textContent = "既定のスピーカー";
     }
   }
 
-  async function selectOutputDevice() {
-    if (!el.btnSelectOutput) return;
+  function closeOutputDeviceModal() {
+    if (el.outputDeviceModal) el.outputDeviceModal.hidden = true;
+    document.body.classList.remove("output-device-modal-open");
+  }
+
+  async function setMainOutputDevice(deviceId) {
     ensureGraph();
-
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    const canContextSink = !!AudioContextCtor && !!audioCtx && typeof audioCtx.setSinkId === "function";
-    const canMediaSink = !!outputBridgeAudio && ("setSinkId" in outputBridgeAudio);
-
     try {
-      if (navigator.mediaDevices?.selectAudioOutput && canContextSink) {
-        const device = await navigator.mediaDevices.selectAudioOutput();
-        if (!device?.deviceId) return;
-        if (audioCtx.sinkId !== device.deviceId) {
-          await audioCtx.setSinkId(device.deviceId);
+      if (typeof audioCtx?.setSinkId === "function") {
+        await audioCtx.setSinkId(deviceId || "");
+      } else {
+        ensureOutputBridge();
+        if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
+          throw new Error("No supported output sink API");
         }
-        el.outputDeviceSelect && (el.outputDeviceSelect.hidden = true);
-        el.outputDeviceName.textContent = device.label || "選択したスピーカー";
-        await updateOutputDeviceName();
-        toast(String(device.label || "選択したスピーカー") + " に出力先を変更しました");
-        return;
+        await outputBridgeAudio.setSinkId(deviceId || "");
+        await startOutputBridge();
       }
-
-      if (canMediaSink) {
-        await refreshOutputDeviceOptions();
-        if (el.outputDeviceSelect) {
-          el.outputDeviceSelect.hidden = false;
-          el.outputDeviceSelect.focus();
-        }
-        toast("下の一覧からスピーカーを選択してください");
-        return;
-      }
-
-      toast("このブラウザではスピーカー選択に対応していません");
-    } catch (e) {
       await updateOutputDeviceName();
-      toast(e?.name === "NotAllowedError" ? "スピーカーの選択がキャンセルされました" : "スピーカーの切り替えに失敗しました");
+      renderAdditionalOutputSpeakers();
+      renderOutputDevicePicker();
+      toast("メインのスピーカーを変更しました");
+    } catch (e) {
+      toast("スピーカーの切り替えに失敗しました");
     }
   }
 
-  if (el.btnSelectOutput) {
-    el.btnSelectOutput.addEventListener("click", selectOutputDevice);
-  }
-  if (el.outputDeviceSelect) {
-    el.outputDeviceSelect.addEventListener("change", e => setFallbackOutputDevice(e.target.value));
-  }
+  function renderAdditionalOutputSpeakers() {
+    if (!el.additionalOutputSpeakers) return;
+    el.additionalOutputSpeakers.innerHTML = "";
 
-  updateOutputDeviceName();
-  refreshOutputDeviceOptions();
-  if (navigator.mediaDevices?.addEventListener) {
-    navigator.mediaDevices.addEventListener("devicechange", async () => {
-      await updateOutputDeviceName();
-      await refreshOutputDeviceOptions();
+    state.outputRoutes.forEach((route, index) => {
+      const card = document.createElement("div");
+      card.className = "additionalOutputSpeakerCard";
+
+      const head = document.createElement("div");
+      head.className = "additionalOutputSpeakerHead";
+
+      const name = document.createElement("strong");
+      name.className = "additionalOutputSpeakerName";
+      name.textContent = route.label || "追加スピーカー";
+
+      const remove = document.createElement("button");
+      remove.className = "btn small ghost";
+      remove.type = "button";
+      remove.textContent = "削除";
+      remove.addEventListener("click", () => removeAdditionalOutputSpeaker(index));
+
+      head.append(name, remove);
+
+      const wrap = document.createElement("div");
+      wrap.className = "channelVolumeWrap additionalChannelVolumeWrap";
+
+      const makeChannel = (side, value) => {
+        const item = document.createElement("div");
+        item.className = "channelVolume";
+
+        const valueEl = document.createElement("span");
+        valueEl.className = "channelValue";
+        valueEl.textContent = Math.round(value * 100) + "%";
+
+        const slider = document.createElement("input");
+        slider.className = "channelSlider";
+        slider.type = "range";
+        slider.min = "0";
+        slider.max = "2";
+        slider.step = "0.01";
+        slider.value = String(value);
+        slider.setAttribute("aria-label", (side === "left" ? "左" : "右") + "チャンネル音量");
+
+        const label = document.createElement("strong");
+        label.textContent = side === "left" ? "L" : "R";
+
+        slider.addEventListener("input", e => {
+          updateAdditionalOutputVolume(index, side, e.target.value);
+          valueEl.textContent = Math.round(state.outputRoutes[index][side === "left" ? "left" : "right"] * 100) + "%";
+        });
+
+        item.append(valueEl, slider, label);
+        return item;
+      };
+
+      wrap.append(
+        makeChannel("left", Number(route.left) || 1),
+        makeChannel("right", Number(route.right) || 1)
+      );
+
+      card.append(head, wrap);
+      el.additionalOutputSpeakers.appendChild(card);
     });
   }
 
-  function ensureOutputBridge() {
-    if (outputBridgeAudio || !audioCtx?.createMediaStreamDestination) return;
-    if (!("setSinkId" in HTMLMediaElement.prototype)) return;
-    outputStreamDestination = audioCtx.createMediaStreamDestination();
-    outputBridgeAudio = document.createElement("audio");
-    outputBridgeAudio.autoplay = true;
-    outputBridgeAudio.controls = false;
-    outputBridgeAudio.playsInline = true;
-    outputBridgeAudio.setAttribute("aria-hidden", "true");
-    outputBridgeAudio.style.display = "none";
-    outputBridgeAudio.srcObject = outputStreamDestination.stream;
-    document.body.appendChild(outputBridgeAudio);
+  function getMainOutputIdentity() {
+    return getCurrentMainOutputSinkId() || "default";
+  }
+
+  function hasAdditionalOutput(deviceId) {
+    const normalized = deviceId || "default";
+    return state.outputRoutes.some(route => (route.deviceId || "default") === normalized);
+  }
+
+  function removeAdditionalOutputSpeaker(index) {
+    const route = state.outputRoutes[index];
+    if (!route) return;
+
+    const runtime = additionalOutputRuntimes.get(route.deviceId);
+    if (runtime) {
+      try { analyser?.disconnect(runtime.splitter); } catch (e) {}
+      try { runtime.audio.pause(); } catch (e) {}
+      try { runtime.audio.srcObject = null; } catch (e) {}
+      runtime.audio.remove();
+      additionalOutputRuntimes.delete(route.deviceId);
+    }
+
+    state.outputRoutes.splice(index, 1);
+    saveState();
+    renderAdditionalOutputSpeakers();
+    renderOutputDevicePicker();
+  }
+
+  function updateAdditionalOutputVolume(index, side, value) {
+    const route = state.outputRoutes[index];
+    if (!route) return;
+    const key = side === "left" ? "left" : "right";
+    const n = Math.max(0, Math.min(2, Number(value)));
+    route[key] = Number.isFinite(n) ? n : 1;
+
+    const runtime = additionalOutputRuntimes.get(route.deviceId);
+    if (runtime) {
+      const gain = side === "left" ? runtime.leftGain : runtime.rightGain;
+      gain.gain.setTargetAtTime(route[key], audioCtx?.currentTime || 0, 0.045);
+    }
+    saveState();
+  }
+
+  async function createAdditionalOutputRuntime(route) {
+    if (!audioCtx || !analyser || !route?.deviceId) return null;
+    if (additionalOutputRuntimes.has(route.deviceId)) return additionalOutputRuntimes.get(route.deviceId);
+    if (!("setSinkId" in HTMLMediaElement.prototype) || !audioCtx.createMediaStreamDestination) return null;
+
+    const destination = audioCtx.createMediaStreamDestination();
+    const splitter = audioCtx.createChannelSplitter(2);
+    const leftGain = audioCtx.createGain();
+    const rightGain = audioCtx.createGain();
+    const merger = audioCtx.createChannelMerger(2);
+    const media = document.createElement("audio");
+
+    leftGain.gain.value = Number.isFinite(Number(route.left)) ? Number(route.left) : 1;
+    rightGain.gain.value = Number.isFinite(Number(route.right)) ? Number(route.right) : 1;
+    media.autoplay = true;
+    media.controls = false;
+    media.playsInline = true;
+    media.setAttribute("aria-hidden", "true");
+    media.style.display = "none";
+    media.srcObject = destination.stream;
+
+    analyser.connect(splitter);
+    splitter.connect(leftGain, 0, 0);
+    splitter.connect(rightGain, 1, 0);
+    leftGain.connect(merger, 0, 0);
+    rightGain.connect(merger, 0, 1);
+    merger.connect(destination);
+
+    document.body.appendChild(media);
+
+    try {
+      await media.setSinkId(route.deviceId);
+    } catch (e) {
+      try { analyser.disconnect(splitter); } catch (ignore) {}
+      media.pause();
+      media.srcObject = null;
+      media.remove();
+      return null;
+    }
+
+    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger };
+    additionalOutputRuntimes.set(route.deviceId, runtime);
+    try { await media.play(); } catch (e) {}
+    return runtime;
+  }
+
+  async function syncAdditionalOutputRuntimes() {
+    if (!audioCtx || !analyser) return;
+    const validIds = new Set(state.outputRoutes.map(route => route.deviceId).filter(Boolean));
+
+    for (const [deviceId, runtime] of additionalOutputRuntimes) {
+      if (!validIds.has(deviceId)) {
+        try { analyser.disconnect(runtime.splitter); } catch (e) {}
+        try { runtime.audio.pause(); } catch (e) {}
+        try { runtime.audio.srcObject = null; } catch (e) {}
+        runtime.audio.remove();
+        additionalOutputRuntimes.delete(deviceId);
+      }
+    }
+
+    for (const route of state.outputRoutes) {
+      await createAdditionalOutputRuntime(route);
+    }
   }
 
   async function startOutputBridge() {
-    if (!outputBridgeAudio) return;
-    try {
-      if (outputBridgeAudio.paused) await outputBridgeAudio.play();
-    } catch (e) {}
+    if (outputBridgeAudio) {
+      try {
+        if (outputBridgeAudio.paused) await outputBridgeAudio.play();
+      } catch (e) {}
+    }
+    for (const runtime of additionalOutputRuntimes.values()) {
+      try {
+        if (runtime.audio.paused) await runtime.audio.play();
+      } catch (e) {}
+    }
   }
 
-  async function refreshOutputDeviceOptions(showList = false) {
-    if (!el.outputDeviceSelect || !navigator.mediaDevices?.enumerateDevices) return;
-    const canMediaSink = "setSinkId" in HTMLMediaElement.prototype;
-    const canContextSink = !!audioCtx && typeof audioCtx.setSinkId === "function";
-    if (!canMediaSink && !canContextSink) return;
+  async function addAdditionalOutputSpeaker(device) {
+    const deviceId = device?.deviceId || "";
+    if (!deviceId) return;
+    const normalized = deviceId || "default";
+    const mainId = getMainOutputIdentity();
+
+    if (normalized === mainId) {
+      toast("現在のスピーカーはすでにメイン出力です");
+      return;
+    }
+    if (hasAdditionalOutput(normalized)) {
+      toast("そのスピーカーは追加済みです");
+      return;
+    }
+
+    const route = {
+      deviceId,
+      label: getOutputDeviceLabel(device, "追加スピーカー"),
+      left: 1,
+      right: 1
+    };
+    state.outputRoutes.push(route);
+    saveState();
+    renderAdditionalOutputSpeakers();
+    await createAdditionalOutputRuntime(route);
+    await startOutputBridge();
+    renderOutputDevicePicker();
+    closeOutputDeviceModal();
+    toast("スピーカーを追加しました");
+  }
+
+  async function renderOutputDevicePicker() {
+    if (!el.outputDeviceList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const outputs = devices.filter(d => d.kind === "audiooutput");
-      const currentSink = outputBridgeAudio?.sinkId || audioCtx?.sinkId || "";
-      el.outputDeviceSelect.innerHTML = "";
+      const mainId = getMainOutputIdentity();
 
-      const defaultOption = document.createElement("option");
-      defaultOption.value = "";
-      defaultOption.textContent = "既定のスピーカー";
-      defaultOption.selected = currentSink === "" || currentSink === "default";
-      el.outputDeviceSelect.appendChild(defaultOption);
+      el.outputDeviceList.innerHTML = "";
 
-      for (const device of outputs) {
-        if (!device.deviceId || device.deviceId === "default") continue;
-        const option = document.createElement("option");
-        option.value = device.deviceId;
-        option.textContent = device.label || "音声出力デバイス";
-        option.selected = device.deviceId === currentSink;
-        el.outputDeviceSelect.appendChild(option);
+      const defaultDevice = { deviceId: "", label: "既定のスピーカー" };
+      const list = [defaultDevice, ...outputs.filter(d => d.deviceId !== "default")];
+
+      const seen = new Set();
+      for (const device of list) {
+        const key = device.deviceId || "default";
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const item = document.createElement("div");
+        item.className = "outputDeviceItem";
+
+        const info = document.createElement("div");
+        info.className = "outputDeviceItemInfo";
+
+        const name = document.createElement("strong");
+        name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
+
+        const stateText = document.createElement("small");
+        const isMain = key === mainId;
+        const isAdditional = hasAdditionalOutput(key);
+        stateText.textContent = isMain ? "現在のメイン" : (isAdditional ? "追加済み" : "");
+
+        info.append(name, stateText);
+
+        const actions = document.createElement("div");
+        actions.className = "outputDeviceItemActions";
+
+        const mainBtn = document.createElement("button");
+        mainBtn.className = "btn small";
+        mainBtn.type = "button";
+        mainBtn.textContent = isMain ? "使用中" : "メインにする";
+        mainBtn.disabled = isMain;
+        mainBtn.addEventListener("click", async () => {
+          await setMainOutputDevice(device.deviceId || "");
+          closeOutputDeviceModal();
+        });
+
+        const addBtn = document.createElement("button");
+        addBtn.className = "btn small ghost";
+        addBtn.type = "button";
+        addBtn.textContent = isAdditional ? "追加済み" : "追加";
+        addBtn.disabled = isAdditional || isMain;
+        addBtn.addEventListener("click", () => addAdditionalOutputSpeaker(device));
+
+        actions.append(mainBtn, addBtn);
+        item.append(info, actions);
+        el.outputDeviceList.appendChild(item);
       }
-
-      el.outputDeviceSelect.hidden = !showList;
-    } catch (e) {}
-  }
-
-  async function setListedOutputDevice(deviceId) {
-    const canContextSink = !!audioCtx && typeof audioCtx.setSinkId === "function";
-    const canMediaSink = !!outputBridgeAudio && ("setSinkId" in outputBridgeAudio);
-    try {
-      if (canContextSink) {
-        await audioCtx.setSinkId(deviceId || "");
-      } else if (canMediaSink) {
-        await outputBridgeAudio.setSinkId(deviceId || "");
-      } else {
-        toast("このブラウザではスピーカー選択に対応していません");
-        return;
-      }
-      await updateOutputDeviceName();
-      toast("出力先を変更しました");
     } catch (e) {
-      await updateOutputDeviceName();
-      toast("スピーカーの切り替えに失敗しました");
-      if (el.outputDeviceSelect) {
-        el.outputDeviceSelect.value = outputBridgeAudio?.sinkId || audioCtx?.sinkId || "";
-      }
+      el.outputDeviceList.textContent = "利用できるスピーカーを取得できませんでした。";
     }
   }
 
-  async function selectOutputDevice() {
-    if (!el.btnSelectOutput) return;
+  async function openOutputDeviceModal() {
+    if (!el.outputDeviceModal) return;
     ensureGraph();
+    el.outputDeviceModal.hidden = false;
+    document.body.classList.add("output-device-modal-open");
+    await renderOutputDevicePicker();
+  }
 
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    const canContextSink = !!AudioContextCtor && !!audioCtx && typeof audioCtx.setSinkId === "function";
-    const canMediaSink = !!outputBridgeAudio && ("setSinkId" in outputBridgeAudio);
-
+  async function discoverOutputDevice() {
     try {
-      if (navigator.mediaDevices?.selectAudioOutput) {
-        const device = await navigator.mediaDevices.selectAudioOutput();
-        if (!device?.deviceId) return;
-
-        if (canContextSink) {
-          await audioCtx.setSinkId(device.deviceId);
-        } else if (canMediaSink) {
-          await outputBridgeAudio.setSinkId(device.deviceId);
-        } else {
-          toast("このブラウザではスピーカー選択に対応していません");
-          return;
-        }
-
-        if (el.outputDeviceSelect) el.outputDeviceSelect.hidden = true;
-        el.outputDeviceName.textContent = device.label || "選択したスピーカー";
-        await updateOutputDeviceName();
-        toast(String(device.label || "選択したスピーカー") + " に出力先を変更しました");
-        return;
+      if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+        await navigator.mediaDevices.selectAudioOutput();
+        await renderOutputDevicePicker();
+      } else {
+        toast("このブラウザでは追加のスピーカーを自動検出できません");
       }
-
-      if (canContextSink || canMediaSink) {
-        await refreshOutputDeviceOptions(true);
-        if (el.outputDeviceSelect) el.outputDeviceSelect.focus();
-        toast("下の一覧からスピーカーを選択してください");
-        return;
-      }
-
-      toast("このブラウザではスピーカー選択に対応していません");
     } catch (e) {
-      await updateOutputDeviceName();
-      toast(e?.name === "NotAllowedError" ? "スピーカーの選択がキャンセルされました" : "スピーカーの切り替えに失敗しました");
+      if (e?.name !== "NotAllowedError") toast("スピーカーの取得に失敗しました");
     }
   }
 
-  if (el.btnSelectOutput) {
-    el.btnSelectOutput.addEventListener("click", selectOutputDevice);
-  }
-  if (el.outputDeviceSelect) {
-    el.outputDeviceSelect.addEventListener("change", e => setListedOutputDevice(e.target.value));
+  if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
+  if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceModal);
+  if (el.btnDiscoverOutputSpeaker) el.btnDiscoverOutputSpeaker.addEventListener("click", discoverOutputDevice);
+  if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
+  if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
+
+  if (navigator.mediaDevices?.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", async () => {
+      await updateOutputDeviceName();
+      await renderOutputDevicePicker();
+      await syncAdditionalOutputRuntimes();
+    });
   }
 
   updateOutputDeviceName();
-  refreshOutputDeviceOptions(false);
+  renderAdditionalOutputSpeakers();
 
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
