@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 60;
+  const BUILD_REVISION = 61;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1108,18 +1108,58 @@
         item.append(info, actions);
         el.outputDeviceList.appendChild(item);
       }
+
+      if (!physicalOutputs.length && typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+        const discoverWrap = document.createElement("div");
+        discoverWrap.style.display = "grid";
+        discoverWrap.style.gap = "8px";
+        discoverWrap.style.marginTop = "8px";
+
+        const discoverMessage = document.createElement("div");
+        discoverMessage.style.color = "var(--muted)";
+        discoverMessage.style.fontSize = ".82rem";
+        discoverMessage.textContent =
+          "非デフォルトの出力機器は、ブラウザの許可後に一覧へ表示されます。";
+
+        const discoverButton = document.createElement("button");
+        discoverButton.className = "btn small";
+        discoverButton.type = "button";
+        discoverButton.textContent = "接続中の出力機器を読み込む";
+        discoverButton.addEventListener("click", async () => {
+          try {
+            const device = await navigator.mediaDevices.selectAudioOutput();
+            if (!device?.deviceId) return;
+            await setMainOutputDevice(device.deviceId);
+            await renderOutputDevicePicker();
+          } catch (e) {
+            if (e?.name === "NotAllowedError") {
+              toast("ブラウザの出力機器選択が許可されていません");
+            } else if (e?.name === "NotFoundError") {
+              toast("接続中の出力機器が見つかりません");
+            } else if (e?.name === "InvalidStateError") {
+              toast("このボタンからもう一度実行してください");
+            } else {
+              toast("出力機器の読み込みに失敗しました");
+            }
+          }
+        });
+
+        discoverWrap.append(discoverMessage, discoverButton);
+        el.outputDeviceList.appendChild(discoverWrap);
+      }
     } catch (e) {
       el.outputDeviceList.textContent = "利用できるスピーカーを取得できませんでした。";
     }
   }
 
   async function requestOutputDevicePermission(deviceId = "") {
+    if (!deviceId) return { deviceId: "" };
     if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
-      return deviceId ? { deviceId } : null;
+      return { deviceId };
     }
 
     try {
-      const options = deviceId ? { deviceId } : undefined;
+      const options = { deviceId };
       const selected = await navigator.mediaDevices.selectAudioOutput(options);
       return selected?.deviceId ? selected : null;
     } catch (e) {
@@ -1204,7 +1244,47 @@
       }
 
       if (!physicalOutputs.length) {
-        el.outputDeviceAddList.textContent = "追加できるスピーカーが見つかりません。";
+        el.outputDeviceAddList.innerHTML = "";
+
+        const emptyMessage = document.createElement("div");
+        emptyMessage.style.color = "var(--muted)";
+        emptyMessage.style.fontSize = ".82rem";
+        emptyMessage.textContent =
+          "非デフォルトの出力機器は、ブラウザの許可後に一覧へ表示されます。";
+
+        const discoverButton = document.createElement("button");
+        discoverButton.className = "btn small";
+        discoverButton.type = "button";
+        discoverButton.textContent = typeof navigator.mediaDevices?.selectAudioOutput === "function"
+          ? "接続中の出力機器を読み込む"
+          : "出力機器一覧を更新";
+        discoverButton.addEventListener("click", async () => {
+          try {
+            if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+              const device = await navigator.mediaDevices.selectAudioOutput();
+              if (device?.deviceId) {
+                await addAdditionalOutputSpeaker(device);
+                return;
+              }
+            } else {
+              await ensureOutputDeviceAccess();
+              await renderOutputDeviceAddPicker();
+            }
+          } catch (e) {
+            if (e?.name === "NotAllowedError") {
+              toast("ブラウザの出力機器選択が許可されていません");
+            } else if (e?.name === "NotFoundError") {
+              toast("接続中の出力機器が見つかりません");
+            } else if (e?.name === "InvalidStateError") {
+              toast("このボタンからもう一度実行してください");
+            } else {
+              toast("出力機器の読み込みに失敗しました");
+            }
+            await renderOutputDeviceAddPicker();
+          }
+        });
+
+        el.outputDeviceAddList.append(emptyMessage, discoverButton);
       }
     } catch (e) {
       el.outputDeviceAddList.textContent = "利用できるスピーカーを取得できませんでした。";
