@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 33;
+  const BUILD_REVISION = 34;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -447,13 +447,38 @@
     return device?.label || fallback;
   }
 
+  async function enumerateAudioOutputs() {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(d => d.kind === "audiooutput");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function ensureOutputDeviceAccess() {
+    const outputs = await enumerateAudioOutputs();
+    const hasUsableOutput = outputs.some(d => d.deviceId && d.deviceId !== "default");
+    if (hasUsableOutput) return outputs;
+
+    // Chrome系では selectAudioOutput() が使えない場合があるため、
+    // ユーザー操作の直後だけ getUserMedia() でデバイス権限を取得して再列挙する。
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        return outputs;
+      }
+    }
+    return await enumerateAudioOutputs();
+  }
+
   async function updateOutputDeviceName() {
     if (!el.outputDeviceName) return;
     try {
-      const devices = navigator.mediaDevices?.enumerateDevices
-        ? await navigator.mediaDevices.enumerateDevices()
-        : [];
-      const outputs = devices.filter(d => d.kind === "audiooutput");
+      const outputs = await enumerateAudioOutputs();
       const sinkId = getCurrentMainOutputSinkId();
       const current = outputs.find(d => d.deviceId === sinkId);
       el.outputDeviceName.textContent =
@@ -797,6 +822,22 @@
 
   if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceModal);
+  if (el.btnDiscoverOutputSpeaker) el.btnDiscoverOutputSpeaker.addEventListener("click", discoverOutputDevice);
+  if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
+  if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
+
+  if (navigator.mediaDevices?.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", async () => {
+      await updateOutputDeviceName();
+      await renderOutputDevicePicker();
+      await syncAdditionalOutputRuntimes();
+    });
+  }
+
+  updateOutputDeviceName();
+  renderAdditionalOutputSpeakers();
+
+tSpeaker.addEventListener("click", openOutputDeviceModal);
   if (el.btnDiscoverOutputSpeaker) el.btnDiscoverOutputSpeaker.addEventListener("click", discoverOutputDevice);
   if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
   if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
