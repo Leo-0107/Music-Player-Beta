@@ -989,6 +989,17 @@ kbd {
   justify-content: space-between;
   gap: 10px;
 }
+.additionalOutputSpeakerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.additionalOutputSpeakerToggle.active {
+  background: var(--accent) !important;
+  color: #07120a !important;
+  border-color: rgba(255,255,255,.28) !important;
+}
 .additionalOutputSpeakerName {
   min-width: 0;
   overflow: hidden;
