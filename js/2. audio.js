@@ -515,6 +515,30 @@
       renderOutputDevicePicker();
       toast("メインのスピーカーを変更しました");
     } catch (e) {
+      if (e?.name === "NotAllowedError") {
+        const outputs = await ensureOutputDeviceAccess();
+        const found = outputs.some(device => device.deviceId === (deviceId || ""));
+        if (found) {
+          try {
+            if (typeof audioCtx?.setSinkId === "function") {
+              await audioCtx.setSinkId(deviceId || "");
+            } else {
+              ensureOutputBridge();
+              if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+                await outputBridgeAudio.setSinkId(deviceId || "");
+                await startOutputBridge();
+              } else {
+                throw new Error("No supported output sink API");
+              }
+            }
+            await updateOutputDeviceName();
+            renderAdditionalOutputSpeakers();
+            renderOutputDevicePicker();
+            toast("メインのスピーカーを変更しました");
+            return;
+          } catch (retryError) {}
+        }
+      }
       toast("スピーカーの切り替えに失敗しました");
     }
   }
@@ -739,8 +763,7 @@
   async function renderOutputDevicePicker() {
     if (!el.outputDeviceList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const outputs = devices.filter(d => d.kind === "audiooutput");
+      const outputs = await ensureOutputDeviceAccess();
       const mainId = getMainOutputIdentity();
 
       el.outputDeviceList.innerHTML = "";
@@ -810,13 +833,16 @@
   async function discoverOutputDevice() {
     try {
       if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
-        await navigator.mediaDevices.selectAudioOutput();
-        await renderOutputDevicePicker();
-      } else {
-        toast("このブラウザでは追加のスピーカーを自動検出できません");
+        try {
+          await navigator.mediaDevices.selectAudioOutput();
+        } catch (e) {
+          if (e?.name !== "NotAllowedError") throw e;
+        }
       }
+      await ensureOutputDeviceAccess();
+      await renderOutputDevicePicker();
     } catch (e) {
-      if (e?.name !== "NotAllowedError") toast("スピーカーの取得に失敗しました");
+      toast("スピーカーの取得に失敗しました");
     }
   }
 
