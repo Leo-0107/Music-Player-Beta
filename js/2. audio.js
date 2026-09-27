@@ -488,9 +488,7 @@
   }
 
   function getCurrentMainOutputSinkId() {
-    if (outputBridgeAudio) return outputBridgeAudio.sinkId || "";
-    const sink = audioCtx?.sinkId;
-    return typeof sink === "string" ? sink : "";
+    return state.mainOutputDeviceId || "";
   }
 
   function getOutputDeviceLabel(device, fallback = "音声出力デバイス") {
@@ -529,12 +527,19 @@
     if (!el.outputDeviceName) return;
     try {
       const outputs = await enumerateAudioOutputs();
-      const sinkId = getCurrentMainOutputSinkId();
+      const sinkId = state.mainOutputDeviceId || "";
       const current = outputs.find(d => d.deviceId === sinkId);
-      el.outputDeviceName.textContent =
-        current?.label || (sinkId ? "選択したスピーカー" : "既定のスピーカー");
+      if (current?.label) {
+        state.speakerSettings.mainOutputLabel = current.label;
+        el.outputDeviceName.textContent = current.label;
+        saveState();
+      } else if (sinkId && state.speakerSettings.mainOutputLabel) {
+        el.outputDeviceName.textContent = state.speakerSettings.mainOutputLabel + "（未接続）";
+      } else {
+        el.outputDeviceName.textContent = "既定のスピーカー";
+      }
     } catch (e) {
-      el.outputDeviceName.textContent = "既定のスピーカー";
+      el.outputDeviceName.textContent = state.speakerSettings.mainOutputLabel || "既定のスピーカー";
     }
   }
 
@@ -558,42 +563,59 @@
 
   async function setMainOutputDevice(deviceId) {
     ensureGraph();
-    if ((deviceId || "default") !== getMainOutputIdentity() && hasAdditionalOutput(deviceId || "default")) {
+    const normalized = deviceId || "";
+
+    if (normalized && hasAdditionalOutput(normalized)) {
       toast("そのスピーカーは追加スピーカーで使用中です");
       return;
     }
+
+    const previousId = state.mainOutputDeviceId || "";
     try {
       if (typeof audioCtx?.setSinkId === "function") {
-        await audioCtx.setSinkId(deviceId || "");
+        await audioCtx.setSinkId(normalized);
       } else {
         ensureOutputBridge();
         if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
           throw new Error("No supported output sink API");
         }
-        await outputBridgeAudio.setSinkId(deviceId || "");
+        await outputBridgeAudio.setSinkId(normalized);
         await startOutputBridge();
       }
+
+      state.mainOutputDeviceId = normalized;
+      const outputs = await enumerateAudioOutputs();
+      const current = outputs.find(device => device.deviceId === normalized);
+      state.speakerSettings.mainOutputLabel =
+        current?.label || (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "");
+      saveState();
       await updateOutputDeviceName();
       renderAdditionalOutputSpeakers();
       renderOutputDevicePicker();
       toast("メインのスピーカーを変更しました");
     } catch (e) {
+      state.mainOutputDeviceId = previousId;
       if (e?.name === "NotAllowedError") {
         const outputs = await ensureOutputDeviceAccess();
-        const found = outputs.some(device => device.deviceId === (deviceId || ""));
+        const found = outputs.some(device => device.deviceId === normalized);
         if (found) {
           try {
             if (typeof audioCtx?.setSinkId === "function") {
-              await audioCtx.setSinkId(deviceId || "");
+              await audioCtx.setSinkId(normalized);
             } else {
               ensureOutputBridge();
               if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-                await outputBridgeAudio.setSinkId(deviceId || "");
+                await outputBridgeAudio.setSinkId(normalized);
                 await startOutputBridge();
               } else {
                 throw new Error("No supported output sink API");
               }
             }
+            state.mainOutputDeviceId = normalized;
+            const current = outputs.find(device => device.deviceId === normalized);
+            state.speakerSettings.mainOutputLabel =
+              current?.label || state.speakerSettings.mainOutputLabel || "選択したスピーカー";
+            saveState();
             await updateOutputDeviceName();
             renderAdditionalOutputSpeakers();
             renderOutputDevicePicker();
