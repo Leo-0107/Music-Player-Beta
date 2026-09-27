@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 48;
+  const BUILD_REVISION = 49;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1311,7 +1311,115 @@
     }
   }
 
+  function stopMicFeedbackMonitor() {
+    if (micFeedbackTimer) {
+      clearInterval(micFeedbackTimer);
+      micFeedbackTimer = null;
+    }
+    micFeedbackHighSimilarityFrames = 0;
+    micFeedbackStableFrames = 0;
+    if (micFeedbackGainNode && audioCtx) {
+      micFeedbackGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.15);
+    }
+  }
+
+  function micFeedbackSimilarity() {
+    if (!state.micFeedbackProtection ||
+        !state.micMonitor ||
+        !micFeedbackAnalyser ||
+        !micReferenceAnalyser ||
+        !micFeedbackData ||
+        !micReferenceData) {
+      return 0;
+    }
+
+    micFeedbackAnalyser.getByteFrequencyData(micFeedbackData);
+    micReferenceAnalyser.getByteFrequencyData(micReferenceData);
+
+    let dot = 0;
+    let micEnergy = 0;
+    let referenceEnergy = 0;
+    let micPeak = 0;
+    let micPeakBin = 0;
+
+    for (let i = 1; i < micFeedbackData.length; i++) {
+      const micValue = micFeedbackData[i] / 255;
+      const referenceValue = micReferenceData[i] / 255;
+      dot += micValue * referenceValue;
+      micEnergy += micValue * micValue;
+      referenceEnergy += referenceValue * referenceValue;
+
+      if (micValue > micPeak) {
+        micPeak = micValue;
+        micPeakBin = i;
+      }
+    }
+
+    if (micEnergy < 0.002 || referenceEnergy < 0.004) return 0;
+
+    const cosine = dot / Math.sqrt(micEnergy * referenceEnergy);
+    const localReference = micReferenceData[Math.min(micPeakBin, micReferenceData.length - 1)] / 255;
+    const peakSupport = localReference > 0.18 ? 1 : 0;
+
+    return peakSupport ? cosine : cosine * 0.75;
+  }
+
+  function updateMicFeedbackProtection() {
+    if (!state.micFeedbackProtection || !state.micMonitor || !micFeedbackGainNode || !audioCtx) {
+      if (micFeedbackGainNode && audioCtx) {
+        micFeedbackGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.15);
+      }
+      micFeedbackHighSimilarityFrames = 0;
+      micFeedbackStableFrames = 0;
+      return;
+    }
+
+    const similarity = micFeedbackSimilarity();
+
+    if (similarity >= 0.90) {
+      micFeedbackHighSimilarityFrames += 1;
+      micFeedbackStableFrames += 1;
+    } else {
+      micFeedbackHighSimilarityFrames = Math.max(0, micFeedbackHighSimilarityFrames - 1);
+      micFeedbackStableFrames = Math.max(0, micFeedbackStableFrames - 1);
+    }
+
+    const isLikelyFeedback =
+      micFeedbackHighSimilarityFrames >= 4 &&
+      micFeedbackStableFrames >= 4;
+
+    const targetGain = isLikelyFeedback ? 0.15 : 1;
+    const timeConstant = isLikelyFeedback ? 0.025 : 0.20;
+    micFeedbackGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, timeConstant);
+  }
+
+  function startMicFeedbackMonitor() {
+    stopMicFeedbackMonitor();
+    if (!state.micFeedbackProtection) return;
+    micFeedbackTimer = setInterval(updateMicFeedbackProtection, 50);
+  }
+
+  function updateMicFeedbackProtectionUI() {
+    if (!el.btnMicFeedbackProtection) return;
+    el.btnMicFeedbackProtection.textContent =
+      "ハウリング防止: " + (state.micFeedbackProtection ? "ON" : "OFF");
+    el.btnMicFeedbackProtection.classList.toggle("active", state.micFeedbackProtection);
+  }
+
+  async function setMicFeedbackProtectionEnabled(enabled) {
+    const wasMonitoring = state.micMonitor;
+    state.micFeedbackProtection = !!enabled;
+    saveState();
+    updateMicFeedbackProtectionUI();
+
+    if (wasMonitoring) {
+      await setMicMonitorEnabled(false);
+      await setMicMonitorEnabled(true);
+    }
+  }
+
   function stopMicMonitor() {
+    stopMicFeedbackMonitor();
     if (micSourceNode) {
       try { micSourceNode.disconnect(); } catch (e) {}
       micSourceNode = null;
@@ -1386,6 +1494,7 @@
       micSourceNode.connect(micFeedbackGainNode);
       micFeedbackGainNode.connect(micFeedbackAnalyser);
       micFeedbackGainNode.connect(micGainNode);
+      startMicFeedbackMonitor();
       toast("マイクモニターを開始しました");
 
       const track = stream.getAudioTracks()[0];
@@ -1428,6 +1537,13 @@
     });
   }
   updateMicMonitorUI();
+  updateMicFeedbackProtectionUI();
+
+  if (el.btnMicFeedbackProtection) {
+    el.btnMicFeedbackProtection.addEventListener("click", () => {
+      setMicFeedbackProtectionEnabled(!state.micFeedbackProtection);
+    });
+  }
 
   async function resumeAudioCtx(){
     ensureGraph();
