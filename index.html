@@ -227,11 +227,11 @@
         <div class="sectionCard speakerPanel">
           <div class="sectionTitle">自動遅延補正</div>
           <div style="font-size:.82rem; color:var(--muted); line-height:1.45;">
-            接続中・登録済みのスピーカーについて、ブラウザが取得できる出力遅延を基準に、早いスピーカーへ遅延を追加します。
+            ブラウザが取得できる共通の出力遅延を推定し、メインと登録済みスピーカーの基準値として設定します。
           </div>
           <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（ブラウザ推定）</button>
           <div style="font-size:.76rem; color:var(--muted); margin-top:8px;">
-            Bluetooth機器などの実際の伝送遅延や部屋の音響遅延まで完全に測定するものではありません。
+            実際の機器ごとのBluetooth伝送遅延、HDMI機器の遅延、部屋の音響遅延まではブラウザから個別測定できないため、最後はスピーカーごとの手動調整で合わせます。
           </div>
         </div>
 
