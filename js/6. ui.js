@@ -18,6 +18,9 @@
 
   audio.addEventListener("play", () => {
     updatePlayPauseUI();
+    if (typeof startOutputBridge === "function") {
+      startOutputBridge().catch(() => {});
+    }
     if (typeof drawWave === "function" && drawWave._wave3DHistory) {
       drawWave._wave3DHistory = [];
       drawWave._wave3DSampleElapsed = 0;
