@@ -153,7 +153,7 @@
     outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string").map(route => ({
       ...route,
       enabled: route.enabled !== false,
-      delayMs: Math.max(-1000, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
+      delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
     speakerSettings: loadJSON(STORAGE.speakerSettings, {}),
