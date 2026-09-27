@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 40;
+  const BUILD_REVISION = 41;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -488,14 +488,21 @@
     }
   }
 
-  function moveOutputDeviceModalToBody() {
-    if (el.outputDeviceModal && el.outputDeviceModal.parentElement !== document.body) {
-      document.body.appendChild(el.outputDeviceModal);
-    }
+  function moveOutputDeviceModalsToBody() {
+    [el.outputDeviceModal, el.outputDeviceAddModal].forEach(modal => {
+      if (modal && modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+      }
+    });
   }
 
   function closeOutputDeviceModal() {
     if (el.outputDeviceModal) el.outputDeviceModal.hidden = true;
+    document.body.classList.remove("output-device-modal-open");
+  }
+
+  function closeOutputDeviceAddModal() {
+    if (el.outputDeviceAddModal) el.outputDeviceAddModal.hidden = true;
     document.body.classList.remove("output-device-modal-open");
   }
 
@@ -822,36 +829,14 @@
     renderAdditionalOutputSpeakers();
     await createAdditionalOutputRuntime(route);
     await startOutputBridge();
-    renderOutputDevicePicker();
-    closeOutputDeviceModal();
+    renderOutputDeviceAddPicker();
+    closeOutputDeviceAddModal();
     toast("スピーカーを追加しました");
   }
 
-  function areSameOutputDevice(a, b) {
-    if (!a || !b) return false;
-    if (a.deviceId && b.deviceId && a.deviceId === b.deviceId) return true;
-    if (a.groupId && b.groupId && a.groupId === b.groupId) return true;
-
-    const normalizeLabel = value => String(value || "").trim().toLowerCase();
-    const aLabel = normalizeLabel(a.label);
-    const bLabel = normalizeLabel(b.label);
-    return !!aLabel && aLabel === bLabel;
-  }
-
-  function getEquivalentMainOutputId(mainId, device, defaultDevice) {
-    const normalizedMainId = mainId || "default";
-    const deviceKey = device?.deviceId || "default";
-    if (normalizedMainId === deviceKey) return deviceKey;
-
-    const mainDevice = normalizedMainId === "default"
-      ? defaultDevice
-      : null;
-    if (mainDevice && areSameOutputDevice(mainDevice, device)) return deviceKey;
-
-    if (normalizedMainId !== "default" && areSameOutputDevice({ deviceId: normalizedMainId }, device)) {
-      return deviceKey;
-    }
-    return normalizedMainId;
+  function outputDeviceIsDefaultPhysical(device, outputs) {
+    const defaultDevice = outputs.find(d => d.deviceId === "default");
+    return !!defaultDevice && areSameOutputDevice(defaultDevice, device);
   }
 
   async function renderOutputDevicePicker() {
@@ -862,22 +847,13 @@
 
       el.outputDeviceList.innerHTML = "";
 
-      const enumeratedDefault = outputs.find(d => d.deviceId === "default") || null;
-      const defaultDevice = enumeratedDefault || { deviceId: "", label: "既定のスピーカー" };
+      const defaultDevice = outputs.find(d => d.deviceId === "default") || { deviceId: "", label: "既定のスピーカー" };
       const physicalOutputs = outputs.filter(d => d.deviceId && d.deviceId !== "default");
-
-      // Chromeでは「default」と、その実体である内蔵スピーカー等が別デバイスとして
-      // 列挙されることがあるため、同じgroupId（または同じラベル）の重複を1つにまとめる。
       const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
-      // 既定の出力は、現在メインに指定されている実デバイスと同じ場合だけ
-      // 実デバイス名で表示し、それ以外は「既定のスピーカー」で表示する。
-      // これにより同じ物理スピーカーの二重表示を避けつつ、既定出力へ戻す項目は残す。
-      const showSyntheticDefault = !defaultPhysical || mainId !== defaultPhysical.deviceId;
+
       const list = [
-        ...(showSyntheticDefault ? [{ deviceId: "", label: "既定のスピーカー" }] : []),
-        ...physicalOutputs.filter(device =>
-          !defaultPhysical || !areSameOutputDevice(defaultDevice, device) || !showSyntheticDefault
-        )
+        { deviceId: "", label: "既定のスピーカー" },
+        ...physicalOutputs.filter(device => !defaultPhysical || !areSameOutputDevice(defaultDevice, device))
       ];
 
       const seen = new Set();
@@ -896,10 +872,12 @@
         name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
 
         const stateText = document.createElement("small");
-        const equivalentMainId = getEquivalentMainOutputId(mainId, device, defaultDevice);
-        const isMain = key === equivalentMainId;
-        const isAdditional = hasAdditionalOutput(key);
-        stateText.textContent = isMain ? "現在のメイン" : (isAdditional ? "追加済み" : "");
+        const isMain = key === mainId || (
+          key === "default" &&
+          defaultPhysical &&
+          mainId === defaultPhysical.deviceId
+        );
+        stateText.textContent = isMain ? "現在のメイン" : "";
 
         info.append(name, stateText);
 
@@ -916,14 +894,7 @@
           closeOutputDeviceModal();
         });
 
-        const addBtn = document.createElement("button");
-        addBtn.className = "btn small ghost";
-        addBtn.type = "button";
-        addBtn.textContent = isAdditional ? "追加済み" : "追加";
-        addBtn.disabled = isAdditional || isMain;
-        addBtn.addEventListener("click", () => addAdditionalOutputSpeaker(device));
-
-        actions.append(mainBtn, addBtn);
+        actions.append(mainBtn);
         item.append(info, actions);
         el.outputDeviceList.appendChild(item);
       }
@@ -932,41 +903,94 @@
     }
   }
 
-  async function openOutputDeviceModal() {
-    if (!el.outputDeviceModal) return;
-    moveOutputDeviceModalToBody();
-    ensureGraph();
-    el.outputDeviceModal.hidden = false;
-    document.body.classList.add("output-device-modal-open");
-    await renderOutputDevicePicker();
-  }
-
-  async function discoverOutputDevice() {
+  async function renderOutputDeviceAddPicker() {
+    if (!el.outputDeviceAddList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
-      if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
-        try {
-          await navigator.mediaDevices.selectAudioOutput();
-        } catch (e) {
-          if (e?.name !== "NotAllowedError") throw e;
-        }
+      const outputs = await ensureOutputDeviceAccess();
+      const mainId = getMainOutputIdentity();
+
+      el.outputDeviceAddList.innerHTML = "";
+
+      const physicalOutputs = outputs.filter(d => d.deviceId && d.deviceId !== "default");
+      const seen = new Set();
+
+      for (const device of physicalOutputs) {
+        const key = device.deviceId;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const item = document.createElement("div");
+        item.className = "outputDeviceItem";
+
+        const info = document.createElement("div");
+        info.className = "outputDeviceItemInfo";
+
+        const name = document.createElement("strong");
+        name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
+
+        const stateText = document.createElement("small");
+        const isMain = key === mainId || (
+          mainId === "default" && outputDeviceIsDefaultPhysical(device, outputs)
+        );
+        const isAdditional = hasAdditionalOutput(key);
+        stateText.textContent = isMain ? "現在のメイン" : (isAdditional ? "追加済み" : "");
+
+        info.append(name, stateText);
+
+        const actions = document.createElement("div");
+        actions.className = "outputDeviceItemActions";
+
+        const addBtn = document.createElement("button");
+        addBtn.className = "btn small";
+        addBtn.type = "button";
+        addBtn.textContent = isMain ? "メインで使用中" : (isAdditional ? "追加済み" : "追加");
+        addBtn.disabled = isMain || isAdditional;
+        addBtn.addEventListener("click", () => addAdditionalOutputSpeaker(device));
+
+        actions.append(addBtn);
+        item.append(info, actions);
+        el.outputDeviceAddList.appendChild(item);
       }
-      await ensureOutputDeviceAccess();
-      await renderOutputDevicePicker();
+
+      if (!physicalOutputs.length) {
+        el.outputDeviceAddList.textContent = "追加できるスピーカーが見つかりません。";
+      }
     } catch (e) {
-      toast("スピーカーの取得に失敗しました");
+      el.outputDeviceAddList.textContent = "利用できるスピーカーを取得できませんでした。";
     }
   }
 
+  function openOutputDeviceModal() {
+    if (!el.outputDeviceModal) return;
+    moveOutputDeviceModalsToBody();
+    ensureGraph();
+    el.outputDeviceModal.hidden = false;
+    document.body.classList.add("output-device-modal-open");
+    renderOutputDevicePicker();
+  }
+
+  function openOutputDeviceAddModal() {
+    if (!el.outputDeviceAddModal) return;
+    moveOutputDeviceModalsToBody();
+    ensureGraph();
+    el.outputDeviceAddModal.hidden = false;
+    document.body.classList.add("output-device-modal-open");
+    renderOutputDeviceAddPicker();
+  }
+
   if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
-  if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceModal);
-  if (el.btnDiscoverOutputSpeaker) el.btnDiscoverOutputSpeaker.addEventListener("click", discoverOutputDevice);
+  if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
   if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
   if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
+  if (el.btnCloseOutputDeviceAddModal) el.btnCloseOutputDeviceAddModal.addEventListener("click", closeOutputDeviceAddModal);
+  if (el.btnCloseOutputDeviceAddModalBottom) el.btnCloseOutputDeviceAddModalBottom.addEventListener("click", closeOutputDeviceAddModal);
+  if (el.btnRefreshOutputAddList) el.btnRefreshOutputAddList.addEventListener("click", renderOutputDeviceAddPicker);
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       await updateOutputDeviceName();
       await renderOutputDevicePicker();
+      await renderOutputDeviceAddPicker();
       await syncAdditionalOutputRuntimes();
     });
   }
