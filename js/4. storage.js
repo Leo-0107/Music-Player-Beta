@@ -21,6 +21,7 @@
     channelLeft: "mp_channel_left_v13",
     channelRight: "mp_channel_right_v13",
     micMonitorVolume: "mp_mic_monitor_volume_v1",
+    micFeedbackProtection: "mp_mic_feedback_protection_v1",
     outputRoutes: "mp_output_routes_v1",
     mainOutputDevice: "mp_main_output_device_v1",
     speakerSettings: "mp_speaker_settings_v1",
