@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 4;
+  const BUILD_REVISION = 5;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -523,6 +523,31 @@
     if (!Number.isFinite(n)) return defaultValue;
     return Math.abs(n - defaultValue) <= threshold ? defaultValue : n;
   }
+
+  function snapSettingsRangeToDefault(event) {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== "range") return;
+
+    // 再生位置バーは設定ではないため、中央スナップの対象外。
+    if (input.id === "progress" || input.id === "miniProgress") return;
+
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const step = Number(input.step);
+    const value = Number(input.value);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(value) || max <= min) return;
+
+    const defaultValue = (min + max) / 2;
+    const range = max - min;
+    const stepThreshold = Number.isFinite(step) && step > 0 ? step * 1.5 : 0;
+    const threshold = Math.max(stepThreshold, range * 0.04);
+
+    input.value = String(snapToDefault(value, defaultValue, threshold));
+  }
+
+  // すべての設定用rangeを同じ基準値へ吸着させる。
+  // キャプチャ段階で値を補正するため、後続の各設定ハンドラーにも補正後の値が渡る。
+  document.addEventListener("input", snapSettingsRangeToDefault, true);
 
   function updateChannelVolumeUI(side, value) {
     const clamped = Math.max(0, Math.min(2, snapToDefault(value, 1, 0.07)));
