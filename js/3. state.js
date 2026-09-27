@@ -76,6 +76,9 @@
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
   let spatialDirectGainNode = null, spatial3DGainNode = null;
   let micGainNode = null, micSourceNode = null, micStream = null;
+  let micFeedbackGainNode = null, micFeedbackAnalyser = null, micFeedbackTimer = null;
+  let micFeedbackData = null, micReferenceAnalyser = null, micReferenceData = null;
+  let micFeedbackHighSimilarityFrames = 0;
   let finalMixGainNode = null;
   let waveOutputSplitter = null, waveLeftOutputAnalyser = null, waveRightOutputAnalyser = null;
   let waveLeftOutputData = null, waveRightOutputData = null;
