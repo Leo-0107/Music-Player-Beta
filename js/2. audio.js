@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 52;
+  const BUILD_REVISION = 53;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -408,33 +408,13 @@
       waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
       waveOutputSplitter.connect(waveRightOutputAnalyser, 1);
 
-      // AudioContext.setSinkId() がないブラウザでは、MediaStreamを介した
-      // HTMLMediaElement.setSinkId() を出力経路として使用する。
-      const canSelectContextSink = typeof audioCtx.setSinkId === "function";
-      if (!canSelectContextSink) {
-        ensureOutputBridge();
-      }
+      // メイン出力は常に MediaStreamDestination + HTMLMediaElement.setSinkId()
+      // を使う。AudioContext.setSinkId() の対応差による切替失敗を避ける。
+      ensureOutputBridge();
 
-      // アプリで最後に選択した出力先を、OSの現在の既定出力とは独立して復元する。
-      if (state.mainOutputDeviceId) {
+      if (state.mainOutputDeviceId && outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
         try {
-          if (canSelectContextSink) {
-            audioCtx.setSinkId(state.mainOutputDeviceId).catch(async () => {
-              ensureOutputBridge();
-              if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-                try {
-                  await outputBridgeAudio.setSinkId(state.mainOutputDeviceId);
-                  if (mainDelayNode && outputStreamDestination) {
-                    try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
-                    try { mainDelayNode.connect(outputStreamDestination); } catch (e) {}
-                  }
-                  await startOutputBridge();
-                } catch (e) {}
-              }
-            });
-          } else if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-            outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(() => {});
-          }
+          await outputBridgeAudio.setSinkId(state.mainOutputDeviceId);
         } catch (e) {}
       }
 
@@ -442,10 +422,9 @@
       applyMainOutputDelayNode();
       analyser.connect(mainDelayNode);
 
+      ensureOutputBridge();
       if (outputBridgeAudio && outputStreamDestination) {
         mainDelayNode.connect(outputStreamDestination);
-      } else {
-        mainDelayNode.connect(audioCtx.destination);
       }
 
       audioGraphReady = true;
@@ -626,25 +605,10 @@
 
     try {
       ensureGraph();
-      let applied = false;
-      if (typeof audioCtx?.setSinkId === "function") {
-        try {
-          await audioCtx.setSinkId(deviceId);
-          applied = true;
-        } catch (e) {}
-      }
-
-      if (!applied) {
-        ensureOutputBridge();
-        if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-          await outputBridgeAudio.setSinkId(deviceId);
-          if (mainDelayNode && outputStreamDestination) {
-            try { mainDelayNode.disconnect(audioCtx.destination); } catch (ignore) {}
-            try { mainDelayNode.disconnect(outputStreamDestination); } catch (ignore) {}
-            mainDelayNode.connect(outputStreamDestination);
-          }
-          await startOutputBridge();
-        }
+      ensureOutputBridge();
+      if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+        await outputBridgeAudio.setSinkId(deviceId);
+        await startOutputBridge();
       }
       await updateOutputDeviceName();
     } catch (e) {}
@@ -699,28 +663,19 @@
 
     const previousId = state.mainOutputDeviceId || "";
     try {
-      let applied = false;
-
-      if (typeof audioCtx?.setSinkId === "function") {
-        try {
-          await audioCtx.setSinkId(normalized);
-          applied = true;
-        } catch (e) {}
+      ensureOutputBridge();
+      if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
+        throw new Error("HTMLMediaElement.setSinkId is unavailable");
       }
 
-      if (!applied) {
-        ensureOutputBridge();
-        if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
-          throw new Error("No supported output sink API");
-        }
-        await outputBridgeAudio.setSinkId(normalized);
-        if (mainDelayNode && outputStreamDestination) {
-          try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
-          try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
-          mainDelayNode.connect(outputStreamDestination);
-        }
-        await startOutputBridge();
+      await outputBridgeAudio.setSinkId(normalized);
+
+      if (mainDelayNode && outputStreamDestination) {
+        try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
+        try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
+        mainDelayNode.connect(outputStreamDestination);
       }
+      await startOutputBridge();
 
       state.mainOutputDeviceId = normalized;
       const outputs = await enumerateAudioOutputs();
@@ -735,36 +690,14 @@
     } catch (e) {
       state.mainOutputDeviceId = previousId;
       if (e?.name === "NotAllowedError") {
-        const outputs = await ensureOutputDeviceAccess();
-        const found = outputs.some(device => device.deviceId === normalized);
-        if (found) {
-          try {
-            ensureOutputBridge();
-            if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
-              throw new Error("No supported output sink API");
-            }
-            await outputBridgeAudio.setSinkId(normalized);
-            if (mainDelayNode && outputStreamDestination) {
-              try { mainDelayNode.disconnect(audioCtx.destination); } catch (ignore) {}
-              try { mainDelayNode.disconnect(outputStreamDestination); } catch (ignore) {}
-              mainDelayNode.connect(outputStreamDestination);
-            }
-            await startOutputBridge();
-
-            state.mainOutputDeviceId = normalized;
-            const current = outputs.find(device => device.deviceId === normalized);
-            state.speakerSettings.mainOutputLabel =
-              current?.label || state.speakerSettings.mainOutputLabel || "選択したスピーカー";
-            saveState();
-            await updateOutputDeviceName();
-            renderAdditionalOutputSpeakers();
-            renderOutputDevicePicker();
-            toast("スピーカーを変更しました");
-            return;
-          } catch (retryError) {}
-        }
+        toast("この出力機器の使用がブラウザで許可されていません");
+      } else if (e?.name === "NotFoundError") {
+        toast("接続中の出力機器が見つかりません");
+      } else if (e?.name === "AbortError") {
+        toast("出力機器の切り替えに失敗しました");
+      } else {
+        toast("スピーカーの切り替えに失敗しました");
       }
-      toast("スピーカーの切り替えに失敗しました");
     }
   }
 
