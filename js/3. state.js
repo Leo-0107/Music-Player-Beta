@@ -235,6 +235,7 @@
     btnSettingsResetSettings: document.getElementById("btnSettingsResetSettings"),
     outputDeviceName: document.getElementById("outputDeviceName"),
     btnSelectOutput: document.getElementById("btnSelectOutput"),
+    outputDeviceSelect: document.getElementById("outputDeviceSelect"),
     channelLeft: document.getElementById("channelLeft"),
     channelRight: document.getElementById("channelRight"),
     channelLeftText: document.getElementById("channelLeftText"),
