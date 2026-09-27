@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 46;
+  const BUILD_REVISION = 47;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -429,18 +429,54 @@
 
   function clampSpeakerDelay(value) {
     const n = Number(value);
-    return Number.isFinite(n) ? Math.max(0, Math.min(1000, Math.round(n))) : 0;
+    return Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n * 10) / 10)) : 0;
   }
 
   function getMainOutputDelay() {
     return clampSpeakerDelay(state.speakerSettings?.mainDelayMs);
   }
 
+  function getSpeakerDelayOffsets() {
+    const delays = [getMainOutputDelay()];
+    state.outputRoutes.forEach(route => {
+      delays.push(clampSpeakerDelay(route.delayMs));
+    });
+    return delays;
+  }
+
+  function getSpeakerDelayBase() {
+    const delays = getSpeakerDelayOffsets();
+    const minDelay = Math.min(...delays);
+    return Math.max(0, -minDelay);
+  }
+
+  function getEffectiveSpeakerDelay(delayMs) {
+    return Math.max(0, clampSpeakerDelay(delayMs) + getSpeakerDelayBase());
+  }
+
+  function applyAllSpeakerDelayNodes() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    if (mainDelayNode) {
+      mainDelayNode.delayTime.setValueAtTime(
+        Math.min(1.5, getEffectiveSpeakerDelay(getMainOutputDelay()) / 1000),
+        now
+      );
+    }
+    for (const route of state.outputRoutes) {
+      const runtime = additionalOutputRuntimes.get(route.deviceId);
+      if (runtime?.delayNode) {
+        runtime.delayNode.delayTime.setValueAtTime(
+          Math.min(1.5, getEffectiveSpeakerDelay(route.delayMs) / 1000),
+          now
+        );
+      }
+    }
+  }
+
   function applyMainOutputDelayNode() {
     const delayMs = getMainOutputDelay();
-    if (mainDelayNode && audioCtx) {
-      mainDelayNode.delayTime.setValueAtTime(delayMs / 1000, audioCtx.currentTime);
-    }
+    applyAllSpeakerDelayNodes();
     if (el.mainOutputDelay) el.mainOutputDelay.value = String(delayMs);
     if (el.mainOutputDelayText) el.mainOutputDelayText.textContent = String(delayMs) + " ms";
   }
@@ -893,10 +929,8 @@
     route.delayMs = delayMs;
 
     const runtime = additionalOutputRuntimes.get(route.deviceId);
-    if (runtime?.delayNode && audioCtx) {
-      runtime.delayNode.delayTime.setValueAtTime(delayMs / 1000, audioCtx.currentTime);
-    }
     saveState();
+    applyAllSpeakerDelayNodes();
     renderAdditionalOutputSpeakers();
   }
 
@@ -921,7 +955,7 @@
     media.setAttribute("aria-hidden", "true");
     media.style.display = "none";
     media.srcObject = destination.stream;
-    delayNode.delayTime.value = clampSpeakerDelay(route.delayMs) / 1000;
+    delayNode.delayTime.value = Math.min(1.5, getEffectiveSpeakerDelay(route.delayMs) / 1000);
 
     speakerBusNode.connect(splitter);
     const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger, delayNode, connected: true };
