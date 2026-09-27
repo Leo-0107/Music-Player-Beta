@@ -526,18 +526,23 @@
     } catch (e) {}
   }
 
-  async function refreshOutputDeviceOptions() {
+  async function refreshOutputDeviceOptions(showList = false) {
     if (!el.outputDeviceSelect || !navigator.mediaDevices?.enumerateDevices) return;
-    if (!("setSinkId" in HTMLMediaElement.prototype)) return;
+    const canMediaSink = "setSinkId" in HTMLMediaElement.prototype;
+    const canContextSink = !!audioCtx && typeof audioCtx.setSinkId === "function";
+    if (!canMediaSink && !canContextSink) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const outputs = devices.filter(d => d.kind === "audiooutput");
-      const currentSink = outputBridgeAudio?.sinkId || "";
+      const currentSink = outputBridgeAudio?.sinkId || audioCtx?.sinkId || "";
       el.outputDeviceSelect.innerHTML = "";
+
       const defaultOption = document.createElement("option");
       defaultOption.value = "";
       defaultOption.textContent = "既定のスピーカー";
+      defaultOption.selected = currentSink === "" || currentSink === "default";
       el.outputDeviceSelect.appendChild(defaultOption);
+
       for (const device of outputs) {
         if (!device.deviceId || device.deviceId === "default") continue;
         const option = document.createElement("option");
@@ -546,30 +551,88 @@
         option.selected = device.deviceId === currentSink;
         el.outputDeviceSelect.appendChild(option);
       }
-      el.outputDeviceSelect.hidden = false;
+
+      el.outputDeviceSelect.hidden = !showList;
     } catch (e) {}
   }
 
-  async function setFallbackOutputDevice(deviceId) {
-    ensureOutputBridge();
-    if (!outputBridgeAudio || !("setSinkId" in outputBridgeAudio)) {
-      toast("このブラウザではスピーカー選択に対応していません");
-      return;
-    }
+  async function setListedOutputDevice(deviceId) {
+    const canContextSink = !!audioCtx && typeof audioCtx.setSinkId === "function";
+    const canMediaSink = !!outputBridgeAudio && ("setSinkId" in outputBridgeAudio);
     try {
-      await outputBridgeAudio.setSinkId(deviceId || "");
+      if (canContextSink) {
+        await audioCtx.setSinkId(deviceId || "");
+      } else if (canMediaSink) {
+        await outputBridgeAudio.setSinkId(deviceId || "");
+      } else {
+        toast("このブラウザではスピーカー選択に対応していません");
+        return;
+      }
       await updateOutputDeviceName();
       toast("出力先を変更しました");
     } catch (e) {
       await updateOutputDeviceName();
       toast("スピーカーの切り替えに失敗しました");
       if (el.outputDeviceSelect) {
-        el.outputDeviceSelect.value = outputBridgeAudio.sinkId || "";
+        el.outputDeviceSelect.value = outputBridgeAudio?.sinkId || audioCtx?.sinkId || "";
       }
     }
   }
 
-  async function setClippingProtection(enabled) {
+  async function selectOutputDevice() {
+    if (!el.btnSelectOutput) return;
+    ensureGraph();
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    const canContextSink = !!AudioContextCtor && !!audioCtx && typeof audioCtx.setSinkId === "function";
+    const canMediaSink = !!outputBridgeAudio && ("setSinkId" in outputBridgeAudio);
+
+    try {
+      if (navigator.mediaDevices?.selectAudioOutput) {
+        const device = await navigator.mediaDevices.selectAudioOutput();
+        if (!device?.deviceId) return;
+
+        if (canContextSink) {
+          await audioCtx.setSinkId(device.deviceId);
+        } else if (canMediaSink) {
+          await outputBridgeAudio.setSinkId(device.deviceId);
+        } else {
+          toast("このブラウザではスピーカー選択に対応していません");
+          return;
+        }
+
+        if (el.outputDeviceSelect) el.outputDeviceSelect.hidden = true;
+        el.outputDeviceName.textContent = device.label || "選択したスピーカー";
+        await updateOutputDeviceName();
+        toast(String(device.label || "選択したスピーカー") + " に出力先を変更しました");
+        return;
+      }
+
+      if (canContextSink || canMediaSink) {
+        await refreshOutputDeviceOptions(true);
+        if (el.outputDeviceSelect) el.outputDeviceSelect.focus();
+        toast("下の一覧からスピーカーを選択してください");
+        return;
+      }
+
+      toast("このブラウザではスピーカー選択に対応していません");
+    } catch (e) {
+      await updateOutputDeviceName();
+      toast(e?.name === "NotAllowedError" ? "スピーカーの選択がキャンセルされました" : "スピーカーの切り替えに失敗しました");
+    }
+  }
+
+  if (el.btnSelectOutput) {
+    el.btnSelectOutput.addEventListener("click", selectOutputDevice);
+  }
+  if (el.outputDeviceSelect) {
+    el.outputDeviceSelect.addEventListener("change", e => setListedOutputDevice(e.target.value));
+  }
+
+  updateOutputDeviceName();
+  refreshOutputDeviceOptions(false);
+
+  function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
     saveState();
     if (audioCtx && masterGain && analyser && limiterNode) {
