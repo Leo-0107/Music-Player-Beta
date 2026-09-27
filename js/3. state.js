@@ -83,6 +83,7 @@
   let outputSplitter = null, leftLevelAnalyser = null, rightLevelAnalyser = null;
   let leftLevelData = null, rightLevelData = null;
   let outputStreamDestination = null, outputBridgeAudio = null;
+  const additionalOutputRuntimes = new Map();
   let audioGraphReady = false;
   let isSlidingRange = false;
   let currentRate = 1.0;
@@ -143,6 +144,7 @@
     micMonitorVolume: currentMicMonitorVolumeTarget,
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
+    outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string"),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
@@ -237,6 +239,11 @@
     outputDeviceName: document.getElementById("outputDeviceName"),
     btnSelectOutput: document.getElementById("btnSelectOutput"),
     outputDeviceSelect: document.getElementById("outputDeviceSelect"),
+    outputDeviceModal: document.getElementById("outputDeviceModal"),
+    outputDeviceList: document.getElementById("outputDeviceList"),
+    btnCloseOutputDeviceModal: document.getElementById("btnCloseOutputDeviceModal"),
+    btnAddOutputSpeaker: document.getElementById("btnAddOutputSpeaker"),
+    additionalOutputSpeakers: document.getElementById("additionalOutputSpeakers"),
     channelLeft: document.getElementById("channelLeft"),
     channelRight: document.getElementById("channelRight"),
     channelLeftText: document.getElementById("channelLeftText"),
