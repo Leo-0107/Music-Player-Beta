@@ -1987,6 +1987,7 @@
             STORAGE.channelLeft,
             STORAGE.channelRight,
             STORAGE.micMonitorVolume,
+            STORAGE.micFeedbackProtection,
             STORAGE.mainOutputDevice,
             STORAGE.speakerSettings,
             STORAGE.playlistSettings,
