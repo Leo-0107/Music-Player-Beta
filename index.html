@@ -87,6 +87,7 @@
         <button class="menuItem" data-section="playlistSection">プレイリスト<span>管理・再生</span></button>
         <button class="menuItem" data-section="queueSection">再生キュー<span>次に再生する曲</span></button>
         <button class="menuItem" data-section="eqSection">イコライザー<span>音質調整</span></button>
+        <button class="menuItem" data-section="speakerSection">スピーカー設定<span>出力先・音量・遅延補正</span></button>
         <button class="menuItem" data-section="timerSection">スリープタイマー<span>自動停止設定</span></button>
         <button class="menuItem" data-section="statsSection">再生統計<span>データ確認</span></button>
         <button class="menuItem" data-section="themeSection">テーマ設定<span>見た目のカスタマイズ</span></button>
@@ -192,10 +193,16 @@
           </div>
           <div id="eqBands" style="display:flex; justify-content:space-between; gap:8px;"></div>
         </div>
+      <div class="panelSection" id="speakerSection">
         <div class="sectionCard speakerPanel">
-          <div class="speakerNameLine">現在のスピーカー: <strong id="outputDeviceName">確認中...</strong></div>
+          <div class="sectionTitle">メインスピーカー</div>
+          <div class="speakerNameLine">アプリで使用中: <strong id="outputDeviceName">確認中...</strong></div>
           <div class="speakerDeviceActions">
             <button class="btn small" id="btnSelectOutput" type="button">スピーカーを選択</button>
+          </div>
+          <div class="field speakerDelayField">
+            <label>遅延補正: <span id="mainOutputDelayText">0 ms</span></label>
+            <input type="range" id="mainOutputDelay" min="0" max="1000" step="1" value="0">
           </div>
           <div class="channelVolumeWrap">
             <div class="channelVolume">
@@ -209,6 +216,21 @@
               <strong>R</strong>
             </div>
           </div>
+        </div>
+
+        <div class="sectionCard speakerPanel">
+          <div class="sectionTitle">自動遅延補正</div>
+          <div style="font-size:.82rem; color:var(--muted); line-height:1.45;">
+            接続中・登録済みのスピーカーについて、ブラウザが取得できる出力遅延を基準に、早いスピーカーへ遅延を追加します。
+          </div>
+          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（推定）</button>
+          <div style="font-size:.76rem; color:var(--muted); margin-top:8px;">
+            Bluetooth機器などの実際の伝送遅延や部屋の音響遅延まで完全に測定するものではありません。
+          </div>
+        </div>
+
+        <div class="sectionCard speakerPanel">
+          <div class="sectionTitle">追加スピーカー</div>
           <div id="additionalOutputSpeakers"></div>
           <div class="speakerAddActions">
             <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ スピーカーを追加</button>
@@ -216,7 +238,7 @@
         </div>
       </div>
 
-      <div class="outputDeviceModal" id="outputDeviceModal" hidden>
+            <div class="outputDeviceModal" id="outputDeviceModal" hidden>
         <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="outputDeviceModalTitle">
           <div class="outputDeviceModalHead">
             <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
@@ -449,6 +471,12 @@
       <button class="settingsCard" data-settings-section="eqSection">
         <span class="settingsIcon">🎚️</span>
         <span class="settingsCardText"><strong>イコライザー</strong><small>プリセット・周波数・左右チャンネル音量</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+
+      <button class="settingsCard" data-settings-section="speakerSection">
+        <span class="settingsIcon">🔊</span>
+        <span class="settingsCardText"><strong>スピーカー設定</strong><small>出力先・左右音量・スピーカーごとの遅延補正</small></span>
         <span class="settingsArrow">›</span>
       </button>
 
