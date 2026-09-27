@@ -350,31 +350,32 @@
       spatial3DGainNode.connect(channelNormalizeNode);
 
       // パイプライン: 空間処理ルート -> 2ch正規化 -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
-      channelNormalizeNode.connect(channelSplitter);
+      // マスター音量・マイクを含む2chミックスを、各スピーカーの個別L/R調整より前で分岐する。
+      // メイン側のL/R音量変更が追加スピーカーへ影響しないようにする。
+      channelNormalizeNode.connect(masterGain);
+      masterGain.connect(finalMixGainNode);
+      micGainNode.connect(finalMixGainNode);
+
+      speakerBusNode = audioCtx.createGain();
+      if (state.clippingProtection) {
+        finalMixGainNode.connect(limiterNode);
+        limiterNode.connect(speakerBusNode);
+      } else {
+        finalMixGainNode.connect(speakerBusNode);
+      }
+
+      speakerBusNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
       channelSplitter.connect(rightGainNode, 1, 0);
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
-      channelMerger.connect(masterGain);
-      masterGain.connect(finalMixGainNode);
-      micGainNode.connect(finalMixGainNode);
 
-      // 最終ミックス後の信号を測定し、実際に出力デバイスへ送る信号を波形の基準にする。
-      finalMixGainNode.connect(outputSplitter);
+      // メインスピーカーのL/Rを反映した信号だけをメーター・波形に使用する。
+      channelMerger.connect(outputSplitter);
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
-
-      if (state.clippingProtection) {
-        // 出力処理は最終ミックスのステレオ信号をそのまま渡す。
-        // outputSplitter の第0出力だけを analyser へ渡すと右チャンネルが消えるため、
-        // 分析用splitterはL/Rメーター専用にする。
-        finalMixGainNode.connect(limiterNode);
-        limiterNode.connect(analyser);
-        limiterNode.connect(waveOutputSplitter);
-      } else {
-        finalMixGainNode.connect(analyser);
-        finalMixGainNode.connect(waveOutputSplitter);
-      }
+      channelMerger.connect(analyser);
+      analyser.connect(waveOutputSplitter);
 
       waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
       waveOutputSplitter.connect(waveRightOutputAnalyser, 1);
@@ -387,22 +388,61 @@
       }
 
       mainDelayNode = audioCtx.createDelay(1.5);
-      mainDelayNode.delayTime.value = Math.max(
-        0,
-        Math.min(1, Number(state.speakerSettings?.mainDelayMs) || 0)
-      ) / 1000;
+      applyMainOutputDelayNode();
+      analyser.connect(mainDelayNode);
 
       if (outputBridgeAudio && outputStreamDestination) {
-        analyser.connect(mainDelayNode);
         mainDelayNode.connect(outputStreamDestination);
       } else {
-        analyser.connect(mainDelayNode);
         mainDelayNode.connect(audioCtx.destination);
       }
 
       audioGraphReady = true;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {}
+  }
+
+  function clampSpeakerDelay(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1000, Math.round(n))) : 0;
+  }
+
+  function getMainOutputDelay() {
+    return clampSpeakerDelay(state.speakerSettings?.mainDelayMs);
+  }
+
+  function applyMainOutputDelayNode() {
+    const delayMs = getMainOutputDelay();
+    if (mainDelayNode && audioCtx) {
+      mainDelayNode.delayTime.setValueAtTime(delayMs / 1000, audioCtx.currentTime);
+    }
+    if (el.mainOutputDelay) el.mainOutputDelay.value = String(delayMs);
+    if (el.mainOutputDelayText) el.mainOutputDelayText.textContent = String(delayMs) + " ms";
+  }
+
+  function setMainOutputDelay(value) {
+    const delayMs = clampSpeakerDelay(value);
+    state.speakerSettings.mainDelayMs = delayMs;
+    saveState();
+    applyMainOutputDelayNode();
+  }
+
+  function adjustMainOutputDelay(step) {
+    setMainOutputDelay(getMainOutputDelay() + step);
+  }
+
+  function autoEstimateSpeakerDelay() {
+    ensureGraph();
+    const base = Number(audioCtx?.baseLatency) || 0;
+    const output = Number(audioCtx?.outputLatency) || 0;
+    const estimated = clampSpeakerDelay((base + output) * 1000);
+    state.speakerSettings.autoEstimateMs = estimated;
+    state.speakerSettings.mainDelayMs = estimated;
+    state.outputRoutes.forEach(route => { route.delayMs = estimated; });
+    saveState();
+    applyMainOutputDelayNode();
+    renderAdditionalOutputSpeakers();
+    toast("ブラウザ推定の遅延 " + estimated + " ms を適用しました");
   }
 
   function snapToDefault(value, defaultValue, threshold) {
