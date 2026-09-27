@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 34;
+  const BUILD_REVISION = 35;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -558,13 +558,27 @@
       name.className = "additionalOutputSpeakerName";
       name.textContent = route.label || "追加スピーカー";
 
+      const actions = document.createElement("div");
+      actions.className = "additionalOutputSpeakerActions";
+
+      const toggle = document.createElement("button");
+      toggle.className = "btn small additionalOutputSpeakerToggle";
+      toggle.type = "button";
+      const isEnabled = route.enabled !== false;
+      toggle.textContent = isEnabled ? "使用中" : "停止中";
+      toggle.classList.toggle("active", isEnabled);
+      toggle.setAttribute("aria-pressed", String(isEnabled));
+      toggle.setAttribute("aria-label", (route.label || "追加スピーカー") + "の使用状態を切り替える");
+      toggle.addEventListener("click", () => toggleAdditionalOutputSpeaker(index));
+
       const remove = document.createElement("button");
       remove.className = "btn small ghost";
       remove.type = "button";
       remove.textContent = "削除";
       remove.addEventListener("click", () => removeAdditionalOutputSpeaker(index));
 
-      head.append(name, remove);
+      actions.append(toggle, remove);
+      head.append(name, actions);
 
       const wrap = document.createElement("div");
       wrap.className = "channelVolumeWrap additionalChannelVolumeWrap";
@@ -615,6 +629,44 @@
   function hasAdditionalOutput(deviceId) {
     const normalized = deviceId || "default";
     return state.outputRoutes.some(route => (route.deviceId || "default") === normalized);
+  }
+
+  function disconnectAdditionalOutputRuntime(deviceId) {
+    const runtime = additionalOutputRuntimes.get(deviceId);
+    if (!runtime) return;
+    if (runtime.connected) {
+      try { analyser?.disconnect(runtime.splitter); } catch (e) {}
+      runtime.connected = false;
+    }
+    try { runtime.audio.pause(); } catch (e) {}
+  }
+
+  async function toggleAdditionalOutputSpeaker(index) {
+    const route = state.outputRoutes[index];
+    if (!route) return;
+
+    route.enabled = route.enabled === false;
+    saveState();
+
+    if (route.enabled) {
+      const runtime = additionalOutputRuntimes.get(route.deviceId);
+      if (runtime) {
+        if (!runtime.connected) {
+          try {
+            analyser.connect(runtime.splitter);
+            runtime.connected = true;
+          } catch (e) {}
+        }
+        try { await runtime.audio.play(); } catch (e) {}
+      } else {
+        await createAdditionalOutputRuntime(route);
+      }
+    } else {
+      disconnectAdditionalOutputRuntime(route.deviceId);
+    }
+
+    renderAdditionalOutputSpeakers();
+    renderOutputDevicePicker();
   }
 
   function removeAdditionalOutputSpeaker(index) {
@@ -673,6 +725,7 @@
     media.srcObject = destination.stream;
 
     analyser.connect(splitter);
+    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger, connected: true };
     splitter.connect(leftGain, 0, 0);
     splitter.connect(rightGain, 1, 0);
     leftGain.connect(merger, 0, 0);
@@ -691,9 +744,12 @@
       return null;
     }
 
-    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger };
     additionalOutputRuntimes.set(route.deviceId, runtime);
-    try { await media.play(); } catch (e) {}
+    if (route.enabled !== false) {
+      try { await media.play(); } catch (e) {}
+    } else {
+      disconnectAdditionalOutputRuntime(route.deviceId);
+    }
     return runtime;
   }
 
@@ -712,6 +768,10 @@
     }
 
     for (const route of state.outputRoutes) {
+      if (route.enabled === false) {
+        disconnectAdditionalOutputRuntime(route.deviceId);
+        continue;
+      }
       await createAdditionalOutputRuntime(route);
     }
   }
@@ -748,7 +808,8 @@
       deviceId,
       label: getOutputDeviceLabel(device, "追加スピーカー"),
       left: 1,
-      right: 1
+      right: 1,
+      enabled: true
     };
     state.outputRoutes.push(route);
     saveState();
