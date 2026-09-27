@@ -204,7 +204,11 @@
           </div>
           <div class="field speakerDelayField">
             <label>遅延補正: <span id="mainOutputDelayText">0 ms</span></label>
-            <input type="range" id="mainOutputDelay" min="0" max="1000" step="1" value="0">
+            <div class="speakerDelayControls">
+              <button class="btn small ghost" id="btnMainOutputDelayDown" type="button" aria-label="メインスピーカーの遅延を10ミリ秒減らす">▼</button>
+              <input class="speakerDelayInput" id="mainOutputDelay" type="number" min="0" max="1000" step="1" value="0" inputmode="numeric" aria-label="メインスピーカー遅延ミリ秒">
+              <button class="btn small ghost" id="btnMainOutputDelayUp" type="button" aria-label="メインスピーカーの遅延を10ミリ秒増やす">▲</button>
+            </div>
           </div>
           <div class="channelVolumeWrap">
             <div class="channelVolume">
@@ -225,7 +229,7 @@
           <div style="font-size:.82rem; color:var(--muted); line-height:1.45;">
             接続中・登録済みのスピーカーについて、ブラウザが取得できる出力遅延を基準に、早いスピーカーへ遅延を追加します。
           </div>
-          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（推定）</button>
+          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（ブラウザ推定）</button>
           <div style="font-size:.76rem; color:var(--muted); margin-top:8px;">
             Bluetooth機器などの実際の伝送遅延や部屋の音響遅延まで完全に測定するものではありません。
           </div>
@@ -264,6 +268,7 @@
           <div class="outputDeviceList" id="outputDeviceAddList"></div>
           <div class="outputDeviceModalActions">
             <button class="btn small" id="btnRefreshOutputAddList" type="button">一覧を更新</button>
+            <button class="btn small ghost" id="btnDiscoverOutputSpeaker" type="button">出力機器を許可</button>
             <button class="btn small ghost" id="btnCloseOutputDeviceAddModalBottom" type="button">閉じる</button>
           </div>
         </div>
