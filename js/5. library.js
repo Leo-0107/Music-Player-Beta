@@ -425,7 +425,8 @@
     updateNowPlayingUI(song);
     renderQueue();
     resumeAudioCtx();
-    audio.play().then(() => {
+    audio.play().then(async () => {
+      await startOutputBridge?.();
       requestWakeLock();
       lastFrameTime = performance.now();
       startWaveAnimation();
@@ -519,7 +520,8 @@
     if(!state.currentSong && state.playlist.length) return playSong(getVisibleSongs()[0]);
     if(audio.paused) {
       ensureGraph();
-      audio.play().then(() => {
+      audio.play().then(async () => {
+        await startOutputBridge?.();
         requestWakeLock();
         lastFrameTime = performance.now();
         startWaveAnimation();
