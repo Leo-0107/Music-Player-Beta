@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 61;
+  const BUILD_REVISION = 62;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -657,10 +657,11 @@
 
     if (normalized && hasAdditionalOutput(normalized)) {
       toast("そのスピーカーは登録済みです");
-      return;
+      return false;
     }
 
-    const previousId = state.mainOutputDeviceId || "";
+    const previousId = outputBridgeAudio?.sinkId || state.mainOutputDeviceId || "";
+    const wasPlaying = !audio.paused;
     try {
       ensureOutputBridge();
       if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
@@ -674,7 +675,13 @@
         try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
         mainDelayNode.connect(outputStreamDestination);
       }
-      await startOutputBridge();
+
+      if (wasPlaying) {
+        await outputBridgeAudio.play();
+        if (outputBridgeAudio.paused) {
+          throw new Error("Output bridge did not resume");
+        }
+      }
 
       state.mainOutputDeviceId = normalized;
       const outputs = await enumerateAudioOutputs();
@@ -686,17 +693,33 @@
       renderAdditionalOutputSpeakers();
       renderOutputDevicePicker();
       toast("スピーカーを変更しました");
+      return true;
     } catch (e) {
+      try {
+        if (outputBridgeAudio && outputBridgeAudio.sinkId !== previousId) {
+          await outputBridgeAudio.setSinkId(previousId);
+          if (wasPlaying) await outputBridgeAudio.play();
+        }
+      } catch (restoreError) {
+        try {
+          if (outputBridgeAudio) {
+            await outputBridgeAudio.setSinkId("");
+            if (wasPlaying) await outputBridgeAudio.play();
+          }
+        } catch (ignore) {}
+        state.mainOutputDeviceId = "";
+      }
       state.mainOutputDeviceId = previousId;
       if (e?.name === "NotAllowedError") {
         toast("この出力機器の使用がブラウザで許可されていません");
       } else if (e?.name === "NotFoundError") {
         toast("接続中の出力機器が見つかりません");
       } else if (e?.name === "AbortError") {
-        toast("出力機器の切り替えに失敗しました");
+        toast("出力機器の切り替えに失敗しました。元のスピーカーへ戻しました");
       } else {
-        toast("スピーカーの切り替えに失敗しました");
+        toast("スピーカーの切り替えに失敗しました。元のスピーカーへ戻しました");
       }
+      return false;
     }
   }
 
@@ -942,6 +965,8 @@
     merger.connect(delayNode);
     delayNode.connect(destination);
 
+    media.volume = 1;
+    media.muted = false;
     document.body.appendChild(media);
 
     try {
@@ -955,9 +980,9 @@
     }
 
     additionalOutputRuntimes.set(route.deviceId, runtime);
-    if (route.enabled !== false) {
+    if (route.enabled !== false && !audio.paused) {
       try { await media.play(); } catch (e) {}
-    } else {
+    } else if (route.enabled === false) {
       disconnectAdditionalOutputRuntime(route.deviceId);
     }
     return runtime;
@@ -1001,35 +1026,49 @@
 
   async function addAdditionalOutputSpeaker(device) {
     const deviceId = device?.deviceId || "";
-    if (!deviceId) return;
+    if (!deviceId) return false;
     const normalized = deviceId || "default";
     const mainId = getMainOutputIdentity();
 
     if (normalized === mainId) {
       toast("現在のスピーカーはすでにメイン出力です");
-      return;
+      return false;
     }
     if (hasAdditionalOutput(normalized)) {
       toast("そのスピーカーは追加済みです");
-      return;
+      return false;
+    }
+
+    const label = String(device?.label || "").trim();
+    if (!label) {
+      toast("スピーカー名を取得できないため追加できません。先に出力機器を選択してください");
+      return false;
     }
 
     const route = {
       deviceId,
-      label: getOutputDeviceLabel(device, "登録スピーカー"),
+      label,
       left: 1,
       right: 1,
       delayMs: 0,
       enabled: true
     };
+
+    // 接続に成功してから登録する。失敗した機器を「登録スピーカー」として保存しない。
+    const runtime = await createAdditionalOutputRuntime(route);
+    if (!runtime) {
+      toast("スピーカーを追加できませんでした");
+      return false;
+    }
+
     state.outputRoutes.push(route);
     saveState();
     renderAdditionalOutputSpeakers();
-    await createAdditionalOutputRuntime(route);
     await startOutputBridge();
     renderOutputDeviceAddPicker();
     closeOutputDeviceAddModal();
     toast("スピーカーを追加しました");
+    return true;
   }
 
   function outputDeviceIsDefaultPhysical(device, outputs) {
