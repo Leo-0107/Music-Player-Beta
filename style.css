@@ -486,6 +486,8 @@ input[type="range"] {
   z-index: 1001;
   opacity: 0;
   pointer-events: none;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   transition: opacity 0.2s;
 }
 .overlay.open {
