@@ -268,7 +268,6 @@
     btnMainOutputDelayUp: document.getElementById("btnMainOutputDelayUp"),
     btnDiscoverOutputSpeaker: document.getElementById("btnDiscoverOutputSpeaker"),
     outputDevicePermissionStatus: document.getElementById("outputDevicePermissionStatus"),
-    btnSelectOutputToAdd: document.getElementById("btnSelectOutputToAdd"),
     btnCloseOutputDeviceAddModal: document.getElementById("btnCloseOutputDeviceAddModal"),
     btnCloseOutputDeviceAddModalBottom: document.getElementById("btnCloseOutputDeviceAddModalBottom"),
     btnRefreshOutputAddList: document.getElementById("btnRefreshOutputAddList"),
