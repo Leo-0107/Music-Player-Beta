@@ -708,16 +708,54 @@
         return item;
       };
 
+      const delayWrap = document.createElement("div");
+      delayWrap.className = "speakerDelayControls additionalSpeakerDelayControls";
+
+      const delayLabel = document.createElement("span");
+      delayLabel.className = "speakerDelayLabel";
+      delayLabel.textContent = "遅延";
+
+      const delayDown = document.createElement("button");
+      delayDown.className = "btn small ghost";
+      delayDown.type = "button";
+      delayDown.textContent = "▼";
+      delayDown.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を10ミリ秒減らす");
+
+      const delayInput = document.createElement("input");
+      delayInput.className = "speakerDelayInput";
+      delayInput.type = "number";
+      delayInput.min = "0";
+      delayInput.max = "1000";
+      delayInput.step = "1";
+      delayInput.value = String(clampSpeakerDelay(route.delayMs));
+      delayInput.inputMode = "numeric";
+      delayInput.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延ミリ秒");
+
+      const delayUnit = document.createElement("span");
+      delayUnit.className = "speakerDelayUnit";
+      delayUnit.textContent = "ms";
+
+      const delayUp = document.createElement("button");
+      delayUp.className = "btn small ghost";
+      delayUp.type = "button";
+      delayUp.textContent = "▲";
+      delayUp.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を10ミリ秒増やす");
+
+      delayDown.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs - 10));
+      delayUp.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs + 10));
+      delayInput.addEventListener("change", e => setAdditionalOutputDelay(index, e.target.value));
+
+      delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
+
       wrap.append(
         makeChannel("left", Number(route.left) || 1),
         makeChannel("right", Number(route.right) || 1)
       );
 
-      card.append(head, wrap);
+      card.append(head, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
     });
   }
-
   function getMainOutputIdentity() {
     return getCurrentMainOutputSinkId() || "default";
   }
@@ -749,7 +787,7 @@
       if (runtime) {
         if (!runtime.connected) {
           try {
-            analyser.connect(runtime.splitter);
+            speakerBusNode.connect(runtime.splitter);
             runtime.connected = true;
           } catch (e) {}
         }
@@ -797,6 +835,20 @@
       gain.gain.setTargetAtTime(route[key], audioCtx?.currentTime || 0, 0.045);
     }
     saveState();
+  }
+
+  function setAdditionalOutputDelay(index, value) {
+    const route = state.outputRoutes[index];
+    if (!route) return;
+    const delayMs = clampSpeakerDelay(value);
+    route.delayMs = delayMs;
+
+    const runtime = additionalOutputRuntimes.get(route.deviceId);
+    if (runtime?.delayNode && audioCtx) {
+      runtime.delayNode.delayTime.setValueAtTime(delayMs / 1000, audioCtx.currentTime);
+    }
+    saveState();
+    renderAdditionalOutputSpeakers();
   }
 
   async function createAdditionalOutputRuntime(route) {
@@ -908,6 +960,7 @@
       label: getOutputDeviceLabel(device, "追加スピーカー"),
       left: 1,
       right: 1,
+      delayMs: 0,
       enabled: true
     };
     state.outputRoutes.push(route);
