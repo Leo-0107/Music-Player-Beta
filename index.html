@@ -212,6 +212,25 @@
               <strong>R</strong>
             </div>
           </div>
+          <div id="additionalOutputSpeakers"></div>
+          <div class="speakerAddActions">
+            <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ スピーカーを追加</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="outputDeviceModal" id="outputDeviceModal" hidden>
+        <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="outputDeviceModalTitle">
+          <div class="outputDeviceModalHead">
+            <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
+            <button class="menuBtn" id="btnCloseOutputDeviceModal" type="button" aria-label="閉じる">✕</button>
+          </div>
+          <div class="outputDeviceModalHint">使用するスピーカーを選択できます。</div>
+          <div class="outputDeviceList" id="outputDeviceList"></div>
+          <div class="outputDeviceModalActions">
+            <button class="btn small" id="btnDiscoverOutputSpeaker" type="button">ほかのスピーカーを追加・許可</button>
+            <button class="btn small ghost" id="btnCloseOutputDeviceModalBottom" type="button">閉じる</button>
+          </div>
         </div>
       </div>
 
