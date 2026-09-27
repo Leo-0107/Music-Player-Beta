@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 36;
+  const BUILD_REVISION = 37;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -863,10 +863,15 @@
       // Chromeでは「default」と、その実体である内蔵スピーカー等が別デバイスとして
       // 列挙されることがあるため、同じgroupId（または同じラベル）の重複を1つにまとめる。
       const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
-      const showSyntheticDefault = !defaultPhysical || mainId === "default";
+      // 既定の出力は、現在メインに指定されている実デバイスと同じ場合だけ
+      // 実デバイス名で表示し、それ以外は「既定のスピーカー」で表示する。
+      // これにより同じ物理スピーカーの二重表示を避けつつ、既定出力へ戻す項目は残す。
+      const showSyntheticDefault = !defaultPhysical || mainId !== defaultPhysical.deviceId;
       const list = [
         ...(showSyntheticDefault ? [{ deviceId: "", label: "既定のスピーカー" }] : []),
-        ...physicalOutputs.filter(device => !showSyntheticDefault || !areSameOutputDevice(defaultDevice, device))
+        ...physicalOutputs.filter(device =>
+          !defaultPhysical || !areSameOutputDevice(defaultDevice, device) || !showSyntheticDefault
+        )
       ];
 
       const seen = new Set();
