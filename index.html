@@ -198,8 +198,19 @@
 
       <div class="panelSection" id="speakerSection">
         <div class="sectionCard speakerPanel">
-          <div class="sectionTitle">スピーカー</div>
-          <div class="speakerNameLine">アプリで使用中: <strong id="outputDeviceName">確認中...</strong></div>
+          <div class="sectionTitle">自動遅延補正</div>
+          <div style="font-size:.82rem; color:var(--muted); line-height:1.45;">
+            ブラウザが取得できる共通の出力遅延を推定し、使用中と追加済みスピーカーの基準値として設定します。
+          </div>
+          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（ブラウザ推定）</button>
+          <div style="font-size:.76rem; color:var(--muted); margin-top:8px;">
+            実際の機器ごとのBluetooth伝送遅延、HDMI機器の遅延、部屋の音響遅延まではブラウザから個別測定できないため、最後はスピーカーごとの手動調整で合わせます。
+          </div>
+        </div>
+
+        <div class="sectionCard speakerPanel">
+          <div class="sectionTitle">スピーカー一覧</div>
+          <div class="speakerNameLine">メイン出力: <strong id="outputDeviceName">確認中...</strong></div>
           <div class="speakerDeviceActions">
             <button class="btn small" id="btnSelectOutput" type="button">スピーカーを選択</button>
           </div>
@@ -223,25 +234,11 @@
               <strong>R</strong>
             </div>
           </div>
-        </div>
 
-        <div class="sectionCard speakerPanel">
-          <div class="sectionTitle">自動遅延補正</div>
-          <div style="font-size:.82rem; color:var(--muted); line-height:1.45;">
-            ブラウザが取得できる共通の出力遅延を推定し、使用中と登録済みスピーカーの基準値として設定します。
-          </div>
-          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（ブラウザ推定）</button>
-          <div style="font-size:.76rem; color:var(--muted); margin-top:8px;">
-            実際の機器ごとのBluetooth伝送遅延、HDMI機器の遅延、部屋の音響遅延まではブラウザから個別測定できないため、最後はスピーカーごとの手動調整で合わせます。
-          </div>
-        </div>
-
-        <div class="sectionCard speakerPanel">
-          <div class="sectionTitle">登録スピーカー</div>
-          <div id="additionalOutputSpeakers"></div>
-          <div class="speakerAddActions">
+          <div class="speakerAddActions" style="margin-top:12px;">
             <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ スピーカーを追加</button>
           </div>
+          <div id="additionalOutputSpeakers" style="margin-top:12px;"></div>
         </div>
       </div>
 
@@ -266,10 +263,10 @@
             <strong id="outputDeviceAddModalTitle">スピーカーを登録</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceAddModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">登録するスピーカーを選び、「追加」を押してください。</div>
+          <div class="outputDeviceModalHint">一覧に表示されているスピーカーから、同時出力に追加する機器を選択してください。</div>
           <div class="outputDeviceList" id="outputDeviceAddList"></div>
+          <div id="outputDevicePermissionStatus" style="font-size:.78rem; color:var(--muted); margin-top:8px;">出力機器の許可: 確認中...</div>
           <div class="outputDeviceModalActions">
-            <button class="btn small" id="btnSelectOutputToAdd" type="button">接続中の出力機器を選んで登録</button>
             <button class="btn small" id="btnRefreshOutputAddList" type="button">一覧を更新</button>
             <button class="btn small ghost" id="btnDiscoverOutputSpeaker" type="button">出力機器を許可</button>
             <button class="btn small ghost" id="btnCloseOutputDeviceAddModalBottom" type="button">閉じる</button>
