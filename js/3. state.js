@@ -142,6 +142,7 @@
     clippingProtection: loadBool(STORAGE.clippingProtection, true),
     micMonitor: false,
     micMonitorVolume: currentMicMonitorVolumeTarget,
+    micFeedbackProtection: loadBool(STORAGE.micFeedbackProtection, true),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string").map(route => ({
@@ -241,6 +242,7 @@
     btnMicMonitor: document.getElementById("btnMicMonitor"),
     micMonitorVolume: document.getElementById("micMonitorVolume"),
     micMonitorVolumeText: document.getElementById("micMonitorVolumeText"),
+    btnMicFeedbackProtection: document.getElementById("btnMicFeedbackProtection"),
     btnSettingsResetSettings: document.getElementById("btnSettingsResetSettings"),
     outputDeviceName: document.getElementById("outputDeviceName"),
     btnSelectOutput: document.getElementById("btnSelectOutput"),
