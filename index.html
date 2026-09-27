@@ -222,11 +222,25 @@
             <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">使用するスピーカーを選択できます。</div>
+          <div class="outputDeviceModalHint">メインで使用するスピーカーを選択できます。</div>
           <div class="outputDeviceList" id="outputDeviceList"></div>
           <div class="outputDeviceModalActions">
-            <button class="btn small" id="btnDiscoverOutputSpeaker" type="button">ほかのスピーカーを追加・許可</button>
             <button class="btn small ghost" id="btnCloseOutputDeviceModalBottom" type="button">閉じる</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="outputDeviceModal" id="outputDeviceAddModal" hidden>
+        <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="outputDeviceAddModalTitle">
+          <div class="outputDeviceModalHead">
+            <strong id="outputDeviceAddModalTitle">スピーカーを追加</strong>
+            <button class="menuBtn" id="btnCloseOutputDeviceAddModal" type="button" aria-label="閉じる">✕</button>
+          </div>
+          <div class="outputDeviceModalHint">登録するスピーカーを選び、「追加」を押してください。</div>
+          <div class="outputDeviceList" id="outputDeviceAddList"></div>
+          <div class="outputDeviceModalActions">
+            <button class="btn small" id="btnRefreshOutputAddList" type="button">一覧を更新</button>
+            <button class="btn small ghost" id="btnCloseOutputDeviceAddModalBottom" type="button">閉じる</button>
           </div>
         </div>
       </div>
