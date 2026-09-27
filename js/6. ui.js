@@ -278,7 +278,7 @@
   function drawWave() {
     const pageVisible = document.visibilityState === "visible";
     const isPlaying = !audio.paused && pageVisible;
-    if (!isPlaying && !waveDecayActive) {
+    if (!pageVisible) {
       isWaveAnimating = false;
       return;
     }
@@ -308,10 +308,21 @@
     if (analyser && analyserData) {
       const dataLen = analyserData.length;
       if (!waveSmoothData || waveSmoothData.length !== dataLen) waveSmoothData = new Float32Array(dataLen);
-      if (isPlaying) analyser.getByteFrequencyData(analyserData);
-      else analyserData.fill(0);
+      if (isPlaying) {
+        analyser.getByteFrequencyData(analyserData);
+      } else {
+        // 未再生時は、実音声ではなく小さなアイドル動作を表示する。
+        // 2Dの音量メーターが止まったままにならないようにする。
+        const idleTime = now / 1000;
+        for (let i = 0; i < dataLen; i++) {
+          const primary = 0.5 + 0.5 * Math.sin(idleTime * 2.0 + i * 0.24);
+          const secondary = 0.5 + 0.5 * Math.sin(idleTime * 1.17 - i * 0.11);
+          const level = 0.035 + 0.095 * (primary * 0.68 + secondary * 0.32);
+          analyserData[i] = Math.round(level * 255);
+        }
+      }
 
-      const smoothing = isPlaying ? 0.24 : 0.14;
+      const smoothing = isPlaying ? 0.24 : 0.16;
       for (let i = 0; i < dataLen; i++) {
         const target = (analyserData[i] || 0) / 255;
         waveSmoothData[i] += (target - waveSmoothData[i]) * smoothing;
@@ -382,8 +393,12 @@
           rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
           leftTarget = calcRms(leftLevelData);
           rightTarget = calcRms(rightLevelData);
+        } else {
+          const idleTime = now / 1000;
+          leftTarget = 0.09 + 0.10 * (0.5 + 0.5 * Math.sin(idleTime * 1.85));
+          rightTarget = 0.09 + 0.10 * (0.5 + 0.5 * Math.sin(idleTime * 2.15 + 1.1));
         }
-        const meterSmoothing = isPlaying ? 0.105 : 0.035;
+        const meterSmoothing = isPlaying ? 0.105 : 0.08;
         leftDisplayLevel += (leftTarget - leftDisplayLevel) * meterSmoothing;
         rightDisplayLevel += (rightTarget - rightDisplayLevel) * meterSmoothing;
 
@@ -829,7 +844,7 @@
   }
 
   function startWaveAnimation(force = false) {
-    if (!isWaveAnimating && (!audio.paused || force)) {
+    if (!isWaveAnimating && document.visibilityState === "visible") {
       isWaveAnimating = true;
       lastFrameTime = performance.now();
       requestAnimationFrame(drawWave);
@@ -1028,6 +1043,7 @@
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
+    startWaveAnimation(true);
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
