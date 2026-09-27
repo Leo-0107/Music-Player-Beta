@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 44;
+  const BUILD_REVISION = 45;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -546,6 +546,27 @@
       }
     }
     return await enumerateAudioOutputs();
+  }
+
+  async function restoreStoredMainOutputIfAvailable() {
+    const deviceId = state.mainOutputDeviceId || "";
+    if (!deviceId) return;
+    const outputs = await enumerateAudioOutputs();
+    if (!outputs.some(device => device.deviceId === deviceId)) return;
+
+    try {
+      ensureGraph();
+      if (typeof audioCtx?.setSinkId === "function") {
+        await audioCtx.setSinkId(deviceId);
+      } else {
+        ensureOutputBridge();
+        if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+          await outputBridgeAudio.setSinkId(deviceId);
+          await startOutputBridge();
+        }
+      }
+      await updateOutputDeviceName();
+    } catch (e) {}
   }
 
   async function updateOutputDeviceName() {
@@ -1173,6 +1194,7 @@
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
+      await restoreStoredMainOutputIfAvailable();
       await updateOutputDeviceName();
       await renderOutputDevicePicker();
       await renderOutputDeviceAddPicker();
