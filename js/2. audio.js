@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 29;
+  const BUILD_REVISION = 30;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -362,13 +362,15 @@
       outputSplitter.connect(rightLevelAnalyser, 1);
 
       if (state.clippingProtection) {
-        outputSplitter.connect(limiterNode, 0, 0);
-        outputSplitter.connect(limiterNode, 1, 1);
+        // 出力処理は最終ミックスのステレオ信号をそのまま渡す。
+        // outputSplitter の第0出力だけを analyser へ渡すと右チャンネルが消えるため、
+        // 分析用splitterはL/Rメーター専用にする。
+        finalMixGainNode.connect(limiterNode);
         limiterNode.connect(analyser);
         limiterNode.connect(waveOutputSplitter);
       } else {
-        outputSplitter.connect(analyser);
-        outputSplitter.connect(waveOutputSplitter);
+        finalMixGainNode.connect(analyser);
+        finalMixGainNode.connect(waveOutputSplitter);
       }
 
       waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
@@ -487,19 +489,18 @@
     saveState();
     if (audioCtx && masterGain && analyser && limiterNode) {
       try {
-        try { outputSplitter?.disconnect(limiterNode); } catch (e) {}
-        try { outputSplitter?.disconnect(analyser); } catch (e) {}
+        try { finalMixGainNode?.disconnect(limiterNode); } catch (e) {}
+        try { finalMixGainNode?.disconnect(analyser); } catch (e) {}
+        try { finalMixGainNode?.disconnect(waveOutputSplitter); } catch (e) {}
         try { limiterNode?.disconnect(analyser); } catch (e) {}
         try { limiterNode?.disconnect(waveOutputSplitter); } catch (e) {}
-        try { outputSplitter?.disconnect(waveOutputSplitter); } catch (e) {}
         if (state.clippingProtection) {
-          outputSplitter.connect(limiterNode, 0, 0);
-          outputSplitter.connect(limiterNode, 1, 1);
+          finalMixGainNode.connect(limiterNode);
           limiterNode.connect(analyser);
           limiterNode.connect(waveOutputSplitter);
         } else {
-          outputSplitter.connect(analyser);
-          outputSplitter.connect(waveOutputSplitter);
+          finalMixGainNode.connect(analyser);
+          finalMixGainNode.connect(waveOutputSplitter);
         }
       } catch (e) {}
     }
