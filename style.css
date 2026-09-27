@@ -958,21 +958,135 @@ kbd {
   justify-content: center;
   margin-top: 10px;
 }
+.speakerDeviceActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
 .speakerDeviceActions .btn {
   width: 100%;
   max-width: 260px;
 }
-.outputDeviceSelect {
+.speakerAddActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+.speakerAddActions .btn {
   width: 100%;
   max-width: 360px;
-  margin-top: 8px;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel2);
-  color: var(--text);
 }
-.outputDeviceSelect[hidden] { display: none; }
+.additionalOutputSpeakerCard {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel2);
+}
+.additionalOutputSpeakerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.additionalOutputSpeakerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.additionalChannelVolumeWrap {
+  margin-top: 10px;
+}
+.outputDeviceModal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(0,0,0,.58);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.outputDeviceModal[hidden] {
+  display: none;
+}
+.outputDeviceModalCard {
+  width: min(620px, calc(100vw - 40px));
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 22px 70px rgba(0,0,0,.48);
+}
+.outputDeviceModalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.outputDeviceModalHint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+.outputDeviceList {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.outputDeviceItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.outputDeviceItemInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.outputDeviceItemInfo strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outputDeviceItemInfo small {
+  color: var(--accent);
+  min-height: 1em;
+}
+.outputDeviceItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.outputDeviceItemActions .btn {
+  white-space: nowrap;
+}
+.outputDeviceModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+body.output-device-modal-open {
+  overflow: hidden;
+}
 .channelVolumeWrap {
   display: flex;
   justify-content: center;
