@@ -82,6 +82,7 @@
   let micMonitorRequestId = 0;
   let outputSplitter = null, leftLevelAnalyser = null, rightLevelAnalyser = null;
   let leftLevelData = null, rightLevelData = null;
+  let outputStreamDestination = null, outputBridgeAudio = null;
   let audioGraphReady = false;
   let isSlidingRange = false;
   let currentRate = 1.0;
