@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 45;
+  const BUILD_REVISION = 46;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -299,6 +299,11 @@
       masterGain.gain.value = currentVolumeTarget;
       audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
+      micReferenceAnalyser = audioCtx.createAnalyser();
+      micReferenceAnalyser.fftSize = 256;
+      micReferenceAnalyser.smoothingTimeConstant = 0.15;
+      micReferenceData = new Uint8Array(micReferenceAnalyser.frequencyBinCount);
+
       // マイクモニターはプレイヤー音声の最終ミックスへ入れ、マイク音量だけ別調整する
       micGainNode = audioCtx.createGain();
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
@@ -353,7 +358,16 @@
       // マスター音量・マイクを含む2chミックスを、各スピーカーの個別L/R調整より前で分岐する。
       // メイン側のL/R音量変更が追加スピーカーへ影響しないようにする。
       channelNormalizeNode.connect(masterGain);
+      masterGain.connect(micReferenceAnalyser);
       masterGain.connect(finalMixGainNode);
+
+      micFeedbackGainNode = audioCtx.createGain();
+      micFeedbackGainNode.gain.value = 1;
+      micFeedbackAnalyser = audioCtx.createAnalyser();
+      micFeedbackAnalyser.fftSize = 256;
+      micFeedbackAnalyser.smoothingTimeConstant = 0.12;
+      micFeedbackData = new Uint8Array(micFeedbackAnalyser.frequencyBinCount);
+
       micGainNode.connect(finalMixGainNode);
 
       speakerBusNode = audioCtx.createGain();
@@ -1089,6 +1103,24 @@
     }
   }
 
+  async function selectAndAddOutputDevice() {
+    if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
+      toast("このブラウザでは出力機器を直接選択できません。下の一覧を更新してください");
+      await renderOutputDeviceAddPicker();
+      return;
+    }
+
+    try {
+      const device = await navigator.mediaDevices.selectAudioOutput();
+      if (!device?.deviceId) return;
+      await addAdditionalOutputSpeaker(device);
+    } catch (e) {
+      if (e?.name !== "NotAllowedError") {
+        toast("出力機器の選択に失敗しました");
+      }
+    }
+  }
+
   async function renderOutputDeviceAddPicker() {
     if (!el.outputDeviceAddList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
@@ -1172,6 +1204,7 @@
 
   if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
+  if (el.btnSelectOutputToAdd) el.btnSelectOutputToAdd.addEventListener("click", selectAndAddOutputDevice);
   if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
   if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
   if (el.btnCloseOutputDeviceAddModal) el.btnCloseOutputDeviceAddModal.addEventListener("click", closeOutputDeviceAddModal);
@@ -1298,8 +1331,8 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { ideal: "default" },
-          echoCancellation: false,
-          noiseSuppression: false,
+          echoCancellation: state.micFeedbackProtection,
+          noiseSuppression: state.micFeedbackProtection,
           autoGainControl: false,
           channelCount: { ideal: 2 }
         }
@@ -1316,7 +1349,9 @@
       micStream = stream;
       micSourceNode = audioCtx.createMediaStreamSource(stream);
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
-      micSourceNode.connect(micGainNode);
+      micSourceNode.connect(micFeedbackGainNode);
+      micFeedbackGainNode.connect(micFeedbackAnalyser);
+      micFeedbackGainNode.connect(micGainNode);
       toast("マイクモニターを開始しました");
 
       const track = stream.getAudioTracks()[0];
