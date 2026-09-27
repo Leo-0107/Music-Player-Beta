@@ -206,9 +206,9 @@
           <div class="field speakerDelayField">
             <label>遅延補正: <span id="mainOutputDelayText">0 ms</span></label>
             <div class="speakerDelayControls">
-              <button class="btn small ghost" id="btnMainOutputDelayDown" type="button" aria-label="メインスピーカーの遅延を10ミリ秒減らす">▼</button>
-              <input class="speakerDelayInput" id="mainOutputDelay" type="number" min="0" max="1000" step="1" value="0" inputmode="numeric" aria-label="メインスピーカー遅延ミリ秒">
-              <button class="btn small ghost" id="btnMainOutputDelayUp" type="button" aria-label="メインスピーカーの遅延を10ミリ秒増やす">▲</button>
+              <button class="btn small ghost" id="btnMainOutputDelayDown" type="button" aria-label="メインスピーカーの遅延を0.1ミリ秒減らす">▼</button>
+              <input class="speakerDelayInput" id="mainOutputDelay" type="number" min="-1000" max="1000" step="0.1" value="0" inputmode="numeric" aria-label="メインスピーカー遅延ミリ秒">
+              <button class="btn small ghost" id="btnMainOutputDelayUp" type="button" aria-label="メインスピーカーの遅延を0.1ミリ秒増やす">▲</button>
             </div>
           </div>
           <div class="channelVolumeWrap">
