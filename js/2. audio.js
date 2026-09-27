@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 41;
+  const BUILD_REVISION = 42;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -387,6 +387,17 @@
         ensureOutputBridge();
       }
 
+      // アプリで最後に選択した出力先を、OSの現在の既定出力とは独立して復元する。
+      if (state.mainOutputDeviceId) {
+        try {
+          if (canSelectContextSink) {
+            audioCtx.setSinkId(state.mainOutputDeviceId).catch(() => {});
+          } else if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+            outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(() => {});
+          }
+        } catch (e) {}
+      }
+
       mainDelayNode = audioCtx.createDelay(1.5);
       applyMainOutputDelayNode();
       analyser.connect(mainDelayNode);
@@ -720,7 +731,7 @@
     const runtime = additionalOutputRuntimes.get(deviceId);
     if (!runtime) return;
     if (runtime.connected) {
-      try { analyser?.disconnect(runtime.splitter); } catch (e) {}
+      try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
       runtime.connected = false;
     }
     try { runtime.audio.pause(); } catch (e) {}
@@ -760,7 +771,7 @@
 
     const runtime = additionalOutputRuntimes.get(route.deviceId);
     if (runtime) {
-      try { analyser?.disconnect(runtime.splitter); } catch (e) {}
+      try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
       try { runtime.audio.pause(); } catch (e) {}
       try { runtime.audio.srcObject = null; } catch (e) {}
       runtime.audio.remove();
@@ -798,6 +809,7 @@
     const leftGain = audioCtx.createGain();
     const rightGain = audioCtx.createGain();
     const merger = audioCtx.createChannelMerger(2);
+    const delayNode = audioCtx.createDelay(1.5);
     const media = document.createElement("audio");
 
     leftGain.gain.value = Number.isFinite(Number(route.left)) ? Number(route.left) : 1;
@@ -808,14 +820,16 @@
     media.setAttribute("aria-hidden", "true");
     media.style.display = "none";
     media.srcObject = destination.stream;
+    delayNode.delayTime.value = clampSpeakerDelay(route.delayMs) / 1000;
 
-    analyser.connect(splitter);
-    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger, connected: true };
+    speakerBusNode.connect(splitter);
+    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger, delayNode, connected: true };
     splitter.connect(leftGain, 0, 0);
     splitter.connect(rightGain, 1, 0);
     leftGain.connect(merger, 0, 0);
     rightGain.connect(merger, 0, 1);
-    merger.connect(destination);
+    merger.connect(delayNode);
+    delayNode.connect(destination);
 
     document.body.appendChild(media);
 
