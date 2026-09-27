@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 53;
+  const BUILD_REVISION = 54;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -100,6 +100,7 @@
     state.waveMode = validModes.includes(mode) ? mode : "2d";
     saveState();
     waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
+    if (typeof requestWaveStaticFrame === "function") requestWaveStaticFrame();
 
     [el.waveModeBtns, el.waveModeSettingsBtns].forEach(group => {
       if (!group) return;
