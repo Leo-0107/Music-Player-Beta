@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 59;
+  const BUILD_REVISION = 60;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1100,7 +1100,7 @@
         mainBtn.textContent = isMain ? "使用中" : "使用する";
         mainBtn.disabled = isMain;
         mainBtn.addEventListener("click", async () => {
-          await setMainOutputDevice(device.deviceId || "");
+          await selectOutputDeviceForMain(device.deviceId || "");
           closeOutputDeviceModal();
         });
 
@@ -1113,47 +1113,39 @@
     }
   }
 
-  async function selectOutputDeviceForMain() {
+  async function requestOutputDevicePermission(deviceId = "") {
     if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
-      toast("このブラウザでは出力機器を直接選択できません");
-      return;
+      return deviceId ? { deviceId } : null;
     }
 
     try {
-      const device = await navigator.mediaDevices.selectAudioOutput();
-      if (!device?.deviceId) return;
-      await setMainOutputDevice(device.deviceId);
+      const options = deviceId ? { deviceId } : undefined;
+      const selected = await navigator.mediaDevices.selectAudioOutput(options);
+      return selected?.deviceId ? selected : null;
     } catch (e) {
       if (e?.name === "NotAllowedError") {
         toast("ブラウザの出力機器選択が許可されていません");
       } else if (e?.name === "NotFoundError") {
         toast("接続中の出力機器が見つかりません");
+      } else if (e?.name === "InvalidStateError") {
+        toast("出力機器の選択をもう一度ボタンから実行してください");
       } else {
         toast("出力機器の選択に失敗しました");
       }
+      return null;
     }
   }
 
-  async function selectAndAddOutputDevice() {
-    if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
-      toast("このブラウザでは出力機器を直接選択できません。下の一覧を更新してください");
-      await renderOutputDeviceAddPicker();
-      return;
-    }
+  async function selectOutputDeviceForMain(deviceId = "") {
+    const device = await requestOutputDevicePermission(deviceId);
+    if (!device?.deviceId) return;
+    await setMainOutputDevice(device.deviceId);
+  }
 
-    try {
-      const device = await navigator.mediaDevices.selectAudioOutput();
-      if (!device?.deviceId) return;
-      await addAdditionalOutputSpeaker(device);
-    } catch (e) {
-      if (e?.name === "NotAllowedError") {
-        toast("ブラウザの出力機器選択が許可されていません");
-      } else if (e?.name === "NotFoundError") {
-        toast("接続中の出力機器が見つかりません");
-      } else {
-        toast("出力機器の選択に失敗しました");
-      }
-    }
+  async function selectAndAddOutputDevice(deviceId = "") {
+    const device = await requestOutputDevicePermission(deviceId);
+    if (!device?.deviceId) return;
+    await addAdditionalOutputSpeaker(device);
   }
 
   async function renderOutputDeviceAddPicker() {
@@ -1204,7 +1196,7 @@
         addBtn.type = "button";
         addBtn.textContent = isMain ? "使用中" : (isAdditional ? "追加済み" : "追加");
         addBtn.disabled = isMain || isAdditional;
-        addBtn.addEventListener("click", () => addAdditionalOutputSpeaker(device));
+        addBtn.addEventListener("click", () => selectAndAddOutputDevice(device.deviceId || ""));
 
         actions.append(addBtn);
         item.append(info, actions);
@@ -1238,10 +1230,6 @@
   }
 
   async function chooseMainOutputDevice() {
-    if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
-      await selectOutputDeviceForMain();
-      return;
-    }
     openOutputDeviceModal();
   }
 
