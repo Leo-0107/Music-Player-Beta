@@ -1,5 +1,6 @@
 const CACHE_NAME = "music-player-app-v18";
 const APP_SHELL = [
+  "./sw.js",
   "./index.html",
   "./style.css",
   "./manifest.json",
