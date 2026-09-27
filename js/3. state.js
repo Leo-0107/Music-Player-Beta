@@ -150,7 +150,9 @@
     micFeedbackProtection: loadBool(STORAGE.micFeedbackProtection, true),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
-    outputRoutes: loadJSON(STORAGE.outputRoutes, []).filter(route => route && typeof route.deviceId === "string").map(route => ({
+    outputRoutes: loadJSON(STORAGE.outputRoutes, [])
+      .filter(route => route && typeof route.deviceId === "string" && String(route.label || "").trim())
+      .map(route => ({
       ...route,
       enabled: route.enabled !== false,
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
@@ -265,6 +267,7 @@
     btnMainOutputDelayDown: document.getElementById("btnMainOutputDelayDown"),
     btnMainOutputDelayUp: document.getElementById("btnMainOutputDelayUp"),
     btnDiscoverOutputSpeaker: document.getElementById("btnDiscoverOutputSpeaker"),
+    outputDevicePermissionStatus: document.getElementById("outputDevicePermissionStatus"),
     btnSelectOutputToAdd: document.getElementById("btnSelectOutputToAdd"),
     btnCloseOutputDeviceAddModal: document.getElementById("btnCloseOutputDeviceAddModal"),
     btnCloseOutputDeviceAddModalBottom: document.getElementById("btnCloseOutputDeviceAddModalBottom"),
