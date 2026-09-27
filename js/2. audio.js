@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 54;
+  const BUILD_REVISION = 55;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -414,9 +414,7 @@
       ensureOutputBridge();
 
       if (state.mainOutputDeviceId && outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-        try {
-          await outputBridgeAudio.setSinkId(state.mainOutputDeviceId);
-        } catch (e) {}
+        outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(() => {});
       }
 
       mainDelayNode = audioCtx.createDelay(1.5);
