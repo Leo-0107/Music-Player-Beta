@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 43;
+  const BUILD_REVISION = 44;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -924,7 +924,7 @@
 
     for (const [deviceId, runtime] of additionalOutputRuntimes) {
       if (!validIds.has(deviceId)) {
-        try { analyser.disconnect(runtime.splitter); } catch (e) {}
+        try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
         try { runtime.audio.pause(); } catch (e) {}
         try { runtime.audio.srcObject = null; } catch (e) {}
         runtime.audio.remove();
@@ -1156,6 +1156,20 @@
   if (el.btnCloseOutputDeviceAddModal) el.btnCloseOutputDeviceAddModal.addEventListener("click", closeOutputDeviceAddModal);
   if (el.btnCloseOutputDeviceAddModalBottom) el.btnCloseOutputDeviceAddModalBottom.addEventListener("click", closeOutputDeviceAddModal);
   if (el.btnRefreshOutputAddList) el.btnRefreshOutputAddList.addEventListener("click", renderOutputDeviceAddPicker);
+  if (el.btnDiscoverOutputSpeaker) {
+    el.btnDiscoverOutputSpeaker.addEventListener("click", async () => {
+      try {
+        if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+          await navigator.mediaDevices.selectAudioOutput();
+        }
+        await ensureOutputDeviceAccess();
+        await renderOutputDeviceAddPicker();
+        toast("接続可能な出力機器を更新しました");
+      } catch (e) {
+        toast("出力機器の許可・取得に失敗しました");
+      }
+    });
+  }
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
