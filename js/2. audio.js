@@ -837,22 +837,6 @@
   updateOutputDeviceName();
   renderAdditionalOutputSpeakers();
 
-tSpeaker.addEventListener("click", openOutputDeviceModal);
-  if (el.btnDiscoverOutputSpeaker) el.btnDiscoverOutputSpeaker.addEventListener("click", discoverOutputDevice);
-  if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
-  if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
-
-  if (navigator.mediaDevices?.addEventListener) {
-    navigator.mediaDevices.addEventListener("devicechange", async () => {
-      await updateOutputDeviceName();
-      await renderOutputDevicePicker();
-      await syncAdditionalOutputRuntimes();
-    });
-  }
-
-  updateOutputDeviceName();
-  renderAdditionalOutputSpeakers();
-
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
     saveState();
