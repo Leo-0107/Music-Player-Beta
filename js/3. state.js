@@ -251,6 +251,7 @@
     btnSettingsResetSettings: document.getElementById("btnSettingsResetSettings"),
     outputDeviceName: document.getElementById("outputDeviceName"),
     btnSelectOutput: document.getElementById("btnSelectOutput"),
+    btnSelectOutputDirect: document.getElementById("btnSelectOutputDirect"),
     outputDeviceModal: document.getElementById("outputDeviceModal"),
     outputDeviceList: document.getElementById("outputDeviceList"),
     btnCloseOutputDeviceModal: document.getElementById("btnCloseOutputDeviceModal"),
