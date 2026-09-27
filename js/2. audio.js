@@ -1172,20 +1172,16 @@
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
     saveState();
-    if (audioCtx && masterGain && analyser && limiterNode) {
+    if (audioCtx && finalMixGainNode && speakerBusNode && limiterNode) {
       try {
-        try { finalMixGainNode?.disconnect(limiterNode); } catch (e) {}
-        try { finalMixGainNode?.disconnect(analyser); } catch (e) {}
-        try { finalMixGainNode?.disconnect(waveOutputSplitter); } catch (e) {}
-        try { limiterNode?.disconnect(analyser); } catch (e) {}
-        try { limiterNode?.disconnect(waveOutputSplitter); } catch (e) {}
+        try { finalMixGainNode.disconnect(limiterNode); } catch (e) {}
+        try { finalMixGainNode.disconnect(speakerBusNode); } catch (e) {}
+        try { limiterNode.disconnect(speakerBusNode); } catch (e) {}
         if (state.clippingProtection) {
           finalMixGainNode.connect(limiterNode);
-          limiterNode.connect(analyser);
-          limiterNode.connect(waveOutputSplitter);
+          limiterNode.connect(speakerBusNode);
         } else {
-          finalMixGainNode.connect(analyser);
-          finalMixGainNode.connect(waveOutputSplitter);
+          finalMixGainNode.connect(speakerBusNode);
         }
       } catch (e) {}
     }
@@ -1770,6 +1766,8 @@
             STORAGE.channelLeft,
             STORAGE.channelRight,
             STORAGE.micMonitorVolume,
+            STORAGE.mainOutputDevice,
+            STORAGE.speakerSettings,
             STORAGE.playlistSettings,
             STORAGE.lastSong,
             STORAGE.lastPosition
