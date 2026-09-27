@@ -960,14 +960,41 @@ kbd {
   justify-content: center;
   margin-top: 10px;
 }
-.speakerDeviceActions {
-  display: flex;
-  justify-content: center;
-  margin-top: 10px;
-}
 .speakerDeviceActions .btn {
   width: 100%;
   max-width: 260px;
+}
+.speakerDelayField {
+  margin-top: 10px;
+}
+.speakerDelayControls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+.speakerDelayInput {
+  width: 88px;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel2);
+  color: var(--text);
+}
+.speakerDelayLabel {
+  color: var(--muted);
+  font-size: .8rem;
+  margin-right: 2px;
+}
+.speakerDelayUnit {
+  color: var(--muted);
+  font-size: .8rem;
+}
+.additionalSpeakerDelayControls {
+  margin-top: 10px;
 }
 .speakerAddActions {
   margin-top: 12px;
