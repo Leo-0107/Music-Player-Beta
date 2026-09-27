@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 51;
+  const BUILD_REVISION = 52;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -370,7 +370,7 @@
 
       // パイプライン: 空間処理ルート -> 2ch正規化 -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
       // マスター音量・マイクを含む2chミックスを、各スピーカーの個別L/R調整より前で分岐する。
-      // メイン側のL/R音量変更が追加スピーカーへ影響しないようにする。
+      // メイン側のL/R音量変更が登録スピーカーへ影響しないようにする。
       channelNormalizeNode.connect(masterGain);
       masterGain.connect(micReferenceAnalyser);
       masterGain.connect(finalMixGainNode);
@@ -398,7 +398,7 @@
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
 
-      // メインスピーカーのL/Rを反映した信号だけをメーター・波形に使用する。
+      // スピーカーのL/Rを反映した信号だけをメーター・波形に使用する。
       channelMerger.connect(outputSplitter);
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
@@ -731,7 +731,7 @@
       await updateOutputDeviceName();
       renderAdditionalOutputSpeakers();
       renderOutputDevicePicker();
-      toast("メインのスピーカーを変更しました");
+      toast("スピーカーを変更しました");
     } catch (e) {
       state.mainOutputDeviceId = previousId;
       if (e?.name === "NotAllowedError") {
@@ -781,7 +781,7 @@
 
       const name = document.createElement("strong");
       name.className = "additionalOutputSpeakerName";
-      name.textContent = route.label || "追加スピーカー";
+      name.textContent = route.label || "登録スピーカー";
 
       const actions = document.createElement("div");
       actions.className = "additionalOutputSpeakerActions";
@@ -793,7 +793,7 @@
       toggle.textContent = isEnabled ? "使用中" : "停止中";
       toggle.classList.toggle("active", isEnabled);
       toggle.setAttribute("aria-pressed", String(isEnabled));
-      toggle.setAttribute("aria-label", (route.label || "追加スピーカー") + "の使用状態を切り替える");
+      toggle.setAttribute("aria-label", (route.label || "登録スピーカー") + "の使用状態を切り替える");
       toggle.addEventListener("click", () => toggleAdditionalOutputSpeaker(index));
 
       const remove = document.createElement("button");
@@ -848,7 +848,7 @@
       delayDown.className = "btn small ghost";
       delayDown.type = "button";
       delayDown.textContent = "▼";
-      delayDown.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を0.1ミリ秒減らす");
+      delayDown.setAttribute("aria-label", (route.label || "登録スピーカー") + "の遅延を0.1ミリ秒減らす");
 
       const delayInput = document.createElement("input");
       delayInput.className = "speakerDelayInput";
@@ -858,7 +858,7 @@
       delayInput.step = "0.1";
       delayInput.value = String(clampSpeakerDelay(route.delayMs));
       delayInput.inputMode = "numeric";
-      delayInput.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延ミリ秒");
+      delayInput.setAttribute("aria-label", (route.label || "登録スピーカー") + "の遅延ミリ秒");
 
       const delayUnit = document.createElement("span");
       delayUnit.className = "speakerDelayUnit";
@@ -868,7 +868,7 @@
       delayUp.className = "btn small ghost";
       delayUp.type = "button";
       delayUp.textContent = "▲";
-      delayUp.setAttribute("aria-label", (route.label || "追加スピーカー") + "の遅延を0.1ミリ秒増やす");
+      delayUp.setAttribute("aria-label", (route.label || "登録スピーカー") + "の遅延を0.1ミリ秒増やす");
 
       delayDown.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs - 0.1));
       delayUp.addEventListener("click", () => setAdditionalOutputDelay(index, route.delayMs + 0.1));
@@ -1084,7 +1084,7 @@
 
     const route = {
       deviceId,
-      label: getOutputDeviceLabel(device, "追加スピーカー"),
+      label: getOutputDeviceLabel(device, "登録スピーカー"),
       left: 1,
       right: 1,
       delayMs: 0,
@@ -1155,7 +1155,7 @@
           defaultPhysical &&
           mainId === defaultPhysical.deviceId
         );
-        stateText.textContent = isMain ? "現在のメイン" : "";
+        stateText.textContent = isMain ? "現在使用中" : "";
 
         info.append(name, stateText);
 
@@ -1165,7 +1165,7 @@
         const mainBtn = document.createElement("button");
         mainBtn.className = "btn small";
         mainBtn.type = "button";
-        mainBtn.textContent = isMain ? "使用中" : "メインにする";
+        mainBtn.textContent = isMain ? "使用中" : "使用する";
         mainBtn.disabled = isMain;
         mainBtn.addEventListener("click", async () => {
           await setMainOutputDevice(device.deviceId || "");
@@ -1260,7 +1260,7 @@
           mainId === "default" && outputDeviceIsDefaultPhysical(device, outputs)
         );
         const isAdditional = hasAdditionalOutput(key);
-        stateText.textContent = isMain ? "現在のメイン" : (isAdditional ? "追加済み" : "");
+        stateText.textContent = isMain ? "現在使用中" : (isAdditional ? "追加済み" : "");
 
         info.append(name, stateText);
 
@@ -1270,7 +1270,7 @@
         const addBtn = document.createElement("button");
         addBtn.className = "btn small";
         addBtn.type = "button";
-        addBtn.textContent = isMain ? "メインで使用中" : (isAdditional ? "追加済み" : "追加");
+        addBtn.textContent = isMain ? "使用中" : (isAdditional ? "追加済み" : "追加");
         addBtn.disabled = isMain || isAdditional;
         addBtn.addEventListener("click", () => addAdditionalOutputSpeaker(device));
 
