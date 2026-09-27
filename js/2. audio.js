@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 35;
+  const BUILD_REVISION = 36;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -821,6 +821,33 @@
     toast("スピーカーを追加しました");
   }
 
+  function areSameOutputDevice(a, b) {
+    if (!a || !b) return false;
+    if (a.deviceId && b.deviceId && a.deviceId === b.deviceId) return true;
+    if (a.groupId && b.groupId && a.groupId === b.groupId) return true;
+
+    const normalizeLabel = value => String(value || "").trim().toLowerCase();
+    const aLabel = normalizeLabel(a.label);
+    const bLabel = normalizeLabel(b.label);
+    return !!aLabel && aLabel === bLabel;
+  }
+
+  function getEquivalentMainOutputId(mainId, device, defaultDevice) {
+    const normalizedMainId = mainId || "default";
+    const deviceKey = device?.deviceId || "default";
+    if (normalizedMainId === deviceKey) return deviceKey;
+
+    const mainDevice = normalizedMainId === "default"
+      ? defaultDevice
+      : null;
+    if (mainDevice && areSameOutputDevice(mainDevice, device)) return deviceKey;
+
+    if (normalizedMainId !== "default" && areSameOutputDevice({ deviceId: normalizedMainId }, device)) {
+      return deviceKey;
+    }
+    return normalizedMainId;
+  }
+
   async function renderOutputDevicePicker() {
     if (!el.outputDeviceList || !navigator.mediaDevices?.enumerateDevices) return;
     try {
@@ -829,8 +856,18 @@
 
       el.outputDeviceList.innerHTML = "";
 
-      const defaultDevice = { deviceId: "", label: "既定のスピーカー" };
-      const list = [defaultDevice, ...outputs.filter(d => d.deviceId !== "default")];
+      const enumeratedDefault = outputs.find(d => d.deviceId === "default") || null;
+      const defaultDevice = enumeratedDefault || { deviceId: "", label: "既定のスピーカー" };
+      const physicalOutputs = outputs.filter(d => d.deviceId && d.deviceId !== "default");
+
+      // Chromeでは「default」と、その実体である内蔵スピーカー等が別デバイスとして
+      // 列挙されることがあるため、同じgroupId（または同じラベル）の重複を1つにまとめる。
+      const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
+      const showSyntheticDefault = !defaultPhysical || mainId === "default";
+      const list = [
+        ...(showSyntheticDefault ? [{ deviceId: "", label: "既定のスピーカー" }] : []),
+        ...physicalOutputs.filter(device => !showSyntheticDefault || !areSameOutputDevice(defaultDevice, device))
+      ];
 
       const seen = new Set();
       for (const device of list) {
@@ -848,7 +885,8 @@
         name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
 
         const stateText = document.createElement("small");
-        const isMain = key === mainId;
+        const equivalentMainId = getEquivalentMainOutputId(mainId, device, defaultDevice);
+        const isMain = key === equivalentMainId;
         const isAdditional = hasAdditionalOutput(key);
         stateText.textContent = isMain ? "現在のメイン" : (isAdditional ? "追加済み" : "");
 
