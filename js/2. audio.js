@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 50;
+  const BUILD_REVISION = 51;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -232,6 +232,20 @@
     return `rgb(${Math.min(255, Math.max(0, r))}, ${Math.min(255, Math.max(0, g))}, ${Math.min(255, Math.max(0, b))})`;
   }
 
+  function ensureOutputBridge() {
+    if (!audioCtx || outputBridgeAudio || !audioCtx.createMediaStreamDestination) return;
+
+    outputStreamDestination = audioCtx.createMediaStreamDestination();
+    outputBridgeAudio = document.createElement("audio");
+    outputBridgeAudio.autoplay = true;
+    outputBridgeAudio.controls = false;
+    outputBridgeAudio.playsInline = true;
+    outputBridgeAudio.setAttribute("aria-hidden", "true");
+    outputBridgeAudio.style.display = "none";
+    outputBridgeAudio.srcObject = outputStreamDestination.stream;
+    document.body.appendChild(outputBridgeAudio);
+  }
+
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
@@ -405,7 +419,19 @@
       if (state.mainOutputDeviceId) {
         try {
           if (canSelectContextSink) {
-            audioCtx.setSinkId(state.mainOutputDeviceId).catch(() => {});
+            audioCtx.setSinkId(state.mainOutputDeviceId).catch(async () => {
+              ensureOutputBridge();
+              if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+                try {
+                  await outputBridgeAudio.setSinkId(state.mainOutputDeviceId);
+                  if (mainDelayNode && outputStreamDestination) {
+                    try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
+                    try { mainDelayNode.connect(outputStreamDestination); } catch (e) {}
+                  }
+                  await startOutputBridge();
+                } catch (e) {}
+              }
+            });
           } else if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
             outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(() => {});
           }
@@ -429,7 +455,7 @@
 
   function clampSpeakerDelay(value) {
     const n = Number(value);
-    return Number.isFinite(n) ? Math.max(-1000, Math.min(1000, Math.round(n * 10) / 10)) : 0;
+    return Number.isFinite(n) ? Math.max(0, Math.min(1000, Math.round(n * 10) / 10)) : 0;
   }
 
   function getMainOutputDelay() {
@@ -444,14 +470,8 @@
     return delays;
   }
 
-  function getSpeakerDelayBase() {
-    const delays = getSpeakerDelayOffsets();
-    const minDelay = Math.min(...delays);
-    return Math.max(0, -minDelay);
-  }
-
   function getEffectiveSpeakerDelay(delayMs) {
-    return Math.max(0, clampSpeakerDelay(delayMs) + getSpeakerDelayBase());
+    return clampSpeakerDelay(delayMs);
   }
 
   function applyAllSpeakerDelayNodes() {
@@ -606,12 +626,23 @@
 
     try {
       ensureGraph();
+      let applied = false;
       if (typeof audioCtx?.setSinkId === "function") {
-        await audioCtx.setSinkId(deviceId);
-      } else {
+        try {
+          await audioCtx.setSinkId(deviceId);
+          applied = true;
+        } catch (e) {}
+      }
+
+      if (!applied) {
         ensureOutputBridge();
         if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
           await outputBridgeAudio.setSinkId(deviceId);
+          if (mainDelayNode && outputStreamDestination) {
+            try { mainDelayNode.disconnect(audioCtx.destination); } catch (ignore) {}
+            try { mainDelayNode.disconnect(outputStreamDestination); } catch (ignore) {}
+            mainDelayNode.connect(outputStreamDestination);
+          }
           await startOutputBridge();
         }
       }
@@ -662,20 +693,32 @@
     const normalized = deviceId || "";
 
     if (normalized && hasAdditionalOutput(normalized)) {
-      toast("そのスピーカーは追加スピーカーで使用中です");
+      toast("そのスピーカーは登録済みです");
       return;
     }
 
     const previousId = state.mainOutputDeviceId || "";
     try {
+      let applied = false;
+
       if (typeof audioCtx?.setSinkId === "function") {
-        await audioCtx.setSinkId(normalized);
-      } else {
+        try {
+          await audioCtx.setSinkId(normalized);
+          applied = true;
+        } catch (e) {}
+      }
+
+      if (!applied) {
         ensureOutputBridge();
         if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
           throw new Error("No supported output sink API");
         }
         await outputBridgeAudio.setSinkId(normalized);
+        if (mainDelayNode && outputStreamDestination) {
+          try { mainDelayNode.disconnect(audioCtx.destination); } catch (e) {}
+          try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
+          mainDelayNode.connect(outputStreamDestination);
+        }
         await startOutputBridge();
       }
 
@@ -696,17 +739,18 @@
         const found = outputs.some(device => device.deviceId === normalized);
         if (found) {
           try {
-            if (typeof audioCtx?.setSinkId === "function") {
-              await audioCtx.setSinkId(normalized);
-            } else {
-              ensureOutputBridge();
-              if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-                await outputBridgeAudio.setSinkId(normalized);
-                await startOutputBridge();
-              } else {
-                throw new Error("No supported output sink API");
-              }
+            ensureOutputBridge();
+            if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
+              throw new Error("No supported output sink API");
             }
+            await outputBridgeAudio.setSinkId(normalized);
+            if (mainDelayNode && outputStreamDestination) {
+              try { mainDelayNode.disconnect(audioCtx.destination); } catch (ignore) {}
+              try { mainDelayNode.disconnect(outputStreamDestination); } catch (ignore) {}
+              mainDelayNode.connect(outputStreamDestination);
+            }
+            await startOutputBridge();
+
             state.mainOutputDeviceId = normalized;
             const current = outputs.find(device => device.deviceId === normalized);
             state.speakerSettings.mainOutputLabel =
@@ -715,7 +759,7 @@
             await updateOutputDeviceName();
             renderAdditionalOutputSpeakers();
             renderOutputDevicePicker();
-            toast("メインのスピーカーを変更しました");
+            toast("スピーカーを変更しました");
             return;
           } catch (retryError) {}
         }
@@ -809,7 +853,7 @@
       const delayInput = document.createElement("input");
       delayInput.className = "speakerDelayInput";
       delayInput.type = "number";
-      delayInput.min = "-1000";
+      delayInput.min = "0";
       delayInput.max = "1000";
       delayInput.step = "0.1";
       delayInput.value = String(clampSpeakerDelay(route.delayMs));
@@ -1137,6 +1181,27 @@
     }
   }
 
+  async function selectOutputDeviceForMain() {
+    if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
+      toast("このブラウザでは出力機器を直接選択できません");
+      return;
+    }
+
+    try {
+      const device = await navigator.mediaDevices.selectAudioOutput();
+      if (!device?.deviceId) return;
+      await setMainOutputDevice(device.deviceId);
+    } catch (e) {
+      if (e?.name === "NotAllowedError") {
+        toast("ブラウザの出力機器選択が許可されていません");
+      } else if (e?.name === "NotFoundError") {
+        toast("接続中の出力機器が見つかりません");
+      } else {
+        toast("出力機器の選択に失敗しました");
+      }
+    }
+  }
+
   async function selectAndAddOutputDevice() {
     if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
       toast("このブラウザでは出力機器を直接選択できません。下の一覧を更新してください");
@@ -1149,7 +1214,11 @@
       if (!device?.deviceId) return;
       await addAdditionalOutputSpeaker(device);
     } catch (e) {
-      if (e?.name !== "NotAllowedError") {
+      if (e?.name === "NotAllowedError") {
+        toast("ブラウザの出力機器選択が許可されていません");
+      } else if (e?.name === "NotFoundError") {
+        toast("接続中の出力機器が見つかりません");
+      } else {
         toast("出力機器の選択に失敗しました");
       }
     }
@@ -1237,6 +1306,7 @@
   }
 
   if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", openOutputDeviceModal);
+  if (el.btnSelectOutputDirect) el.btnSelectOutputDirect.addEventListener("click", selectOutputDeviceForMain);
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
   if (el.btnSelectOutputToAdd) el.btnSelectOutputToAdd.addEventListener("click", selectAndAddOutputDevice);
   if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
