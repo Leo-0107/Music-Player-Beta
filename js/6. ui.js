@@ -884,11 +884,24 @@
     card.addEventListener("click", () => {
       const secId = card.dataset.settingsSection;
       if (!secId) return;
+
+      if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
+      openSidebar();
+
+      if (el.mainMenuList) el.mainMenuList.style.display = "none";
+      document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+
+      const target = document.getElementById(secId);
+      if (target) target.classList.add("active");
+
+      // 設定タブから開いた詳細画面では、左上の「戻る」でメニューへ戻らない。
+      if (el.btnSideBack) el.btnSideBack.style.display = "none";
+
       const menuItem = document.querySelector(`.menuItem[data-section="${secId}"]`);
-      if (menuItem) {
-        if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
-        openSidebar();
-        menuItem.click();
+      if (el.sideTitle) {
+        el.sideTitle.textContent = menuItem
+          ? menuItem.childNodes[0].textContent.trim()
+          : "設定";
       }
     });
   });
