@@ -22,6 +22,8 @@
     channelRight: "mp_channel_right_v13",
     micMonitorVolume: "mp_mic_monitor_volume_v1",
     outputRoutes: "mp_output_routes_v1",
+    mainOutputDevice: "mp_main_output_device_v1",
+    speakerSettings: "mp_speaker_settings_v1",
     playlistSettings: "mp_playlist_settings_v12",
     lastSong: "mp_last_song_v12"
   };
