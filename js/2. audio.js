@@ -470,6 +470,10 @@
 
   async function setMainOutputDevice(deviceId) {
     ensureGraph();
+    if ((deviceId || "default") !== getMainOutputIdentity() && hasAdditionalOutput(deviceId || "default")) {
+      toast("そのスピーカーは追加スピーカーで使用中です");
+      return;
+    }
     try {
       if (typeof audioCtx?.setSinkId === "function") {
         await audioCtx.setSinkId(deviceId || "");
