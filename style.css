@@ -962,6 +962,17 @@ kbd {
   width: 100%;
   max-width: 260px;
 }
+.outputDeviceSelect {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  color: var(--text);
+}
+.outputDeviceSelect[hidden] { display: none; }
 .channelVolumeWrap {
   display: flex;
   justify-content: center;
