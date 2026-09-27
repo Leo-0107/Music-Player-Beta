@@ -902,7 +902,7 @@
     try {
       await media.setSinkId(route.deviceId);
     } catch (e) {
-      try { analyser.disconnect(splitter); } catch (ignore) {}
+      try { speakerBusNode?.disconnect(splitter); } catch (ignore) {}
       media.pause();
       media.srcObject = null;
       media.remove();
@@ -1017,8 +1017,8 @@
       const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
 
       const list = [
-        { deviceId: "", label: "既定のスピーカー" },
-        ...physicalOutputs.filter(device => !defaultPhysical || !areSameOutputDevice(defaultDevice, device))
+        ...physicalOutputs.filter(device => !defaultPhysical || !areSameOutputDevice(defaultDevice, device)),
+        { deviceId: "", label: "既定のスピーカー" }
       ];
 
       const seen = new Set();
