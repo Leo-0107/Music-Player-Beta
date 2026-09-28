@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 19;
+  const BUILD_REVISION = 20;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -657,9 +657,19 @@
 
 
   async function ensureOutputDeviceAccess() {
+    const outputs = await enumerateAudioOutputs();
+    const hasUsableOutput = outputs.some(d => d.deviceId && d.deviceId !== "default");
+    if (hasUsableOutput) return outputs;
+
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+    }
+
     return await enumerateAudioOutputs();
   }
-
   async function restoreStoredMainOutputIfAvailable() {
     const deviceId = state.mainOutputDeviceId || "";
     if (!deviceId) return true;
@@ -1278,11 +1288,7 @@
       return false;
     }
 
-    const label = String(device?.label || "").trim();
-    if (!label) {
-      toast("スピーカー名を取得できないため追加できません。先に出力機器を選択してください");
-      return false;
-    }
+    const label = getOutputDeviceLabel(device, "追加スピーカー");
 
     const route = {
       deviceId,
@@ -1378,7 +1384,7 @@
         mainBtn.textContent = isMain ? "使用中" : "使用する";
         mainBtn.disabled = isMain;
         mainBtn.addEventListener("click", async () => {
-          await selectOutputDeviceForMain(device.deviceId || "");
+          await setMainOutputDevice(device.deviceId || "");
           closeOutputDeviceModal();
         });
 
@@ -1498,26 +1504,20 @@
   }
 
   async function selectOutputDeviceForMain(deviceId = "") {
-    // 一覧から選んだ場合でも、必ず selectAudioOutput() を経由して
-    // Chrome 側で許可された出力IDを確定してから setSinkId() を実行する。
+    // すでに一覧へ取得できている出力機器は、そのままメインへ切り替える。
+    // 未取得・未許可の機器だけ、ブラウザの出力機器選択を開く。
+    if (deviceId) {
+      const outputs = await enumerateAudioOutputs();
+      const listedDevice = outputs.find(device => device.deviceId === deviceId);
+      if (listedDevice?.deviceId) {
+        return await setMainOutputDevice(listedDevice.deviceId);
+      }
+    }
+
     const requested = await requestOutputDevicePermission(deviceId);
     if (!requested?.deviceId) return false;
-
-    const applied = await setMainOutputDevice(requested.deviceId);
-    if (!applied) {
-      if (deviceId && requested.deviceId !== deviceId) {
-        toast("選択したスピーカーへ切り替えられませんでした");
-      }
-      return false;
-    }
-
-    if (el.outputDevicePermissionStatus) {
-      el.outputDevicePermissionStatus.textContent =
-        "出力機器の許可: 許可済み（メイン出力に設定中）";
-    }
-    return true;
+    return await setMainOutputDevice(requested.deviceId);
   }
-
   async function selectAndAddOutputDevice(deviceId = "") {
     if (deviceId) {
       const outputs = await enumerateAudioOutputs();
@@ -1661,18 +1661,37 @@
   if (el.btnDiscoverOutputSpeaker) {
     el.btnDiscoverOutputSpeaker.addEventListener("click", async () => {
       try {
-        const device = await requestOutputDevicePermission();
+        if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
+          toast("このブラウザでは追加のスピーカーを自動検出できません");
+          return;
+        }
+
+        const device = await navigator.mediaDevices.selectAudioOutput();
+        if (device?.deviceId) {
+          recentlyGrantedOutputDevice = device;
+          recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
+        }
+
         await ensureOutputDeviceAccess();
         await renderOutputDevicePicker();
         await renderOutputDeviceAddPicker();
         await updateOutputPermissionStatus();
+
         if (device?.label) {
-          toast(`${device.label} の出力を許可しました`);
+          toast(device.label + " の出力を許可しました");
         } else if (device?.deviceId) {
           toast("出力機器の使用を許可しました");
         }
       } catch (e) {
-        toast("出力機器の許可・取得に失敗しました");
+        if (e?.name === "NotAllowedError") {
+          toast("ブラウザの出力機器選択が許可されていません");
+        } else if (e?.name === "NotFoundError") {
+          toast("接続中の出力機器が見つかりません");
+        } else if (e?.name === "InvalidStateError") {
+          toast("このボタンからもう一度実行してください");
+        } else {
+          toast("出力機器の許可・取得に失敗しました");
+        }
         await updateOutputPermissionStatus();
       }
     });
