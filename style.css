@@ -59,6 +59,37 @@ body.app-loading > .app {
   color: var(--muted);
   font-size: .84rem;
 }
+.appLoadingProgressArea {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.appLoadingProgressTrack {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel3);
+  border: 1px solid var(--line);
+}
+.appLoadingProgressFill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .18s ease;
+}
+.appLoadingPercent {
+  min-width: 42px;
+  text-align: right;
+  color: var(--muted);
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
+}
 body {
   margin: 0;
   background: var(--bg-gradient);
