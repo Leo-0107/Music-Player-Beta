@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 5;
+  const BUILD_REVISION = 6;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -441,11 +441,7 @@
   }
 
   function getSpeakerDelayOffsets() {
-    const delays = [getMainOutputDelay()];
-    state.outputRoutes.forEach(route => {
-      delays.push(clampSpeakerDelay(route.delayMs));
-    });
-    return delays;
+    return getUnifiedSpeakerEntries().map(entry => clampSpeakerDelay(entry.delayMs));
   }
 
   function getEffectiveSpeakerDelay(delayMs) {
@@ -643,9 +639,14 @@
 
   async function restoreStoredMainOutputIfAvailable() {
     const deviceId = state.mainOutputDeviceId || "";
-    if (!deviceId) return;
+    if (!deviceId) return true;
+
     const outputs = await enumerateAudioOutputs();
-    if (!outputs.some(device => device.deviceId === deviceId)) return;
+    if (!outputs.some(device => device.deviceId === deviceId)) {
+      await updateOutputDeviceName();
+      renderOutputDevicePicker();
+      return false;
+    }
 
     try {
       ensureGraph();
@@ -655,7 +656,15 @@
         await startOutputBridge();
       }
       await updateOutputDeviceName();
-    } catch (e) {}
+      return true;
+    } catch (e) {
+      if (e?.name === "NotAllowedError" || e?.name === "NotFoundError") {
+        toast("保存していたスピーカーを再接続するには、スピーカーを選び直してください");
+      }
+      await updateOutputDeviceName();
+      renderOutputDevicePicker();
+      return false;
+    }
   }
 
   async function updateOutputDeviceName() {
@@ -726,8 +735,10 @@
         if (outputBridgeAudio.paused) throw new Error("Output bridge did not resume");
       }
 
+      let newMain;
+
       if (selectedRoute) {
-        const newMain = {
+        newMain = {
           deviceId: selectedRoute.deviceId,
           label: selectedRoute.label,
           left: Number.isFinite(Number(selectedRoute.left)) ? Number(selectedRoute.left) : 1,
@@ -745,39 +756,51 @@
         }
 
         state.outputRoutes.splice(selectedRouteIndex, 1);
-
-        if (oldMain.deviceId &&
-            oldMain.deviceId !== newMain.deviceId &&
-            !hasAdditionalOutput(oldMain.deviceId)) {
-          state.outputRoutes.push({
-            deviceId: oldMain.deviceId,
-            label: oldMain.label || oldMain.deviceId,
-            left: oldMain.left,
-            right: oldMain.right,
-            delayMs: oldMain.delayMs,
-            enabled: true
-          });
-        }
-
-        currentLeftVolumeTarget = newMain.left;
-        currentRightVolumeTarget = newMain.right;
-        state.channelLeft = newMain.left;
-        state.channelRight = newMain.right;
-        if (leftGainNode) leftGainNode.gain.setTargetAtTime(newMain.left, audioCtx.currentTime, 0.045);
-        if (rightGainNode) rightGainNode.gain.setTargetAtTime(newMain.right, audioCtx.currentTime, 0.045);
-
-        state.speakerSettings.mainDelayMs = newMain.delayMs;
-        if (mainDelayNode) {
-          mainDelayNode.delayTime.setTargetAtTime(newMain.delayMs / 1000, audioCtx.currentTime, 0.01);
-        }
-        state.speakerSettings.mainOutputLabel = newMain.label;
       } else {
         const outputs = await enumerateAudioOutputs();
         const current = outputs.find(device => device.deviceId === normalized);
-        state.speakerSettings.mainOutputLabel =
-          current?.label ||
-          (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "既定のスピーカー");
+        newMain = {
+          deviceId: normalized,
+          label:
+            current?.label ||
+            (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "既定のスピーカー"),
+          left: currentLeftVolumeTarget,
+          right: currentRightVolumeTarget,
+          delayMs: getMainOutputDelay()
+        };
       }
+
+      // スピーカー一覧は「選択中」と「追加済み」を分離せず、一つの一覧として扱う。
+      const oldMainIdentity = oldMain.deviceId || "default";
+      const newMainIdentity = newMain.deviceId || "default";
+      const canKeepOldMain =
+        oldMainIdentity !== "default" &&
+        oldMainIdentity !== newMainIdentity &&
+        String(oldMain.label || "").trim();
+
+      if (canKeepOldMain && !hasAdditionalOutput(oldMain.deviceId)) {
+        state.outputRoutes.push({
+          deviceId: oldMain.deviceId,
+          label: oldMain.label,
+          left: Number.isFinite(Number(oldMain.left)) ? Number(oldMain.left) : 1,
+          right: Number.isFinite(Number(oldMain.right)) ? Number(oldMain.right) : 1,
+          delayMs: clampSpeakerDelay(oldMain.delayMs),
+          enabled: true
+        });
+      }
+
+      currentLeftVolumeTarget = Number.isFinite(Number(newMain.left)) ? Number(newMain.left) : 1;
+      currentRightVolumeTarget = Number.isFinite(Number(newMain.right)) ? Number(newMain.right) : 1;
+      state.channelLeft = currentLeftVolumeTarget;
+      state.channelRight = currentRightVolumeTarget;
+      if (leftGainNode) leftGainNode.gain.setTargetAtTime(currentLeftVolumeTarget, audioCtx.currentTime, 0.045);
+      if (rightGainNode) rightGainNode.gain.setTargetAtTime(currentRightVolumeTarget, audioCtx.currentTime, 0.045);
+
+      state.speakerSettings.mainDelayMs = clampSpeakerDelay(newMain.delayMs);
+      if (mainDelayNode) {
+        mainDelayNode.delayTime.setTargetAtTime(state.speakerSettings.mainDelayMs / 1000, audioCtx.currentTime, 0.01);
+      }
+      state.speakerSettings.mainOutputLabel = newMain.label;
 
       state.mainOutputDeviceId = normalized;
       saveState();
@@ -815,32 +838,50 @@
     }
   }
 
+  function getUnifiedSpeakerEntries() {
+    const mainId = getMainOutputIdentity();
+    return [
+      {
+        selected: true,
+        deviceId: mainId === "default" ? "" : mainId,
+        label: state.speakerSettings?.mainOutputLabel || "既定のスピーカー",
+        left: currentLeftVolumeTarget,
+        right: currentRightVolumeTarget,
+        delayMs: getMainOutputDelay()
+      },
+      ...state.outputRoutes.map((route, index) => ({
+        selected: false,
+        route,
+        index,
+        deviceId: route.deviceId,
+        label: route.label,
+        left: Number.isFinite(Number(route.left)) ? Number(route.left) : 1,
+        right: Number.isFinite(Number(route.right)) ? Number(route.right) : 1,
+        delayMs: clampSpeakerDelay(route.delayMs)
+      }))
+    ];
+  }
+
+  function getAdditionalOutputStatus(route) {
+    if (route?.enabled === false) return "停止中";
+    const runtime = additionalOutputRuntimes.get(route?.deviceId);
+    if (!runtime) return "接続待ち";
+    if (runtime.playError) {
+      return runtime.playError === "NotAllowedError" ? "再生許可待ち" : "再生失敗";
+    }
+    return "使用中";
+  }
+
   function renderAdditionalOutputSpeakers() {
     if (!el.additionalOutputSpeakers) return;
     el.additionalOutputSpeakers.innerHTML = "";
 
-    const mainId = getMainOutputIdentity();
-    const mainLabel = state.speakerSettings?.mainOutputLabel || "既定のスピーカー";
-    const entries = [{
-      kind: "selected",
-      deviceId: mainId === "default" ? "" : mainId,
-      label: mainLabel,
-      left: currentLeftVolumeTarget,
-      right: currentRightVolumeTarget,
-      delayMs: getMainOutputDelay()
-    }, ...state.outputRoutes.map((route, index) => ({
-      kind: "additional",
-      route,
-      index,
-      deviceId: route.deviceId,
-      label: route.label
-    }))];
-
-    for (const entry of entries) {
+    for (const entry of getUnifiedSpeakerEntries()) {
       if (!String(entry.label || "").trim()) continue;
 
       const card = document.createElement("div");
       card.className = "additionalOutputSpeakerCard";
+      if (entry.selected) card.classList.add("selectedSpeakerCard");
 
       const head = document.createElement("div");
       head.className = "additionalOutputSpeakerHead";
@@ -853,12 +894,11 @@
       actions.className = "additionalOutputSpeakerActions";
 
       const status = document.createElement("small");
-      status.textContent = entry.kind === "selected"
-        ? "選択中"
-        : (entry.route.enabled !== false ? "使用中" : "停止中");
+      status.className = "speakerRuntimeStatus";
+      status.textContent = entry.selected ? "選択中" : getAdditionalOutputStatus(entry.route);
       status.style.marginRight = "8px";
 
-      if (entry.kind === "additional") {
+      if (!entry.selected) {
         const toggle = document.createElement("button");
         toggle.className = "btn small additionalOutputSpeakerToggle";
         toggle.type = "button";
@@ -888,9 +928,14 @@
         const item = document.createElement("div");
         item.className = "channelVolume";
 
+        // 0 は有効な値なので || 1 を使わず、明示的に有限値を確認する。
+        const safeValue = Number.isFinite(Number(value))
+          ? Math.max(0, Math.min(2, Number(value)))
+          : 1;
+
         const valueEl = document.createElement("span");
         valueEl.className = "channelValue";
-        valueEl.textContent = Math.round(value * 100) + "%";
+        valueEl.textContent = Math.round(safeValue * 100) + "%";
 
         const slider = document.createElement("input");
         slider.className = "channelSlider";
@@ -898,11 +943,11 @@
         slider.min = "0";
         slider.max = "2";
         slider.step = "0.01";
-        slider.value = String(value);
+        slider.value = String(safeValue);
         slider.setAttribute("aria-label", entry.label + " " + (side === "left" ? "左" : "右") + "チャンネル音量");
 
         slider.addEventListener("input", e => {
-          if (entry.kind === "selected") {
+          if (entry.selected) {
             updateChannelVolumeUI(side, e.target.value);
             valueEl.textContent = Math.round(
               (side === "left" ? currentLeftVolumeTarget : currentRightVolumeTarget) * 100
@@ -943,9 +988,7 @@
       delayInput.max = "1000";
       delayInput.step = "0.1";
       delayInput.inputMode = "numeric";
-      delayInput.value = String(
-        entry.kind === "selected" ? getMainOutputDelay() : clampSpeakerDelay(entry.route.delayMs)
-      );
+      delayInput.value = String(entry.delayMs);
 
       const delayUnit = document.createElement("span");
       delayUnit.className = "speakerDelayUnit";
@@ -957,24 +1000,20 @@
       delayUp.textContent = "▲";
 
       delayDown.addEventListener("click", () => {
-        if (entry.kind === "selected") setMainOutputDelay(getMainOutputDelay() - 0.1);
+        if (entry.selected) setMainOutputDelay(getMainOutputDelay() - 0.1);
         else setAdditionalOutputDelay(entry.index, entry.route.delayMs - 0.1);
       });
       delayUp.addEventListener("click", () => {
-        if (entry.kind === "selected") setMainOutputDelay(getMainOutputDelay() + 0.1);
+        if (entry.selected) setMainOutputDelay(getMainOutputDelay() + 0.1);
         else setAdditionalOutputDelay(entry.index, entry.route.delayMs + 0.1);
       });
       delayInput.addEventListener("change", e => {
-        if (entry.kind === "selected") setMainOutputDelay(e.target.value);
+        if (entry.selected) setMainOutputDelay(e.target.value);
         else setAdditionalOutputDelay(entry.index, e.target.value);
       });
 
       delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
-      wrap.append(
-        makeChannel("left", Number(entry.kind === "selected" ? currentLeftVolumeTarget : entry.route.left) || 1),
-        makeChannel("right", Number(entry.kind === "selected" ? currentRightVolumeTarget : entry.route.right) || 1)
-      );
-
+      wrap.append(makeChannel("left", entry.left), makeChannel("right", entry.right));
       card.append(head, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
     }
@@ -986,7 +1025,9 @@
 
   function hasAdditionalOutput(deviceId) {
     const normalized = deviceId || "default";
-    return state.outputRoutes.some(route => (route.deviceId || "default") === normalized);
+    return getUnifiedSpeakerEntries().some(entry =>
+      !entry.selected && (entry.deviceId || "default") === normalized
+    );
   }
 
   function disconnectAdditionalOutputRuntime(deviceId) {
@@ -1015,7 +1056,13 @@
             runtime.connected = true;
           } catch (e) {}
         }
-        try { await runtime.audio.play(); } catch (e) {}
+        try {
+          await runtime.audio.play();
+          runtime.playError = null;
+        } catch (e) {
+          runtime.playError = e?.name || "PlaybackError";
+          toast("追加スピーカーの再生を開始できませんでした");
+        }
       } else {
         await createAdditionalOutputRuntime(route);
       }
@@ -1097,7 +1144,17 @@
     delayNode.delayTime.value = Math.min(1.5, getEffectiveSpeakerDelay(route.delayMs) / 1000);
 
     speakerBusNode.connect(splitter);
-    const runtime = { audio: media, destination, splitter, leftGain, rightGain, merger, delayNode, connected: true };
+    const runtime = {
+      audio: media,
+      destination,
+      splitter,
+      leftGain,
+      rightGain,
+      merger,
+      delayNode,
+      connected: true,
+      playError: null
+    };
     splitter.connect(leftGain, 0, 0);
     splitter.connect(rightGain, 1, 0);
     leftGain.connect(merger, 0, 0);
@@ -1121,7 +1178,12 @@
 
     additionalOutputRuntimes.set(route.deviceId, runtime);
     if (route.enabled !== false && !audio.paused) {
-      try { await media.play(); } catch (e) {}
+      try {
+        await media.play();
+        runtime.playError = null;
+      } catch (e) {
+        runtime.playError = e?.name || "PlaybackError";
+      }
     } else if (route.enabled === false) {
       disconnectAdditionalOutputRuntime(route.deviceId);
     }
@@ -1157,10 +1219,24 @@
         if (outputBridgeAudio.paused) await outputBridgeAudio.play();
       } catch (e) {}
     }
+
+    let speakerStatusChanged = false;
     for (const runtime of additionalOutputRuntimes.values()) {
       try {
         if (runtime.audio.paused) await runtime.audio.play();
-      } catch (e) {}
+        if (runtime.playError) {
+          runtime.playError = null;
+          speakerStatusChanged = true;
+        }
+      } catch (e) {
+        const nextError = e?.name || "PlaybackError";
+        if (runtime.playError !== nextError) speakerStatusChanged = true;
+        runtime.playError = nextError;
+      }
+    }
+
+    if (speakerStatusChanged && typeof renderAdditionalOutputSpeakers === "function") {
+      renderAdditionalOutputSpeakers();
     }
   }
 
@@ -1288,15 +1364,38 @@
         el.outputDeviceList.appendChild(item);
       }
 
+      if (state.mainOutputDeviceId &&
+          !outputs.some(device => device.deviceId === state.mainOutputDeviceId) &&
+          typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+        const recoveryWrap = document.createElement("div");
+        recoveryWrap.className = "outputDeviceRecovery";
+
+        const recoveryMessage = document.createElement("div");
+        recoveryMessage.className = "outputDeviceRecoveryMessage";
+        recoveryMessage.textContent =
+          "保存していたスピーカーが現在の出力機器IDと一致しません。再選択すると新しい機器IDで保存し直します。";
+
+        const recoveryButton = document.createElement("button");
+        recoveryButton.className = "btn small";
+        recoveryButton.type = "button";
+        recoveryButton.textContent = "保存済みスピーカーを再選択";
+        recoveryButton.addEventListener("click", async () => {
+          const device = await requestOutputDevicePermission();
+          if (!device?.deviceId) return;
+          await setMainOutputDevice(device.deviceId);
+          await renderOutputDevicePicker();
+        });
+
+        recoveryWrap.append(recoveryMessage, recoveryButton);
+        el.outputDeviceList.appendChild(recoveryWrap);
+      }
+
       if (!physicalOutputs.length && typeof navigator.mediaDevices?.selectAudioOutput === "function") {
         const discoverWrap = document.createElement("div");
-        discoverWrap.style.display = "grid";
-        discoverWrap.style.gap = "8px";
-        discoverWrap.style.marginTop = "8px";
+        discoverWrap.className = "outputDeviceRecovery";
 
         const discoverMessage = document.createElement("div");
-        discoverMessage.style.color = "var(--muted)";
-        discoverMessage.style.fontSize = ".82rem";
+        discoverMessage.className = "outputDeviceRecoveryMessage";
         discoverMessage.textContent =
           "非デフォルトの出力機器は、ブラウザの許可後に一覧へ表示されます。";
 
@@ -2243,6 +2342,7 @@
             STORAGE.micFeedbackProtection,
             STORAGE.mainOutputDevice,
             STORAGE.speakerSettings,
+            STORAGE.outputRoutes,
             STORAGE.playlistSettings,
             STORAGE.lastSong,
             STORAGE.lastPosition
