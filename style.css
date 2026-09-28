@@ -695,6 +695,60 @@ input[type="range"] {
   font-weight: 400;
   margin-top: 2px;
 }
+.menuGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.menuGroup + .menuGroup {
+  margin-top: 6px;
+}
+.menuGroupLabel {
+  padding: 2px 4px 1px;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.menuTools {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.menuToolsSettings {
+  margin-top: 0;
+}
+.menuToolsTitle {
+  padding: 0 4px 1px;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.menuTools .btn {
+  width: 100%;
+}
+
+.songMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.songDuration,
+.plTrackDuration,
+.queueDuration {
+  color: var(--muted);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+.songDuration {
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
 .panelSection {
   display: none;
   flex-direction: column;
