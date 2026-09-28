@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 21;
+  const BUILD_REVISION = 22;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -27,6 +27,7 @@
   let leftDisplayLevel = 0;
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
+  let disconnectedOutputDeviceIds = new Set();
 
 
   document.addEventListener("visibilitychange", () => {
@@ -885,6 +886,7 @@
         selected: true,
         deviceId: mainId === "default" ? "" : mainId,
         label: state.speakerSettings?.mainOutputLabel || "既定のスピーカー",
+        disconnected: mainId !== "default" && disconnectedOutputDeviceIds.has(mainId),
         left: currentLeftVolumeTarget,
         right: currentRightVolumeTarget,
         delayMs: getMainOutputDelay()
@@ -895,6 +897,7 @@
         index,
         deviceId: route.deviceId,
         label: route.label,
+        disconnected: !!route.deviceId && disconnectedOutputDeviceIds.has(route.deviceId),
         left: Number.isFinite(Number(route.left)) ? Number(route.left) : 1,
         right: Number.isFinite(Number(route.right)) ? Number(route.right) : 1,
         delayMs: clampSpeakerDelay(route.delayMs)
@@ -928,7 +931,16 @@
 
       const name = document.createElement("strong");
       name.className = "additionalOutputSpeakerName";
-      name.textContent = entry.label;
+      name.textContent = "";
+      if (entry.disconnected) {
+        const disconnectedMark = document.createElement("span");
+        disconnectedMark.style.color = "#f8d25c";
+        disconnectedMark.style.marginRight = "4px";
+        disconnectedMark.textContent = "▲";
+        disconnectedMark.title = "出力機器が接続されていません";
+        name.appendChild(disconnectedMark);
+      }
+      name.appendChild(document.createTextNode(entry.label));
 
       const actions = document.createElement("div");
       actions.className = "additionalOutputSpeakerActions";
@@ -1228,6 +1240,33 @@
       disconnectAdditionalOutputRuntime(route.deviceId);
     }
     return runtime;
+  }
+
+  async function updateDisconnectedOutputDeviceIds() {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = new Set(
+        devices
+          .filter(device => device.kind === "audiooutput" && device.deviceId)
+          .map(device => device.deviceId)
+      );
+
+      const next = new Set();
+      for (const route of state.outputRoutes) {
+        if (route?.deviceId && !outputs.has(route.deviceId)) {
+          next.add(route.deviceId);
+        }
+      }
+
+      const mainId = getMainOutputIdentity();
+      if (mainId !== "default" && !outputs.has(mainId)) {
+        next.add(mainId);
+      }
+
+      disconnectedOutputDeviceIds = next;
+    } catch (e) {}
   }
 
   async function syncAdditionalOutputRuntimes() {
@@ -1756,10 +1795,12 @@
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       await restoreStoredMainOutputIfAvailable();
       await updateOutputDeviceName();
+      await updateDisconnectedOutputDeviceIds();
       await renderOutputDevicePicker();
       await renderOutputDeviceAddPicker();
       await updateOutputPermissionStatus();
       await syncAdditionalOutputRuntimes();
+      renderAdditionalOutputSpeakers();
     });
   }
 
