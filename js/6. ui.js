@@ -1086,8 +1086,6 @@
     });
   }
 
-  const appLoadingWaitStart = performance.now();
-
   (async () => {
     updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
@@ -1104,11 +1102,6 @@
 
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
-
-    const remainingLoadingWait = Math.max(0, 5000 - (performance.now() - appLoadingWaitStart));
-    if (remainingLoadingWait > 0) {
-      await new Promise(resolve => setTimeout(resolve, remainingLoadingWait));
-    }
 
     revealAppAfterHomeReady();
 
