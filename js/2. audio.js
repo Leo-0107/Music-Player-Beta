@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 20;
+  const BUILD_REVISION = 21;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -635,10 +635,17 @@
 
   async function updateOutputPermissionStatus() {
     if (!el.outputDevicePermissionStatus && !el.outputDevicePermissionStatusMain) return;
-    const supported = typeof navigator.mediaDevices?.selectAudioOutput === "function";
-    if (!supported) {
+    const selectSupported = typeof navigator.mediaDevices?.selectAudioOutput === "function";
+    const sinkSupported = typeof HTMLMediaElement?.prototype?.setSinkId === "function";
+    if (!selectSupported && sinkSupported) {
       setOutputPermissionStatusText(
-        "出力機器の許可: このブラウザでは専用の出力許可機能を利用できません"
+        "出力機器の許可: Chromeではマイクの許可を利用して出力機器を取得します"
+      );
+      return;
+    }
+    if (!selectSupported) {
+      setOutputPermissionStatusText(
+        "出力機器の許可: このブラウザでは出力機器の切り替えに対応していません"
       );
       return;
     }
@@ -1460,49 +1467,113 @@
   }
 
   async function requestOutputDevicePermission(deviceId = "") {
-    if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
-      toast("このブラウザでは出力機器の選択許可に対応していません");
+    if (typeof navigator.mediaDevices?.selectAudioOutput === "function") {
+      try {
+        const options = deviceId ? { deviceId } : undefined;
+        const selected = await navigator.mediaDevices.selectAudioOutput(options);
+        if (selected?.deviceId) {
+          recentlyGrantedOutputDevice = selected;
+          recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
+        }
+        if (selected?.deviceId && el.outputDevicePermissionStatus) {
+          el.outputDevicePermissionStatus.textContent =
+            "出力機器の許可: 許可済み（選択した出力機器）";
+        }
+        return selected?.deviceId ? selected : null;
+      } catch (e) {
+        if (el.outputDevicePermissionStatus) {
+          if (e?.name === "NotAllowedError") {
+            el.outputDevicePermissionStatus.textContent =
+              "出力機器の許可: 未許可またはブラウザでブロックされています";
+          } else if (e?.name === "NotFoundError") {
+            el.outputDevicePermissionStatus.textContent =
+              "出力機器の許可: 利用できる出力機器がありません";
+          } else {
+            el.outputDevicePermissionStatus.textContent =
+              "出力機器の許可: 選択を完了できませんでした";
+          }
+        }
+        if (e?.name === "NotAllowedError") {
+          toast("ブラウザの出力機器選択が許可されていません");
+        } else if (e?.name === "NotFoundError") {
+          toast("接続中の出力機器が見つかりません");
+        } else if (e?.name === "InvalidStateError") {
+          toast("出力機器の選択をもう一度ボタンから実行してください");
+        } else {
+          toast("出力機器の選択に失敗しました");
+        }
+        return null;
+      }
+    }
+
+    // ChromeではselectAudioOutput()が使えないため、
+    // マイク許可で出力機器の列挙・setSinkId()に必要な許可を取得する。
+    if (
+      typeof navigator.mediaDevices?.getUserMedia !== "function" ||
+      typeof navigator.mediaDevices?.enumerateDevices !== "function"
+    ) {
+      toast("このブラウザでは出力機器の取得に対応していません");
       return null;
     }
 
     try {
-      const options = deviceId ? { deviceId } : undefined;
-      const selected = await navigator.mediaDevices.selectAudioOutput(options);
-      if (selected?.deviceId) {
-        recentlyGrantedOutputDevice = selected;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+
+      const outputs = await navigator.mediaDevices.enumerateDevices();
+      const audioOutputs = outputs.filter(
+        device => device.kind === "audiooutput" && device.deviceId
+      );
+
+      if (deviceId) {
+        const selected = audioOutputs.find(device => device.deviceId === deviceId);
+        if (selected) {
+          recentlyGrantedOutputDevice = selected;
+          recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
+          if (el.outputDevicePermissionStatus) {
+            el.outputDevicePermissionStatus.textContent =
+              "出力機器の許可: 許可済み（選択可能な出力機器を取得しました）";
+          }
+          return selected;
+        }
+      }
+
+      const fallback = audioOutputs.find(device => device.deviceId !== "default") ||
+        audioOutputs.find(device => device.deviceId === "default");
+      if (fallback) {
+        recentlyGrantedOutputDevice = fallback;
         recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
+        if (el.outputDevicePermissionStatus) {
+          el.outputDevicePermissionStatus.textContent =
+            "出力機器の許可: 許可済み（選択可能な出力機器を取得しました）";
+        }
+        return fallback;
       }
-      if (selected?.deviceId && el.outputDevicePermissionStatus) {
+
+      if (el.outputDevicePermissionStatus) {
         el.outputDevicePermissionStatus.textContent =
-          "出力機器の許可: 許可済み（選択した出力機器）";
+          "出力機器の許可: 出力機器を取得できませんでした";
       }
-      return selected?.deviceId ? selected : null;
+      toast("接続中の出力機器が見つかりません");
+      return null;
     } catch (e) {
       if (el.outputDevicePermissionStatus) {
         if (e?.name === "NotAllowedError") {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 未許可またはブラウザでブロックされています";
-        } else if (e?.name === "NotFoundError") {
-          el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 利用できる出力機器がありません";
+            "出力機器の許可: マイクの許可が必要です";
         } else {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 選択を完了できませんでした";
+            "出力機器の許可: 出力機器を取得できませんでした";
         }
       }
       if (e?.name === "NotAllowedError") {
-        toast("ブラウザの出力機器選択が許可されていません");
-      } else if (e?.name === "NotFoundError") {
-        toast("接続中の出力機器が見つかりません");
-      } else if (e?.name === "InvalidStateError") {
-        toast("出力機器の選択をもう一度ボタンから実行してください");
+        toast("出力機器を取得するにはマイクの許可が必要です");
       } else {
-        toast("出力機器の選択に失敗しました");
+        toast("出力機器の取得に失敗しました");
       }
       return null;
     }
   }
-
   async function selectOutputDeviceForMain(deviceId = "") {
     // すでに一覧へ取得できている出力機器は、そのままメインへ切り替える。
     // 未取得・未許可の機器だけ、ブラウザの出力機器選択を開く。
@@ -1661,16 +1732,8 @@
   if (el.btnDiscoverOutputSpeaker) {
     el.btnDiscoverOutputSpeaker.addEventListener("click", async () => {
       try {
-        if (typeof navigator.mediaDevices?.selectAudioOutput !== "function") {
-          toast("このブラウザでは追加のスピーカーを自動検出できません");
-          return;
-        }
-
-        const device = await navigator.mediaDevices.selectAudioOutput();
-        if (device?.deviceId) {
-          recentlyGrantedOutputDevice = device;
-          recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
-        }
+        const device = await requestOutputDevicePermission();
+        if (!device?.deviceId) return;
 
         await ensureOutputDeviceAccess();
         await renderOutputDevicePicker();
@@ -1679,19 +1742,11 @@
 
         if (device?.label) {
           toast(device.label + " の出力を許可しました");
-        } else if (device?.deviceId) {
-          toast("出力機器の使用を許可しました");
+        } else {
+          toast("出力機器を取得しました");
         }
       } catch (e) {
-        if (e?.name === "NotAllowedError") {
-          toast("ブラウザの出力機器選択が許可されていません");
-        } else if (e?.name === "NotFoundError") {
-          toast("接続中の出力機器が見つかりません");
-        } else if (e?.name === "InvalidStateError") {
-          toast("このボタンからもう一度実行してください");
-        } else {
-          toast("出力機器の許可・取得に失敗しました");
-        }
+        toast("出力機器の許可・取得に失敗しました");
         await updateOutputPermissionStatus();
       }
     });
