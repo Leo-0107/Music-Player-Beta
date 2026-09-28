@@ -1,3 +1,96 @@
+  function formatTrackDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "--:--";
+    const total = Math.floor(seconds);
+    const minutes = Math.floor(total / 60);
+    const secs = total % 60;
+    return minutes + ":" + String(secs).padStart(2, "0");
+  }
+
+  function readAudioDuration(blobOrUrl) {
+    return new Promise(resolve => {
+      const probe = document.createElement("audio");
+      const url = typeof blobOrUrl === "string" ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+      let finished = false;
+      let timer = null;
+      const cleanup = () => {
+        if (finished) return;
+        finished = true;
+        if (timer) clearTimeout(timer);
+        probe.removeAttribute("src");
+        probe.load();
+        if (typeof blobOrUrl !== "string") URL.revokeObjectURL(url);
+      };
+      const finish = value => {
+        const duration = Number(value);
+        cleanup();
+        resolve(Number.isFinite(duration) && duration > 0 ? duration : null);
+      };
+
+      probe.preload = "metadata";
+      probe.onloadedmetadata = () => finish(probe.duration);
+      probe.onerror = () => finish(null);
+      timer = setTimeout(() => finish(null), 8000);
+      probe.src = url;
+      probe.load();
+    });
+  }
+
+  function saveTrackDurationToDB(name, duration) {
+    if (!db || !name || !Number.isFinite(duration) || duration <= 0) return;
+    try {
+      const tx = db.transaction("tracks", "readwrite");
+      const store = tx.objectStore("tracks");
+      const req = store.get(name);
+      req.onsuccess = () => {
+        const track = req.result;
+        if (!track) return;
+        track.duration = duration;
+        store.put(track);
+      };
+    } catch (e) {}
+  }
+
+  function updateRenderedTrackDuration(songName, duration) {
+    document.querySelectorAll("[data-duration-for]").forEach(node => {
+      if (node.dataset.durationFor === songName) {
+        node.textContent = formatTrackDuration(duration);
+      }
+    });
+  }
+
+  const durationProbeTasks = new Map();
+
+  async function ensureSongDuration(song) {
+    if (!song) return null;
+    if (Number.isFinite(song.duration) && song.duration > 0) return song.duration;
+    if (durationProbeTasks.has(song.name)) return durationProbeTasks.get(song.name);
+
+    const task = readAudioDuration(song.url).then(duration => {
+      durationProbeTasks.delete(song.name);
+      if (Number.isFinite(duration) && duration > 0) {
+        song.duration = duration;
+        saveTrackDurationToDB(song.name, duration);
+        updateRenderedTrackDuration(song.name, duration);
+      }
+      return duration;
+    }).catch(() => {
+      durationProbeTasks.delete(song.name);
+      return null;
+    });
+
+    durationProbeTasks.set(song.name, task);
+    return task;
+  }
+
+  async function refreshMissingSongDurations(songs) {
+    const pending = (songs || []).filter(song =>
+      song && (!Number.isFinite(song.duration) || song.duration <= 0)
+    );
+    for (let i = 0; i < pending.length; i += 4) {
+      await Promise.all(pending.slice(i, i + 4).map(song => ensureSongDuration(song)));
+    }
+  }
+
   async function loadFiles(fileList){
     const files = Array.from(fileList || []);
     if(!files.length) return;
@@ -34,7 +127,8 @@
               title: meta.title,
               artist: meta.artist,
               blob: audioFile,
-              coverBlob: meta.coverBlob
+              coverBlob: meta.coverBlob,
+              duration: await readAudioDuration(audioFile)
             });
 
             if (!state.playlists[plName].includes(audioFile.name)) {
@@ -55,7 +149,8 @@
         title: meta.title,
         artist: meta.artist,
         blob: f,
-        coverBlob: meta.coverBlob
+        coverBlob: meta.coverBlob,
+        duration: await readAudioDuration(f)
       });
     }
 
@@ -138,7 +233,8 @@
         title: t.title || t.name,
         artist: t.artist || "不明なアーティスト",
         url: songUrls.url,
-        coverUrl: songUrls.coverUrl
+        coverUrl: songUrls.coverUrl,
+        duration: Number.isFinite(t.duration) ? t.duration : null
       };
     });
 
@@ -154,6 +250,7 @@
     state.playlistOrder = loadedSongs.map(s => s.name);
     saveState();
     renderAll();
+    void refreshMissingSongDurations(loadedSongs);
   }
 
   async function deleteSingleTrack(song) {
@@ -880,6 +977,7 @@
         <span class="plTrackText">
           ${!found ? '<span style="color:#f8d25c; margin-right:4px;" title="ファイルが見つかりません">▲</span>' : ''}
           <strong>${escapeHTML(displayTitle)}</strong>
+          ${found ? `<small class="plTrackDuration" data-duration-for="${escapeHTML(found.name)}">${formatTrackDuration(found.duration)}</small>` : ''}
         </span>
         <div class="plTrackActions">
           <button class="btn small playPlTrackBtn" type="button">▶</button>
@@ -1236,7 +1334,7 @@
         <div class="songMain">
           <div class="songName">${escapeHTML(song.title)}</div>
           <div class="songArtist">${escapeHTML(song.artist)}</div>
-          <div class="songMeta">再生数 ${state.playCounts[song.name] || 0}回</div>
+          <div class="songMeta"><span>再生数 ${state.playCounts[song.name] || 0}回</span><span class="songDuration" data-duration-for="${escapeHTML(song.name)}">${formatTrackDuration(song.duration)}</span></div>
         </div>
         <div class="songRight">
           <button class="addPlBtn">リスト追加</button>
@@ -1421,6 +1519,7 @@
         <div class="songMain">
           <div class="songName">${escapeHTML(s.title)}</div>
           <div class="songArtist">${escapeHTML(s.artist)}</div>
+          <div class="songDuration queueDuration" data-duration-for="${escapeHTML(s.name)}">${formatTrackDuration(s.duration)}</div>
         </div>
         <div class="songRight">
           <span class="queuePlanBadge">${isManual ? "次に再生" : "予定"}</span>
