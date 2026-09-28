@@ -414,12 +414,12 @@
             <div class="seekbarContainer">
               <input type="range" id="progress" value="0" min="0" max="100">
             </div>
+            <div class="timeLine">
+              <span id="timeNow">0:00</span>
+              <span id="timeAll">0:00</span>
+            </div>
 
             <div class="controls" style="justify-content:center;">
-              <div class="timeLine">
-                <span id="timeNow">0:00</span>
-                <span id="timeAll">0:00</span>
-              </div>
               <button class="btn small" id="btnRewind10">-10秒</button>
               <button class="btn small" id="btnPrev">◀◀</button>
               <button class="btn btnPlayMain" id="btnPlay">▶ 再生</button>
@@ -581,14 +581,14 @@
               <div class="scroll-text" id="miniTitle">停止中</div>
             </div>
             <div class="miniBtns">
+              <div class="miniTimeLine">
+                <span id="miniTimeNow">0:00</span>
+                <span id="miniTimeAll">0:00</span>
+              </div>
               <button class="btn small ghost" id="miniPrev">◀◀</button>
               <button class="btn small ghost" id="miniPlay">▶</button>
               <button class="btn small ghost" id="miniNext">▶▶</button>
             </div>
-          </div>
-          <div class="miniTimeLine">
-            <span id="miniTimeNow">0:00</span>
-            <span id="miniTimeAll">0:00</span>
           </div>
           <div class="miniProgressWrap">
             <input type="range" id="miniProgress" value="0" min="0" max="100" aria-label="再生進捗">
