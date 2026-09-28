@@ -997,13 +997,16 @@ kbd {
   margin-top: 10px;
 }
 .speakerAddActions {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   justify-content: center;
 }
 .speakerAddActions .btn {
   width: 100%;
   max-width: 360px;
+}
+.outputDeviceModal .speakerAddActions {
+  margin-top: 10px;
 }
 .additionalOutputSpeakerCard {
   margin-top: 12px;
