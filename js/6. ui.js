@@ -1093,6 +1093,9 @@
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
+    if (el.playbackRate) el.playbackRate.value = Math.min(2.0, Math.max(0.0, currentRate));
+    if (el.customRateInput) el.customRateInput.value = currentRate.toFixed(2);
+    if (el.pitchShift) el.pitchShift.value = state.pitchSemitones;
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
