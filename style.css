@@ -1516,3 +1516,95 @@ body.theme-light .waveWrap {
   min-height: 150px;
   max-height: 240px;
 }
+
+/* 2026-09 settings and speaker layout refinement */
+.settingsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settingsGroupHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 4px 0;
+}
+.settingsGroupHeader strong {
+  font-size: .86rem;
+}
+.settingsGroupHeader span {
+  color: var(--muted);
+  font-size: .74rem;
+}
+.settingsGroup .settingsGrid {
+  margin-bottom: 0;
+}
+.speakerSectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.speakerSectionHeader .speakerDeviceActions {
+  flex: 0 0 min(48%, 420px);
+  margin-top: 0;
+  justify-content: stretch;
+}
+.speakerSectionHeader .speakerDeviceActions .btn {
+  max-width: none;
+}
+.speakerSectionHint,
+.speakerSectionNote {
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.speakerSectionNote {
+  margin-top: 8px;
+  font-size: .74rem;
+}
+.speakerList {
+  margin-top: 14px;
+}
+.speakerRuntimeStatus {
+  color: var(--muted);
+  font-size: .76rem;
+}
+.selectedSpeakerCard {
+  border-color: rgba(29,185,84,.42);
+  box-shadow: 0 0 0 1px rgba(29,185,84,.12) inset;
+}
+.outputDeviceRecovery {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--panel2);
+}
+.outputDeviceRecoveryMessage {
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+@media (max-width: 760px) {
+  .speakerSectionHeader {
+    flex-direction: column;
+  }
+  .speakerSectionHeader .speakerDeviceActions {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+}
+@media (max-width: 520px) {
+  .settingsGroupHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .speakerSectionHeader .speakerDeviceActions {
+    flex-direction: column;
+  }
+}
