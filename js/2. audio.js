@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 22;
+  const BUILD_REVISION = 23;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -955,7 +955,7 @@
         toggle.className = "btn small additionalOutputSpeakerToggle";
         toggle.type = "button";
         const isEnabled = entry.route.enabled !== false;
-        toggle.textContent = isEnabled ? "使用中" : "停止中";
+        toggle.textContent = isEnabled ? "使用中" : "未使用";
         toggle.classList.toggle("active", isEnabled);
         toggle.setAttribute("aria-pressed", String(isEnabled));
         toggle.setAttribute("aria-label", entry.label + "の使用状態を切り替える");
