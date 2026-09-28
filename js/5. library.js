@@ -157,8 +157,8 @@
               mimeType: mediaInfo.mimeType
             });
 
-            if (!state.playlists[plName].includes(audioFile.name)) {
-              state.playlists[plName].push(audioFile.name);
+            if (!state.playlists[plName].includes(mediaFile.name)) {
+              state.playlists[plName].push(mediaFile.name);
             }
           }
         }
