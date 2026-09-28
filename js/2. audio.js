@@ -590,13 +590,30 @@
     return device?.label || fallback;
   }
 
+  let recentlyGrantedOutputDevice = null;
+  let recentlyGrantedOutputDeviceUntil = 0;
+
   async function enumerateAudioOutputs() {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices.filter(d => d.kind === "audiooutput");
+      const outputs = devices.filter(d => d.kind === "audiooutput");
+
+      if (
+        recentlyGrantedOutputDevice?.deviceId &&
+        Date.now() < recentlyGrantedOutputDeviceUntil &&
+        !outputs.some(device => device.deviceId === recentlyGrantedOutputDevice.deviceId)
+      ) {
+        outputs.push(recentlyGrantedOutputDevice);
+      } else if (Date.now() >= recentlyGrantedOutputDeviceUntil) {
+        recentlyGrantedOutputDevice = null;
+      }
+
+      return outputs;
     } catch (e) {
-      return [];
+      return recentlyGrantedOutputDevice?.deviceId && Date.now() < recentlyGrantedOutputDeviceUntil
+        ? [recentlyGrantedOutputDevice]
+        : [];
     }
   }
 
@@ -1445,6 +1462,10 @@
     try {
       const options = deviceId ? { deviceId } : undefined;
       const selected = await navigator.mediaDevices.selectAudioOutput(options);
+      if (selected?.deviceId) {
+        recentlyGrantedOutputDevice = selected;
+        recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
+      }
       if (selected?.deviceId && el.outputDevicePermissionStatus) {
         el.outputDevicePermissionStatus.textContent =
           "出力機器の許可: 許可済み（選択した出力機器）";
