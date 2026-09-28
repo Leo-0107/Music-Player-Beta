@@ -69,8 +69,12 @@
     });
   }
 
-  const audio = new Audio();
+  const audio = document.createElement("video");
   audio.preload = "auto";
+  audio.playsInline = true;
+  audio.controls = false;
+  audio.setAttribute("playsinline", "");
+  audio.setAttribute("webkit-playsinline", "");
 
   let audioCtx = null, sourceNode = null, filters = [], masterGain = null, limiterNode = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
