@@ -8,7 +8,7 @@
 
   function readAudioDuration(blobOrUrl) {
     return new Promise(resolve => {
-      const probe = document.createElement("audio");
+      const probe = document.createElement("video");
       const url = typeof blobOrUrl === "string" ? blobOrUrl : URL.createObjectURL(blobOrUrl);
       let finished = false;
       let timer = null;
@@ -91,13 +91,30 @@
     }
   }
 
+  function isVideoMediaFile(name = "", mimeType = "") {
+    return String(mimeType || "").toLowerCase().startsWith("video/") ||
+      /.(mp4|webm)$/i.test(String(name || ""));
+  }
+
+  function getMediaInfo(file) {
+    const video = isVideoMediaFile(file?.name, file?.type);
+    return {
+      mediaType: video ? "video" : "audio",
+      mimeType: file?.type || (video ? "video/mp4" : "audio/mpeg")
+    };
+  }
+
   async function loadFiles(fileList){
     const files = Array.from(fileList || []);
     if(!files.length) return;
 
     toast(`ファイルの解析・読み込み中...`);
 
-    const directAudioFiles = files.filter(f => f.type.startsWith("audio/") || /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(f.name));
+    const directMediaFiles = files.filter(f =>
+      f.type.startsWith("audio/") ||
+      f.type.startsWith("video/") ||
+      /\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(f.name)
+    );
     const zipFiles = files.filter(f => /\.zip$/i.test(f.name));
 
     for (const zipFile of zipFiles) {
@@ -116,19 +133,28 @@
 
         for (const filename of fileKeys) {
           const entry = zip.files[filename];
-          if (!entry.dir && /\.(mp3|m4a|wav|ogg|flac|aac)$/i.test(filename)) {
+          if (!entry.dir && /\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename)) {
             const blob = await entry.async("blob");
             const cleanName = filename.split('/').pop();
-            const audioFile = new File([blob], cleanName, { type: blob.type || "audio/mpeg" });
-            const meta = await parseID3(audioFile);
+            const mediaInfo = getMediaInfo({ name: cleanName, type: blob.type });
+            const mediaFile = new File(
+              [blob],
+              cleanName,
+              { type: blob.type || mediaInfo.mimeType }
+            );
+            const meta = mediaInfo.mediaType === "video"
+              ? { title: cleanName.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
+              : await parseID3(mediaFile);
 
             saveTrackToDB({
-              name: audioFile.name,
+              name: mediaFile.name,
               title: meta.title,
               artist: meta.artist,
-              blob: audioFile,
+              blob: mediaFile,
               coverBlob: meta.coverBlob,
-              duration: await readAudioDuration(audioFile)
+              duration: await readAudioDuration(mediaFile),
+              mediaType: mediaInfo.mediaType,
+              mimeType: mediaInfo.mimeType
             });
 
             if (!state.playlists[plName].includes(audioFile.name)) {
@@ -141,8 +167,11 @@
       }
     }
 
-    for (const f of directAudioFiles) {
-      const meta = await parseID3(f);
+    for (const f of directMediaFiles) {
+      const mediaInfo = getMediaInfo(f);
+      const meta = mediaInfo.mediaType === "video"
+        ? { title: f.name.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
+        : await parseID3(f);
       const storageName = f.webkitRelativePath || f.name;
       saveTrackToDB({
         name: storageName,
@@ -150,7 +179,9 @@
         artist: meta.artist,
         blob: f,
         coverBlob: meta.coverBlob,
-        duration: await readAudioDuration(f)
+        duration: await readAudioDuration(f),
+        mediaType: mediaInfo.mediaType,
+        mimeType: mediaInfo.mimeType
       });
     }
 
@@ -234,7 +265,9 @@
         artist: t.artist || "不明なアーティスト",
         url: songUrls.url,
         coverUrl: songUrls.coverUrl,
-        duration: Number.isFinite(t.duration) ? t.duration : null
+        duration: Number.isFinite(t.duration) ? t.duration : null,
+        mediaType: t.mediaType || (isVideoMediaFile(t.name, t.mimeType) ? "video" : "audio"),
+        mimeType: t.mimeType || ""
       };
     });
 
