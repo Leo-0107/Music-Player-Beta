@@ -63,7 +63,6 @@
     if (el.miniTimeAll) el.miniTimeAll.textContent = Number.isFinite(dur) && dur > 0 ? fmtTime(dur) : "0:00";
 
     if(!audio.duration) return;
-    const cur = audio.currentTime, dur = audio.duration;
     if(!isSlidingRange) {
       if (el.progress) el.progress.value = (cur / dur) * 100;
       if (el.miniProgress) el.miniProgress.value = (cur / dur) * 100;
@@ -1069,22 +1068,44 @@
     }
   });
 
+  function updateAppLoadingProgress(percent, message) {
+    const safe = Math.max(0, Math.min(100, Math.round(percent)));
+    const fill = document.getElementById("appLoadingProgressFill");
+    const percentText = document.getElementById("appLoadingPercent");
+    const messageText = document.getElementById("appLoadingText");
+    if (fill) fill.style.width = safe + "%";
+    if (percentText) percentText.textContent = safe + "%";
+    if (messageText && message) messageText.textContent = message;
+  }
+
+  function revealAppAfterHomeReady() {
+    updateAppLoadingProgress(100, "ホーム画面を表示します...");
+    requestAnimationFrame(() => {
+      document.body.classList.remove("app-loading");
+      document.getElementById("appLoadingScreen")?.remove();
+    });
+  }
+
   (async () => {
-    await initDB();
+    updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
     applyTheme();
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
-    requestWaveStaticFrame();
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
 
-    // 基本画面を先に表示し、その後で曲一覧・キュー・プレイリスト等を読み込む。
-    document.body.classList.remove("app-loading");
-    document.getElementById("appLoadingScreen")?.remove();
+    updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
+    requestWaveStaticFrame();
 
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
+    revealAppAfterHomeReady();
+
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    await initDB();
     await reloadPlaylistFromDB();
     restoreLastPlaybackMemory();
     renderEqualizer();
