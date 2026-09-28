@@ -1,2 +1,2 @@
-// Service Worker loader v23
+// Service Worker loader v24
 importScripts("./js/7. sw.js");
