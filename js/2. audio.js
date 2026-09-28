@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 11;
+  const BUILD_REVISION = 12;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -610,29 +610,34 @@
     }
   }
 
+  function setOutputPermissionStatusText(textValue) {
+    [el.outputDevicePermissionStatus, el.outputDevicePermissionStatusMain].forEach(node => {
+      if (node) node.textContent = textValue;
+    });
+  }
+
   async function updateOutputPermissionStatus() {
-    if (!el.outputDevicePermissionStatus) return;
+    if (!el.outputDevicePermissionStatus && !el.outputDevicePermissionStatusMain) return;
     const supported = typeof navigator.mediaDevices?.selectAudioOutput === "function";
     if (!supported) {
-      el.outputDevicePermissionStatus.textContent =
-        "出力機器の許可: このブラウザでは専用の出力許可機能を利用できません";
+      setOutputPermissionStatusText(
+        "出力機器の許可: このブラウザでは専用の出力許可機能を利用できません"
+      );
       return;
     }
 
     const permissionState = await getOutputPermissionState();
     if (permissionState === "granted") {
-      el.outputDevicePermissionStatus.textContent = "出力機器の許可: 許可済み";
+      setOutputPermissionStatusText("出力機器の許可: 許可済み");
     } else if (permissionState === "denied") {
-      el.outputDevicePermissionStatus.textContent =
-        "出力機器の許可: ブラウザでブロックされています";
+      setOutputPermissionStatusText("出力機器の許可: ブラウザでブロックされています");
     } else if (permissionState === "prompt") {
-      el.outputDevicePermissionStatus.textContent =
-        "出力機器の許可: 未許可（「出力機器を許可」を押してください）";
+      setOutputPermissionStatusText("出力機器の許可: 未許可（下の許可ボタンから選択）");
     } else {
-      el.outputDevicePermissionStatus.textContent =
-        "出力機器の許可: 状態を確認できません";
+      setOutputPermissionStatusText("出力機器の許可: 状態を確認できません");
     }
   }
+
 
   async function ensureOutputDeviceAccess() {
     return await enumerateAudioOutputs();
@@ -1599,6 +1604,25 @@
   }
 
   if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", chooseMainOutputDevice);
+
+  const requestOutputPermissionFromUser = () => {
+    // ブラウザ標準の出力機器選択UIは、ユーザー操作から直接呼び出す。
+    void requestOutputDevicePermission().then(async device => {
+      if (device?.deviceId) {
+        await ensureOutputDeviceAccess();
+        await renderOutputDevicePicker();
+        await renderOutputDeviceAddPicker();
+      }
+      await updateOutputPermissionStatus();
+    });
+  };
+
+  if (el.btnRequestOutputPermissionMain) {
+    el.btnRequestOutputPermissionMain.addEventListener("click", requestOutputPermissionFromUser);
+  }
+  if (el.btnRequestOutputPermission) {
+    el.btnRequestOutputPermission.addEventListener("click", requestOutputPermissionFromUser);
+  }
   if (el.btnSelectOutputDirect) {
     el.btnSelectOutputDirect.addEventListener("click", async () => {
       const device = await requestOutputDevicePermission();
@@ -2280,6 +2304,24 @@
 
     drawCanvas(el.nowCoverCanvas, 160);
     drawCanvas(el.miniCoverCanvas, 32);
+  }
+
+  if (el.btnVideoFullscreen) {
+    el.btnVideoFullscreen.addEventListener("click", async e => {
+      e.stopPropagation();
+      if (!(audio instanceof HTMLVideoElement) || !state.currentSong?.mediaType === "video") return;
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen?.();
+        } else if (audio.requestFullscreen) {
+          await audio.requestFullscreen();
+        } else if (audio.webkitEnterFullscreen) {
+          audio.webkitEnterFullscreen();
+        }
+      } catch (err) {
+        toast("映像を全画面表示できませんでした");
+      }
+    });
   }
 
   async function clearAllTracksFromDB() {
