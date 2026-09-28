@@ -29,6 +29,36 @@ body.theme-light {
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+
+body.app-loading {
+  overflow: hidden;
+}
+body.app-loading > .app {
+  visibility: hidden;
+}
+.appLoadingScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-gradient);
+  color: var(--text);
+}
+.appLoadingInner {
+  width: min(320px, calc(100vw - 40px));
+  text-align: center;
+}
+.appLoadingTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.appLoadingText {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: .84rem;
+}
 body {
   margin: 0;
   background: var(--bg-gradient);
@@ -383,6 +413,10 @@ input[type="range"] {
   gap: 1px;
   flex: 1;
   height: 100%;
+  border-right: 1px solid var(--line);
+}
+.navTab:last-child {
+  border-right: 0;
 }
 .navTab.active {
   color: var(--accent);
@@ -459,6 +493,15 @@ input[type="range"] {
   align-items: center;
   justify-content: flex-end;
   flex-shrink: 0;
+}
+.miniTimeLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: .7rem;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 .miniProgressWrap {
   width: 100%;
@@ -1328,6 +1371,36 @@ body.output-device-modal-open {
   transform: translateY(0);
   opacity: 1;
 }
+.coverVideo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+  background: #000;
+}
+.coverVideoFullscreen {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 10px;
+  background: rgba(0,0,0,.62);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.coverVideoFullscreen[hidden] {
+  display: none;
+}
+
 .playlistTrackSheetHead {
   display: flex;
   align-items: center;
@@ -1528,6 +1601,48 @@ body.theme-light #waveModeBtns .btn.active {
 }
 .settingsCard:hover { filter: brightness(.92); border-color: rgba(29,185,84,.35); }
 .settingsCard:active { transform: scale(.985); filter: brightness(.84); }
+
+.sidebar.settingsBottomSheet {
+  transform: translateY(100%) !important;
+  transition: transform .26s cubic-bezier(.1,.9,.2,1) !important;
+}
+.sidebar.settingsBottomSheet.open {
+  transform: translateY(0) !important;
+}
+body.output-device-modal-open .sidebar {
+  pointer-events: none;
+}
+
+.outputDevicePermissionPanel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.outputDevicePermissionText,
+.outputDevicePermissionHint {
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.45;
+}
+.outputDevicePermissionStatus {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
+}
+.outputDevicePermissionPanel .btn {
+  width: 100%;
+  margin-top: 8px;
+}
+#outputDeviceAddModal .outputDevicePermissionHint {
+  margin-top: 6px;
+}
+#outputDeviceAddModal #btnRequestOutputPermission {
+  width: 100%;
+  margin-top: 8px;
+}
 .settingsIcon {
   width: 38px;
   height: 38px;
