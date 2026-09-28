@@ -54,20 +54,33 @@
   });
 
   audio.addEventListener("timeupdate", () => {
+    const dur = Number(audio.duration);
+    const cur = Number(audio.currentTime) || 0;
+
+    if (el.timeNow) el.timeNow.textContent = fmtTime(cur);
+    if (el.timeAll) el.timeAll.textContent = Number.isFinite(dur) && dur > 0 ? fmtTime(dur) : "0:00";
+    if (el.miniTimeNow) el.miniTimeNow.textContent = fmtTime(cur);
+    if (el.miniTimeAll) el.miniTimeAll.textContent = Number.isFinite(dur) && dur > 0 ? fmtTime(dur) : "0:00";
+
     if(!audio.duration) return;
     const cur = audio.currentTime, dur = audio.duration;
     if(!isSlidingRange) {
       if (el.progress) el.progress.value = (cur / dur) * 100;
       if (el.miniProgress) el.miniProgress.value = (cur / dur) * 100;
     }
-    if (el.timeNow) el.timeNow.textContent = fmtTime(cur);
-    if (el.timeAll) el.timeAll.textContent = fmtTime(dur);
-
     if (cur > 30 || (dur > 0 && cur / dur > 0.5)) {
       recordPlayCount();
     }
 
     updateMediaSessionPosition();
+  });
+
+  audio.addEventListener("loadedmetadata", () => {
+    const dur = Number(audio.duration);
+    const text = Number.isFinite(dur) && dur > 0 ? fmtTime(dur) : "0:00";
+    if (el.timeAll) el.timeAll.textContent = text;
+    if (el.miniTimeNow) el.miniTimeNow.textContent = fmtTime(audio.currentTime || 0);
+    if (el.miniTimeAll) el.miniTimeAll.textContent = text;
   });
 
   audio.addEventListener("ended", () => {
@@ -1058,10 +1071,8 @@
 
   (async () => {
     await initDB();
-    await reloadPlaylistFromDB();
-    restoreLastPlaybackMemory();
+
     applyTheme();
-    renderEqualizer();
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
@@ -1069,4 +1080,12 @@
     updateVolumeUI(currentVolumeTarget);
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
+
+    // 基本画面を先に表示し、その後で曲一覧・キュー・プレイリスト等を読み込む。
+    document.body.classList.remove("app-loading");
+    document.getElementById("appLoadingScreen")?.remove();
+
+    await reloadPlaylistFromDB();
+    restoreLastPlaybackMemory();
+    renderEqualizer();
   })();
