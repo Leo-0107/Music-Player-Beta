@@ -66,7 +66,14 @@
 <!-- Zip解析用ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
-<body>
+<body class="app-loading">
+
+<div class="appLoadingScreen" id="appLoadingScreen" aria-live="polite">
+  <div class="appLoadingInner">
+    <div class="appLoadingTitle">Music Player</div>
+    <div class="appLoadingText">画面を準備しています...</div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 <div class="overlay" id="overlay"></div>
@@ -107,8 +114,8 @@
         <div class="menuTools">
           <div class="menuToolsTitle">ライブラリ操作</div>
           <button class="btn small" id="btnAddMusic" type="button">音楽 / ZIP / フォルダを追加</button>
-          <input type="file" id="folder" multiple accept="audio/*,.zip" class="filePickerHidden" aria-hidden="true" tabindex="-1">
-          <input type="file" id="folderDirectory" multiple accept="audio/*,.zip" webkitdirectory directory class="filePickerHidden" aria-hidden="true" tabindex="-1">
+          <input type="file" id="folder" multiple accept="audio/*,video/*,.zip" class="filePickerHidden" aria-hidden="true" tabindex="-1">
+          <input type="file" id="folderDirectory" multiple accept="audio/*,video/*,.zip" webkitdirectory directory class="filePickerHidden" aria-hidden="true" tabindex="-1">
           <button class="btn danger small" id="btnResetFiles" type="button">全ファイルリセット</button>
         </div>
         <div class="menuTools menuToolsSettings">
@@ -245,6 +252,11 @@
           </div>
           <div class="outputDeviceModalHint">使用するスピーカーを選択できます。</div>
           <div class="outputDeviceList" id="outputDeviceList"></div>
+          <div class="outputDevicePermissionPanel">
+            <div class="outputDevicePermissionText">スピーカーを切り替えるには、ブラウザの出力機器への許可が必要です。</div>
+            <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatusMain">出力機器の許可: 確認中...</div>
+            <button class="btn small ghost" id="btnRequestOutputPermissionMain" type="button">出力機器の権限を許可</button>
+          </div>
           <div class="speakerAddActions">
             <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ スピーカーを追加</button>
           </div>
@@ -263,7 +275,9 @@
           </div>
           <div class="outputDeviceModalHint">一覧に表示されているスピーカーから、同時出力に追加する機器を選択してください。</div>
           <div class="outputDeviceList" id="outputDeviceAddList"></div>
-          <div id="outputDevicePermissionStatus" style="font-size:.78rem; color:var(--muted); margin-top:8px;">出力機器の許可: 確認中...</div>
+          <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatus">出力機器の許可: 確認中...</div>
+          <div class="outputDevicePermissionHint">「許可」を押すとChromeの出力機器選択画面が開きます。閉じた場合は許可されません。</div>
+          <button class="btn small ghost" id="btnRequestOutputPermission" type="button">出力機器の権限を許可</button>
           <div class="outputDeviceModalActions">
             <button class="btn small" id="btnRefreshOutputAddList" type="button">一覧を更新</button>
             <button class="btn small ghost" id="btnDiscoverOutputSpeaker" type="button">出力機器を許可</button>
@@ -386,8 +400,9 @@
     <div class="mainContent">
       <div id="homeElements">
         <div class="homeLayout">
-          <div class="coverBox">
+          <div class="coverBox" id="nowCoverBox">
             <canvas id="nowCoverCanvas"></canvas>
+            <button class="coverVideoFullscreen" id="btnVideoFullscreen" type="button" hidden aria-label="映像を全画面表示">⛶</button>
           </div>
           <div class="homeControls">
             <div class="seekbarContainer">
@@ -564,6 +579,10 @@
               <button class="btn small ghost" id="miniPlay">▶</button>
               <button class="btn small ghost" id="miniNext">▶▶</button>
             </div>
+          </div>
+          <div class="miniTimeLine">
+            <span id="miniTimeNow">0:00</span>
+            <span id="miniTimeAll">0:00</span>
           </div>
           <div class="miniProgressWrap">
             <input type="range" id="miniProgress" value="0" min="0" max="100" aria-label="再生進捗">
