@@ -95,7 +95,9 @@
   let spatialAngle = 0;
   let targetSongForPlaylist = null;
   let lastUnmutedVolume = 1.0;
-  let currentVolumeTarget = loadNum(STORAGE.volume, 1.0);
+  let currentVolumeTarget = localStorage.getItem(STORAGE.volume) === null
+    ? 1.0
+    : Math.max(0, Math.min(2, loadNum(STORAGE.volume, 1.0)));
   let currentLeftVolumeTarget = localStorage.getItem(STORAGE.channelLeft) === null ? 1.0 : loadNum(STORAGE.channelLeft, 1.0);
   let currentRightVolumeTarget = localStorage.getItem(STORAGE.channelRight) === null ? 1.0 : loadNum(STORAGE.channelRight, 1.0);
   let currentMicMonitorVolumeTarget = loadNum(STORAGE.micMonitorVolume, 1.0);
