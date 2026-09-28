@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 7;
+  const BUILD_REVISION = 8;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1472,18 +1472,24 @@
   }
 
   async function selectOutputDeviceForMain(deviceId = "") {
-    if (deviceId) {
-      const outputs = await enumerateAudioOutputs();
-      const listedDevice = outputs.find(device => device.deviceId === deviceId);
-      if (listedDevice?.deviceId) {
-        const applied = await setMainOutputDevice(listedDevice.deviceId);
-        if (applied) return true;
+    // 一覧から選んだ場合でも、必ず selectAudioOutput() を経由して
+    // Chrome 側で許可された出力IDを確定してから setSinkId() を実行する。
+    const requested = await requestOutputDevicePermission(deviceId);
+    if (!requested?.deviceId) return false;
+
+    const applied = await setMainOutputDevice(requested.deviceId);
+    if (!applied) {
+      if (deviceId && requested.deviceId !== deviceId) {
+        toast("選択したスピーカーへ切り替えられませんでした");
       }
+      return false;
     }
 
-    const device = await requestOutputDevicePermission(deviceId);
-    if (!device?.deviceId) return false;
-    return await setMainOutputDevice(device.deviceId);
+    if (el.outputDevicePermissionStatus) {
+      el.outputDevicePermissionStatus.textContent =
+        "出力機器の許可: 許可済み（メイン出力に設定中）";
+    }
+    return true;
   }
 
   async function selectAndAddOutputDevice(deviceId = "") {
