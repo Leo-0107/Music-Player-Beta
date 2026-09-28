@@ -1090,6 +1090,9 @@
     updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
     applyTheme();
+    if (!state.currentSong && typeof updateArtwork === "function") {
+      updateArtwork(null);
+    }
     renderColorPickers();
     setDMode(state.dMode);
     setWaveMode(state.waveMode);
