@@ -83,30 +83,44 @@
     </div>
     <div class="sideBody">
       <div class="menuList" id="mainMenuList">
-        <button class="menuItem" data-section="optionsSection">🎛️ 再生オプション<span>スピード・ピッチ・クロスフェード・立体音響</span></button>
-        <button class="menuItem" data-section="waveSection">〰️ 波形表示<span>表示する波形の種類を選択</span></button>
-        <button class="menuItem" data-section="playlistSection">📋 プレイリスト<span>管理・再生</span></button>
-        <button class="menuItem" data-section="queueSection">⏭️ 再生キュー<span>次に再生する曲</span></button>
-        <button class="menuItem" data-section="eqSection">🎚️ イコライザー<span>音質調整</span></button>
-        <button class="menuItem" data-section="speakerSection">🔊 スピーカー設定<span>出力先・音量・遅延補正</span></button>
-        <button class="menuItem" data-section="timerSection">⏱️ スリープタイマー<span>自動停止設定</span></button>
-        <button class="menuItem" data-section="statsSection">📊 再生統計<span>データ確認</span></button>
-        <button class="menuItem" data-section="themeSection">🎨 テーマ設定<span>見た目のカスタマイズ</span></button>
-        <hr style="border:0; border-top:1px solid var(--line); margin:12px 0;">
-        <div class="field">
-          <label>音楽ファイル / Zip / フォルダ追加</label>
-          <button class="btn small" id="btnAddMusic" type="button" style="width:100%;">音楽 / ZIP / フォルダを追加</button>
-          <input type="file" id="folder" multiple accept="audio/*,.zip" class="filePickerHidden" aria-hidden="true" tabindex="-1">
-          <input type="file" id="folderDirectory" multiple accept="audio/*,.zip" webkitdirectory directory class="filePickerHidden" aria-hidden="true" tabindex="-1">
+        <div class="menuGroup">
+          <div class="menuGroupLabel">再生</div>
+          <button class="menuItem" data-section="optionsSection">🎛️ 再生設定<span>速度・ピッチ・無音スキップ・立体音響</span></button>
+          <button class="menuItem" data-section="waveSection">〰️ 波形<span>表示方法・波形モードを選択</span></button>
         </div>
-        <button class="btn danger small" id="btnResetFiles" style="width:100%;">全ファイルリセット</button>
-        <button class="btn danger small" id="btnResetSettings" style="width:100%; margin-top:8px;">すべての設定をリセット</button>
+        <div class="menuGroup">
+          <div class="menuGroupLabel">音響</div>
+          <button class="menuItem" data-section="eqSection">🎚️ 音質調整<span>イコライザー・周波数帯を調整</span></button>
+          <button class="menuItem" data-section="speakerSection">🔊 出力設定<span>スピーカー・左右音量・遅延を調整</span></button>
+        </div>
+        <div class="menuGroup">
+          <div class="menuGroupLabel">ライブラリ</div>
+          <button class="menuItem" data-section="playlistSection">📋 プレイリスト<span>曲をまとめて管理・再生</span></button>
+          <button class="menuItem" data-section="queueSection">⏭️ 再生キュー<span>次に再生する曲を確認・変更</span></button>
+        </div>
+        <div class="menuGroup">
+          <div class="menuGroupLabel">表示・その他</div>
+          <button class="menuItem" data-section="timerSection">⏱️ スリープタイマー<span>指定時間後に再生を停止</span></button>
+          <button class="menuItem" data-section="statsSection">📊 再生統計<span>再生回数・履歴を確認</span></button>
+          <button class="menuItem" data-section="themeSection">🎨 テーマ<span>システム・ダーク・ライト・カスタム</span></button>
+        </div>
+        <div class="menuTools">
+          <div class="menuToolsTitle">ライブラリ操作</div>
+          <button class="btn small" id="btnAddMusic" type="button">音楽 / ZIP / フォルダを追加</button>
+          <input type="file" id="folder" multiple accept="audio/*,.zip" class="filePickerHidden" aria-hidden="true" tabindex="-1">
+          <input type="file" id="folderDirectory" multiple accept="audio/*" webkitdirectory directory class="filePickerHidden" aria-hidden="true" tabindex="-1">
+          <button class="btn danger small" id="btnResetFiles" type="button">全ファイルリセット</button>
+        </div>
+        <div class="menuTools menuToolsSettings">
+          <div class="menuToolsTitle">設定</div>
+          <button class="btn danger small" id="btnResetSettings" type="button">すべての設定をリセット</button>
+        </div>
       </div>
 
       <!-- パネルセクション群 -->
       <div class="panelSection" id="optionsSection">
         <div class="sectionCard">
-          <div class="sectionTitle">再生速度・ピッチ</div>
+          <div class="sectionTitle">速度・ピッチ</div>
           <div class="field">
             <label>速度: <span id="rateText">1.00x</span></label>
             <input type="range" id="playbackRate" min="0.0" max="2.0" step="0.05" value="1.0">
@@ -118,7 +132,7 @@
           </div>
         </div>
         <div class="sectionCard">
-          <div class="sectionTitle">オーディオ機能</div>
+          <div class="sectionTitle">再生機能</div>
           <button class="btn small" id="btnCrossfade" style="width:100%; margin-bottom:8px;">クロスフェード: ON</button>
           <button class="btn small" id="btnSilenceSkip" style="width:100%;">無音スキップ: ON</button>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
@@ -133,7 +147,7 @@
           </div>
         </div>
         <div class="sectionCard">
-          <div class="sectionTitle">立体音響 (3D / 8D モード)</div>
+          <div class="sectionTitle">立体音響</div>
           <div class="controls" id="dModeBtns">
             <button class="btn small" data-d="2D">2D</button>
             <button class="btn small" data-d="3D">3D</button>
@@ -151,7 +165,7 @@
 
       <div class="panelSection" id="waveSection">
         <div class="sectionCard">
-          <div class="sectionTitle">波形の表示方法</div>
+          <div class="sectionTitle">波形表示</div>
           <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">表示する波形の種類を選択できます。</div>
           <div class="controls" id="waveModeSettingsBtns">
             <button class="btn small" data-wave="3d">3D波形</button>
