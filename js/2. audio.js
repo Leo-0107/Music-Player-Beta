@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 6;
+  const BUILD_REVISION = 7;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -480,6 +480,7 @@
     state.speakerSettings.mainDelayMs = delayMs;
     saveState();
     applyMainOutputDelayNode();
+    renderAdditionalOutputSpeakers();
   }
 
   function adjustMainOutputDelay(step) {
@@ -1439,8 +1440,24 @@
     try {
       const options = deviceId ? { deviceId } : undefined;
       const selected = await navigator.mediaDevices.selectAudioOutput(options);
+      if (selected?.deviceId && el.outputDevicePermissionStatus) {
+        el.outputDevicePermissionStatus.textContent =
+          "出力機器の許可: 許可済み（選択した出力機器）";
+      }
       return selected?.deviceId ? selected : null;
     } catch (e) {
+      if (el.outputDevicePermissionStatus) {
+        if (e?.name === "NotAllowedError") {
+          el.outputDevicePermissionStatus.textContent =
+            "出力機器の許可: 未許可またはブラウザでブロックされています";
+        } else if (e?.name === "NotFoundError") {
+          el.outputDevicePermissionStatus.textContent =
+            "出力機器の許可: 利用できる出力機器がありません";
+        } else {
+          el.outputDevicePermissionStatus.textContent =
+            "出力機器の許可: 選択を完了できませんでした";
+        }
+      }
       if (e?.name === "NotAllowedError") {
         toast("ブラウザの出力機器選択が許可されていません");
       } else if (e?.name === "NotFoundError") {
@@ -1563,6 +1580,7 @@
 
   function openOutputDeviceAddModal() {
     if (!el.outputDeviceAddModal) return;
+    if (el.outputDeviceModal) el.outputDeviceModal.hidden = true;
     moveOutputDeviceModalsToBody();
     ensureGraph();
     el.outputDeviceAddModal.hidden = false;
