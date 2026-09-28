@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 24;
+  const BUILD_REVISION = 25;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1703,7 +1703,7 @@
         emptyMessage.style.color = "var(--muted)";
         emptyMessage.style.fontSize = ".82rem";
         emptyMessage.textContent =
-          "接続中の出力機器が一覧に表示されていません。「出力機器を許可」を押すと、ブラウザの選択画面から許可できます。";
+          "接続中の出力機器が一覧に表示されていません。「出力機器の権限を許可」を押してから一覧を更新してください。";
         el.outputDeviceAddList.appendChild(emptyMessage);
       }
     } catch (e) {
