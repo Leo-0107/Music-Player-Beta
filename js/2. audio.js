@@ -2309,7 +2309,7 @@
   if (el.btnVideoFullscreen) {
     el.btnVideoFullscreen.addEventListener("click", async e => {
       e.stopPropagation();
-      if (!(audio instanceof HTMLVideoElement) || !state.currentSong?.mediaType === "video") return;
+      if (!(audio instanceof HTMLVideoElement) || state.currentSong?.mediaType !== "video") return;
       try {
         if (document.fullscreenElement) {
           await document.exitFullscreen?.();
