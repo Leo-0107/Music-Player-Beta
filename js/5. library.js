@@ -146,7 +146,7 @@
               ? { title: cleanName.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
               : await parseID3(mediaFile);
 
-            saveTrackToDB({
+            await saveTrackToDB({
               name: mediaFile.name,
               title: meta.title,
               artist: meta.artist,
@@ -173,7 +173,7 @@
         ? { title: f.name.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
         : await parseID3(f);
       const storageName = f.webkitRelativePath || f.name;
-      saveTrackToDB({
+      await saveTrackToDB({
         name: storageName,
         title: meta.title,
         artist: meta.artist,
