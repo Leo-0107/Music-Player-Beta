@@ -229,12 +229,21 @@
   }
 
   function saveTrackToDB(trackData) {
-    if (!db) return;
-    try {
-      const tx = db.transaction("tracks", "readwrite");
-      tx.objectStore("tracks").put(trackData);
-      tx.onerror = () => toast("トラックの保存中にエラーが発生しました");
-    } catch (e) {}
+    return new Promise(resolve => {
+      if (!db) return resolve(false);
+      try {
+        const tx = db.transaction("tracks", "readwrite");
+        tx.objectStore("tracks").put(trackData);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => {
+          toast("トラックの保存中にエラーが発生しました");
+          resolve(false);
+        };
+        tx.onabort = () => resolve(false);
+      } catch (e) {
+        resolve(false);
+      }
+    });
   }
 
   function deleteTrackFromDB(name) {
