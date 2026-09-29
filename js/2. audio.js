@@ -2579,6 +2579,7 @@
     try {
       localStorage.removeItem(STORAGE.lastSong);
       localStorage.removeItem(STORAGE.lastPosition);
+      localStorage.removeItem(STORAGE.lastPlayback);
     } catch (e) {}
     if (el.folder) el.folder.value = "";
     const directoryInput = document.getElementById("folderDirectory");
