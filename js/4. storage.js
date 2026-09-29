@@ -86,6 +86,61 @@
   });
 
 
+  function migrateLegacyDB() {
+    const oldDbName = "Music Player v3.8";
+    return new Promise(resolve => {
+      if (!indexedDB.databases) return resolve();
+
+      indexedDB.databases().then(databases => {
+        if (!databases.some(info => info.name === oldDbName)) return resolve();
+
+        const req = indexedDB.open(oldDbName);
+        req.onsuccess = e => {
+          const oldDb = e.target.result;
+          if (!oldDb.objectStoreNames.contains("tracks")) {
+            oldDb.close();
+            return resolve();
+          }
+
+          let readTx;
+          try {
+            readTx = oldDb.transaction("tracks", "readonly");
+          } catch {
+            oldDb.close();
+            return resolve();
+          }
+
+          const getReq = readTx.objectStore("tracks").getAll();
+          getReq.onsuccess = () => {
+            const tracks = getReq.result || [];
+            oldDb.close();
+
+            if (!tracks.length || !db) return resolve();
+
+            try {
+              const writeTx = db.transaction("tracks", "readwrite");
+              const store = writeTx.objectStore("tracks");
+              for (const track of tracks) store.put(track);
+              writeTx.oncomplete = () => {
+                toast("v3.8の保存曲をv7.2へ移行しました");
+                resolve();
+              };
+              writeTx.onerror = () => resolve();
+              writeTx.onabort = () => resolve();
+            } catch {
+              resolve();
+            }
+          };
+          getReq.onerror = () => {
+            oldDb.close();
+            resolve();
+          };
+        };
+        req.onerror = () => resolve();
+      }).catch(() => resolve());
+    });
+  }
+
   function initDB() {
     return new Promise(resolve => {
       try {
@@ -94,7 +149,11 @@
           const d = e.target.result;
           if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", { keyPath: "name" });
         };
-        req.onsuccess = e => { db = e.target.result; resolve(); };
+        req.onsuccess = async e => {
+          db = e.target.result;
+          await migrateLegacyDB();
+          resolve();
+        };
         req.onerror = () => {
           toast("データベースの接続に失敗しました");
           resolve();
