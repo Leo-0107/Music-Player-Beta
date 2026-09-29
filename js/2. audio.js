@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 25;
+  const BUILD_REVISION = 26;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -28,6 +28,65 @@
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
   let disconnectedOutputDeviceIds = new Set();
+  let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
+  let backgroundPlaybackRecovery = false;
+
+  function setPlaybackIntent(playing) {
+    playbackIntent = !!playing;
+    try {
+      localStorage.setItem(STORAGE.lastPlayback, playbackIntent ? "playing" : "paused");
+    } catch (e) {}
+    if ("mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.playbackState = playbackIntent ? "playing" : "paused";
+      } catch (e) {}
+    }
+  }
+
+  async function recoverBackgroundPlayback() {
+    if (backgroundPlaybackRecovery || !playbackIntent || !state.currentSong) return false;
+    backgroundPlaybackRecovery = true;
+    try {
+      ensureGraph();
+      if (audioCtx && (audioCtx.state === "suspended" || audioCtx.state === "interrupted")) {
+        try { await audioCtx.resume(); } catch (e) {}
+      }
+
+      if (audio.paused) {
+        try {
+          await audio.play();
+        } catch (e) {
+          return false;
+        }
+      }
+
+      await startOutputBridge?.();
+
+      if ("mediaSession" in navigator) {
+        try { navigator.mediaSession.playbackState = "playing"; } catch (e) {}
+      }
+      return !audio.paused;
+    } finally {
+      backgroundPlaybackRecovery = false;
+    }
+  }
+
+  audio.addEventListener("play", () => {
+    setPlaybackIntent(true);
+  });
+
+  audio.addEventListener("pause", () => {
+    if (playbackIntent && document.visibilityState === "hidden") {
+      setTimeout(() => {
+        recoverBackgroundPlayback().catch(() => {});
+      }, 0);
+    }
+  });
+
+  audio.addEventListener("ended", () => {
+    setPlaybackIntent(false);
+  });
+
 
 
   document.addEventListener("visibilitychange", () => {
@@ -41,6 +100,16 @@
         }
       }
     });
+    if (document.visibilityState === "hidden") {
+      savePlaybackMemory?.(true);
+      if (playbackIntent) {
+        resumeAudioCtx().catch(() => {});
+        startOutputBridge?.().catch(() => {});
+      }
+    } else if (playbackIntent) {
+      recoverBackgroundPlayback().catch(() => {});
+    }
+
     if (document.visibilityState === "visible" && !audio.paused) {
       lastFrameTime = performance.now();
       startWaveAnimation();
@@ -176,13 +245,23 @@
       try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) {}
     };
 
-    bindAction('play', () => {
-      if (audio.paused) {
-        ensureGraph();
-        audio.play().catch(() => {});
+    bindAction('play', async () => {
+      setPlaybackIntent(true);
+      ensureGraph();
+      try {
+        await audioCtx?.resume();
+      } catch (e) {}
+      try {
+        if (audio.paused) await audio.play();
+        await startOutputBridge?.();
+      } catch (e) {}
+      if ("mediaSession" in navigator) {
+        try { navigator.mediaSession.playbackState = "playing"; } catch (e) {}
       }
+      updatePlayPauseUI();
     });
     bindAction('pause', () => {
+      setPlaybackIntent(false);
       if (!audio.paused) {
         audio.pause();
         updatePlayPauseUI();
@@ -191,6 +270,7 @@
     bindAction('previoustrack', () => { prevTrack(); });
     bindAction('nexttrack', () => { nextTrack(); });
     bindAction('stop', () => {
+      setPlaybackIntent(false);
       audio.pause();
       audio.currentTime = 0;
       savePlaybackMemory?.(true);
@@ -243,7 +323,13 @@
     outputBridgeAudio.controls = false;
     outputBridgeAudio.playsInline = true;
     outputBridgeAudio.setAttribute("aria-hidden", "true");
-    outputBridgeAudio.style.display = "none";
+    outputBridgeAudio.style.position = "fixed";
+    outputBridgeAudio.style.left = "-10000px";
+    outputBridgeAudio.style.top = "0";
+    outputBridgeAudio.style.width = "1px";
+    outputBridgeAudio.style.height = "1px";
+    outputBridgeAudio.style.opacity = "0";
+    outputBridgeAudio.style.pointerEvents = "none";
     outputBridgeAudio.srcObject = outputStreamDestination.stream;
     document.body.appendChild(outputBridgeAudio);
   }
