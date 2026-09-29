@@ -1386,8 +1386,22 @@
     }
 
     let speakerStatusChanged = false;
-    for (const runtime of additionalOutputRuntimes.values()) {
+    for (const [deviceId, runtime] of additionalOutputRuntimes.entries()) {
+      const route = state.outputRoutes.find(item => item.deviceId === deviceId);
+
+      // 「未使用」にした追加スピーカーは、バックグラウンド復帰や再生再開でも再生対象へ戻さない。
+      if (route?.enabled === false) {
+        if (!runtime.audio.paused) {
+          try { runtime.audio.pause(); } catch (e) {}
+        }
+        continue;
+      }
+
       try {
+        if (!runtime.connected && speakerBusNode) {
+          speakerBusNode.connect(runtime.splitter);
+          runtime.connected = true;
+        }
         if (runtime.audio.paused) await runtime.audio.play();
         if (runtime.playError) {
           runtime.playError = null;
