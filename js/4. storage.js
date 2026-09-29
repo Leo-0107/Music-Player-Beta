@@ -95,6 +95,7 @@
         if (!databases.some(info => info.name === oldDbName)) return resolve();
 
         const req = indexedDB.open(oldDbName);
+        req.onblocked = () => resolve();
         req.onsuccess = e => {
           const oldDb = e.target.result;
           if (!oldDb.objectStoreNames.contains("tracks")) {
@@ -125,12 +126,12 @@
               existingReq.onsuccess = () => {
                 const existingNames = new Set(existingReq.result || []);
                 for (const track of tracks) {
-                  if (!existingNames.has(track.name)) store.put(track);
+                  if (track && track.name && !existingNames.has(track.name)) {
+                    store.put(track);
+                  }
                 }
               };
-              existingReq.onerror = () => {
-                writeTx.abort();
-              };
+              existingReq.onerror = () => writeTx.abort();
               writeTx.oncomplete = () => {
                 indexedDB.deleteDatabase(oldDbName);
                 toast("v3.8の保存曲をv7.2へ移行しました");
@@ -152,28 +153,79 @@
     });
   }
 
-  function initDB() {
-    return new Promise(resolve => {
+  function openDBConnection() {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        fn(value);
+      };
+
       try {
         const req = indexedDB.open(dbName, 1);
+
         req.onupgradeneeded = e => {
           const d = e.target.result;
-          if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", { keyPath: "name" });
+          if (!d.objectStoreNames.contains("tracks")) {
+            d.createObjectStore("tracks", { keyPath: "name" });
+          }
         };
-        req.onsuccess = async e => {
-          db = e.target.result;
-          await migrateLegacyDB();
-          resolve();
+
+        req.onblocked = () => finish(reject, new Error("blocked"));
+
+        req.onsuccess = e => {
+          const openedDB = e.target.result;
+          openedDB.onversionchange = () => {
+            try { openedDB.close(); } catch {}
+          };
+          openedDB.onerror = () => {
+            try { openedDB.close(); } catch {}
+          };
+          finish(resolve, openedDB);
         };
-        req.onerror = () => {
-          toast("データベースの接続に失敗しました");
-          resolve();
-        };
+
+        req.onerror = () => finish(reject, req.error || new Error("open failed"));
       } catch (e) {
-        toast("IndexedDBがサポートされていないかアクセスできません");
-        resolve();
+        finish(reject, e);
       }
     });
+  }
+
+  async function initDB() {
+    if (db) {
+      try {
+        if (db.objectStoreNames.contains("tracks")) return true;
+      } catch {}
+      try { db.close(); } catch {}
+      db = null;
+    }
+
+    if (!("indexedDB" in window)) {
+      toast("IndexedDBがこのブラウザでは利用できません");
+      return false;
+    }
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        db = await openDBConnection();
+        await migrateLegacyDB();
+
+        if (navigator.storage?.persist) {
+          try { await navigator.storage.persist(); } catch {}
+        }
+
+        return true;
+      } catch {
+        db = null;
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+        }
+      }
+    }
+
+    toast("データベースに接続できませんでした。ブラウザのストレージ設定を確認してください");
+    return false;
   }
 
   function saveTrackToDB(trackData) {
