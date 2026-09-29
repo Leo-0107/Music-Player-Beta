@@ -93,7 +93,7 @@
 
   function isVideoMediaFile(name = "", mimeType = "") {
     return String(mimeType || "").toLowerCase().startsWith("video/") ||
-      /.(mp4|webm)$/i.test(String(name || ""));
+      /\.(mp4|webm)$/i.test(String(name || ""));
   }
 
   function getMediaInfo(file) {
