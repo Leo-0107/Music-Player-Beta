@@ -120,8 +120,19 @@
             try {
               const writeTx = db.transaction("tracks", "readwrite");
               const store = writeTx.objectStore("tracks");
-              for (const track of tracks) store.put(track);
+              const existingReq = store.getAllKeys();
+
+              existingReq.onsuccess = () => {
+                const existingNames = new Set(existingReq.result || []);
+                for (const track of tracks) {
+                  if (!existingNames.has(track.name)) store.put(track);
+                }
+              };
+              existingReq.onerror = () => {
+                writeTx.abort();
+              };
               writeTx.oncomplete = () => {
+                indexedDB.deleteDatabase(oldDbName);
                 toast("v3.8の保存曲をv7.2へ移行しました");
                 resolve();
               };
