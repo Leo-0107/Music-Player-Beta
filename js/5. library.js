@@ -300,6 +300,7 @@
     await deleteTrackFromDB(song.name);
     
     if (state.currentSong?.name === song.name) {
+      setPlaybackIntent(false);
       audio.pause();
       audio.src = "";
       state.currentSong = null;
@@ -330,6 +331,13 @@
     const write = () => {
       try {
         localStorage.setItem(STORAGE.lastSong, state.currentSong?.name || "");
+        localStorage.setItem(
+          STORAGE.lastPosition,
+          String(Number.isFinite(Number(audio.currentTime)) ? Math.max(0, Number(audio.currentTime)) : 0)
+        );
+        if (typeof playbackIntent === "boolean") {
+          localStorage.setItem(STORAGE.lastPlayback, playbackIntent ? "playing" : "paused");
+        }
       } catch (e) {}
     };
     if (force) { write(); return; }
@@ -345,14 +353,42 @@
     if (!songName) return;
     const song = state.playlist.find(item => item.name === songName);
     if (!song) return;
+
+    const savedPosition = Math.max(0, loadNum(STORAGE.lastPosition, 0));
+    const shouldResume = typeof playbackIntent === "boolean" ? playbackIntent : false;
+
     state.currentSong = song;
     audio.src = song.url;
     updateArtwork(song);
     updateNowPlayingUI(song);
-    if (el.progress && audio.duration) el.progress.value = 0;
-    if (el.miniProgress && audio.duration) el.miniProgress.value = 0;
-    if (el.timeNow) el.timeNow.textContent = fmtTime(0);
-    if (el.timeAll && audio.duration) el.timeAll.textContent = fmtTime(audio.duration);
+
+    const restorePosition = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        if (savedPosition > 0) {
+          audio.currentTime = Math.min(savedPosition, Math.max(0, audio.duration - 0.05));
+        }
+        if (el.progress) el.progress.value = (audio.currentTime / audio.duration) * 100;
+        if (el.miniProgress) el.miniProgress.value = (audio.currentTime / audio.duration) * 100;
+        if (el.timeAll) el.timeAll.textContent = fmtTime(audio.duration);
+        if (el.miniTimeAll) el.miniTimeAll.textContent = fmtTime(audio.duration);
+      } else if (savedPosition > 0) {
+        audio.currentTime = savedPosition;
+      }
+      if (el.timeNow) el.timeNow.textContent = fmtTime(audio.currentTime || 0);
+      if (el.miniTimeNow) el.miniTimeNow.textContent = fmtTime(audio.currentTime || 0);
+    };
+
+    if (audio.readyState >= 1) {
+      restorePosition();
+    } else {
+      audio.addEventListener("loadedmetadata", restorePosition, { once: true });
+    }
+
+    if (shouldResume) {
+      setTimeout(() => {
+        recoverBackgroundPlayback().catch(() => {});
+      }, 0);
+    }
   }
 
   audio.addEventListener("timeupdate", () => savePlaybackMemory(false));
@@ -530,6 +566,7 @@
   }
 
   function startNewSong(song, pushHistory) {
+    setPlaybackIntent(true);
     state.currentSong = song;
     hasCountedCurrentSong = false;
     silenceTimer = 0;
@@ -556,11 +593,15 @@
     renderQueue();
     resumeAudioCtx();
     audio.play().then(async () => {
+      setPlaybackIntent(true);
       await startOutputBridge?.();
       requestWakeLock();
       lastFrameTime = performance.now();
       startWaveAnimation();
-    }).catch(()=>{});
+    }).catch(() => {
+      setPlaybackIntent(false);
+      savePlaybackMemory?.(true);
+    });
   }
 
   // --- DOMのピンポイント更新 ---
@@ -657,6 +698,7 @@
         startWaveAnimation();
       }).catch(()=>{});
     } else {
+      setPlaybackIntent(false);
       audio.pause();
       releaseWakeLock();
     }
@@ -712,6 +754,7 @@
         return playSong(next, true, { preservePlaylistContext: true });
       }
       clearPlaylistContext();
+      setPlaybackIntent(false);
       audio.pause();
       updatePlayPauseUI();
       renderQueue();
