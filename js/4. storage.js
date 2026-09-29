@@ -45,7 +45,7 @@
     "#7209b7", "#f72585", "#121212", "#ffffff"
   ];
 
-  const dbName = "Music Player v3.8";
+  const dbName = "Music Player v7.2";
   let db = null;
   const activeObjectURLMap = new Map();
   let isWaveAnimating = false;
