@@ -265,6 +265,7 @@
     sleepIntervalId = setInterval(updateTimerText, 1000);
 
     sleepTimerId = setTimeout(() => {
+      setPlaybackIntent(false);
       audio.pause();
       releaseWakeLock();
       toast("スリープタイマーにより再生を停止しました");
@@ -1036,7 +1037,7 @@
       MediaPlayPause: () => playPause(),
       MediaPlay: () => { if (audio.paused) playPause(); },
       MediaPause: () => { if (!audio.paused) playPause(); },
-      MediaStop: () => { audio.pause(); audio.currentTime = 0; updatePlayPauseUI(); }
+      MediaStop: () => { setPlaybackIntent(false); audio.pause(); audio.currentTime = 0; updatePlayPauseUI(); }
     };
     if (mediaKeyMap[e.code]) {
       e.preventDefault();
