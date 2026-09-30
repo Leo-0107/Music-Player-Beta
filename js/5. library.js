@@ -402,23 +402,30 @@
     const write = () => {
       try {
         localStorage.setItem(STORAGE.lastSong, state.currentSong?.name || "");
-        localStorage.setItem(
-          STORAGE.lastPosition,
-          String(Number.isFinite(Number(audio.currentTime)) ? Math.max(0, Number(audio.currentTime)) : 0)
-        );
-        if (typeof playbackIntent === "boolean") {
-          localStorage.setItem(STORAGE.lastPlayback, playbackIntent ? "playing" : "paused");
-        }
+        localStorage.removeItem(STORAGE.lastPosition);
+        if (typeof playbackIntent === "boolean") localStorage.setItem(STORAGE.lastPlayback, playbackIntent ? "playing" : "paused");
       } catch (e) {}
     };
     if (force) { write(); return; }
     if (playbackMemorySaveTimer) return;
-    playbackMemorySaveTimer = setTimeout(() => {
-      playbackMemorySaveTimer = null;
-      write();
-    }, 700);
+    playbackMemorySaveTimer = setTimeout(() => { playbackMemorySaveTimer = null; write(); }, 700);
   }
 
+  function restoreLastPlaybackMemory() {
+    const songName = loadStr(STORAGE.lastSong, "");
+    if (!songName) return;
+    const song = state.playlist.find(item => item.name === songName);
+    if (!song) return;
+    state.currentSong = song;
+    audio.src = song.url;
+    audio.currentTime = 0;
+    updateArtwork(song);
+    updateNowPlayingUI(song);
+    if (el.progress) el.progress.value = 0;
+    if (el.miniProgress) el.miniProgress.value = 0;
+    if (el.timeNow) el.timeNow.textContent = "0:00";
+    try { localStorage.removeItem(STORAGE.lastPosition); } catch (e) {}
+  }
   function restoreLastPlaybackMemory() {
     const songName = loadStr(STORAGE.lastSong, "");
     if (!songName) return;
@@ -1784,7 +1791,14 @@
           return;
         }
 
-        playSong(s, true, { preservePlaylistContext: !!state.activePlaylistName });
+        const selectedIndex = names.indexOf(name);
+        state.queue = selectedIndex >= 0
+          ? names.slice(selectedIndex + 1).filter(queueName =>
+              queueName !== name && state.playlist.some(song => song.name === queueName))
+          : [];
+        saveState();
+        playSong(s, true, { preservePlaylistContext: false });
+        renderQueue();
       });
       el.queueList.appendChild(row);
     });
