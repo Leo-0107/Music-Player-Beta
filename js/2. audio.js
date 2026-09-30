@@ -463,7 +463,13 @@
       sourceNode.connect(filters[0]);
       for(let i=0; i<filters.length-1; i++) filters[i].connect(filters[i+1]);
       
+      const pitchShiftNode = createPitchShifter(audioCtx);
+      audioCtx._musicPlayerPitchShifter = pitchShiftNode;
+      pitchShiftNode.pitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+
       let spatialSourceNode = filters[filters.length - 1];
+      spatialSourceNode.connect(pitchShiftNode);
+      spatialSourceNode = pitchShiftNode;
       if (pannerNode) {
         spatialSourceNode.connect(pannerNode);
         spatialSourceNode = pannerNode;
@@ -2561,15 +2567,67 @@
     }
   }
 
+  function updatePitchShiftNode(){
+    const shifter = audioCtx?._musicPlayerPitchShifter;
+    if (!shifter) return;
+    shifter.pitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+  }
+
+  function createPitchShifter(ctx){
+    const node = ctx.createScriptProcessor(1024, 2, 2);
+    const bufferLength = Math.max(2048, Math.round(ctx.sampleRate * 0.18));
+    const buffers = [new Float32Array(bufferLength), new Float32Array(bufferLength)];
+    const grainSize = Math.max(512, Math.round(ctx.sampleRate * 0.09));
+    const stateRef = { pitch: 1 };
+    let writeIndex = 0;
+    let readA = 0;
+    let readB = bufferLength * 0.5;
+    const readInterpolated = (buffer, pos) => {
+      const p = (pos + bufferLength) % bufferLength;
+      const i0 = Math.floor(p);
+      const i1 = (i0 + 1) % bufferLength;
+      const f = p - i0;
+      return buffer[i0] * (1 - f) + buffer[i1] * f;
+    };
+    node.onaudioprocess = e => {
+      const input = e.inputBuffer;
+      const output = e.outputBuffer;
+      const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
+      for (let ch = 0; ch < 2; ch++) {
+        const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
+        const dst = output.getChannelData(ch);
+        const buf = buffers[ch];
+        let w = writeIndex, a = readA, b = readB;
+        for (let i = 0; i < dst.length; i++) {
+          buf[w] = src ? (src[i] || 0) : 0;
+          const phaseA = (((a % grainSize) + grainSize) % grainSize) / grainSize;
+          const phaseB = (((b % grainSize) + grainSize) % grainSize) / grainSize;
+          const gainA = phaseA < 0.5 ? phaseA * 2 : (1 - phaseA) * 2;
+          const gainB = phaseB < 0.5 ? phaseB * 2 : (1 - phaseB) * 2;
+          dst[i] = readInterpolated(buf, a) * gainA + readInterpolated(buf, b) * gainB;
+          w = (w + 1) % bufferLength;
+          a += pitch;
+          b += pitch;
+        }
+        if (ch === 0) { writeIndex = w; readA = a; readB = b; }
+      }
+    };
+    Object.defineProperty(node, 'pitch', {
+      get: () => stateRef.pitch,
+      set: v => { stateRef.pitch = Math.max(0.5, Math.min(2, Number(v) || 1)); }
+    });
+    return node;
+  }
+
   function applyPitchAndRate(){
-    const pitchFactor = Math.pow(2, state.pitchSemitones / 12);
-    audio.playbackRate = currentRate * pitchFactor;
-    audio.preservesPitch = false;
+    ensureGraph();
+    audio.playbackRate = currentRate;
+    audio.preservesPitch = true;
+    updatePitchShiftNode();
     if (el.rateText) el.rateText.textContent = `${currentRate.toFixed(2)}x`;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
     updateMediaSessionPosition();
   }
-
   // --- 経過時間（dt）ベースの回転更新 ---
   function updateSpatialAudio(dt) {
     if (!audioCtx || !panner3DNode || audio.paused || state.dMode === "2D") return;
