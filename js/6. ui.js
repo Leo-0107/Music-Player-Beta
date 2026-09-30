@@ -1657,18 +1657,44 @@
     }
   });
 
+  let appLoadingDisplayedProgress = 0;
+  let appLoadingAnimationToken = 0;
+
   function updateAppLoadingProgress(percent, message) {
-    const safe = Math.max(0, Math.min(100, Math.round(percent)));
+    const target = Math.max(0, Math.min(100, Math.round(percent)));
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
-    if (fill) fill.style.width = safe + "%";
-    if (percentText) percentText.textContent = safe + "%";
     if (messageText && message) messageText.textContent = message;
+
+    const token = ++appLoadingAnimationToken;
+    if (target <= appLoadingDisplayedProgress) {
+      if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
+      if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
+      return Promise.resolve();
+    }
+
+    return new Promise(resolve => {
+      const step = () => {
+        if (token !== appLoadingAnimationToken) {
+          resolve();
+          return;
+        }
+        appLoadingDisplayedProgress = Math.min(target, appLoadingDisplayedProgress + 1);
+        if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
+        if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
+        if (appLoadingDisplayedProgress >= target) {
+          resolve();
+          return;
+        }
+        setTimeout(step, 12);
+      };
+      step();
+    });
   }
 
-  function revealAppAfterHomeReady() {
-    updateAppLoadingProgress(100, "ホーム画面を表示します...");
+  async function revealAppAfterHomeReady() {
+    await updateAppLoadingProgress(100, "ホーム画面を表示します...");
     requestAnimationFrame(() => {
       document.body.classList.remove("app-loading");
       document.getElementById("appLoadingScreen")?.remove();
@@ -1676,7 +1702,7 @@
   }
 
   (async () => {
-    updateAppLoadingProgress(20, "ホーム画面を準備しています...");
+    await updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
     applyTheme();
     if (!state.currentSong && typeof updateArtwork === "function") {
@@ -1692,13 +1718,13 @@
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
 
-    updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
+    await updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
     requestWaveStaticFrame();
 
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
+    await updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
 
-    revealAppAfterHomeReady();
+    await revealAppAfterHomeReady();
 
     await new Promise(resolve => requestAnimationFrame(resolve));
     await initDB();
