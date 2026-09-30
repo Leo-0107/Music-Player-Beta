@@ -660,6 +660,24 @@
   }
 
   async function autoMeasureSpeakerDelay(targetEntry = null) {
+    const modal = document.getElementById("speakerDelayMeasurementModal");
+    const list = document.getElementById("speakerDelayMeasurementList");
+    if (list) {
+      list.innerHTML = "";
+      const status = document.createElement("div");
+      status.className = "speakerMeasurementProgress";
+      status.textContent = targetEntry
+        ? targetEntry.label + " を測定中…\nスピーカーから測定音を出し、マイクで到達音を検出しています。"
+        : "スピーカーを測定中…\nスピーカーから測定音を出し、マイクで到達音を検出しています。";
+      status.style.whiteSpace = "pre-line";
+      status.style.padding = "14px";
+      status.style.textAlign = "center";
+      status.style.color = "var(--text)";
+      status.style.fontWeight = "600";
+      list.appendChild(status);
+    }
+    if (modal) modal.hidden = false;
+    document.body.classList.add("output-device-modal-open");
     ensureGraph();
     if (!audioCtx) return;
     if (audioCtx.state === "suspended") await audioCtx.resume();
@@ -771,6 +789,8 @@
     } catch (e) {
       toast(e?.name === "NotAllowedError" ? "マイクの使用を許可してください" : "音響測定に失敗しました");
     } finally {
+      if (modal) modal.hidden = true;
+      document.body.classList.remove("output-device-modal-open");
       if (outputBridgeAudio) outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
       if (typeof speakerBusNode !== "undefined" && speakerBusNode) {
         for (const route of state.outputRoutes) {
