@@ -230,6 +230,7 @@
     const chosen=await chooseDuplicateFiles(conflicts);
     if(chosen===null&&conflicts.length){toast("追加をキャンセルしました");closeProgress();return;}
     const conflictIndex=new Map(conflicts.map((x,i)=>[x.index,i]));
+    const zipPlaylistTracks = new Map();
     for(let index=0;index<incoming.length;index++){
       const item=incoming[index];
       const conflictNo=conflictIndex.get(index);
@@ -240,10 +241,25 @@
       const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
       await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
       usedNames.add(saveName);
+      if (item.zipName) {
+        const playlistName = item.zipName.replace(/\.[^/.]+$/,"").trim() || "ZIPプレイリスト";
+        if (!zipPlaylistTracks.has(playlistName)) zipPlaylistTracks.set(playlistName, []);
+        zipPlaylistTracks.get(playlistName).push(saveName);
+      }
       updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
       await yieldToUI();
     }
-    saveState(); await reloadPlaylistFromDB(); toast("読み込み完了！"); closeProgress();
+    for (const [playlistName, trackNames] of zipPlaylistTracks) {
+      if (!trackNames.length) continue;
+      const existing = Array.isArray(state.playlists[playlistName]) ? state.playlists[playlistName] : [];
+      const merged = [...existing];
+      for (const name of trackNames) if (!merged.includes(name)) merged.push(name);
+      state.playlists[playlistName] = merged;
+    }
+    saveState(); await reloadPlaylistFromDB();
+    if (zipPlaylistTracks.size) renderPlaylists();
+    toast(zipPlaylistTracks.size ? "読み込み完了！ZIPごとのプレイリストも作成しました" : "読み込み完了！");
+    closeProgress();
   }
   const folderDirectoryInput = document.getElementById("folderDirectory");
   const btnAddMusic = document.getElementById("btnAddMusic");
