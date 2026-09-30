@@ -305,6 +305,7 @@
   let waveViewPointerId = null;
   let waveViewLastX = 0;
   let waveViewLastY = 0;
+  let visualizerFrameTime = 16.67;
 
   function applyWaveView(point, width, height) {
     const cx = width * 0.5;
@@ -430,11 +431,26 @@
     }
     const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
     lastFrameTime = now;
+    const visualizerCfg = state.visualizerSettings || {};
+    const lowPerformance = !!visualizerCfg.lowPerformanceMode;
+    if (lowPerformance) {
+      const lastLowPerfFrame = drawWave._lastLowPerfFrame || 0;
+      if (now - lastLowPerfFrame < 33) return;
+      drawWave._lastLowPerfFrame = now;
+    }
+    if (visualizerCfg.showFps || visualizerCfg.showLoad) {
+      visualizerFrameTime = visualizerFrameTime * 0.8 + Math.max(1, dt * 1000) * 0.2;
+      if (visualizerCfg.showFps && el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / visualizerFrameTime));
+      if (visualizerCfg.showLoad && el.visualizerLoad) {
+        const load = Math.max(0, Math.min(100, Math.round((visualizerFrameTime / 16.67) * 100)));
+        el.visualizerLoad.textContent = "描画負荷: " + (load < 45 ? "低" : load < 80 ? "中" : "高");
+      }
+    }
 
     if (!el.wave) return;
     const canvas = el.wave;
     const ctx = canvas.getContext("2d");
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const dpr = lowPerformance ? 1 : Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const width = canvas.parentElement.clientWidth;
     const height = canvas.parentElement.clientHeight;
     if (!width || !height) return;
@@ -874,7 +890,7 @@
             drawWave._waveParticleState = { count: particleCount, particles };
           }
           const energy = waveSmoothData.reduce((s, v) => s + v, 0) / Math.max(1, waveSmoothData.length);
-          const particleStep = particleCount > 700 ? 2 : 1;
+          const particleStep = lowPerformance ? Math.max(3, particleCount > 700 ? 4 : 3) : (particleCount > 700 ? 2 : 1);
           ctx.globalAlpha = 0.78;
           for (let i = 0; i < particleCount; i += particleStep) {
             const p = drawWave._waveParticleState.particles[i];
@@ -1159,13 +1175,6 @@
     if (document.visibilityState !== "visible" || !el.wave || isWaveAnimating) return;
     isWaveAnimating = true;
     lastFrameTime = performance.now();
-    const frameMs = performance.now() - visualizerStart;
-    visualizerFrameTime = visualizerFrameTime * 0.9 + frameMs * 0.1;
-    if (el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / Math.max(1, visualizerFrameTime)));
-    if (el.visualizerLoad) {
-      const load = Math.max(0, Math.min(100, Math.round((visualizerFrameTime / 16.67) * 100)));
-      el.visualizerLoad.textContent = "描画負荷: " + (load < 45 ? "低" : load < 80 ? "中" : "高");
-    }
     requestAnimationFrame(drawWave);
   }
 
