@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 43;
+  const BUILD_REVISION = 44;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -160,6 +160,9 @@
     localStorage.setItem(STORAGE.channelLeft, String(currentLeftVolumeTarget));
     localStorage.setItem(STORAGE.channelRight, String(currentRightVolumeTarget));
     localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
+    localStorage.setItem(STORAGE.micFeedbackProtection, "true");
+    localStorage.setItem(STORAGE.micFeedbackStrength, String(state.micFeedbackStrength));
+    localStorage.setItem(STORAGE.speakerPairSwap, String(state.speakerPairSwap));
     localStorage.setItem(STORAGE.outputRoutes, JSON.stringify(state.outputRoutes || []));
     localStorage.setItem(STORAGE.mainOutputDevice, state.mainOutputDeviceId || "");
     localStorage.setItem(STORAGE.speakerSettings, JSON.stringify(state.speakerSettings || {}));
@@ -536,9 +539,9 @@
 
     const pair = getActiveSpeakerPair();
     if (pair) {
-      // スピーカーA（現在のメイン）には音源Rを物理L/Rの両方へ送る。
-      channelSplitter.connect(leftGainNode, 1, 0);
-      channelSplitter.connect(rightGainNode, 1, 0);
+      const mainSourceChannel = state.speakerPairSwap ? 0 : 1;
+      channelSplitter.connect(leftGainNode, mainSourceChannel, 0);
+      channelSplitter.connect(rightGainNode, mainSourceChannel, 0);
     } else {
       channelSplitter.connect(leftGainNode, 0, 0);
       channelSplitter.connect(rightGainNode, 1, 0);
@@ -550,9 +553,9 @@
       try { runtime.splitter.disconnect(runtime.leftGain); } catch (e) {}
       try { runtime.splitter.disconnect(runtime.rightGain); } catch (e) {}
       if (pair && pair.additional.deviceId === deviceId) {
-        // スピーカーBには音源Lを物理L/Rの両方へ送る。
-        runtime.splitter.connect(runtime.leftGain, 0, 0);
-        runtime.splitter.connect(runtime.rightGain, 0, 0);
+        const additionalSourceChannel = state.speakerPairSwap ? 1 : 0;
+        runtime.splitter.connect(runtime.leftGain, additionalSourceChannel, 0);
+        runtime.splitter.connect(runtime.rightGain, additionalSourceChannel, 0);
       } else {
         runtime.splitter.connect(runtime.leftGain, 0, 0);
         runtime.splitter.connect(runtime.rightGain, 1, 0);
@@ -642,6 +645,12 @@
   }
   if (el.btnAutoCalibrateSpeakers) {
     el.btnAutoCalibrateSpeakers.addEventListener("click", autoEstimateSpeakerDelay);
+  }
+
+  if (el.btnSpeakerPairSwap) {
+    el.btnSpeakerPairSwap.textContent = "左右を入れ替え: " + (state.speakerPairSwap ? "ON" : "OFF");
+    el.btnSpeakerPairSwap.classList.toggle("active", state.speakerPairSwap);
+    el.btnSpeakerPairSwap.addEventListener("click", toggleSpeakerPairSwap);
   }
 
   function snapToDefault(value, defaultValue, threshold) {
@@ -1044,6 +1053,63 @@
     return "使用中";
   }
 
+  function toggleSpeakerPairSwap() {
+    if (!getActiveSpeakerPair()) {
+      toast("2スピーカーを使用しているときだけ左右を入れ替えられます");
+      return;
+    }
+    state.speakerPairSwap = !state.speakerPairSwap;
+    saveState();
+    applyPairedSpeakerRouting();
+    renderAdditionalOutputSpeakers();
+    if (el.btnSpeakerPairSwap) {
+      el.btnSpeakerPairSwap.textContent = "左右を入れ替え: " + (state.speakerPairSwap ? "ON" : "OFF");
+      el.btnSpeakerPairSwap.classList.toggle("active", state.speakerPairSwap);
+    }
+  }
+
+  async function testSpeakerOutput(entry) {
+    try {
+      ensureGraph();
+      if (!audioCtx) return;
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+
+      let target = null;
+      if (entry.selected) {
+        target = mainDelayNode;
+      } else {
+        let runtime = additionalOutputRuntimes.get(entry.deviceId);
+        if (!runtime && entry.route) runtime = await createAdditionalOutputRuntime(entry.route);
+        if (runtime) target = runtime.delayNode;
+      }
+
+      if (!target) {
+        toast("このスピーカーをテストできません");
+        return;
+      }
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.045, now + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(target);
+      osc.start(now);
+      osc.stop(now + 0.4);
+      osc.addEventListener("ended", () => {
+        try { osc.disconnect(); } catch {}
+        try { gain.disconnect(); } catch {}
+      }, { once: true });
+      toast(entry.label + " をテスト中");
+    } catch {
+      toast("スピーカーのテストに失敗しました");
+    }
+  }
+
   function renderAdditionalOutputSpeakers() {
     if (!el.additionalOutputSpeakers) return;
     el.additionalOutputSpeakers.innerHTML = "";
@@ -1079,6 +1145,29 @@
       status.textContent = entry.selected ? "選択中" : getAdditionalOutputStatus(entry.route);
       status.style.marginRight = "8px";
 
+      const signal = document.createElement("small");
+      signal.className = "speakerSignalPath";
+      const pair = getActiveSpeakerPair();
+      const sourceChannel = pair
+        ? (entry.selected
+          ? (state.speakerPairSwap ? "L" : "R")
+          : (state.speakerPairSwap ? "R" : "L"))
+        : "L/R";
+      signal.textContent = "入力 " + sourceChannel + " → 出力 L/R";
+      signal.style.display = "block";
+      signal.style.fontSize = ".75rem";
+      signal.style.color = "var(--muted)";
+      signal.style.marginTop = "2px";
+
+      const test = document.createElement("button");
+      test.className = "btn small ghost";
+      test.type = "button";
+      test.textContent = "テスト";
+      test.addEventListener("click", e => {
+        e.stopPropagation();
+        testSpeakerOutput(entry);
+      });
+
       if (!entry.selected) {
         const toggle = document.createElement("button");
         toggle.className = "btn small additionalOutputSpeakerToggle";
@@ -1099,7 +1188,7 @@
         actions.append(toggle, remove);
       }
 
-      actions.prepend(status);
+      actions.prepend(status, test);
       head.append(name, actions);
 
       const wrap = document.createElement("div");
@@ -1195,7 +1284,7 @@
 
       delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
       wrap.append(makeChannel("left", entry.left), makeChannel("right", entry.right));
-      card.append(head, wrap, delayWrap);
+      card.append(head, signal, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
     }
   }
@@ -2084,6 +2173,18 @@
 
     const result = micFeedbackSimilarity();
     const similarity = result.similarity;
+
+    let micPeak = 0;
+    if (micFeedbackData?.length) {
+      for (let i = 0; i < micFeedbackData.length; i++) {
+        micPeak = Math.max(micPeak, (micFeedbackData[i] || 0) / 255);
+      }
+    }
+    if (el.micClipStatus) {
+      el.micClipStatus.textContent = micPeak >= 0.96
+        ? "マイク入力が大きすぎます"
+        : "";
+    }
     const micEnergy = result.micEnergy;
     const referenceEnergy = result.referenceEnergy;
     const referenceDominance = referenceEnergy > 0
@@ -2110,11 +2211,14 @@
 
     if (isLikelyFeedback) {
       const voicePreserve = Math.max(0, Math.min(1, 1 - referenceDominance));
-      targetGain = 0.12 + voicePreserve * 0.48;
+      const baseGain = 0.12 + voicePreserve * 0.48;
+      const strength = Math.max(0, Math.min(1, Number(state.micFeedbackStrength) || 0));
+      targetGain = 1 - (1 - baseGain) * strength;
       timeConstant = 0.035;
       if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "ハウリング抑制中";
     } else if (similarity >= 0.72 && referenceDominance >= 0.35) {
-      targetGain = 0.70;
+      const strength = Math.max(0, Math.min(1, Number(state.micFeedbackStrength) || 0));
+      targetGain = 1 - (1 - 0.70) * strength;
       timeConstant = 0.09;
       if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "反響成分を抑制中";
     } else {
@@ -2133,7 +2237,7 @@
   function updateMicFeedbackProtectionUI() {
     if (el.btnMicFeedbackProtection) {
       el.btnMicFeedbackProtection.textContent =
-        "ハウリング防止: " + (state.micFeedbackProtection ? "ON" : "OFF");
+        "ハウリング防止: 常時ON";
       el.btnMicFeedbackProtection.classList.toggle("active", state.micFeedbackProtection);
     }
     if (!state.micFeedbackProtection && el.micFeedbackStatus) {
@@ -2143,7 +2247,7 @@
 
   async function setMicFeedbackProtectionEnabled(enabled) {
     const wasMonitoring = state.micMonitor;
-    state.micFeedbackProtection = !!enabled;
+    state.micFeedbackProtection = true;
     saveState();
     updateMicFeedbackProtectionUI();
 
@@ -2276,9 +2380,24 @@
   setInterval(updateMicMonitorLatencyUI, 500);
 
   if (el.btnMicFeedbackProtection) {
-    el.btnMicFeedbackProtection.addEventListener("click", () => {
-      setMicFeedbackProtectionEnabled(!state.micFeedbackProtection);
-    });
+    el.btnMicFeedbackProtection.disabled = true;
+    el.btnMicFeedbackProtection.setAttribute("aria-disabled", "true");
+  }
+
+  function updateMicFeedbackStrength(value) {
+    const n = Math.max(0, Math.min(1, Number(value) / 100));
+    state.micFeedbackStrength = n;
+    if (el.micFeedbackStrength) el.micFeedbackStrength.value = String(Math.round(n * 100));
+    if (el.micFeedbackStrengthText) el.micFeedbackStrengthText.textContent = Math.round(n * 100) + "%";
+    saveState();
+  }
+
+  if (el.micFeedbackStrength) {
+    el.micFeedbackStrength.value = String(Math.round(state.micFeedbackStrength * 100));
+    el.micFeedbackStrength.addEventListener("input", e => updateMicFeedbackStrength(e.target.value));
+  }
+  if (el.micFeedbackStrengthText) {
+    el.micFeedbackStrengthText.textContent = Math.round(state.micFeedbackStrength * 100) + "%";
   }
 
   async function resumeAudioCtx(){
