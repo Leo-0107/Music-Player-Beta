@@ -275,16 +275,27 @@
         <div class="sectionCard speakerPanel">
           <div class="sectionTitle">音響遅延補正</div>
           <div class="speakerSectionHint">
-            各スピーカーから測定音を出し、マイクで実際の音を拾って出力までの時間を測定し、スピーカーごとの遅延を自動補正します。
+            一番下の測定ボタンからスピーカーを選択すると、メイン出力との実測差を測定して、そのスピーカーの遅延を自動補正します。
           </div>
-          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">音響測定で自動補正</button>
+          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">スピーカーの遅延を測定</button>
           <div class="speakerSectionNote">
-            測定時はマイクの使用許可が必要です。各スピーカーを順番に測定し、最も遅い出力に合わせて他のスピーカーへ必要な遅延を設定します。
+            測定時はマイクの使用許可が必要です。
           </div>
+        </div>
+     </div>
+
+            <div class="outputDeviceModal" id="speakerDelayMeasurementModal" hidden>
+        <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="speakerDelayMeasurementModalTitle">
+          <div class="outputDeviceModalHead">
+            <strong id="speakerDelayMeasurementModalTitle">どのスピーカーの遅延を測定しますか？</strong>
+            <button class="menuBtn" id="btnCloseSpeakerDelayMeasurement" type="button" aria-label="閉じる">✕</button>
+          </div>
+          <div class="outputDeviceModalHint">測定するスピーカーを選択してください。</div>
+          <div class="outputDeviceList" id="speakerDelayMeasurementList"></div>
         </div>
       </div>
 
-            <div class="outputDeviceModal" id="outputDeviceModal" hidden>
+      <div class="outputDeviceModal" id="outputDeviceModal" hidden>
         <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="outputDeviceModalTitle">
           <div class="outputDeviceModalHead">
             <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
