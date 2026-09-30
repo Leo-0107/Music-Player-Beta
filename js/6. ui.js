@@ -325,6 +325,40 @@
     };
   }
 
+  function resetWaveView() {
+    waveViewYaw = 0;
+    waveViewPitch = 0;
+    requestWaveStaticFrame();
+  }
+
+  function updateVisualizerDetailUI() {
+    const cfg = state.visualizerSettings || {};
+    if (el.visualizerLowPerformance) el.visualizerLowPerformance.checked = !!cfg.lowPerformanceMode;
+    if (el.visualizerShowFps) el.visualizerShowFps.checked = !!cfg.showFps;
+    if (el.visualizerShowLoad) el.visualizerShowLoad.checked = !!cfg.showLoad;
+    if (el.visualizerFps) el.visualizerFps.hidden = !cfg.showFps;
+    if (el.visualizerLoad) el.visualizerLoad.hidden = !cfg.showLoad;
+  }
+
+  function saveVisualizerSettings() {
+    saveState();
+    updateVisualizerDetailUI();
+  }
+
+  if (el.visualizerLowPerformance) el.visualizerLowPerformance.addEventListener("change", e => {
+    state.visualizerSettings.lowPerformanceMode = !!e.target.checked;
+    saveVisualizerSettings();
+  });
+  if (el.visualizerShowFps) el.visualizerShowFps.addEventListener("change", e => {
+    state.visualizerSettings.showFps = !!e.target.checked;
+    saveVisualizerSettings();
+  });
+  if (el.visualizerShowLoad) el.visualizerShowLoad.addEventListener("change", e => {
+    state.visualizerSettings.showLoad = !!e.target.checked;
+    saveVisualizerSettings();
+  });
+  updateVisualizerDetailUI();
+
   function setupWaveViewGesture() {
     if (!el.wave || el.wave._viewGestureBound) return;
     el.wave._viewGestureBound = true;
@@ -340,9 +374,8 @@
     el.wave.addEventListener("pointermove", e => {
       if (!waveViewDragging || e.pointerId !== waveViewPointerId) return;
       e.preventDefault();
-      waveViewYaw += (e.clientX - waveViewLastX) * 0.008;
-      waveViewPitch += (e.clientY - waveViewLastY) * 0.006;
-      waveViewPitch = Math.max(-0.95, Math.min(0.95, waveViewPitch));
+      waveViewYaw += (e.clientX - waveViewLastX) * 0.004;
+      waveViewPitch = 0;
       waveViewLastX = e.clientX;
       waveViewLastY = e.clientY;
       requestWaveStaticFrame();
@@ -357,6 +390,10 @@
   }
 
   setupWaveViewGesture();
+  const waveResetBtn = document.getElementById("btnWaveViewReset");
+  if (waveResetBtn) waveResetBtn.addEventListener("click", resetWaveView);
+
+
 
   function updateWaveParticleCount(value) {
     const n = Math.max(0, Math.min(1200, Math.round(Number(value) || 0)));
@@ -1118,6 +1155,13 @@
     if (document.visibilityState !== "visible" || !el.wave || isWaveAnimating) return;
     isWaveAnimating = true;
     lastFrameTime = performance.now();
+    const frameMs = performance.now() - visualizerStart;
+    visualizerFrameTime = visualizerFrameTime * 0.9 + frameMs * 0.1;
+    if (el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / Math.max(1, visualizerFrameTime)));
+    if (el.visualizerLoad) {
+      const load = Math.max(0, Math.min(100, Math.round((visualizerFrameTime / 16.67) * 100)));
+      el.visualizerLoad.textContent = "描画負荷: " + (load < 45 ? "低" : load < 80 ? "中" : "高");
+    }
     requestAnimationFrame(drawWave);
   }
 
@@ -1164,6 +1208,69 @@
     el.btnSideBack.addEventListener("click", resetSidebarView);
   }
 
+
+  const settingsHelpText = {
+    optionsSection:"再生速度・ピッチ・シャッフルなど、再生動作に関する設定です。",
+    waveSection:"波形の表示モードや3D表示を変更します。3D視点はここから初期位置へ戻せます。",
+    visualizerDetailSection:"ビジュアライザーの表示負荷やFPS確認用の詳細設定です。",
+    eqSection:"5バンドのイコライザーとプリセットを調整します。",
+    speakerSection:"出力先、複数スピーカー、左右信号、遅延を設定します。",
+    playlistSection:"プレイリストの作成・曲順・再生設定を管理します。",
+    queueSection:"次に再生する曲の順番を確認・変更します。",
+    timerSection:"再生を自動停止するスリープタイマーを設定します。",
+    statsSection:"再生回数、再生時間、履歴などを確認します。",
+    themeSection:"アプリの外観テーマを設定します。"
+  };
+  const sectionResetKeys = {
+    optionsSection:[STORAGE.volume,STORAGE.pitch,STORAGE.shuffle,STORAGE.repeat,STORAGE.favOnly,STORAGE.crossfade,STORAGE.silenceSkip,STORAGE.dMode],
+    waveSection:[STORAGE.waveMode,STORAGE.waveParticleCount,STORAGE.visualizerSettings],
+    visualizerDetailSection:[STORAGE.visualizerSettings],
+    eqSection:[STORAGE.eqState],
+    speakerSection:[STORAGE.channelLeft,STORAGE.channelRight,STORAGE.micMonitorVolume,STORAGE.micFeedbackStrength,STORAGE.speakerPairSwap,STORAGE.outputRoutes,STORAGE.mainOutputDevice,STORAGE.speakerSettings],
+    playlistSection:[STORAGE.playlistSettings],
+    queueSection:[STORAGE.queue],
+    statsSection:[STORAGE.playCounts,STORAGE.playHistory,STORAGE.playStats],
+    themeSection:[STORAGE.themeMode,STORAGE.customTheme]
+  };
+  function showSectionHelp(id){
+    const title = document.querySelector('[data-settings-section="'+id+'"] strong')?.textContent || "設定";
+    showInSiteConfirm(title+" の説明", settingsHelpText[id] || "この設定の詳細を表示します。", null, "閉じる");
+  }
+  function addSettingsControls(){
+    document.querySelectorAll(".panelSection[id]").forEach(sec => {
+      const title = sec.querySelector(".sectionTitle");
+      if(!title || sec.id === "homeSection") return;
+      if (!title.querySelector(".sectionHelpBtn")) {
+        const wrap=document.createElement("span"); wrap.style.cssText="float:right;display:flex;gap:5px;";
+        const help=document.createElement("button"); help.type="button"; help.className="btn small ghost sectionHelpBtn"; help.textContent="?";
+        help.title="この設定の説明";
+        help.addEventListener("click",e=>{e.stopPropagation();showSectionHelp(sec.id);});
+        wrap.appendChild(help);
+        if(sectionResetKeys[sec.id]) {
+          const reset=document.createElement("button"); reset.type="button"; reset.className="btn small ghost"; reset.textContent="この設定をリセット";
+          reset.addEventListener("click",e=>{
+            e.stopPropagation();
+            showInSiteConfirm("設定をリセット", "「"+title.textContent.replace("?","").trim()+"」だけを初期値に戻します。", ()=>{
+              (sectionResetKeys[sec.id]||[]).forEach(k=>localStorage.removeItem(k));
+              location.reload();
+            }, "リセット");
+          });
+          wrap.appendChild(reset);
+        }
+        title.appendChild(wrap);
+      }
+    });
+  }
+  addSettingsControls();
+
+  if (el.settingsSearch) {
+    el.settingsSearch.addEventListener("input", e => {
+      const q=(e.target.value||"").trim().toLowerCase();
+      document.querySelectorAll(".settingsCard").forEach(card=>{
+        card.hidden = !!q && !card.textContent.toLowerCase().includes(q);
+      });
+    });
+  }
 
   document.querySelectorAll(".settingsCard").forEach(card => {
     card.addEventListener("click", () => {
