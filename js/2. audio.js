@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 53;
+  const BUILD_REVISION = 54;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -377,12 +377,28 @@
         panner3DNode = audioCtx.createPanner();
         panner3DNode.panningModel = 'HRTF';
         panner3DNode.distanceModel = 'inverse';
+        panner3DNode.refDistance = 1;
+        panner3DNode.rolloffFactor = 0.35;
+        panner3DNode.maxDistance = 10000;
+        if (audioCtx.listener) {
+          const listener = audioCtx.listener;
+          if (listener.forwardX) {
+            listener.forwardX.value = 0;
+            listener.forwardY.value = 0;
+            listener.forwardZ.value = -1;
+            listener.upX.value = 0;
+            listener.upY.value = 1;
+            listener.upZ.value = 0;
+          } else if (listener.setOrientation) {
+            listener.setOrientation(0, 0, -1, 0, 1, 0);
+          }
+        }
         if (panner3DNode.positionX) {
           panner3DNode.positionX.value = 0;
           panner3DNode.positionY.value = 0;
-          panner3DNode.positionZ.value = 0;
+          panner3DNode.positionZ.value = -1.5;
         } else {
-          panner3DNode.setPosition(0, 0, 0);
+          panner3DNode.setPosition(0, 0, -1.5);
         }
       }
 
@@ -2574,7 +2590,8 @@
 
     switch (state.dMode) {
       case "3D":
-        x = state.panValue * 2; y = 0; z = 1; setPos(x, y, z); break;
+        // YouTubeの動画で聞くような自然な前方定位：HRTFで左右の位置だけを連続的に変える。
+        x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
       case "4D":
         x = Math.sin(t * 0.4) * 2.5; y = Math.sin(t * 0.8) * 1.2; z = Math.cos(t * 0.4) * 2.5; setPos(x, y, z); break;
       case "8D":
@@ -2604,7 +2621,7 @@
     saveState();
     const descriptions = {
       "2D": "2D: 標準ステレオ再生",
-      "3D": "3D: 左右パン連動の固定立体音響",
+      "3D": "3D: HRTFによる前方の自然な立体音響",
       "4D": "4D: 前後左右＋上下の緩やかな空間揺らぎ",
       "8D": "8D: 頭の周りを360度全方位回転",
       "16D": "16D: 高度なマルチトラック8の字立体周回"
@@ -2747,10 +2764,7 @@
     if(!el.eqPresetRow || !el.eqBands) return;
     el.eqPresetRow.innerHTML = "";
     const presetNames = Object.keys(EQ_PRESETS);
-    const selectedPreset = state.eqState.preset;
-    const orderedPresetNames = selectedPreset !== "Normal" && Object.prototype.hasOwnProperty.call(EQ_PRESETS, selectedPreset)
-      ? ["Normal", selectedPreset, ...presetNames.filter(pName => pName !== "Normal" && pName !== selectedPreset)]
-      : presetNames;
+    const orderedPresetNames = presetNames;
 
     orderedPresetNames.forEach(pName => {
       const b = document.createElement("button");
