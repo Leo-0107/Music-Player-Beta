@@ -20,7 +20,16 @@
   ))
   .then(parts => {
     const original = `(() => {\n${parts.join('\n')}})();`;
-    (0, eval)(original);
+    const blob = new Blob([original], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => URL.revokeObjectURL(url);
+    script.onerror = () => {
+      URL.revokeObjectURL(url);
+      console.error('Music Player JS execution failed');
+    };
+    document.head.appendChild(script);
   })
   .catch(err => console.error('Music Player JS load error:', err));
 })();
