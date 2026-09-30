@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 44;
+  const BUILD_REVISION = 45;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -141,6 +141,8 @@
     localStorage.setItem(STORAGE.queue, JSON.stringify(state.queue));
     localStorage.setItem(STORAGE.playCounts, JSON.stringify(state.playCounts));
     localStorage.setItem(STORAGE.playHistory, JSON.stringify(state.playHistory));
+    localStorage.setItem(STORAGE.playStats, JSON.stringify(state.playStats || {}));
+    localStorage.setItem(STORAGE.playbackMonthly, JSON.stringify(state.playbackMonthly || {}));
     localStorage.setItem(STORAGE.eqState, JSON.stringify(state.eqState));
     localStorage.setItem(STORAGE.volume, String(currentVolumeTarget));
     localStorage.setItem(STORAGE.pitch, String(state.pitchSemitones));
@@ -173,7 +175,17 @@
 
   function setWaveMode(mode) {
     const validModes = ["3d", "2d", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"];
-    state.waveMode = validModes.includes(mode) ? mode : "2d";
+    const nextMode = validModes.includes(mode) ? mode : "2d";
+    if (!state.visualizerModeSettings) state.visualizerModeSettings = {};
+    if (!state.visualizerModeSettings[state.waveMode]) state.visualizerModeSettings[state.waveMode] = {};
+    state.visualizerModeSettings[state.waveMode].particleCount = state.waveParticleCount;
+    state.waveMode = nextMode;
+    const savedMode = state.visualizerModeSettings[nextMode];
+    if (savedMode && Number.isFinite(Number(savedMode.particleCount))) {
+      state.waveParticleCount = Math.max(0, Math.min(1200, Math.round(Number(savedMode.particleCount))));
+      if (el.waveParticleCount) el.waveParticleCount.value = state.waveParticleCount;
+      if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(state.waveParticleCount);
+    }
     saveState();
     waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
     if (typeof requestWaveStaticFrame === "function") requestWaveStaticFrame();
