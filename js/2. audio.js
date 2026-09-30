@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 47;
+  const BUILD_REVISION = 48;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2622,14 +2622,20 @@
   function renderEqualizer(){
     if(!el.eqPresetRow || !el.eqBands) return;
     el.eqPresetRow.innerHTML = "";
-    Object.keys(EQ_PRESETS).forEach(pName => {
+    const presetNames = Object.keys(EQ_PRESETS);
+    const selectedPreset = state.eqState.preset;
+    const orderedPresetNames = selectedPreset !== "Normal" && Object.prototype.hasOwnProperty.call(EQ_PRESETS, selectedPreset)
+      ? ["Normal", selectedPreset, ...presetNames.filter(pName => pName !== "Normal" && pName !== selectedPreset)]
+      : presetNames;
+
+    orderedPresetNames.forEach(pName => {
       const b = document.createElement("button");
       b.className = "btn small" + (state.eqState.preset === pName ? " active" : "");
       b.textContent = pName;
       b.addEventListener("click", () => {
         state.eqState.preset = pName;
         animateEqPreset(EQ_PRESETS[pName]);
-        updatePresetButtonsUI();
+        renderEqualizer();
       });
       el.eqPresetRow.appendChild(b);
     });
