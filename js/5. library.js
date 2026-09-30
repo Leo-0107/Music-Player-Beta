@@ -427,55 +427,6 @@
     if (el.timeNow) el.timeNow.textContent = "0:00";
     try { localStorage.removeItem(STORAGE.lastPosition); } catch (e) {}
   }
-  function restoreLastPlaybackMemory() {
-    const songName = loadStr(STORAGE.lastSong, "");
-    if (!songName) return;
-    const song = state.playlist.find(item => item.name === songName);
-    if (!song) return;
-
-    const savedPosition = Math.max(0, loadNum(STORAGE.lastPosition, 0));
-    // ページ更新時は、前回の再生状態を曲位置だけ復元し、自動再生は行わない。
-    const shouldResume = false;
-
-    state.currentSong = song;
-    audio.src = song.url;
-    updateArtwork(song);
-    updateNowPlayingUI(song);
-
-    const restorePosition = () => {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        if (savedPosition > 0) {
-          audio.currentTime = Math.min(savedPosition, Math.max(0, audio.duration - 0.05));
-        }
-        if (el.progress) el.progress.value = (audio.currentTime / audio.duration) * 100;
-        if (el.miniProgress) el.miniProgress.value = (audio.currentTime / audio.duration) * 100;
-        if (el.timeAll) el.timeAll.textContent = fmtTime(audio.duration);
-        if (el.miniTimeAll) el.miniTimeAll.textContent = fmtTime(audio.duration);
-      } else if (savedPosition > 0) {
-        audio.currentTime = savedPosition;
-      }
-      if (el.timeNow) el.timeNow.textContent = fmtTime(audio.currentTime || 0);
-      if (el.miniTimeNow) el.miniTimeNow.textContent = fmtTime(audio.currentTime || 0);
-    };
-
-    if (audio.readyState >= 1) {
-      restorePosition();
-    } else {
-      audio.addEventListener("loadedmetadata", restorePosition, { once: true });
-    }
-
-    if (shouldResume) {
-      setTimeout(() => {
-        recoverBackgroundPlayback().catch(() => {});
-      }, 0);
-    }
-  }
-
-  audio.addEventListener("timeupdate", () => savePlaybackMemory(false));
-  audio.addEventListener("pause", () => savePlaybackMemory(true));
-  audio.addEventListener("ended", () => savePlaybackMemory(true));
-  window.addEventListener("pagehide", () => savePlaybackMemory(true));
-  window.addEventListener("beforeunload", () => savePlaybackMemory(true));
 
   function getPlaylistNames(pName) {
     const raw = Array.isArray(state.playlists[pName]) ? state.playlists[pName] : [];
