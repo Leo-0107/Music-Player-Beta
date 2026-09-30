@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 34;
+  const BUILD_REVISION = 39;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -483,6 +483,7 @@
       speakerBusNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
       channelSplitter.connect(rightGainNode, 1, 0);
+      applyPairedSpeakerRouting();
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
 
@@ -516,6 +517,46 @@
       audioGraphReady = true;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {}
+  }
+
+  function getActiveSpeakerPair() {
+    const mainId = getMainOutputIdentity();
+    const activeAdditional = state.outputRoutes.filter(route =>
+      route && route.enabled !== false && route.deviceId && route.deviceId !== mainId
+    );
+    return activeAdditional.length === 1 ? { mainId, additional: activeAdditional[0] } : null;
+  }
+
+  function applyPairedSpeakerRouting() {
+    if (!channelSplitter || !leftGainNode || !rightGainNode) return;
+
+    try { channelSplitter.disconnect(leftGainNode); } catch (e) {}
+    try { channelSplitter.disconnect(rightGainNode); } catch (e) {}
+
+    const pair = getActiveSpeakerPair();
+    if (pair) {
+      // スピーカーA（現在のメイン）には音源Rを物理L/Rの両方へ送る。
+      channelSplitter.connect(leftGainNode, 1, 0);
+      channelSplitter.connect(rightGainNode, 1, 0);
+    } else {
+      channelSplitter.connect(leftGainNode, 0, 0);
+      channelSplitter.connect(rightGainNode, 1, 0);
+    }
+
+    for (const [deviceId, runtime] of additionalOutputRuntimes) {
+      const route = state.outputRoutes.find(item => item.deviceId === deviceId);
+      if (!runtime?.splitter || !route) continue;
+      try { runtime.splitter.disconnect(runtime.leftGain); } catch (e) {}
+      try { runtime.splitter.disconnect(runtime.rightGain); } catch (e) {}
+      if (pair && pair.additional.deviceId === deviceId) {
+        // スピーカーBには音源Lを物理L/Rの両方へ送る。
+        runtime.splitter.connect(runtime.leftGain, 0, 0);
+        runtime.splitter.connect(runtime.rightGain, 0, 0);
+      } else {
+        runtime.splitter.connect(runtime.leftGain, 0, 0);
+        runtime.splitter.connect(runtime.rightGain, 1, 0);
+      }
+    }
   }
 
   function clampSpeakerDelay(value) {
@@ -930,6 +971,7 @@
       state.speakerSettings.mainOutputLabel = newMain.label;
 
       state.mainOutputDeviceId = normalized;
+      applyPairedSpeakerRouting();
       saveState();
       await syncAdditionalOutputRuntimes();
       await updateOutputDeviceName();
@@ -1226,6 +1268,7 @@
     }
 
     state.outputRoutes.splice(index, 1);
+    applyPairedSpeakerRouting();
     saveState();
     renderAdditionalOutputSpeakers();
     renderOutputDevicePicker();
@@ -1254,6 +1297,7 @@
 
     const runtime = additionalOutputRuntimes.get(route.deviceId);
     saveState();
+    applyPairedSpeakerRouting();
     applyAllSpeakerDelayNodes();
     renderAdditionalOutputSpeakers();
   }
@@ -1295,6 +1339,7 @@
     };
     splitter.connect(leftGain, 0, 0);
     splitter.connect(rightGain, 1, 0);
+    applyPairedSpeakerRouting();
     leftGain.connect(merger, 0, 0);
     rightGain.connect(merger, 0, 1);
     merger.connect(delayNode);
@@ -1369,6 +1414,7 @@
       }
     }
 
+    applyPairedSpeakerRouting();
     for (const route of state.outputRoutes) {
       if (route.enabled === false) {
         disconnectAdditionalOutputRuntime(route.deviceId);
