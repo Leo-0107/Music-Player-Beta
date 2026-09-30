@@ -2378,14 +2378,9 @@
   }
 
   function updateMicFeedbackProtectionUI() {
-    if (el.btnMicFeedbackProtection) {
-      el.btnMicFeedbackProtection.textContent =
-        "ハウリング防止: 常時ON";
-      el.btnMicFeedbackProtection.classList.toggle("active", state.micFeedbackProtection);
-    }
-    if (!state.micFeedbackProtection && el.micFeedbackStatus) {
-      el.micFeedbackStatus.textContent = "";
-    }
+    // ハウリング防止は常時ON。設定項目としての切り替えUIは表示しない。
+    state.micFeedbackProtection = true;
+    if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "";
   }
 
   async function setMicFeedbackProtectionEnabled(enabled) {
