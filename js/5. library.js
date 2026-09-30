@@ -567,6 +567,7 @@
 
   function startNewSong(song, pushHistory) {
     setPlaybackIntent(true);
+    recordPartialPlayIfNeeded();
     state.currentSong = song;
     hasCountedCurrentSong = false;
     silenceTimer = 0;
@@ -624,12 +625,49 @@
     return `${year}-${month}-${day}`;
   }
 
+  function getSongStats(songName) {
+    if (!songName) return null;
+    if (!state.playStats[songName] || typeof state.playStats[songName] !== "object") {
+      state.playStats[songName] = { lastPlayed: 0, totalPlayback: 0, partialPlays: 0 };
+    }
+    const stats = state.playStats[songName];
+    stats.lastPlayed = Number(stats.lastPlayed) || 0;
+    stats.totalPlayback = Math.max(0, Number(stats.totalPlayback) || 0);
+    stats.partialPlays = Math.max(0, Number(stats.partialPlays) || 0);
+    return stats;
+  }
+
+  function recordPlaybackTime(deltaSeconds) {
+    if (!state.currentSong || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0 || deltaSeconds > 2) return;
+    const stats = getSongStats(state.currentSong.name);
+    if (!stats) return;
+    stats.totalPlayback += deltaSeconds;
+    stats.lastPlayed = Date.now();
+    saveState();
+  }
+
+  function recordPartialPlayIfNeeded() {
+    if (!state.currentSong || hasCountedCurrentSong) return;
+    const duration = Number(audio.duration);
+    const current = Number(audio.currentTime) || 0;
+    const reachedPlayThreshold = current > 30 || (duration > 0 && current / duration > 0.5);
+    if (reachedPlayThreshold) return;
+    const stats = getSongStats(state.currentSong.name);
+    if (!stats) return;
+    stats.partialPlays++;
+    stats.lastPlayed = Date.now();
+    saveState();
+  }
+
   function recordPlayCount() {
     if (!state.currentSong || hasCountedCurrentSong) return;
     hasCountedCurrentSong = true;
     const songName = state.currentSong.name;
     state.playCounts[songName] = (state.playCounts[songName] || 0) + 1;
-    
+
+    const stats = getSongStats(songName);
+    if (stats) stats.lastPlayed = Date.now();
+
     const today = localDateKey();
     state.playHistory[today] = (state.playHistory[today] || 0) + 1;
 
@@ -932,10 +970,12 @@
       timer = null;
     };
 
-    row.addEventListener("contextmenu", e => { e.preventDefault(); });
+    row.addEventListener("contextmenu", e => {
+      if (dragging) e.preventDefault();
+    });
 
     row.addEventListener("pointerdown", e => {
-      if (e.button !== undefined && e.button !== 0) return;
+      if (e.pointerType === "mouse" && e.button !== undefined && e.button !== 0) return;
       if (e.target.closest(ignoreSelector)) return;
       pointerId = e.pointerId;
       startX = e.clientX;
@@ -1621,9 +1661,6 @@
           return;
         }
 
-        if (currentPlannedIndex > 0) {
-          restartUpcomingRandomFrom(name);
-        }
         playSong(s, true, { preservePlaylistContext: !!state.activePlaylistName });
       });
       el.queueList.appendChild(row);
@@ -1666,13 +1703,74 @@
     });
   }
 
+  function formatPlaybackDuration(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = total % 60;
+    return h > 0 ? `${h}時間${m}分${sec}秒` : `${m}分${sec}秒`;
+  }
+
   function renderStats(){
     let totalPlays = 0;
-    Object.values(state.playCounts).forEach(c => totalPlays += c);
+    let totalPlayback = 0;
+    let totalPartial = 0;
+    Object.entries(state.playCounts).forEach(([name, count]) => {
+      totalPlays += Number(count) || 0;
+      const stats = getSongStats(name);
+      totalPlayback += Number(stats?.totalPlayback) || 0;
+      totalPartial += Number(stats?.partialPlays) || 0;
+    });
     if (el.statPlays) el.statPlays.textContent = totalPlays;
     if (el.statSongs) el.statSongs.textContent = state.playlist.length;
+    if (el.statTotalPlayback) el.statTotalPlayback.textContent = formatPlaybackDuration(totalPlayback);
+    if (el.statPartialPlays) el.statPartialPlays.textContent = totalPartial;
     if (el.pillSongs) el.pillSongs.textContent = `${state.playlist.length}曲`;
     if (el.pillFavs) el.pillFavs.textContent = `${state.favorites.length}☆`;
+
+    const statsRows = state.playlist.map(song => {
+      const stats = getSongStats(song.name);
+      return {
+        song,
+        plays: Number(state.playCounts[song.name]) || 0,
+        lastPlayed: Number(stats?.lastPlayed) || 0,
+        totalPlayback: Number(stats?.totalPlayback) || 0,
+        partialPlays: Number(stats?.partialPlays) || 0
+      };
+    });
+
+    const popular = statsRows.filter(item => item.plays > 0)
+      .sort((a,b) => b.plays - a.plays || b.lastPlayed - a.lastPlayed).slice(0, 5);
+    const recent = statsRows.filter(item => item.lastPlayed > 0)
+      .sort((a,b) => b.lastPlayed - a.lastPlayed).slice(0, 5);
+
+    const renderStatList = (target, items, emptyText, extra) => {
+      if (!target) return;
+      target.innerHTML = "";
+      if (!items.length) {
+        target.innerHTML = `<div class="statEmpty">${emptyText}</div>`;
+        return;
+      }
+      items.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "statTrackRow";
+        const last = item.lastPlayed
+          ? new Date(item.lastPlayed).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })
+          : "未再生";
+        row.innerHTML = `
+          <div class="statTrackMain">
+            <strong>${escapeHTML(item.song.title)}</strong>
+            <small>${escapeHTML(item.song.artist)}</small>
+          </div>
+          <div class="statTrackMeta">${extra(item)}<br><span>${last}</span></div>`;
+        target.appendChild(row);
+      });
+    };
+
+    renderStatList(el.statsPopularList, popular, "まだ再生された曲はありません",
+      item => `再生 ${item.plays}回 / 累計 ${formatPlaybackDuration(item.totalPlayback)}`);
+    renderStatList(el.statsRecentList, recent, "再生履歴はありません",
+      item => `再生 ${item.plays}回 / 途中 ${item.partialPlays}回`);
 
     if(!el.playHistoryChart) return;
     const ctx = el.playHistoryChart.getContext("2d");
@@ -1693,7 +1791,6 @@
 
     const counts = dates.map(d => state.playHistory[d] || 0);
     const maxVal = Math.max(...counts, 5);
-
     const paddingLeft = 30, paddingBottom = 25, paddingTop = 15, paddingRight = 15;
     const chartW = w - paddingLeft - paddingRight;
     const chartH = h - paddingTop - paddingBottom;
@@ -1707,19 +1804,17 @@
     ctx.stroke();
 
     const stepX = chartW / (dates.length - 1);
-    const points = counts.map((val, idx) => {
-      const x = paddingLeft + idx * stepX;
-      const y = h - paddingBottom - (val / maxVal) * chartH;
-      return { x, y, val, label: dates[idx].slice(5) };
-    });
+    const points = counts.map((val, idx) => ({
+      x: paddingLeft + idx * stepX,
+      y: h - paddingBottom - (val / maxVal) * chartH,
+      val,
+      label: dates[idx].slice(5)
+    }));
 
     ctx.beginPath();
     ctx.strokeStyle = "#1DB954";
     ctx.lineWidth = 2;
-    points.forEach((pt, i) => {
-      if(i === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    });
+    points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
     ctx.stroke();
 
     points.forEach(pt => {
@@ -1727,7 +1822,6 @@
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.fillStyle = "rgba(255,255,255,0.6)";
       ctx.font = "10px sans-serif";
       ctx.textAlign = "center";
