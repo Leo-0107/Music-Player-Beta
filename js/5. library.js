@@ -154,8 +154,10 @@
     const progressFill = document.getElementById("fileLoadProgressFill");
     const progressPercent = document.getElementById("fileLoadProgressPercent");
     const progressText = document.getElementById("fileLoadProgressText");
+    let displayedProgress = 0;
     const updateProgress = (percent, message) => {
-      const safe = Math.max(0, Math.min(100, Math.round(percent)));
+      const safe = Math.max(displayedProgress, Math.min(100, Math.round(percent)));
+      displayedProgress = safe;
       if (progressEl) progressEl.hidden = false;
       if (progressFill) progressFill.style.width = safe + "%";
       if (progressPercent) progressPercent.textContent = safe + "%";
