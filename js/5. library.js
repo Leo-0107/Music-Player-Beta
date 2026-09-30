@@ -104,90 +104,89 @@
     };
   }
 
+  async function chooseDuplicateFiles(conflicts) {
+    if (!conflicts.length) return new Map();
+    return new Promise(resolve => {
+      const existing=document.getElementById("duplicateFilesModal"); if(existing) existing.remove();
+      const modal=document.createElement("div");
+      modal.id="duplicateFilesModal"; modal.className="inSiteConfirmModal";
+      modal.innerHTML=`<div class="inSiteConfirmCard" role="dialog" aria-modal="true">
+        <div class="sectionTitle">同名ファイルがあります</div>
+        <div class="inSiteConfirmMessage">追加するファ択曲を選んでください。選択した曲は自動的に「(1)」などを付けて保存します。</div>
+        <div data-dup-list style="max-height:45vh;overflow:auto;text-align:left;margin:10px 0;"></div>
+        <div class="inSiteConfirmActions">
+          <button type="button" class="btn small" data-dup-cancel>キャンセル</button>
+          <button type="button" class="btn small" data-dup-ok>選択した曲を追加</button>
+        </div></div>`;
+      const list=modal.querySelector("[data-dup-list]");
+      conflicts.forEach((item,idx)=>{
+        const label=document.createElement("label");
+        label.style.cssText="display:flex;gap:8px;align-items:center;padding:7px 2px;";
+        label.innerHTML=`<input type="checkbox" data-dup-index="${idx}"><span>${escapeHTML(item.name)}</span>`;
+        list.appendChild(label);
+      });
+      document.body.appendChild(modal); document.body.classList.add("site-modal-open");
+      const close=()=>{modal.remove();if(!document.querySelector(".inSiteConfirmModal"))document.body.classList.remove("site-modal-open");};
+      modal.querySelector("[data-dup-cancel]").addEventListener("click",()=>{close();resolve(null);});
+      modal.querySelector("[data-dup-ok]").addEventListener("click",()=>{
+        const chosen=new Map();
+        list.querySelectorAll("[data-dup-index]:checked").forEach(x=>chosen.set(Number(x.dataset.dupIndex),true));
+        close(); resolve(chosen);
+      });
+    });
+  }
+
+  function makeUniqueTrackName(name, usedNames) {
+    const dot=name.lastIndexOf(".");
+    const base=dot>0?name.slice(0,dot):name;
+    const ext=dot>0?name.slice(dot):"";
+    let candidate=name, n=1;
+    while(usedNames.has(candidate)) candidate=`${base} (${n++})${ext}`;
+    return candidate;
+  }
+
   async function loadFiles(fileList){
-    const files = Array.from(fileList || []);
-    if(!files.length) return;
-
-    toast(`ファイルの解析・読み込み中...`);
-
-    const directMediaFiles = files.filter(f =>
-      f.type.startsWith("audio/") ||
-      f.type.startsWith("video/") ||
-      /\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(f.name)
-    );
-    const zipFiles = files.filter(f => /\.zip$/i.test(f.name));
-
-    for (const zipFile of zipFiles) {
-      if (typeof JSZip === "undefined") {
-        toast("Zipライブラリが見つかりません");
-        continue;
-      }
-      try {
-        const plName = zipFile.name.replace(/\.zip$/i, "");
-        if (!state.playlists[plName]) {
-          state.playlists[plName] = [];
-        }
-
-        const zip = await JSZip.loadAsync(zipFile);
-        const fileKeys = Object.keys(zip.files);
-
-        for (const filename of fileKeys) {
-          const entry = zip.files[filename];
-          if (!entry.dir && /\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename)) {
-            const blob = await entry.async("blob");
-            const cleanName = filename.split('/').pop();
-            const mediaInfo = getMediaInfo({ name: cleanName, type: blob.type });
-            const mediaFile = new File(
-              [blob],
-              cleanName,
-              { type: blob.type || mediaInfo.mimeType }
-            );
-            const meta = mediaInfo.mediaType === "video"
-              ? { title: cleanName.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
-              : await parseID3(mediaFile);
-
-            await saveTrackToDB({
-              name: mediaFile.name,
-              title: meta.title,
-              artist: meta.artist,
-              blob: mediaFile,
-              coverBlob: meta.coverBlob,
-              duration: await readAudioDuration(mediaFile),
-              mediaType: mediaInfo.mediaType,
-              mimeType: mediaInfo.mimeType
-            });
-
-            if (!state.playlists[plName].includes(mediaFile.name)) {
-              state.playlists[plName].push(mediaFile.name);
-            }
+    const files=Array.from(fileList||[]); if(!files.length)return;
+    toast("ファイルの解析・読み込み中...");
+    const directMediaFiles=files.filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(f.name));
+    const zipFiles=files.filter(f=>/\.zip$/i.test(f.name));
+    const incoming=[];
+    for(const f of directMediaFiles) incoming.push({file:f,storageName:f.webkitRelativePath||f.name});
+    for(const zipFile of zipFiles){
+      if(typeof JSZip==="undefined"){toast("Zipライブラリが見つかりません");continue;}
+      try{
+        const zip=await JSZip.loadAsync(zipFile);
+        for(const filename of Object.keys(zip.files)){
+          const entry=zip.files[filename];
+          if(!entry.dir&&/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename)){
+            const blob=await entry.async("blob");
+            const cleanName=filename.split("/").pop();
+            const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
+            incoming.push({file:new File([blob],cleanName,{type:blob.type||mediaInfo.mimeType}),storageName:cleanName,zipName:zipFile.name});
           }
         }
-      } catch (e) {
-        toast("Zipファイルの解析エラーが発生しました");
-      }
+      }catch{toast("Zipファイルの解析エラーが発生しました");}
     }
-
-    for (const f of directMediaFiles) {
-      const mediaInfo = getMediaInfo(f);
-      const meta = mediaInfo.mediaType === "video"
-        ? { title: f.name.replace(/\.[^/.]+$/, ""), artist: "不明なアーティスト", coverBlob: null }
-        : await parseID3(f);
-      const storageName = f.webkitRelativePath || f.name;
-      await saveTrackToDB({
-        name: storageName,
-        title: meta.title,
-        artist: meta.artist,
-        blob: f,
-        coverBlob: meta.coverBlob,
-        duration: await readAudioDuration(f),
-        mediaType: mediaInfo.mediaType,
-        mimeType: mediaInfo.mimeType
-      });
+    if(!incoming.length){toast("追加できる音楽ファイルがありません");return;}
+    const existingTracks=await loadTracksFromDB();
+    const usedNames=new Set(existingTracks.map(t=>t.name));
+    const conflicts=[];
+    incoming.forEach((item,index)=>{if(usedNames.has(item.storageName))conflicts.push({name:item.storageName,index});});
+    const chosen=await chooseDuplicateFiles(conflicts);
+    if(chosen===null&&conflicts.length){toast("追加をキャンセルしました");return;}
+    const conflictIndex=new Map(conflicts.map((x,i)=>[x.index,i]));
+    for(let index=0;index<incoming.length;index++){
+      const item=incoming[index];
+      const conflictNo=conflictIndex.get(index);
+      if(conflictNo!==undefined&&!chosen.get(conflictNo))continue;
+      let saveName=item.storageName;
+      if(usedNames.has(saveName))saveName=makeUniqueTrackName(saveName,usedNames);
+      const f=item.file, mediaInfo=getMediaInfo(f);
+      const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
+      await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
+      usedNames.add(saveName);
     }
-
-    saveState();
-    await reloadPlaylistFromDB();
-    toast(`読み込み完了！`);
+    saveState(); await reloadPlaylistFromDB(); toast("読み込み完了！");
   }
 
   const folderDirectoryInput = document.getElementById("folderDirectory");
@@ -1790,7 +1789,7 @@
     const popular = statsRows.filter(item => item.plays > 0)
       .sort((a,b) => b.plays - a.plays || b.lastPlayed - a.lastPlayed).slice(0, 5);
     const recent = statsRows.filter(item => item.lastPlayed > 0)
-      .sort((a,b) => b.lastPlayed - a.lastPlayed).slice(0, 5);
+      .sort((a,b) => b.lastPlayed - a.lastPlayed).slice(0, 20);
 
     const renderStatList = (target, items, emptyText, extra) => {
       if (!target) return;
@@ -1819,6 +1818,31 @@
       item => `再生 ${item.plays}回 / 累計 ${formatPlaybackDuration(item.totalPlayback)}`);
     renderStatList(el.statsRecentList, recent, "再生履歴はありません",
       item => `再生 ${item.plays}回 / 途中 ${item.partialPlays}回`);
+
+    if (el.statsDetailedList) {
+      el.statsDetailedList.innerHTML = "";
+      statsRows.sort((a,b)=>b.plays-a.plays || b.totalPlayback-a.totalPlayback).forEach(item=>{
+        const row=document.createElement("div");
+        row.className="statTrackRow";
+        row.innerHTML=`<div class="statTrackMain"><strong>${escapeHTML(item.song.title)}</strong><small>${escapeHTML(item.song.artist)}</small></div><div class="statTrackMeta">再生 ${item.plays}回<br>累計 ${formatPlaybackDuration(item.totalPlayback)}<br>途中 ${item.partialPlays}回</div>`;
+        el.statsDetailedList.appendChild(row);
+      });
+    }
+
+    if (el.statsMonthlyList) {
+      el.statsMonthlyList.innerHTML = "";
+      for (let i=11;i>=0;i--) {
+        const d=new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth()-i);
+        const prefix=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        const count=Object.entries(state.playHistory).reduce((sum,[key,val])=>key.startsWith(prefix)?sum+(Number(val)||0):sum,0);
+        const row=document.createElement("div");
+        row.className="statTrackRow";
+        row.innerHTML=`<div class="statTrackMain"><strong>${prefix}</strong></div><div class="statTrackMeta">再生 ${count}回</div>`;
+        el.statsMonthlyList.appendChild(row);
+      }
+    }
 
     if(!el.playHistoryChart) return;
     const ctx = el.playHistoryChart.getContext("2d");
