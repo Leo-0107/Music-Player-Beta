@@ -659,7 +659,7 @@
     setMainOutputDelay(getMainOutputDelay() + step);
   }
 
-  async function autoMeasureSpeakerDelay() {
+  async function autoMeasureSpeakerDelay(targetEntry = null) {
     ensureGraph();
     if (!audioCtx) return;
     if (audioCtx.state === "suspended") await audioCtx.resume();
@@ -676,8 +676,17 @@
       micSource.connect(micAnalyser);
       const micData = new Uint8Array(micAnalyser.fftSize);
 
-      const entries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
-      if (!entries.length) throw new Error("no-speakers");
+      const allEntries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
+      if (!allEntries.length) throw new Error("no-speakers");
+
+      let entries = allEntries;
+      if (targetEntry && !targetEntry.selected) {
+        const mainEntry = allEntries.find(entry => entry.selected);
+        const target = allEntries.find(entry => !entry.selected && entry.deviceId === targetEntry.deviceId);
+        entries = [mainEntry, target].filter(Boolean);
+      } else if (targetEntry?.selected) {
+        entries = [targetEntry];
+      }
 
       const originalMainVolume = outputBridgeAudio?.volume ?? 1;
       const originalStates = state.outputRoutes.map(route => ({ route, enabled: route.enabled !== false }));
@@ -741,10 +750,17 @@
 
       if (!measurements.length) throw new Error("no-measurement");
       const maxDelay = Math.max(...measurements.map(item => item.delayMs));
-      for (const item of measurements) {
-        const correction = clampSpeakerDelay(maxDelay - item.delayMs);
-        if (item.entry.selected) state.speakerSettings.mainDelayMs = correction;
-        else if (item.entry.route) item.entry.route.delayMs = correction;
+      if (targetEntry && !targetEntry.selected) {
+        const targetMeasurement = measurements.find(item => item.entry.deviceId === targetEntry.deviceId);
+        if (targetMeasurement?.entry?.route) {
+          targetMeasurement.entry.route.delayMs = clampSpeakerDelay(maxDelay - targetMeasurement.delayMs);
+        }
+      } else {
+        for (const item of measurements) {
+          const correction = clampSpeakerDelay(maxDelay - item.delayMs);
+          if (item.entry.selected) state.speakerSettings.mainDelayMs = correction;
+          else if (item.entry.route) item.entry.route.delayMs = correction;
+        }
       }
       state.speakerSettings.lastMeasuredAt = Date.now();
       state.speakerSettings.measurementMethod = "microphone";
@@ -768,6 +784,48 @@
     }
   }
 
+  function openSpeakerDelayMeasurementModal() {
+    const modal = document.getElementById("speakerDelayMeasurementModal");
+    const list = document.getElementById("speakerDelayMeasurementList");
+    if (!modal || !list) return;
+    list.innerHTML = "";
+    const entries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
+    if (!entries.length) {
+      const empty = document.createElement("div");
+      empty.className = "speakerSectionNote";
+      empty.textContent = "測定できるスピーカーがありません。";
+      list.appendChild(empty);
+    } else {
+      for (const entry of entries) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "outputDeviceItem";
+        button.style.width = "100%";
+        button.style.textAlign = "left";
+        const name = document.createElement("strong");
+        name.textContent = entry.label;
+        const detail = document.createElement("small");
+        detail.textContent = entry.selected ? "メイン出力" : "登録スピーカー";
+        button.append(name, detail);
+        button.addEventListener("click", async () => {
+          modal.hidden = true;
+          document.body.classList.remove("output-device-modal-open");
+          await autoMeasureSpeakerDelay(entry);
+        });
+        list.appendChild(button);
+      }
+    }
+    modal.hidden = false;
+    document.body.classList.add("output-device-modal-open");
+  }
+
+  function closeSpeakerDelayMeasurementModal() {
+    const modal = document.getElementById("speakerDelayMeasurementModal");
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove("output-device-modal-open");
+  }
+
   if (el.mainOutputDelay) {
     el.mainOutputDelay.value = String(getMainOutputDelay());
     el.mainOutputDelay.addEventListener("change", e => setMainOutputDelay(e.target.value));
@@ -779,8 +837,10 @@
     el.btnMainOutputDelayUp.addEventListener("click", () => adjustMainOutputDelay(0.1));
   }
   if (el.btnAutoCalibrateSpeakers) {
-    el.btnAutoCalibrateSpeakers.addEventListener("click", autoMeasureSpeakerDelay);
+    el.btnAutoCalibrateSpeakers.addEventListener("click", openSpeakerDelayMeasurementModal);
   }
+  const btnCloseSpeakerDelayMeasurement = document.getElementById("btnCloseSpeakerDelayMeasurement");
+  if (btnCloseSpeakerDelayMeasurement) btnCloseSpeakerDelayMeasurement.addEventListener("click", closeSpeakerDelayMeasurementModal);
 
   if (el.btnSpeakerPairSwap) el.btnSpeakerPairSwap.remove();
 
@@ -1326,15 +1386,6 @@
       signal.style.color = "var(--muted)";
       signal.style.marginTop = "2px";
 
-      const test = document.createElement("button");
-      test.className = "btn small ghost";
-      test.type = "button";
-      test.textContent = "音響測定";
-      test.addEventListener("click", e => {
-        e.stopPropagation();
-        testSpeakerOutput(entry);
-      });
-
       if (!entry.selected) {
         const toggle = document.createElement("button");
         toggle.className = "btn small additionalOutputSpeakerToggle";
@@ -1355,7 +1406,7 @@
         actions.append(toggle, remove);
       }
 
-      actions.prepend(status, test);
+      actions.prepend(status);
       head.append(name, actions);
 
       const wrap = document.createElement("div");
