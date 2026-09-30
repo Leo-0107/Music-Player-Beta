@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 39;
+  const BUILD_REVISION = 40;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1250,6 +1250,7 @@
       disconnectAdditionalOutputRuntime(route.deviceId);
     }
 
+    applyPairedSpeakerRouting();
     renderAdditionalOutputSpeakers();
     renderOutputDevicePicker();
   }
@@ -1360,6 +1361,7 @@
     }
 
     additionalOutputRuntimes.set(route.deviceId, runtime);
+    applyPairedSpeakerRouting();
     if (route.enabled !== false && !audio.paused) {
       try {
         await media.play();
