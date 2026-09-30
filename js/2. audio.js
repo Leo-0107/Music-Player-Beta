@@ -725,12 +725,13 @@
     if (audioCtx.state === "suspended") await audioCtx.resume();
 
     let micStream = null;
+    let measurementMicGainNode = null;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
       const micSource = audioCtx.createMediaStreamSource(micStream);
-      const measurementMicGainNode = audioCtx.createGain();
+      measurementMicGainNode = audioCtx.createGain();
       measurementMicGainNode.gain.value = 1;
       window.__musicPlayerMeasurementMicGain = measurementMicGainNode;
       micSource.connect(measurementMicGainNode);
