@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.2.02</title>
+<title>Music Player v7.2.03</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -187,6 +187,7 @@
         <div class="sectionCard">
           <div class="sectionTitle">波形表示</div>
           <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">表示する波形の種類を選択できます。</div>
+          <button class="btn small ghost" id="btnWaveViewReset" type="button">3D視点をリセット</button>
           <div class="controls" id="waveModeSettingsBtns">
             <button class="btn small" data-wave="3d">3D波形</button>
             <button class="btn small" data-wave="2d">2D波形</button>
@@ -326,6 +327,17 @@
         </div>
       </div>
 
+      <div class="panelSection" id="visualizerDetailSection">
+        <div class="sectionCard">
+          <div class="sectionTitle">ビジュアライザー詳細</div>
+          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerLowPerformance"> 低性能モード</label>
+          <small style="display:block;color:var(--muted);margin-bottom:10px;">描画量を抑えるための設定。自動でユーザー設定を変更しません。</small>
+          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerShowFps"> FPSを表示</label>
+          <div id="visualizerFps" hidden style="font-size:.8rem;color:var(--muted);">FPS: --</div>
+          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerShowLoad"> 描画負荷を表示</label>
+          <div id="visualizerLoad" hidden style="font-size:.8rem;color:var(--muted);">描画負荷: --</div>
+        </div>
+      </div>
       <div class="panelSection" id="statsSection">
         <div class="sectionCard">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -343,6 +355,10 @@
           <div id="statsPopularList" class="statsTrackList"></div>
           <div class="sectionTitle" style="margin-top:14px;">最近聴いた曲</div>
           <div id="statsRecentList" class="statsTrackList"></div>
+          <div class="sectionTitle" style="margin-top:14px;">曲ごとの詳細統計</div>
+          <div id="statsDetailedList" class="statsTrackList"></div>
+          <div class="sectionTitle" style="margin-top:14px;">月間統計</div>
+          <div id="statsMonthlyList" class="statsTrackList"></div>
         </div>
       </div>
 
@@ -488,6 +504,9 @@
   <div class="settingsHome">
     <div class="sectionTitle">設定</div>
     <div class="settingsDescription">再生・音響・プレイリスト・テーマなどの設定をまとめています。</div>
+    <div style="display:flex;gap:8px;margin:12px 0;">
+      <input id="settingsSearch" type="search" placeholder="設定を検索..." style="flex:1;min-width:0;">
+    </div>
 
     <div class="settingsGroup">
       <div class="settingsGroupHeader">
@@ -503,6 +522,11 @@
         <button class="settingsCard" data-settings-section="waveSection">
           <span class="settingsIcon">〰️</span>
           <span class="settingsCardText"><strong>波形</strong><small>3D・2D・案1〜案8から表示方法を選択</small></span>
+          <span class="settingsArrow">›</span>
+        </button>
+        <button class="settingsCard" data-settings-section="visualizerDetailSection">
+          <span class="settingsIcon">📈</span>
+          <span class="settingsCardText"><strong>ビジュアライザー詳細</strong><small>モード別設定・FPS・描画負荷</small></span>
           <span class="settingsArrow">›</span>
         </button>
       </div>
