@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 50;
+  const BUILD_REVISION = 51;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -349,6 +349,7 @@
     outputBridgeAudio.style.opacity = "0";
     outputBridgeAudio.style.pointerEvents = "none";
     outputBridgeAudio.srcObject = outputStreamDestination.stream;
+    outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
     document.body.appendChild(outputBridgeAudio);
   }
 
@@ -551,29 +552,19 @@
     try { channelSplitter.disconnect(leftGainNode); } catch (e) {}
     try { channelSplitter.disconnect(rightGainNode); } catch (e) {}
 
-    const pair = getActiveSpeakerPair();
-    if (pair) {
-      const mainSourceChannel = state.speakerPairSwap ? 0 : 1;
-      channelSplitter.connect(leftGainNode, mainSourceChannel, 0);
-      channelSplitter.connect(rightGainNode, mainSourceChannel, 0);
-    } else {
-      channelSplitter.connect(leftGainNode, 0, 0);
-      channelSplitter.connect(rightGainNode, 1, 0);
-    }
+    // 基本はすべての出力機器を通常のステレオL/Rで再生する。
+    // 左右入れ替えをONにした場合だけ、L/Rを反転する。
+    const leftSource = state.speakerPairSwap ? 1 : 0;
+    const rightSource = state.speakerPairSwap ? 0 : 1;
+    channelSplitter.connect(leftGainNode, leftSource, 0);
+    channelSplitter.connect(rightGainNode, rightSource, 0);
 
-    for (const [deviceId, runtime] of additionalOutputRuntimes) {
-      const route = state.outputRoutes.find(item => item.deviceId === deviceId);
-      if (!runtime?.splitter || !route) continue;
+    for (const [, runtime] of additionalOutputRuntimes) {
+      if (!runtime?.splitter) continue;
       try { runtime.splitter.disconnect(runtime.leftGain); } catch (e) {}
       try { runtime.splitter.disconnect(runtime.rightGain); } catch (e) {}
-      if (pair && pair.additional.deviceId === deviceId) {
-        const additionalSourceChannel = state.speakerPairSwap ? 1 : 0;
-        runtime.splitter.connect(runtime.leftGain, additionalSourceChannel, 0);
-        runtime.splitter.connect(runtime.rightGain, additionalSourceChannel, 0);
-      } else {
-        runtime.splitter.connect(runtime.leftGain, 0, 0);
-        runtime.splitter.connect(runtime.rightGain, 1, 0);
-      }
+      runtime.splitter.connect(runtime.leftGain, leftSource, 0);
+      runtime.splitter.connect(runtime.rightGain, rightSource, 0);
     }
   }
 
@@ -1072,10 +1063,6 @@
   }
 
   function toggleSpeakerPairSwap() {
-    if (!getActiveSpeakerPair()) {
-      toast("2スピーカーを使用しているときだけ左右を入れ替えられます");
-      return;
-    }
     state.speakerPairSwap = !state.speakerPairSwap;
     saveState();
     applyPairedSpeakerRouting();
@@ -1163,14 +1150,26 @@
       status.textContent = entry.selected ? "選択中" : getAdditionalOutputStatus(entry.route);
       status.style.marginRight = "8px";
 
+      if (entry.selected) {
+        const mainToggle = document.createElement("button");
+        mainToggle.className = "btn small additionalOutputSpeakerToggle";
+        mainToggle.type = "button";
+        const mainEnabled = state.speakerSettings?.mainEnabled !== false;
+        mainToggle.textContent = mainEnabled ? "出力中" : "出力OFF";
+        mainToggle.classList.toggle("active", mainEnabled);
+        mainToggle.setAttribute("aria-pressed", String(mainEnabled));
+        mainToggle.setAttribute("aria-label", entry.label + "の出力状態を切り替える");
+        mainToggle.addEventListener("click", e => {
+          e.stopPropagation();
+          toggleMainOutput();
+        });
+        actions.appendChild(mainToggle);
+      }
+
       const signal = document.createElement("small");
       signal.className = "speakerSignalPath";
       const pair = getActiveSpeakerPair();
-      const sourceChannel = pair
-        ? (entry.selected
-          ? (state.speakerPairSwap ? "L" : "R")
-          : (state.speakerPairSwap ? "R" : "L"))
-        : "L/R";
+      const sourceChannel = state.speakerPairSwap ? "R/L" : "L/R";
       signal.textContent = "入力 " + sourceChannel + " → 出力 L/R";
       signal.style.display = "block";
       signal.style.fontSize = ".75rem";
@@ -1305,6 +1304,17 @@
       card.append(head, signal, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
     }
+  }
+
+  function toggleMainOutput() {
+    if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+    state.speakerSettings.mainEnabled = state.speakerSettings.mainEnabled === false;
+    const enabled = state.speakerSettings.mainEnabled;
+    ensureOutputBridge();
+    if (outputBridgeAudio) outputBridgeAudio.volume = enabled ? 1 : 0;
+    saveState();
+    renderAdditionalOutputSpeakers();
+    toast(enabled ? "メイン出力をONにしました" : "メイン出力をOFFにしました");
   }
 
   function getMainOutputIdentity() {
