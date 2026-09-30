@@ -307,21 +307,25 @@
   let waveViewLastY = 0;
   let visualizerFrameTime = 16.67;
 
+  // 3D波形は「時間 × 周波数」の1枚の面として扱い、カメラだけが面の中心を回る。
+  // 高さ（俯角）は固定し、手動操作では水平方向の周回だけを変更する。
   function applyWaveView(point, width, height) {
     const cx = width * 0.5;
-    const cy = height * 0.58;
+    const cy = height * 0.56;
     const x = point.x - cx;
-    const y = point.y - cy;
+    const z = point.depth || 0;
+    const y = point.y;
     const yaw = waveViewYaw;
-    const pitch = waveViewPitch;
+    const cameraElevation = 0.62;
     const cosY = Math.cos(yaw);
     const sinY = Math.sin(yaw);
-    const rotatedX = x * cosY - y * sinY * 0.32;
-    const rotatedY = x * sinY * 0.32 + y * cosY;
-    const cosP = Math.cos(pitch);
+    const horizontal = x * cosY + z * sinY;
+    const depth = -x * sinY + z * cosY;
+    const cosE = Math.cos(cameraElevation);
+    const sinE = Math.sin(cameraElevation);
     return {
-      x: cx + rotatedX,
-      y: cy + rotatedY * cosP - x * Math.sin(pitch) * 0.12,
+      x: cx + horizontal,
+      y: cy - y * cosE + depth * sinE,
       age: point.age
     };
   }
@@ -1308,15 +1312,12 @@
               return bands;
             })()
           : null;
-        const cameraSpan = 1.12 + Math.min(0.34, Math.abs(Math.sin(waveViewYaw)) * 0.24 + Math.abs(waveViewPitch) * 0.10);
-        const timeLeft = -width * 0.20 * cameraSpan;
-        const timeRight = width * 1.20 * cameraSpan;
-        const baseY = height * 0.97;
+        const timeLeft = 0;
+        const timeRight = width;
+        const baseY = 0;
         const maxHeight = height * 0.78;
-        const freqDepth = width * (0.50 + Math.min(0.14, Math.abs(Math.sin(waveViewYaw)) * 0.10));
-        const freqTilt = height * 0.74;
-        const timeDepth = width * (0.40 + Math.min(0.12, Math.abs(Math.cos(waveViewYaw)) * 0.08));
-        const timeLift = height * 0.40;
+        const freqDepth = width * 0.62;
+        const timeLift = 0;
 
         if (rows.length) {
           const currentAudioTime = Number(audio.currentTime) || 0;
@@ -1332,12 +1333,9 @@
             const freqRatio = bandIndex / Math.max(1, BANDS_3D - 1);
             const depth = freqRatio - 0.5;
             const timeX = timeLeft + age * (timeRight - timeLeft);
-            const timeY = baseY - age * timeLift;
-            const x = timeX + depth * freqDepth - age * timeDepth;
             const amplitude = Math.max(0, amplitudeBands?.[bandIndex] || 0);
-            const y = timeY + depth * freqTilt -
-              amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
-            return applyWaveView({ x, y, age }, width, height);
+            const y = -amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
+            return applyWaveView({ x: timeX, y, depth: depth * freqDepth, age }, width, height);
           };
 
           for (let t = rows.length - 1; t >= 0; t--) {
@@ -1345,7 +1343,7 @@
             const ageSeconds = Math.max(0, currentAudioTime - row.time);
             const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
             const timeX = timeLeft + age * (timeRight - timeLeft);
-            const timeY = baseY - age * timeLift;
+            const timeY = baseY;
 
             const fade = (0.18 + 0.82 * (1 - age)) * pauseFade;
             const hue = 180 + (1 - age) * 100;
@@ -1355,12 +1353,10 @@
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / Math.max(1, BANDS_3D - 1);
               const depth = freqRatio - 0.5;
-              const x = timeX + depth * freqDepth - age * timeDepth;
               const amplitude = Math.max(0, row.bands?.[b] || 0);
-              const y = timeY + depth * freqTilt -
-                amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
+              const y = -amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
 
-              const point = applyWaveView({ x, y, age }, width, height);
+              const point = applyWaveView({ x: timeX, y, depth: depth * freqDepth, age }, width, height);
               if (b === 0) ctx.moveTo(point.x, point.y);
               else ctx.lineTo(point.x, point.y);
             }
@@ -1411,8 +1407,8 @@
             ctx.globalAlpha = restAlpha;
             ctx.lineWidth = 1.6;
             ctx.beginPath();
-            ctx.moveTo(timeLeft, baseY);
-            ctx.lineTo(timeRight, baseY);
+            ctx.moveTo(timeLeft, height * 0.56);
+            ctx.lineTo(timeRight, height * 0.56);
             ctx.stroke();
 
             if (pauseFade <= 0) {
