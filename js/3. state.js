@@ -155,7 +155,9 @@
     clippingProtection: loadBool(STORAGE.clippingProtection, true),
     micMonitor: false,
     micMonitorVolume: currentMicMonitorVolumeTarget,
-    micFeedbackProtection: loadBool(STORAGE.micFeedbackProtection, true),
+    micFeedbackProtection: true,
+    micFeedbackStrength: Math.max(0, Math.min(1, loadNum(STORAGE.micFeedbackStrength, 1))),
+    speakerPairSwap: loadBool(STORAGE.speakerPairSwap, false),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, [])
