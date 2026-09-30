@@ -131,6 +131,7 @@
     queue: loadJSON(STORAGE.queue, []),
     playCounts: loadJSON(STORAGE.playCounts, {}),
     playHistory: loadJSON(STORAGE.playHistory, {}),
+    playStats: loadJSON(STORAGE.playStats, {}),
     eqState: loadJSON(STORAGE.eqState, { preset: "Normal", gains: [0,0,0,0,0] }),
     shuffle: loadBool(STORAGE.shuffle, true),
     repeat: loadBool(STORAGE.repeat, false),
