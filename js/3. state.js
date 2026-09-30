@@ -159,6 +159,7 @@
     micFeedbackStrength: Math.max(0, Math.min(1, loadNum(STORAGE.micFeedbackStrength, 1))),
     speakerPairSwap: loadBool(STORAGE.speakerPairSwap, false),
     visualizerSettings: loadJSON(STORAGE.visualizerSettings, { lowPerformanceMode:false, showFps:false, showLoad:false }),
+    visualizerModeSettings: loadJSON(STORAGE.visualizerModeSettings, {}),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, [])
