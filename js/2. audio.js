@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 48;
+  const BUILD_REVISION = 49;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -923,6 +923,7 @@
 
       await outputBridgeAudio.setSinkId(normalized);
       if (wasPlaying) {
+        try { await audioCtx?.resume(); } catch (ignore) {}
         await outputBridgeAudio.play();
         if (outputBridgeAudio.paused) throw new Error("Output bridge did not resume");
       }
@@ -998,6 +999,9 @@
       applyPairedSpeakerRouting();
       saveState();
       await syncAdditionalOutputRuntimes();
+      if (wasPlaying) {
+        await startOutputBridge?.();
+      }
       await updateOutputDeviceName();
       renderAdditionalOutputSpeakers();
       renderOutputDevicePicker();
