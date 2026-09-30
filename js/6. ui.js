@@ -990,84 +990,221 @@
           ctx.fill();
         }
       } else if (state.waveMode === "a7") {
-        // 案7: 粒子ビジュアライザー。粒子数0なら粒子処理を行わない。
-        const particleCount = Math.max(0, Math.min(1200, state.waveParticleCount || 0));
-        if (particleCount > 0) {
-          if (!drawWave._waveParticleState || drawWave._waveParticleState.count !== particleCount) {
-            const particles = new Array(particleCount);
-            for (let i = 0; i < particleCount; i++) {
-              particles[i] = {
-                x: Math.random() * width,
-                y: Math.random() * height,
-                vx: (Math.random() - 0.5) * 0.22,
-                vy: (Math.random() - 0.5) * 0.22,
-                size: 0.7 + Math.random() * 1.8,
-                phase: Math.random() * Math.PI * 2
-              };
-            }
-            drawWave._waveParticleState = { count: particleCount, particles };
+        // 案7: 水面を真上から見た円形の波。音の強さで波紋が広がる。
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+        const maxRadius = Math.min(width, height) * 0.48;
+        const bandEnergy = (from, to) => {
+          let sum = 0;
+          let count = 0;
+          const start = Math.floor(dataLen * from);
+          const end = Math.max(start + 1, Math.floor(dataLen * to));
+          for (let i = start; i < end && i < dataLen; i++) {
+            sum += waveSmoothData[i] || 0;
+            count++;
           }
-          const energy = waveSmoothData.reduce((s, v) => s + v, 0) / Math.max(1, waveSmoothData.length);
-          const particleStep = lowPerformance ? Math.max(3, particleCount > 700 ? 4 : 3) : (particleCount > 700 ? 2 : 1);
-          ctx.globalAlpha = 0.78;
-          for (let i = 0; i < particleCount; i += particleStep) {
-            const p = drawWave._waveParticleState.particles[i];
-            const bandIndex = Math.min(dataLen - 1, Math.floor((i / particleCount) * dataLen));
-            const band = waveSmoothData[bandIndex] || energy;
-            p.vx += Math.sin(p.phase + now * 0.0007) * 0.0015;
-            p.vy += Math.cos(p.phase + now * 0.0009) * 0.0015;
-            p.x += p.vx * (1 + band * 4) * (dt * 60);
-            p.y += p.vy * (1 + band * 4) * (dt * 60);
-            if (p.x < -4) p.x = width + 4;
-            if (p.x > width + 4) p.x = -4;
-            if (p.y < -4) p.y = height + 4;
-            if (p.y > height + 4) p.y = -4;
-            const size = p.size + band * 4;
+          return count ? sum / count : 0;
+        };
+
+        const low = bandEnergy(0.01, 0.10);
+        const mid = bandEnergy(0.10, 0.42);
+        const high = bandEnergy(0.42, 0.92);
+        const total = Math.min(1, low * 1.6 + mid * 1.15 + high * 0.9);
+
+        if (!drawWave._wave7Ripples) {
+          drawWave._wave7Ripples = [];
+        }
+
+        const ripples = drawWave._wave7Ripples;
+        const spawnEnergy = Math.min(1, total * 1.8);
+        if (isPlaying && spawnEnergy > 0.045 && now - (drawWave._wave7LastSpawn || 0) > 95) {
+          ripples.unshift({
+            radius: Math.max(2, maxRadius * (0.025 + low * 0.08)),
+            strength: 0.35 + spawnEnergy * 0.9,
+            speed: 0.55 + low * 1.7,
+            phase: now * 0.002 + mid * 4
+          });
+          drawWave._wave7LastSpawn = now;
+          if (ripples.length > 18) ripples.length = 18;
+        }
+
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+
+        // 水面の中心にある小さな波紋と、そこから外へ伝わる円形の波。
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const r = ripples[i];
+          r.radius += r.speed * (dt * 60) * (0.8 + total);
+          r.strength *= Math.pow(0.985, dt * 60);
+
+          if (r.radius > maxRadius * 1.18 || r.strength < 0.015) {
+            ripples.splice(i, 1);
+            continue;
+          }
+
+          const ringCount = 3;
+          for (let ring = 0; ring < ringCount; ring++) {
+            const radius = r.radius - ring * (7 + high * 14);
+            if (radius < 3) continue;
+
             ctx.beginPath();
-            ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-            ctx.fillStyle = `hsla(${180 + bandIndex / Math.max(1, dataLen - 1) * 100}, 90%, 65%, ${0.28 + band * 0.65})`;
-            ctx.fill();
+            const points = 128;
+            for (let p = 0; p <= points; p++) {
+              const t = (p / points) * Math.PI * 2;
+              const freqWarp =
+                Math.sin(t * (5 + ring) + r.phase) * high * 7 +
+                Math.sin(t * (2 + ring) - r.phase * 0.7) * low * 10;
+              const radialWave =
+                Math.sin(t * 7 + r.phase * 1.5) * mid * 5 +
+                Math.sin(t * 13 - r.phase) * high * 2.5;
+              const rr = radius + freqWarp + radialWave;
+              const x = cx + Math.cos(t) * rr;
+              const y = cy + Math.sin(t) * rr * (0.94 + low * 0.06);
+              if (p === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+
+            ctx.strokeStyle = `hsla(${185 + ring * 24 + high * 35}, 85%, ${58 + ring * 5}%, ${0.06 + r.strength * 0.18})`;
+            ctx.lineWidth = 0.8 + r.strength * (1.1 - ring * 0.18);
+            ctx.stroke();
           }
-          ctx.globalAlpha = 1;
         }
-      } else if (state.waveMode === "a8") {
-        // 案8: 曲変更時に現在の波形を収束させ、新しい波形を形成する。
-        const trackKey = state.currentSong?.name || audio.src || "";
-        if (drawWave._wave8TrackKey !== trackKey) {
-          drawWave._wave8TrackKey = trackKey;
-          drawWave._wave8Transition = 1;
-        }
-        const transition = Math.max(0, drawWave._wave8Transition || 0);
-        if (transition > 0) {
-          drawWave._wave8Transition = Math.max(0, transition - dt * 1.8);
-          ctx.fillStyle = `rgba(255,255,255,${0.05 + transition * 0.12})`;
-          ctx.fillRect(0, 0, width, height);
-        }
-        const centerY = height * 0.55;
-        const amplitude = height * 0.34;
+
+        // 現在の音圧に反応する中心波。低音ほど大きく、高音ほど細かく揺れる。
+        const coreRadius = Math.max(4, maxRadius * (0.035 + low * 0.11 + total * 0.035));
         ctx.beginPath();
-        for (let i = 0; i < dataLen; i++) {
-          const ratio = i / Math.max(1, dataLen - 1);
-          const x = ratio * width;
-          const level = waveSmoothData[i] || 0;
-          const y = centerY - level * amplitude * (1 - transition * 0.78);
-          if (i === 0) ctx.moveTo(x, y);
+        const corePoints = 96;
+        for (let p = 0; p <= corePoints; p++) {
+          const t = (p / corePoints) * Math.PI * 2;
+          const rr =
+            coreRadius +
+            Math.sin(t * 5 + now * 0.004) * mid * 8 +
+            Math.sin(t * 11 - now * 0.003) * high * 4;
+          const x = cx + Math.cos(t) * rr;
+          const y = cy + Math.sin(t) * rr;
+          if (p === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
-        ctx.strokeStyle = `rgba(95, 214, 255, ${0.28 + (1 - transition) * 0.62})`;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = "round";
+        ctx.strokeStyle = `hsla(195, 90%, 68%, ${0.35 + total * 0.45})`;
+        ctx.lineWidth = 1.2 + total * 2.2;
         ctx.stroke();
-        if (transition > 0.02) {
+
+        // ごく薄い水面の円。音が強いほど存在感が増す。
+        ctx.beginPath();
+        ctx.arc(cx, cy, maxRadius * 0.98, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${0.035 + total * 0.08})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.restore();
+      } else if (state.waveMode === "a8") {      } else if (state.waveMode === "a8") {
+        // 案8: 心電図風。上=R、下=L、左=現在に近い、右=過去。
+        if (!drawWave._wave8History) {
+          drawWave._wave8History = [];
+          drawWave._wave8SampleElapsed = 0;
+          drawWave._wave8LastTime = -1;
+        }
+
+        const history = drawWave._wave8History;
+        const sampleInterval = 0.025;
+        drawWave._wave8SampleElapsed = (drawWave._wave8SampleElapsed || 0) + dt;
+
+        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && isPlaying) {
+          if (!waveLeftOutputAnalyser._wave8TimeData) {
+            waveLeftOutputAnalyser._wave8TimeData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
+            waveRightOutputAnalyser._wave8TimeData = new Uint8Array(waveRightOutputAnalyser.fftSize);
+          }
+
+          waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputAnalyser._wave8TimeData);
+          waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputAnalyser._wave8TimeData);
+
+          if (drawWave._wave8SampleElapsed >= sampleInterval) {
+            drawWave._wave8SampleElapsed %= sampleInterval;
+
+            const rms = (data) => {
+              let sum = 0;
+              for (let i = 0; i < data.length; i++) {
+                const v = (data[i] - 128) / 128;
+                sum += v * v;
+              }
+              return Math.min(1, Math.sqrt(sum / Math.max(1, data.length)) * 2.4);
+            };
+
+            const leftLevel = rms(waveLeftOutputAnalyser._wave8TimeData);
+            const rightLevel = rms(waveRightOutputAnalyser._wave8TimeData);
+
+            history.unshift({
+              left: leftLevel,
+              right: rightLevel
+            });
+
+            const maxHistory = Math.max(80, Math.ceil(4.5 / sampleInterval));
+            if (history.length > maxHistory) history.length = maxHistory;
+          }
+        } else {
+          drawWave._wave8SampleElapsed = 0;
+        }
+
+        const centerX = width * 0.5;
+        const topBase = height * 0.26;
+        const bottomBase = height * 0.76;
+        const amplitude = height * 0.23;
+        const count = history.length;
+
+        // 中央線を境にR/Lを完全に分離。
+        ctx.strokeStyle = "rgba(255,255,255,0.10)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, topBase);
+        ctx.lineTo(width, topBase);
+        ctx.moveTo(0, bottomBase);
+        ctx.lineTo(width, bottomBase);
+        ctx.stroke();
+
+        if (count > 1) {
+          // 左=現在、右=過去。新しいサンプルほど左に配置する。
+          const drawTrace = (key, baseY, direction) => {
+            ctx.beginPath();
+            for (let i = count - 1; i >= 0; i--) {
+              const age = (count - 1 - i) / Math.max(1, count - 1);
+              const x = age * width;
+              const level = history[i][key] || 0;
+              const jitter =
+                Math.sin(i * 0.71 + now * 0.003) * level * height * 0.018 +
+                Math.sin(i * 1.37 - now * 0.002) * level * height * 0.010;
+              const y = baseY + direction * level * amplitude + jitter;
+              if (i === count - 1) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = key === "right"
+              ? "rgba(255, 145, 145, 0.88)"
+              : "rgba(120, 205, 255, 0.88)";
+            ctx.lineWidth = 2;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.stroke();
+          };
+
+          drawTrace("right", topBase, -1);
+          drawTrace("left", bottomBase, 1);
+
+          // 現在位置を示す細い縦線。
+          ctx.strokeStyle = "rgba(255,255,255,0.18)";
+          ctx.lineWidth = 1;
           ctx.beginPath();
-          const center = width * 0.5;
-          const spread = width * (0.08 + (1 - transition) * 0.42);
-          ctx.moveTo(center - spread, centerY);
-          ctx.lineTo(center + spread, centerY);
-          ctx.strokeStyle = `rgba(255,255,255,${0.15 + transition * 0.3})`;
-          ctx.lineWidth = 1.5;
+          ctx.moveTo(1, 0);
+          ctx.lineTo(1, height);
           ctx.stroke();
         }
+
+        ctx.fillStyle = "rgba(255,255,255,0.68)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("R", 8, Math.max(12, topBase - amplitude - 8));
+        ctx.fillText("L", 8, Math.min(height - 6, bottomBase + amplitude + 14));
+        ctx.textAlign = "right";
+        ctx.fillText("現在", Math.min(width - 8, width * 0.04 + 34), height - 8);
+        ctx.fillText("過去", width - 8, height - 8);
       } else {
         const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 5.5;
