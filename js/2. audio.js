@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 42;
+  const BUILD_REVISION = 43;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -155,6 +155,7 @@
     localStorage.setItem(STORAGE.silenceSkip, String(state.silenceSkip));
     localStorage.setItem(STORAGE.dMode, state.dMode);
     localStorage.setItem(STORAGE.waveMode, state.waveMode);
+    localStorage.setItem(STORAGE.waveParticleCount, String(state.waveParticleCount));
     localStorage.setItem(STORAGE.clippingProtection, String(state.clippingProtection));
     localStorage.setItem(STORAGE.channelLeft, String(currentLeftVolumeTarget));
     localStorage.setItem(STORAGE.channelRight, String(currentRightVolumeTarget));
@@ -166,7 +167,7 @@
   }
 
   function setWaveMode(mode) {
-    const validModes = ["3d", "2d", "a1", "a2", "a3", "a4"];
+    const validModes = ["3d", "2d", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"];
     state.waveMode = validModes.includes(mode) ? mode : "2d";
     saveState();
     waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
@@ -1984,6 +1985,20 @@
     el.btnClippingProtection.classList.toggle("active", state.clippingProtection);
   }
 
+  function updateMicMonitorLatencyUI() {
+    if (!el.micMonitorLatencyText) return;
+    if (!audioCtx) {
+      el.micMonitorLatencyText.textContent = "推定遅延: --";
+      return;
+    }
+    const base = Number(audioCtx.baseLatency) || 0;
+    const output = Number(audioCtx.outputLatency) || 0;
+    const manual = Number(mainDelayNode?.delayTime?.value) || 0;
+    const estimatedMs = Math.max(0, Math.round((base + output + manual) * 1000));
+    el.micMonitorLatencyText.textContent =
+      state.micMonitor ? `推定遅延: 約${estimatedMs} ms` : "推定遅延: --";
+  }
+
   function updateMicMonitorUI() {
     if (el.btnMicMonitor) {
       el.btnMicMonitor.textContent = `マイクモニター: ${state.micMonitor ? "ON" : "OFF"}`;
@@ -1993,6 +2008,7 @@
     if (el.micMonitorVolumeText) {
       el.micMonitorVolumeText.textContent = `${Math.round(currentMicMonitorVolumeTarget * 100)}%`;
     }
+    updateMicMonitorLatencyUI();
   }
 
   function stopMicFeedbackMonitor() {
@@ -2005,6 +2021,7 @@
     if (micFeedbackGainNode && audioCtx) {
       micFeedbackGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.15);
     }
+    if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "";
   }
 
   function micFeedbackSimilarity() {
@@ -2014,7 +2031,7 @@
         !micReferenceAnalyser ||
         !micFeedbackData ||
         !micReferenceData) {
-      return 0;
+      return { similarity: 0, micEnergy: 0, referenceEnergy: 0 };
     }
 
     micFeedbackAnalyser.getByteFrequencyData(micFeedbackData);
@@ -2039,13 +2056,19 @@
       }
     }
 
-    if (micEnergy < 0.002 || referenceEnergy < 0.004) return 0;
+    if (micEnergy < 0.002 || referenceEnergy < 0.004) {
+      return { similarity: 0, micEnergy, referenceEnergy };
+    }
 
     const cosine = dot / Math.sqrt(micEnergy * referenceEnergy);
     const localReference = micReferenceData[Math.min(micPeakBin, micReferenceData.length - 1)] / 255;
-    const peakSupport = localReference > 0.18 ? 1 : 0;
+    const peakSupport = localReference > 0.12 ? 1 : 0;
 
-    return peakSupport ? cosine : cosine * 0.75;
+    return {
+      similarity: peakSupport ? cosine : cosine * 0.75,
+      micEnergy,
+      referenceEnergy
+    };
   }
 
   function updateMicFeedbackProtection() {
@@ -2055,12 +2078,19 @@
       }
       micFeedbackHighSimilarityFrames = 0;
       micFeedbackStableFrames = 0;
+      if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "";
       return;
     }
 
-    const similarity = micFeedbackSimilarity();
+    const result = micFeedbackSimilarity();
+    const similarity = result.similarity;
+    const micEnergy = result.micEnergy;
+    const referenceEnergy = result.referenceEnergy;
+    const referenceDominance = referenceEnergy > 0
+      ? Math.min(1, referenceEnergy / Math.max(0.0001, micEnergy))
+      : 0;
 
-    if (similarity >= 0.90) {
+    if (similarity >= 0.84) {
       micFeedbackHighSimilarityFrames += 1;
       micFeedbackStableFrames += 1;
     } else {
@@ -2069,11 +2099,28 @@
     }
 
     const isLikelyFeedback =
-      micFeedbackHighSimilarityFrames >= 4 &&
-      micFeedbackStableFrames >= 4;
+      micFeedbackHighSimilarityFrames >= 3 &&
+      micFeedbackStableFrames >= 3 &&
+      referenceDominance >= 0.55;
 
-    const targetGain = isLikelyFeedback ? 0.15 : 1;
-    const timeConstant = isLikelyFeedback ? 0.025 : 0.20;
+    // 声などのマイク成分が優勢なら全体を強くミュートせず、
+    // スピーカー由来成分が優勢なときだけ強く抑制する。
+    let targetGain = 1;
+    let timeConstant = 0.20;
+
+    if (isLikelyFeedback) {
+      const voicePreserve = Math.max(0, Math.min(1, 1 - referenceDominance));
+      targetGain = 0.12 + voicePreserve * 0.48;
+      timeConstant = 0.035;
+      if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "ハウリング抑制中";
+    } else if (similarity >= 0.72 && referenceDominance >= 0.35) {
+      targetGain = 0.70;
+      timeConstant = 0.09;
+      if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "反響成分を抑制中";
+    } else {
+      if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "";
+    }
+
     micFeedbackGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, timeConstant);
   }
 
@@ -2084,10 +2131,14 @@
   }
 
   function updateMicFeedbackProtectionUI() {
-    if (!el.btnMicFeedbackProtection) return;
-    el.btnMicFeedbackProtection.textContent =
-      "ハウリング防止: " + (state.micFeedbackProtection ? "ON" : "OFF");
-    el.btnMicFeedbackProtection.classList.toggle("active", state.micFeedbackProtection);
+    if (el.btnMicFeedbackProtection) {
+      el.btnMicFeedbackProtection.textContent =
+        "ハウリング防止: " + (state.micFeedbackProtection ? "ON" : "OFF");
+      el.btnMicFeedbackProtection.classList.toggle("active", state.micFeedbackProtection);
+    }
+    if (!state.micFeedbackProtection && el.micFeedbackStatus) {
+      el.micFeedbackStatus.textContent = "";
+    }
   }
 
   async function setMicFeedbackProtectionEnabled(enabled) {
@@ -2157,7 +2208,7 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { ideal: "default" },
-          echoCancellation: state.micFeedbackProtection,
+          echoCancellation: state.micFeedbackProtection ? true : false,
           noiseSuppression: state.micFeedbackProtection,
           autoGainControl: false,
           channelCount: { ideal: 2 }
@@ -2222,6 +2273,7 @@
   }
   updateMicMonitorUI();
   updateMicFeedbackProtectionUI();
+  setInterval(updateMicMonitorLatencyUI, 500);
 
   if (el.btnMicFeedbackProtection) {
     el.btnMicFeedbackProtection.addEventListener("click", () => {
