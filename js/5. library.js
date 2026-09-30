@@ -416,6 +416,7 @@
     if (!songName) return;
     const song = state.playlist.find(item => item.name === songName);
     if (!song) return;
+
     state.currentSong = song;
     audio.src = song.url;
     audio.currentTime = 0;
