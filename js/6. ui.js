@@ -358,6 +358,21 @@
 
   setupWaveViewGesture();
 
+  function updateWaveParticleCount(value) {
+    const n = Math.max(0, Math.min(1200, Math.round(Number(value) || 0)));
+    state.waveParticleCount = n;
+    if (el.waveParticleCount) el.waveParticleCount.value = n;
+    if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(n);
+    saveState();
+    requestWaveStaticFrame();
+  }
+
+  if (el.waveParticleCount) {
+    el.waveParticleCount.value = state.waveParticleCount;
+    el.waveParticleCount.addEventListener("input", e => updateWaveParticleCount(e.target.value));
+  }
+  if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(state.waveParticleCount);
+
   // --- 描画ループ & 連続無音判定 ---
   function drawWave() {
     const pageVisible = document.visibilityState === "visible";
@@ -453,6 +468,10 @@
       // a3  = 中央から左右へ広がる対称スペクトラム
       // a4  = 各帯域の変化量を強調するスペクトラム
       // 3d  = 現在の3Dスペクトラム表示
+      // a5  = 音の空間
+      // a6  = 音域連動背景
+      // a7  = 粒子ビジュアライザー
+      // a8  = 曲変更トランジション
       if (state.waveMode === "2d") {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
         const meterGap = 8;
@@ -728,6 +747,153 @@
         ctx.moveTo(waveLeft, height - 1);
         ctx.lineTo(waveLeft + waveWidth, height - 1);
         ctx.stroke();
+      } else if (state.waveMode === "a5") {
+        // 案5: 音の空間。時間を奥行き、周波数を左右に展開する。
+        const spaceBands = 56;
+        const spaceRows = 28;
+        const centerX = width * 0.5;
+        const centerY = height * 0.72;
+        const depthWidth = width * 0.92;
+        const depthHeight = height * 0.62;
+        for (let row = spaceRows - 1; row >= 0; row--) {
+          const depth = row / Math.max(1, spaceRows - 1);
+          const yBase = centerY - depth * depthHeight;
+          const xScale = 0.35 + depth * 0.65;
+          ctx.beginPath();
+          for (let b = 0; b < spaceBands; b++) {
+            const ratio = b / Math.max(1, spaceBands - 1);
+            const bin = Math.min(dataLen - 1, Math.floor(Math.pow(ratio, 1.45) * (dataLen - 1)));
+            const level = waveSmoothData[bin] || 0;
+            const x = centerX + (ratio - 0.5) * depthWidth * xScale;
+            const y = yBase - level * height * 0.30 * (0.45 + 0.55 * (1 - depth));
+            if (b === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = `hsla(${190 + depth * 80}, 90%, 62%, ${0.12 + (1 - depth) * 0.65})`;
+          ctx.lineWidth = row === 0 ? 1.8 : 0.8;
+          ctx.stroke();
+        }
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.beginPath();
+        ctx.moveTo(centerX - depthWidth * 0.5, centerY);
+        ctx.lineTo(centerX + depthWidth * 0.5, centerY);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.72)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("低", 8, centerY + 4);
+        ctx.textAlign = "right";
+        ctx.fillText("高", width - 8, centerY + 4);
+      } else if (state.waveMode === "a6") {
+        // 案6: 低・中・高域のエネルギーに連動して背景を変化させる。
+        const bandEnergy = (from, to) => {
+          let sum = 0;
+          let count = 0;
+          const start = Math.floor(dataLen * from);
+          const end = Math.max(start + 1, Math.floor(dataLen * to));
+          for (let i = start; i < end && i < dataLen; i++) {
+            sum += waveSmoothData[i] || 0;
+            count++;
+          }
+          return count ? sum / count : 0;
+        };
+        const low = bandEnergy(0.01, 0.10);
+        const mid = bandEnergy(0.10, 0.42);
+        const high = bandEnergy(0.42, 0.92);
+        const glow = Math.min(1, low * 1.7 + mid * 1.1 + high * 0.8);
+        const g = ctx.createRadialGradient(width * 0.5, height * 0.52, 0, width * 0.5, height * 0.52, Math.max(width, height) * 0.78);
+        g.addColorStop(0, `hsla(22, 90%, 60%, ${0.10 + low * 0.28})`);
+        g.addColorStop(0.48, `hsla(190, 85%, 58%, ${0.06 + mid * 0.20})`);
+        g.addColorStop(1, `hsla(285, 85%, 58%, ${0.03 + high * 0.16})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, width, height);
+        for (let i = 0; i < 3; i++) {
+          const radius = (0.18 + i * 0.16 + glow * 0.12) * Math.min(width, height);
+          ctx.beginPath();
+          ctx.arc(width * 0.5, height * 0.52, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = `hsla(${180 + i * 45}, 90%, 65%, ${0.08 + glow * 0.16})`;
+          ctx.lineWidth = 1 + glow * 2;
+          ctx.stroke();
+        }
+      } else if (state.waveMode === "a7") {
+        // 案7: 粒子ビジュアライザー。粒子数0なら粒子処理を行わない。
+        const particleCount = Math.max(0, Math.min(1200, state.waveParticleCount || 0));
+        if (particleCount > 0) {
+          if (!drawWave._waveParticleState || drawWave._waveParticleState.count !== particleCount) {
+            const particles = new Array(particleCount);
+            for (let i = 0; i < particleCount; i++) {
+              particles[i] = {
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.22,
+                vy: (Math.random() - 0.5) * 0.22,
+                size: 0.7 + Math.random() * 1.8,
+                phase: Math.random() * Math.PI * 2
+              };
+            }
+            drawWave._waveParticleState = { count: particleCount, particles };
+          }
+          const energy = waveSmoothData.reduce((s, v) => s + v, 0) / Math.max(1, waveSmoothData.length);
+          const particleStep = particleCount > 700 ? 2 : 1;
+          ctx.globalAlpha = 0.78;
+          for (let i = 0; i < particleCount; i += particleStep) {
+            const p = drawWave._waveParticleState.particles[i];
+            const bandIndex = Math.min(dataLen - 1, Math.floor((i / particleCount) * dataLen));
+            const band = waveSmoothData[bandIndex] || energy;
+            p.vx += Math.sin(p.phase + now * 0.0007) * 0.0015;
+            p.vy += Math.cos(p.phase + now * 0.0009) * 0.0015;
+            p.x += p.vx * (1 + band * 4) * (dt * 60);
+            p.y += p.vy * (1 + band * 4) * (dt * 60);
+            if (p.x < -4) p.x = width + 4;
+            if (p.x > width + 4) p.x = -4;
+            if (p.y < -4) p.y = height + 4;
+            if (p.y > height + 4) p.y = -4;
+            const size = p.size + band * 4;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+            ctx.fillStyle = `hsla(${180 + bandIndex / Math.max(1, dataLen - 1) * 100}, 90%, 65%, ${0.28 + band * 0.65})`;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+      } else if (state.waveMode === "a8") {
+        // 案8: 曲変更時に現在の波形を収束させ、新しい波形を形成する。
+        const trackKey = state.currentSong?.name || audio.src || "";
+        if (drawWave._wave8TrackKey !== trackKey) {
+          drawWave._wave8TrackKey = trackKey;
+          drawWave._wave8Transition = 1;
+        }
+        const transition = Math.max(0, drawWave._wave8Transition || 0);
+        if (transition > 0) {
+          drawWave._wave8Transition = Math.max(0, transition - dt * 1.8);
+          ctx.fillStyle = `rgba(255,255,255,${0.05 + transition * 0.12})`;
+          ctx.fillRect(0, 0, width, height);
+        }
+        const centerY = height * 0.55;
+        const amplitude = height * 0.34;
+        ctx.beginPath();
+        for (let i = 0; i < dataLen; i++) {
+          const ratio = i / Math.max(1, dataLen - 1);
+          const x = ratio * width;
+          const level = waveSmoothData[i] || 0;
+          const y = centerY - level * amplitude * (1 - transition * 0.78);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = `rgba(95, 214, 255, ${0.28 + (1 - transition) * 0.62})`;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        if (transition > 0.02) {
+          ctx.beginPath();
+          const center = width * 0.5;
+          const spread = width * (0.08 + (1 - transition) * 0.42);
+          ctx.moveTo(center - spread, centerY);
+          ctx.lineTo(center + spread, centerY);
+          ctx.strokeStyle = `rgba(255,255,255,${0.15 + transition * 0.3})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
       } else {
         const SAMPLE_INTERVAL = 0.04;
         const HISTORY_SECONDS = 5.5;
