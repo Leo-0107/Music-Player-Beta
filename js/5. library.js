@@ -410,7 +410,8 @@
     if (!song) return;
 
     const savedPosition = Math.max(0, loadNum(STORAGE.lastPosition, 0));
-    const shouldResume = typeof playbackIntent === "boolean" ? playbackIntent : false;
+    // ページ更新時は、前回の再生状態を曲位置だけ復元し、自動再生は行わない。
+    const shouldResume = false;
 
     state.currentSong = song;
     audio.src = song.url;
