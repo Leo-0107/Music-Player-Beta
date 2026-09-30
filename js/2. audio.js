@@ -2593,6 +2593,14 @@
       const input = e.inputBuffer;
       const output = e.outputBuffer;
       const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
+      if (Math.abs(pitch - 1) < 0.0001) {
+        for (let ch = 0; ch < 2; ch++) {
+          const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
+          const dst = output.getChannelData(ch);
+          if (src) dst.set(src); else dst.fill(0);
+        }
+        return;
+      }
       for (let ch = 0; ch < 2; ch++) {
         const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
         const dst = output.getChannelData(ch);
