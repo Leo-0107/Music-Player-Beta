@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 51;
+  const BUILD_REVISION = 52;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -164,7 +164,7 @@
     localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
     localStorage.setItem(STORAGE.micFeedbackProtection, "true");
     localStorage.setItem(STORAGE.micFeedbackStrength, String(state.micFeedbackStrength));
-    localStorage.setItem(STORAGE.speakerPairSwap, String(state.speakerPairSwap));
+    localStorage.setItem(STORAGE.speakerPairSwap, "false");
     localStorage.setItem(STORAGE.visualizerSettings, JSON.stringify(state.visualizerSettings || {}));
     localStorage.setItem(STORAGE.visualizerModeSettings, JSON.stringify(state.visualizerModeSettings || {}));
     localStorage.setItem(STORAGE.outputRoutes, JSON.stringify(state.outputRoutes || []));
@@ -549,22 +549,29 @@
   function applyPairedSpeakerRouting() {
     if (!channelSplitter || !leftGainNode || !rightGainNode) return;
 
-    try { channelSplitter.disconnect(leftGainNode); } catch (e) {}
-    try { channelSplitter.disconnect(rightGainNode); } catch (e) {}
+    const connectRoute = (splitter, leftGain, rightGain, mode = "stereo") => {
+      try { splitter.disconnect(leftGain); } catch (e) {}
+      try { splitter.disconnect(rightGain); } catch (e) {}
+      if (mode === "left") {
+        splitter.connect(leftGain, 0, 0);
+        splitter.connect(rightGain, 0, 0);
+      } else if (mode === "right") {
+        splitter.connect(leftGain, 1, 0);
+        splitter.connect(rightGain, 1, 0);
+      } else {
+        splitter.connect(leftGain, 0, 0);
+        splitter.connect(rightGain, 1, 0);
+      }
+    };
 
-    // 基本はすべての出力機器を通常のステレオL/Rで再生する。
-    // 左右入れ替えをONにした場合だけ、L/Rを反転する。
-    const leftSource = state.speakerPairSwap ? 1 : 0;
-    const rightSource = state.speakerPairSwap ? 0 : 1;
-    channelSplitter.connect(leftGainNode, leftSource, 0);
-    channelSplitter.connect(rightGainNode, rightSource, 0);
+    // 出力機器ごとに、ステレオ・Lのみ・Rのみを個別指定する。
+    const mainMode = state.speakerSettings?.channelMode || "stereo";
+    connectRoute(channelSplitter, leftGainNode, rightGainNode, mainMode);
 
-    for (const [, runtime] of additionalOutputRuntimes) {
+    for (const [deviceId, runtime] of additionalOutputRuntimes) {
       if (!runtime?.splitter) continue;
-      try { runtime.splitter.disconnect(runtime.leftGain); } catch (e) {}
-      try { runtime.splitter.disconnect(runtime.rightGain); } catch (e) {}
-      runtime.splitter.connect(runtime.leftGain, leftSource, 0);
-      runtime.splitter.connect(runtime.rightGain, rightSource, 0);
+      const route = state.outputRoutes.find(item => item.deviceId === deviceId);
+      connectRoute(runtime.splitter, runtime.leftGain, runtime.rightGain, route?.channelMode || "stereo");
     }
   }
 
@@ -624,18 +631,113 @@
     setMainOutputDelay(getMainOutputDelay() + step);
   }
 
-  function autoEstimateSpeakerDelay() {
+  async function autoMeasureSpeakerDelay() {
     ensureGraph();
-    const base = Number(audioCtx?.baseLatency) || 0;
-    const output = Number(audioCtx?.outputLatency) || 0;
-    const estimated = clampSpeakerDelay((base + output) * 1000);
-    state.speakerSettings.autoEstimateMs = estimated;
-    state.speakerSettings.mainDelayMs = estimated;
-    state.outputRoutes.forEach(route => { route.delayMs = estimated; });
-    saveState();
-    applyMainOutputDelayNode();
-    renderAdditionalOutputSpeakers();
-    toast("ブラウザ推定の遅延 " + estimated + " ms を適用しました");
+    if (!audioCtx) return;
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+
+    let micStream = null;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
+      const micSource = audioCtx.createMediaStreamSource(micStream);
+      const micAnalyser = audioCtx.createAnalyser();
+      micAnalyser.fftSize = 2048;
+      micAnalyser.smoothingTimeConstant = 0;
+      micSource.connect(micAnalyser);
+      const micData = new Uint8Array(micAnalyser.fftSize);
+
+      const entries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
+      if (!entries.length) throw new Error("no-speakers");
+
+      const originalMainVolume = outputBridgeAudio?.volume ?? 1;
+      const originalStates = state.outputRoutes.map(route => ({ route, enabled: route.enabled !== false }));
+      const measurements = [];
+
+      const setOnlyTarget = async target => {
+        if (outputBridgeAudio) outputBridgeAudio.volume = target.selected ? 1 : 0;
+        for (const item of state.outputRoutes) {
+          const runtime = additionalOutputRuntimes.get(item.deviceId);
+          const active = !target.selected && item.deviceId === target.deviceId;
+          if (runtime) {
+            if (active && !runtime.connected) {
+              try { speakerBusNode.connect(runtime.splitter); runtime.connected = true; } catch {}
+            }
+            if (!active && runtime.connected) {
+              try { speakerBusNode.disconnect(runtime.splitter); runtime.connected = false; } catch {}
+            }
+          }
+        }
+      };
+
+      for (const entry of entries) {
+        await setOnlyTarget(entry);
+        await new Promise(resolve => setTimeout(resolve, 180));
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const startPerf = performance.now();
+        const now = audioCtx.currentTime;
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1100, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+        osc.connect(gain);
+
+        let target = entry.selected ? mainDelayNode : additionalOutputRuntimes.get(entry.deviceId)?.delayNode;
+        if (!target) {
+          try { osc.disconnect(); gain.disconnect(); } catch {}
+          continue;
+        }
+        gain.connect(target);
+        osc.start(now);
+        osc.stop(now + 0.09);
+
+        let detected = null;
+        const deadline = performance.now() + 1500;
+        while (performance.now() < deadline) {
+          micAnalyser.getByteTimeDomainData(micData);
+          let peak = 0;
+          for (let i = 0; i < micData.length; i++) peak = Math.max(peak, Math.abs(micData[i] - 128));
+          if (peak > 18) {
+            detected = performance.now() - startPerf;
+            break;
+          }
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        try { osc.disconnect(); gain.disconnect(); } catch {}
+        if (detected != null) measurements.push({ entry, delayMs: detected });
+      }
+
+      if (!measurements.length) throw new Error("no-measurement");
+      const maxDelay = Math.max(...measurements.map(item => item.delayMs));
+      for (const item of measurements) {
+        const correction = clampSpeakerDelay(maxDelay - item.delayMs);
+        if (item.entry.selected) state.speakerSettings.mainDelayMs = correction;
+        else if (item.entry.route) item.entry.route.delayMs = correction;
+      }
+      state.speakerSettings.lastMeasuredAt = Date.now();
+      state.speakerSettings.measurementMethod = "microphone";
+      saveState();
+      applyMainOutputDelayNode();
+      renderAdditionalOutputSpeakers();
+      toast("マイクによる音響測定で遅延を補正しました");
+    } catch (e) {
+      toast(e?.name === "NotAllowedError" ? "マイクの使用を許可してください" : "音響測定に失敗しました");
+    } finally {
+      if (outputBridgeAudio) outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+      if (typeof speakerBusNode !== "undefined" && speakerBusNode) {
+        for (const route of state.outputRoutes) {
+          const runtime = additionalOutputRuntimes.get(route.deviceId);
+          if (runtime && route.enabled !== false && !runtime.connected) {
+            try { speakerBusNode.connect(runtime.splitter); runtime.connected = true; } catch {}
+          }
+        }
+      }
+      if (micStream) micStream.getTracks().forEach(track => track.stop());
+    }
   }
 
   if (el.mainOutputDelay) {
@@ -649,14 +751,10 @@
     el.btnMainOutputDelayUp.addEventListener("click", () => adjustMainOutputDelay(0.1));
   }
   if (el.btnAutoCalibrateSpeakers) {
-    el.btnAutoCalibrateSpeakers.addEventListener("click", autoEstimateSpeakerDelay);
+    el.btnAutoCalibrateSpeakers.addEventListener("click", autoMeasureSpeakerDelay);
   }
 
-  if (el.btnSpeakerPairSwap) {
-    el.btnSpeakerPairSwap.textContent = "左右を入れ替え: " + (state.speakerPairSwap ? "ON" : "OFF");
-    el.btnSpeakerPairSwap.classList.toggle("active", state.speakerPairSwap);
-    el.btnSpeakerPairSwap.addEventListener("click", toggleSpeakerPairSwap);
-  }
+  if (el.btnSpeakerPairSwap) el.btnSpeakerPairSwap.remove();
 
   function snapToDefault(value, defaultValue, threshold) {
     const n = Number(value);
@@ -950,7 +1048,8 @@
             (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "既定のスピーカー"),
           left: currentLeftVolumeTarget,
           right: currentRightVolumeTarget,
-          delayMs: getMainOutputDelay()
+          delayMs: getMainOutputDelay(),
+        channelMode: state.speakerSettings?.channelMode || "stereo"
         };
       }
 
@@ -969,7 +1068,8 @@
           left: Number.isFinite(Number(oldMain.left)) ? Number(oldMain.left) : 1,
           right: Number.isFinite(Number(oldMain.right)) ? Number(oldMain.right) : 1,
           delayMs: clampSpeakerDelay(oldMain.delayMs),
-          enabled: true
+          enabled: true,
+       channelMode: "stereo"
         });
       }
 
@@ -1047,7 +1147,8 @@
         disconnected: !!route.deviceId && disconnectedOutputDeviceIds.has(route.deviceId),
         left: Number.isFinite(Number(route.left)) ? Number(route.left) : 1,
         right: Number.isFinite(Number(route.right)) ? Number(route.right) : 1,
-        delayMs: clampSpeakerDelay(route.delayMs)
+        delayMs: clampSpeakerDelay(route.delayMs),
+        channelMode: ["stereo", "left", "right"].includes(route.channelMode) ? route.channelMode : "stereo"
       }))
     ];
   }
@@ -1062,15 +1163,17 @@
     return "使用中";
   }
 
-  function toggleSpeakerPairSwap() {
-    state.speakerPairSwap = !state.speakerPairSwap;
+  function setSpeakerChannelMode(entry, mode) {
+    const normalized = ["stereo", "left", "right"].includes(mode) ? mode : "stereo";
+    if (entry.selected) {
+      if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+      state.speakerSettings.channelMode = normalized;
+    } else if (entry.route) {
+      entry.route.channelMode = normalized;
+    }
     saveState();
     applyPairedSpeakerRouting();
     renderAdditionalOutputSpeakers();
-    if (el.btnSpeakerPairSwap) {
-      el.btnSpeakerPairSwap.textContent = "左右を入れ替え: " + (state.speakerPairSwap ? "ON" : "OFF");
-      el.btnSpeakerPairSwap.classList.toggle("active", state.speakerPairSwap);
-    }
   }
 
   async function testSpeakerOutput(entry) {
@@ -1176,10 +1279,22 @@
       signal.style.color = "var(--muted)";
       signal.style.marginTop = "2px";
 
+      const channelSelect = document.createElement("select");
+      channelSelect.className = "speakerChannelMode";
+      channelSelect.setAttribute("aria-label", entry.label + "の出力音声");
+      [["stereo","L/R"],["left","Lのみ"],["right","Rのみ"]].forEach(([value,label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = entry.channelMode === value;
+        channelSelect.appendChild(option);
+      });
+      channelSelect.addEventListener("change", e => setSpeakerChannelMode(entry, e.target.value));
+
       const test = document.createElement("button");
       test.className = "btn small ghost";
       test.type = "button";
-      test.textContent = "テスト";
+      test.textContent = "音響測定";
       test.addEventListener("click", e => {
         e.stopPropagation();
         testSpeakerOutput(entry);
@@ -1205,7 +1320,7 @@
         actions.append(toggle, remove);
       }
 
-      actions.prepend(status, test);
+      actions.prepend(status, channelSelect, test);
       head.append(name, actions);
 
       const wrap = document.createElement("div");
