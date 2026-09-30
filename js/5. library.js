@@ -1623,6 +1623,8 @@
     }
     const manualSet = new Set(state.queue);
     let plannedIndex = -1;
+    let draggedQueueName = null;
+    let dragPreview = null;
     names.forEach((name) => {
       const s = state.playlist.find(x => x.name === name);
       if (!s) return;
@@ -1631,6 +1633,8 @@
       if (!isManual) plannedIndex++;
       const currentPlannedIndex = plannedIndex;
       row.className = "song queuePreviewRow";
+      row.draggable = isManual;
+      row.dataset.queueName = name;
       row.innerHTML = `
         <div class="songMain">
           <div class="songName">${escapeHTML(s.title)}</div>
@@ -1651,6 +1655,50 @@
           renderQueue();
         });
       }
+      if (isManual) {
+        row.addEventListener("dragstart", e => {
+          draggedQueueName = name;
+          row.classList.add("queueDragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", name);
+        });
+        row.addEventListener("dragend", () => {
+          draggedQueueName = null;
+          row.classList.remove("queueDragging");
+          if (dragPreview?.parentNode) dragPreview.parentNode.removeChild(dragPreview);
+          dragPreview = null;
+          document.querySelectorAll(".queueDropTarget").forEach(x => x.classList.remove("queueDropTarget"));
+        });
+        row.addEventListener("dragover", e => {
+          if (!draggedQueueName || draggedQueueName === name) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (!dragPreview) {
+            dragPreview = document.createElement("div");
+            dragPreview.className = "queueDropPreview";
+            dragPreview.textContent = "ここに移動";
+            dragPreview.style.cssText = "height:3px;margin:3px 8px;border-radius:3px;background:var(--accent);font-size:0;";
+          }
+          if (dragPreview.parentNode !== el.queueList || dragPreview.nextSibling !== row) {
+            el.queueList.insertBefore(dragPreview, row);
+          }
+          row.classList.add("queueDropTarget");
+        });
+        row.addEventListener("drop", e => {
+          e.preventDefault();
+          const source = e.dataTransfer.getData("text/plain") || draggedQueueName;
+          if (!source || source === name) return;
+          const from = state.queue.indexOf(source);
+          let to = state.queue.indexOf(name);
+          if (from < 0 || to < 0) return;
+          state.queue.splice(from, 1);
+          to = state.queue.indexOf(name);
+          state.queue.splice(to, 0, source);
+          saveState();
+          renderQueue();
+        });
+      }
+
       row.addEventListener("click", () => {
         const wasManual = state.queue.includes(name);
         if (wasManual) {
