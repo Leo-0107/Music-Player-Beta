@@ -1837,3 +1837,63 @@ body.output-device-modal-open .sidebar {
     flex-direction: column;
   }
 }
+
+
+/* スピーカー名：長い名前は右から左へ流し、右端でフェードして先頭へ戻す */
+.speakerNameScroll {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.speakerNameScrollViewport {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 5%, #000 90%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 5%, #000 90%, transparent 100%);
+}
+.speakerNameScrollText {
+  display: inline-block;
+  white-space: nowrap;
+}
+.speakerNameIsLong .speakerNameScrollText {
+  animation: speakerNameScroll var(--speaker-name-scroll-duration, 6s) ease-in-out infinite;
+}
+.speakerDisconnectedMark {
+  flex: 0 0 auto;
+  color: #f8d25c;
+  margin-left: 6px;
+}
+@keyframes speakerNameScroll {
+  0%, 12% { transform: translateX(0); opacity: 1; }
+  72% { transform: translateX(calc(-1 * var(--speaker-name-scroll-distance, 0px))); opacity: 1; }
+  82% { transform: translateX(calc(-1 * var(--speaker-name-scroll-distance, 0px))); opacity: 0; }
+  90% { transform: translateX(0); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.speakerMeasurementControls {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.speakerMeasurementControl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+}
+.speakerMeasurementControl input {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.speakerMeasurementControlValue {
+  font-variant-numeric: tabular-nums;
+}
