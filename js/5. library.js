@@ -1851,7 +1851,7 @@
     const recent = statsRows.filter(item => item.lastPlayed > 0)
       .sort((a,b) => b.lastPlayed - a.lastPlayed).slice(0, 20);
 
-    const renderStatList = (target, items, emptyText, extra) => {
+    const renderStatList = (target, items, emptyText, extra, titleOnly = false) => {
       if (!target) return;
       target.innerHTML = "";
       if (!items.length) {
@@ -1861,21 +1861,29 @@
       items.forEach(item => {
         const row = document.createElement("div");
         row.className = "statTrackRow";
-        const last = item.lastPlayed
-          ? new Date(item.lastPlayed).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })
-          : "未再生";
-        row.innerHTML = `
-          <div class="statTrackMain">
-            <strong>${escapeHTML(item.song.title)}</strong>
-            <small>${escapeHTML(item.song.artist)}</small>
-          </div>
-          <div class="statTrackMeta">${extra(item)}<br><span>${last}</span></div>`;
+        if (titleOnly) {
+          row.innerHTML = `
+            <div class="statTrackMain">
+              <strong>${escapeHTML(item.song.title)}</strong>
+            </div>
+            <div class="statTrackMeta">${extra(item)}</div>`;
+        } else {
+          const last = item.lastPlayed
+            ? new Date(item.lastPlayed).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })
+            : "未再生";
+          row.innerHTML = `
+            <div class="statTrackMain">
+              <strong>${escapeHTML(item.song.title)}</strong>
+              <small>${escapeHTML(item.song.artist)}</small>
+            </div>
+            <div class="statTrackMeta">${extra(item)}<br><span>${last}</span></div>`;
+        }
         target.appendChild(row);
       });
     };
 
     renderStatList(el.statsPopularList, popular, "まだ再生された曲はありません",
-      item => `再生 ${item.plays}回 / 累計 ${formatPlaybackDuration(item.totalPlayback)}`);
+      item => `再生 ${item.plays}回`, true);
     renderStatList(el.statsRecentList, recent, "再生履歴はありません",
       item => `再生 ${item.plays}回 / 途中 ${item.partialPlays}回`);
 
