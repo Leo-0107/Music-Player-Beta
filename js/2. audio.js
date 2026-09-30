@@ -822,7 +822,9 @@
         button.className = "outputDeviceItem";
         button.style.width = "100%";
         button.style.textAlign = "left";
+        button.style.color = "var(--text)";
         const name = document.createElement("strong");
+        name.style.color = "var(--text)";
         name.textContent = entry.label;
         const detail = document.createElement("small");
         detail.textContent = entry.selected ? "メイン出力" : "登録スピーカー";
