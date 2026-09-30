@@ -697,9 +697,9 @@
       } else if (state.waveMode === "a3") {
         const sideBars = Math.min(32, waveLeftOutputAnalyser?.frequencyBinCount || 32);
         const centerX = width * 0.5;
-        const centerY = height * 0.65;
-        const maxBarHeight = height * 0.43;
-        const sideWidth = width * 0.46;
+        const baseY = height - 1;
+        const maxBarHeight = height * 0.86;
+        const sideWidth = width * 0.92;
         const stepX = sideWidth / Math.max(1, sideBars);
         const barWidth = Math.max(1.5, stepX * 0.72);
 
@@ -748,10 +748,10 @@
             ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
 
             if (leftHeight > 0.5) {
-              ctx.fillRect(xLeft - barWidth * 0.5, centerY - leftHeight, barWidth, leftHeight);
+              ctx.fillRect(xLeft - barWidth * 0.5, baseY - leftHeight, barWidth, leftHeight);
             }
             if (rightHeight > 0.5) {
-              ctx.fillRect(xRight - barWidth * 0.5, centerY - rightHeight, barWidth, rightHeight);
+              ctx.fillRect(xRight - barWidth * 0.5, baseY - rightHeight, barWidth, rightHeight);
             }
           }
         }
@@ -759,8 +759,8 @@
         ctx.strokeStyle = "rgba(255,255,255,0.14)";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        ctx.lineTo(width, centerY);
+        ctx.moveTo(0, baseY);
+        ctx.lineTo(width, baseY);
         ctx.stroke();
       } else if (state.waveMode === "a4") {
         const bars = Math.min(72, dataLen);
