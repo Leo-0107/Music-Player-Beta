@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.2.10</title>
+<title>Music Player v7.2.11</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -270,17 +270,17 @@
             </div>
           </div>
           <div id="additionalOutputSpeakers" class="speakerList"></div>
-          <button class="btn small ghost" id="btnSpeakerPairSwap" type="button" style="width:100%; margin-top:10px;">左右を入れ替え: OFF</button>
+          
         </div>
 
         <div class="sectionCard speakerPanel">
-          <div class="sectionTitle">自動遅延補正</div>
+          <div class="sectionTitle">音響遅延補正</div>
           <div class="speakerSectionHint">
-            ブラウザが取得できる共通の出力遅延を推定し、使用中と追加済みスピーカーの基準値として設定します。
+            各スピーカーから測定音を出し、マイクで実際の音を拾って出力までの時間を測定し、スピーカーごとの遅延を自動補正します。
           </div>
-          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">自動補正（ブラウザ推定）</button>
+          <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">音響測定で自動補正</button>
           <div class="speakerSectionNote">
-            実際の機器ごとのBluetooth伝送遅延、HDMI機器の遅延、部屋の音響遅延まではブラウザから個別測定できないため、最後はスピーカーごとの手動調整で合わせます。
+            測定時はマイクの使用許可が必要です。各スピーカーを順番に測定し、最も遅い出力に合わせて他のスピーカーへ必要な遅延を設定します。
           </div>
         </div>
       </div>
@@ -417,14 +417,10 @@
           <div class="field">
             <label>グラデーション方向</label>
             <div class="gradList" id="gradDirectionList">
-              <button class="gradOption" data-deg="180deg"><span class="gradPreview" aria-hidden="true"></span><span>↓ 縦 (上→下)</span></button>
-              <button class="gradOption" data-deg="0deg"><span class="gradPreview" aria-hidden="true"></span><span>↑ 縦 (下→上)</span></button>
-              <button class="gradOption" data-deg="90deg"><span class="gradPreview" aria-hidden="true"></span><span>→ 横 (左→右)</span></button>
-              <button class="gradOption" data-deg="270deg"><span class="gradPreview" aria-hidden="true"></span><span>← 横 (右→左)</span></button>
-              <button class="gradOption" data-deg="135deg"><span class="gradPreview" aria-hidden="true"></span><span>↘ 斜め (左上→右下)</span></button>
-              <button class="gradOption" data-deg="315deg"><span class="gradPreview" aria-hidden="true"></span><span>↖ 斜め (右下→左上)</span></button>
-              <button class="gradOption" data-deg="45deg"><span class="gradPreview" aria-hidden="true"></span><span>↗ 斜め (左下→右上)</span></button>
-              <button class="gradOption" data-deg="225deg"><span class="gradPreview" aria-hidden="true"></span><span>↙ 斜め (右上→左下)</span></button>
+              <button class="gradOption" data-deg="180deg"><span class="gradPreview" aria-hidden="true"></span><span>↓ 縦</span></button>
+              <button class="gradOption" data-deg="90deg"><span class="gradPreview" aria-hidden="true"></span><span>→ 横</span></button>
+              <button class="gradOption" data-deg="135deg"><span class="gradPreview" aria-hidden="true"></span><span>↘ 斜め</span></button>
+              <button class="gradOption" data-deg="45deg"><span class="gradPreview" aria-hidden="true"></span><span>↗ 斜め</span></button>
             </div>
           </div>
         </div>
