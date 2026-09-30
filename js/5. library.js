@@ -112,7 +112,7 @@
       modal.id="duplicateFilesModal"; modal.className="inSiteConfirmModal";
       modal.innerHTML=`<div class="inSiteConfirmCard" role="dialog" aria-modal="true">
         <div class="sectionTitle">同名ファイルがあります</div>
-        <div class="inSiteConfirmMessage">追加するファ択曲を選んでください。選択した曲は自動的に「(1)」などを付けて保存します。</div>
+        <div class="inSiteConfirmMessage">追加する曲を選んでください。選択した曲は自動的に「(1)」などを付けて保存します。</div>
         <div data-dup-list style="max-height:45vh;overflow:auto;text-align:left;margin:10px 0;"></div>
         <div class="inSiteConfirmActions">
           <button type="button" class="btn small" data-dup-cancel>キャンセル</button>
