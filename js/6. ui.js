@@ -701,7 +701,8 @@
         const maxBarHeight = height * 0.86;
         const sideWidth = width * 0.92;
         const stepX = sideWidth / Math.max(1, sideBars);
-        const barWidth = Math.max(1.5, stepX * 0.72);
+        // 一本ごとの太さは2D波形と同じ基準にする。
+        const barWidth = Math.max(1, Math.min(18, width * 0.022) - 2);
 
         if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
           if (!waveLeftOutputAnalyser._spectrumSmooth || waveLeftOutputAnalyser._spectrumSmooth.length !== sideBars) {
@@ -730,9 +731,9 @@
           };
 
           for (let i = 0; i < sideBars; i++) {
-            // 2Dと同じく各帯域の現在値を0から表示し、前回の2倍感度は維持する。
-            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i) * 2);
-            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i) * 2);
+            // 以前の2倍感度から落とし、2Dに近い反応量にする。
+            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i) * 1.2);
+            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i) * 1.2);
 
             leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.13;
             rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.13;
@@ -944,6 +945,10 @@
         rings.forEach((ring, ringIndex) => {
           const points = 96;
           const phase = now * 0.001 * ring.speed;
+          const brightnessWave = 0.5 + 0.5 * Math.sin(now * (0.0010 + ringIndex * 0.00045) * (ringIndex % 2 ? 1.35 : 1) + ringIndex * 1.9);
+          const energyBrightness = Math.min(1, ring.energy * 1.45);
+          const ringAlpha = 0.12 + energyBrightness * 0.42 + brightnessWave * (0.12 + ring.energy * 0.22);
+          const glowAmount = 5 + energyBrightness * 14 + brightnessWave * (7 + ringIndex * 3);
           ctx.beginPath();
           for (let i = 0; i <= points; i++) {
             const t = (i / points) * Math.PI * 2;
@@ -956,9 +961,9 @@
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
           }
-          ctx.strokeStyle = `hsla(${ring.hue}, 88%, 64%, ${0.22 + ring.energy * 0.62})`;
-          ctx.lineWidth = 1.2 + ring.energy * 2.8;
-          ctx.shadowBlur = 8 + ring.energy * 18;
+          ctx.strokeStyle = `hsla(${ring.hue}, 88%, ${55 + brightnessWave * 18}%, ${ringAlpha})`;
+          ctx.lineWidth = 1.0 + ring.energy * 2.4 + brightnessWave * (0.5 + ringIndex * 0.25);
+          ctx.shadowBlur = glowAmount;
           ctx.shadowColor = `hsla(${ring.hue}, 90%, 62%, 0.45)`;
           ctx.stroke();
           ctx.shadowBlur = 0;
@@ -993,7 +998,9 @@
         // 案7: 水面を真上から見た円形の波。音の強さで波紋が広がる。
         const cx = width * 0.5;
         const cy = height * 0.5;
-        const maxRadius = Math.min(width, height) * 0.48;
+        // 横方向は表示領域の左右端まで届くよう、画面幅を基準にする。
+        const maxRadius = width * 0.5;
+        const verticalScale = Math.min(1, height / Math.max(1, width));
         const bandEnergy = (from, to) => {
           let sum = 0;
           let count = 0;
@@ -1017,11 +1024,11 @@
 
         const ripples = drawWave._wave7Ripples;
         const spawnEnergy = Math.min(1, total * 1.8);
-        if (isPlaying && spawnEnergy > 0.045 && now - (drawWave._wave7LastSpawn || 0) > 95) {
+        if (isPlaying && spawnEnergy > 0.045 && now - (drawWave._wave7LastSpawn || 0) > 145) {
           ripples.unshift({
             radius: Math.max(2, maxRadius * (0.025 + low * 0.08)),
             strength: 0.35 + spawnEnergy * 0.9,
-            speed: 0.55 + low * 1.7,
+            speed: 0.38 + low * 1.05,
             phase: now * 0.002 + mid * 4
           });
           drawWave._wave7LastSpawn = now;
@@ -1034,7 +1041,7 @@
         // 水面の中心にある小さな波紋と、そこから外へ伝わる円形の波。
         for (let i = ripples.length - 1; i >= 0; i--) {
           const r = ripples[i];
-          r.radius += r.speed * (dt * 60) * (0.8 + total);
+          r.radius += r.speed * (dt * 60) * (0.62 + total * 0.72);
           r.strength *= Math.pow(0.985, dt * 60);
 
           if (r.radius > maxRadius * 1.18 || r.strength < 0.015) {
@@ -1059,7 +1066,7 @@
                 Math.sin(t * 13 - r.phase) * high * 2.5;
               const rr = radius + freqWarp + radialWave;
               const x = cx + Math.cos(t) * rr;
-              const y = cy + Math.sin(t) * rr * (0.94 + low * 0.06);
+              const y = cy + Math.sin(t) * rr * verticalScale * (0.94 + low * 0.06);
               if (p === 0) ctx.moveTo(x, y);
               else ctx.lineTo(x, y);
             }
