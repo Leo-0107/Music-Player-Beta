@@ -319,8 +319,14 @@
           <div style="display:flex; gap:16px; margin-bottom:12px;">
             <div>再生回数: <strong id="statPlays">0</strong></div>
             <div>総曲数: <strong id="statSongs">0</strong></div>
+            <div>総再生時間: <strong id="statTotalPlayback">0分0秒</strong></div>
+            <div>途中再生: <strong id="statPartialPlays">0</strong></div>
           </div>
           <canvas id="playHistoryChart" style="width:100%; height:180px;"></canvas>
+          <div class="sectionTitle" style="margin-top:14px;">よく聴く曲</div>
+          <div id="statsPopularList" class="statsTrackList"></div>
+          <div class="sectionTitle" style="margin-top:14px;">最近聴いた曲</div>
+          <div id="statsRecentList" class="statsTrackList"></div>
         </div>
       </div>
 
