@@ -147,33 +147,86 @@
 
   async function loadFiles(fileList){
     const files=Array.from(fileList||[]); if(!files.length)return;
-    toast("ファイルの解析・読み込み中...");
+    const MAX_ZIP_BYTES = 512 * 1024 * 1024;
+    const MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024;
+    const MAX_MEDIA_FILES = 500;
+    const progressEl = document.getElementById("fileLoadProgress");
+    const progressFill = document.getElementById("fileLoadProgressFill");
+    const progressPercent = document.getElementById("fileLoadProgressPercent");
+    const progressText = document.getElementById("fileLoadProgressText");
+    const updateProgress = (percent, message) => {
+      const safe = Math.max(0, Math.min(100, Math.round(percent)));
+      if (progressEl) progressEl.hidden = false;
+      if (progressFill) progressFill.style.width = safe + "%";
+      if (progressPercent) progressPercent.textContent = safe + "%";
+      if (progressText && message) progressText.textContent = message;
+    };
+    const yieldToUI = () => new Promise(resolve => requestAnimationFrame(resolve));
+    const closeProgress = () => {
+      if (!progressEl) return;
+      updateProgress(100, "読み込み完了");
+      setTimeout(() => { progressEl.hidden = true; }, 500);
+    };
+
     const directMediaFiles=files.filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(f.name));
     const zipFiles=files.filter(f=>/\.zip$/i.test(f.name));
     const incoming=[];
-    for(const f of directMediaFiles) incoming.push({file:f,storageName:f.webkitRelativePath||f.name});
+    let extractedBytes = 0;
+    let processedMediaFiles = 0;
+    updateProgress(0, "ファイルを確認しています...");
+
+    for(const f of directMediaFiles) {
+      if (incoming.length >= MAX_MEDIA_FILES) {
+        toast("追加できるファイル数の上限（500件）に達しました");
+        break;
+      }
+      incoming.push({file:f,storageName:f.name});
+      processedMediaFiles++;
+      updateProgress((processedMediaFiles / Math.max(1, directMediaFiles.length + zipFiles.length)) * 20, "ファイルを確認しています...");
+      await yieldToUI();
+    }
+
     for(const zipFile of zipFiles){
+      if (zipFile.size > MAX_ZIP_BYTES) {
+        toast("ZIPが大きすぎるため読み込みを停止しました（上限512MB）");
+        continue;
+      }
       if(typeof JSZip==="undefined"){toast("Zipライブラリが見つかりません");continue;}
       try{
+        updateProgress(Math.min(25, processedMediaFiles / Math.max(1, directMediaFiles.length) * 20 + 5), "ZIPを解析しています...");
         const zip=await JSZip.loadAsync(zipFile);
-        for(const filename of Object.keys(zip.files)){
-          const entry=zip.files[filename];
-          if(!entry.dir&&/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename)){
-            const blob=await entry.async("blob");
-            const cleanName=filename.split("/").pop();
-            const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
-            incoming.push({file:new File([blob],cleanName,{type:blob.type||mediaInfo.mimeType}),storageName:cleanName,zipName:zipFile.name});
+        const entries=Object.keys(zip.files);
+        const mediaEntries=entries.filter(filename=>!zip.files[filename].dir&&/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename));
+        for(let entryIndex=0; entryIndex<mediaEntries.length; entryIndex++){
+          if(incoming.length >= MAX_MEDIA_FILES) {
+            toast("追加できるファイル数の上限（500件）に達したため、残りのZIP内ファイルを停止しました");
+            break;
           }
+          const filename=mediaEntries[entryIndex];
+          const entry=zip.files[filename];
+          const blob=await entry.async("blob");
+          extractedBytes += blob.size;
+          if(extractedBytes > MAX_EXTRACTED_BYTES) {
+            toast("展開後の容量が1GBを超えるため、ZIP読み込みを停止しました");
+            break;
+          }
+          const cleanName=filename.split("/").pop();
+          const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
+          incoming.push({file:new File([blob],cleanName,{type:blob.type||mediaInfo.mimeType}),storageName:cleanName,zipName:zipFile.name});
+          const percent = 25 + ((entryIndex + 1) / Math.max(1, mediaEntries.length)) * 45;
+          updateProgress(percent, "ZIP内ファイルを読み込んでいます...");
+          await yieldToUI();
         }
       }catch{toast("Zipファイルの解析エラーが発生しました");}
     }
-    if(!incoming.length){toast("追加できる音楽ファイルがありません");return;}
+
+    if(!incoming.length){updateProgress(100,"追加できる音楽ファイルがありません");closeProgress();return;}
     const existingTracks=await loadTracksFromDB();
     const usedNames=new Set(existingTracks.map(t=>t.name));
     const conflicts=[];
     incoming.forEach((item,index)=>{if(usedNames.has(item.storageName))conflicts.push({name:item.storageName,index});});
     const chosen=await chooseDuplicateFiles(conflicts);
-    if(chosen===null&&conflicts.length){toast("追加をキャンセルしました");return;}
+    if(chosen===null&&conflicts.length){toast("追加をキャンセルしました");closeProgress();return;}
     const conflictIndex=new Map(conflicts.map((x,i)=>[x.index,i]));
     for(let index=0;index<incoming.length;index++){
       const item=incoming[index];
@@ -185,10 +238,11 @@
       const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
       await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
       usedNames.add(saveName);
+      updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
+      await yieldToUI();
     }
-    saveState(); await reloadPlaylistFromDB(); toast("読み込み完了！");
+    saveState(); await reloadPlaylistFromDB(); toast("読み込み完了！"); closeProgress();
   }
-
   const folderDirectoryInput = document.getElementById("folderDirectory");
   const btnAddMusic = document.getElementById("btnAddMusic");
 
