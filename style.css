@@ -299,9 +299,11 @@ input[type="range"] {
   transition: transform 0.1s linear;
 }
 
-#playbackRate {
+#playbackRate,
+#pitchShift {
   width: 100% !important;
   display: block;
+  box-sizing: border-box;
 }
 
 .controls {
