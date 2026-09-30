@@ -1489,17 +1489,6 @@
     statsSection:"再生回数、再生時間、履歴などを確認します。",
     themeSection:"アプリの外観テーマを設定します。"
   };
-  const sectionResetKeys = {
-    optionsSection:[STORAGE.volume,STORAGE.pitch,STORAGE.shuffle,STORAGE.repeat,STORAGE.favOnly,STORAGE.crossfade,STORAGE.silenceSkip,STORAGE.dMode],
-    waveSection:[STORAGE.waveMode,STORAGE.waveParticleCount,STORAGE.visualizerSettings],
-    visualizerDetailSection:[STORAGE.visualizerSettings],
-    eqSection:[STORAGE.eqState],
-    speakerSection:[STORAGE.channelLeft,STORAGE.channelRight,STORAGE.micMonitorVolume,STORAGE.micFeedbackStrength,STORAGE.speakerPairSwap,STORAGE.outputRoutes,STORAGE.mainOutputDevice,STORAGE.speakerSettings],
-    playlistSection:[STORAGE.playlistSettings],
-    queueSection:[STORAGE.queue],
-    statsSection:[STORAGE.playCounts,STORAGE.playHistory,STORAGE.playStats,STORAGE.playbackMonthly],
-    themeSection:[STORAGE.themeMode,STORAGE.customTheme]
-  };
   function showSectionHelp(id){
     const title = document.querySelector('[data-settings-section="'+id+'"] strong')?.textContent || "設定";
     showInSiteConfirm(title+" の説明", settingsHelpText[id] || "この設定の詳細を表示します。", null, "閉じる");
@@ -1514,17 +1503,6 @@
         help.title="この設定の説明";
         help.addEventListener("click",e=>{e.stopPropagation();showSectionHelp(sec.id);});
         wrap.appendChild(help);
-        if(sectionResetKeys[sec.id]) {
-          const reset=document.createElement("button"); reset.type="button"; reset.className="btn small ghost"; reset.textContent="この設定をリセット";
-          reset.addEventListener("click",e=>{
-            e.stopPropagation();
-            showInSiteConfirm("設定をリセット", "「"+title.textContent.replace("?","").trim()+"」だけを初期値に戻します。", ()=>{
-              (sectionResetKeys[sec.id]||[]).forEach(k=>localStorage.removeItem(k));
-              location.reload();
-            }, "リセット");
-          });
-          wrap.appendChild(reset);
-        }
         title.appendChild(wrap);
       }
     });
