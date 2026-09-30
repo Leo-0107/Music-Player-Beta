@@ -163,6 +163,7 @@
     localStorage.setItem(STORAGE.micFeedbackProtection, "true");
     localStorage.setItem(STORAGE.micFeedbackStrength, String(state.micFeedbackStrength));
     localStorage.setItem(STORAGE.speakerPairSwap, String(state.speakerPairSwap));
+    localStorage.setItem(STORAGE.visualizerSettings, JSON.stringify(state.visualizerSettings || {}));
     localStorage.setItem(STORAGE.outputRoutes, JSON.stringify(state.outputRoutes || []));
     localStorage.setItem(STORAGE.mainOutputDevice, state.mainOutputDeviceId || "");
     localStorage.setItem(STORAGE.speakerSettings, JSON.stringify(state.speakerSettings || {}));
@@ -2865,6 +2866,9 @@
             STORAGE.mainOutputDevice,
             STORAGE.speakerSettings,
             STORAGE.outputRoutes,
+            STORAGE.micFeedbackStrength,
+            STORAGE.speakerPairSwap,
+            STORAGE.visualizerSettings,
             STORAGE.playlistSettings,
             STORAGE.lastSong,
             STORAGE.lastPosition
