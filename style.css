@@ -299,6 +299,11 @@ input[type="range"] {
   transition: transform 0.1s linear;
 }
 
+#playbackRate {
+  width: 100% !important;
+  display: block;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
