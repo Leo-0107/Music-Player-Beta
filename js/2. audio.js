@@ -571,29 +571,35 @@
   function applyPairedSpeakerRouting() {
     if (!channelSplitter || !leftGainNode || !rightGainNode) return;
 
-    const connectRoute = (splitter, leftGain, rightGain, mode = "stereo") => {
+    const connectRoute = (splitter, leftGain, rightGain, leftChannel = "left", rightChannel = "right") => {
       try { splitter.disconnect(leftGain); } catch (e) {}
       try { splitter.disconnect(rightGain); } catch (e) {}
-      if (mode === "left") {
-        splitter.connect(leftGain, 0, 0);
-        splitter.connect(rightGain, 0, 0);
-      } else if (mode === "right") {
-        splitter.connect(leftGain, 1, 0);
-        splitter.connect(rightGain, 1, 0);
-      } else {
-        splitter.connect(leftGain, 0, 0);
-        splitter.connect(rightGain, 1, 0);
-      }
+
+      if (leftChannel === "left") splitter.connect(leftGain, 0, 0);
+      else if (leftChannel === "right") splitter.connect(leftGain, 1, 0);
+
+      if (rightChannel === "left") splitter.connect(rightGain, 0, 0);
+      else if (rightChannel === "right") splitter.connect(rightGain, 1, 0);
     };
 
-    // 出力機器ごとに、ステレオ・Lのみ・Rのみを個別指定する。
-    const mainMode = state.speakerSettings?.channelMode || "stereo";
-    connectRoute(channelSplitter, leftGainNode, rightGainNode, mainMode);
+    const mainLeftChannel = ["left", "right", "off"].includes(state.speakerSettings?.leftChannel)
+      ? state.speakerSettings.leftChannel
+      : (state.speakerSettings?.channelMode === "right" ? "right" : "left");
+    const mainRightChannel = ["left", "right", "off"].includes(state.speakerSettings?.rightChannel)
+      ? state.speakerSettings.rightChannel
+      : (state.speakerSettings?.channelMode === "left" ? "left" : "right");
+    connectRoute(channelSplitter, leftGainNode, rightGainNode, mainLeftChannel, mainRightChannel);
 
     for (const [deviceId, runtime] of additionalOutputRuntimes) {
       if (!runtime?.splitter) continue;
       const route = state.outputRoutes.find(item => item.deviceId === deviceId);
-      connectRoute(runtime.splitter, runtime.leftGain, runtime.rightGain, route?.channelMode || "stereo");
+      const leftChannel = ["left", "right", "off"].includes(route?.leftChannel)
+        ? route.leftChannel
+        : (route?.channelMode === "right" ? "right" : "left");
+      const rightChannel = ["left", "right", "off"].includes(route?.rightChannel)
+        ? route.rightChannel
+        : (route?.channelMode === "left" ? "left" : "right");
+      connectRoute(runtime.splitter, runtime.leftGain, runtime.rightGain, leftChannel, rightChannel);
     }
   }
 
@@ -1091,7 +1097,8 @@
           right: Number.isFinite(Number(oldMain.right)) ? Number(oldMain.right) : 1,
           delayMs: clampSpeakerDelay(oldMain.delayMs),
           enabled: true,
-       channelMode: "stereo"
+          leftChannel: oldMain.leftChannel || "left",
+          rightChannel: oldMain.rightChannel || "right"
         });
       }
 
@@ -1158,7 +1165,13 @@
         disconnected: mainId !== "default" && disconnectedOutputDeviceIds.has(mainId),
         left: currentLeftVolumeTarget,
         right: currentRightVolumeTarget,
-        delayMs: getMainOutputDelay()
+        delayMs: getMainOutputDelay(),
+        leftChannel: ["left", "right", "off"].includes(state.speakerSettings?.leftChannel)
+          ? state.speakerSettings.leftChannel
+          : (state.speakerSettings?.channelMode === "right" ? "right" : "left"),
+        rightChannel: ["left", "right", "off"].includes(state.speakerSettings?.rightChannel)
+          ? state.speakerSettings.rightChannel
+          : (state.speakerSettings?.channelMode === "left" ? "left" : "right")
       },
       ...state.outputRoutes.map((route, index) => ({
         selected: false,
@@ -1170,7 +1183,12 @@
         left: Number.isFinite(Number(route.left)) ? Number(route.left) : 1,
         right: Number.isFinite(Number(route.right)) ? Number(route.right) : 1,
         delayMs: clampSpeakerDelay(route.delayMs),
-        channelMode: ["stereo", "left", "right"].includes(route.channelMode) ? route.channelMode : "stereo"
+        leftChannel: ["left", "right", "off"].includes(route.leftChannel)
+          ? route.leftChannel
+          : (route.channelMode === "right" ? "right" : "left"),
+        rightChannel: ["left", "right", "off"].includes(route.rightChannel)
+          ? route.rightChannel
+          : (route.channelMode === "left" ? "left" : "right")
       }))
     ];
   }
@@ -1185,17 +1203,24 @@
     return "使用中";
   }
 
-  function setSpeakerChannelMode(entry, mode) {
-    const normalized = ["stereo", "left", "right"].includes(mode) ? mode : "stereo";
+  function setSpeakerChannelRoute(entry, side, mode) {
+    const normalized = ["left", "right", "off"].includes(mode) ? mode : "off";
+    const key = side === "left" ? "leftChannel" : "rightChannel";
     if (entry.selected) {
       if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
-      state.speakerSettings.channelMode = normalized;
+      state.speakerSettings[key] = normalized;
     } else if (entry.route) {
-      entry.route.channelMode = normalized;
+      entry.route[key] = normalized;
     }
     saveState();
     applyPairedSpeakerRouting();
     renderAdditionalOutputSpeakers();
+  }
+
+  function cycleSpeakerChannelRoute(entry, side) {
+    const current = side === "left" ? entry.leftChannel : entry.rightChannel;
+    const next = current === "left" ? "right" : current === "right" ? "off" : "left";
+    setSpeakerChannelRoute(entry, side, next);
   }
 
   async function testSpeakerOutput(entry) {
@@ -1301,18 +1326,6 @@
       signal.style.color = "var(--muted)";
       signal.style.marginTop = "2px";
 
-      const channelSelect = document.createElement("select");
-      channelSelect.className = "speakerChannelMode";
-      channelSelect.setAttribute("aria-label", entry.label + "の出力音声");
-      [["stereo","L/R"],["left","Lのみ"],["right","Rのみ"]].forEach(([value,label]) => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = label;
-        option.selected = entry.channelMode === value;
-        channelSelect.appendChild(option);
-      });
-      channelSelect.addEventListener("change", e => setSpeakerChannelMode(entry, e.target.value));
-
       const test = document.createElement("button");
       test.className = "btn small ghost";
       test.type = "button";
@@ -1342,7 +1355,7 @@
         actions.append(toggle, remove);
       }
 
-      actions.prepend(status, channelSelect, test);
+      actions.prepend(status, test);
       head.append(name, actions);
 
       const wrap = document.createElement("div");
@@ -1356,6 +1369,14 @@
         const safeValue = Number.isFinite(Number(value))
           ? Math.max(0, Math.min(2, Number(value)))
           : 1;
+
+        const routeMode = side === "left" ? entry.leftChannel : entry.rightChannel;
+        const routeModeButton = document.createElement("button");
+        routeModeButton.type = "button";
+        routeModeButton.className = "btn small ghost speakerChannelRouteButton";
+        routeModeButton.textContent = routeMode === "off" ? "停止" : routeMode === "left" ? "L" : "R";
+        routeModeButton.setAttribute("aria-label", entry.label + "の" + (side === "left" ? "L" : "R") + "出力を切り替える");
+        routeModeButton.addEventListener("click", () => cycleSpeakerChannelRoute(entry, side));
 
         const valueEl = document.createElement("span");
         valueEl.className = "channelValue";
@@ -1389,7 +1410,7 @@
 
         const label = document.createElement("strong");
         label.textContent = side === "left" ? "L" : "R";
-        item.append(valueEl, slider, label);
+        item.append(routeModeButton, valueEl, slider, label);
         return item;
       };
 
@@ -1745,7 +1766,9 @@
       left: 1,
       right: 1,
       delayMs: 0,
-      enabled: true
+      enabled: true,
+      leftChannel: "left",
+      rightChannel: "right"
     };
 
     // 接続に成功してから登録する。失敗した機器を「登録スピーカー」として保存しない。
