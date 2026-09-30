@@ -398,6 +398,9 @@
   function updateWaveParticleCount(value) {
     const n = Math.max(0, Math.min(1200, Math.round(Number(value) || 0)));
     state.waveParticleCount = n;
+    if (!state.visualizerModeSettings) state.visualizerModeSettings = {};
+    if (!state.visualizerModeSettings[state.waveMode]) state.visualizerModeSettings[state.waveMode] = {};
+    state.visualizerModeSettings[state.waveMode].particleCount = n;
     if (el.waveParticleCount) el.waveParticleCount.value = n;
     if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(n);
     saveState();
@@ -1027,13 +1030,14 @@
               return bands;
             })()
           : null;
-        const timeLeft = width * 0.01;
-        const timeRight = width * 1.10;
+        const cameraSpan = 1.12 + Math.min(0.34, Math.abs(Math.sin(waveViewYaw)) * 0.24 + Math.abs(waveViewPitch) * 0.10);
+        const timeLeft = -width * 0.20 * cameraSpan;
+        const timeRight = width * 1.20 * cameraSpan;
         const baseY = height * 0.97;
         const maxHeight = height * 0.78;
-        const freqDepth = width * 0.54;
+        const freqDepth = width * (0.50 + Math.min(0.14, Math.abs(Math.sin(waveViewYaw)) * 0.10));
         const freqTilt = height * 0.74;
-        const timeDepth = width * 0.40;
+        const timeDepth = width * (0.40 + Math.min(0.12, Math.abs(Math.cos(waveViewYaw)) * 0.08));
         const timeLift = height * 0.40;
 
         if (rows.length) {
