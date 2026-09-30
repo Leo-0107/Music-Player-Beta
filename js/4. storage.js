@@ -27,6 +27,7 @@
     micFeedbackStrength: "mp_mic_feedback_strength_v1",
     speakerPairSwap: "mp_speaker_pair_swap_v1",
     visualizerSettings: "mp_visualizer_settings_v1",
+    visualizerModeSettings: "mp_visualizer_mode_settings_v1",
     outputRoutes: "mp_output_routes_v1",
     mainOutputDevice: "mp_main_output_device_v1",
     speakerSettings: "mp_speaker_settings_v1",
