@@ -1,6 +1,7 @@
       showInSiteConfirm("再生履歴を削除しますか？", "再生履歴と再生回数のデータを削除します。", () => {
         state.playCounts = {};
         state.playHistory = {};
+        state.playStats = {};
         saveState();
         renderStats();
         renderSongList();
@@ -34,6 +35,7 @@
   });
 
   audio.addEventListener("pause", () => {
+    recordPartialPlayIfNeeded?.();
     updatePlayPauseUI();
     if (typeof drawWave === "function" && drawWave._wave3DHistory) {
       drawWave._wave3DSampleElapsed = 0;
@@ -53,9 +55,14 @@
     updatePlayPauseUI();
   });
 
+  let lastStatsTime = 0;
   audio.addEventListener("timeupdate", () => {
     const dur = Number(audio.duration);
     const cur = Number(audio.currentTime) || 0;
+    if (!audio.paused && state.currentSong && lastStatsTime > 0) {
+      recordPlaybackTime(Math.min(1.5, Math.max(0, cur - lastStatsTime)));
+    }
+    lastStatsTime = cur;
 
     if (el.timeNow) el.timeNow.textContent = fmtTime(cur);
     if (el.timeAll) el.timeAll.textContent = Number.isFinite(dur) && dur > 0 ? fmtTime(dur) : "0:00";
@@ -83,6 +90,8 @@
   });
 
   audio.addEventListener("ended", () => {
+    recordPlaybackTime(Math.min(1.5, Math.max(0, (Number(audio.duration) || 0) - (Number(lastStatsTime) || 0))));
+    lastStatsTime = 0;
     releaseWakeLock();
     if (state.activePlaylistName) {
       nextTrack(true);
@@ -289,6 +298,65 @@
       if (v > 0) setSleepTimer(v);
     });
   }
+
+  let waveViewYaw = 0;
+  let waveViewPitch = 0;
+  let waveViewDragging = false;
+  let waveViewPointerId = null;
+  let waveViewLastX = 0;
+  let waveViewLastY = 0;
+
+  function applyWaveView(point, width, height) {
+    const cx = width * 0.5;
+    const cy = height * 0.58;
+    const x = point.x - cx;
+    const y = point.y - cy;
+    const yaw = waveViewYaw;
+    const pitch = waveViewPitch;
+    const cosY = Math.cos(yaw);
+    const sinY = Math.sin(yaw);
+    const rotatedX = x * cosY - y * sinY * 0.32;
+    const rotatedY = x * sinY * 0.32 + y * cosY;
+    const cosP = Math.cos(pitch);
+    return {
+      x: cx + rotatedX,
+      y: cy + rotatedY * cosP - x * Math.sin(pitch) * 0.12,
+      age: point.age
+    };
+  }
+
+  function setupWaveViewGesture() {
+    if (!el.wave || el.wave._viewGestureBound) return;
+    el.wave._viewGestureBound = true;
+    el.wave.style.touchAction = "none";
+    el.wave.addEventListener("pointerdown", e => {
+      if (state.waveMode !== "3d") return;
+      waveViewDragging = true;
+      waveViewPointerId = e.pointerId;
+      waveViewLastX = e.clientX;
+      waveViewLastY = e.clientY;
+      try { el.wave.setPointerCapture(e.pointerId); } catch {}
+    });
+    el.wave.addEventListener("pointermove", e => {
+      if (!waveViewDragging || e.pointerId !== waveViewPointerId) return;
+      e.preventDefault();
+      waveViewYaw += (e.clientX - waveViewLastX) * 0.008;
+      waveViewPitch += (e.clientY - waveViewLastY) * 0.006;
+      waveViewPitch = Math.max(-0.95, Math.min(0.95, waveViewPitch));
+      waveViewLastX = e.clientX;
+      waveViewLastY = e.clientY;
+      requestWaveStaticFrame();
+    });
+    const end = e => {
+      if (e.pointerId !== waveViewPointerId) return;
+      waveViewDragging = false;
+      try { el.wave.releasePointerCapture(e.pointerId); } catch {}
+    };
+    el.wave.addEventListener("pointerup", end);
+    el.wave.addEventListener("pointercancel", end);
+  }
+
+  setupWaveViewGesture();
 
   // --- 描画ループ & 連続無音判定 ---
   function drawWave() {
@@ -784,7 +852,7 @@
             const amplitude = Math.max(0, amplitudeBands?.[bandIndex] || 0);
             const y = timeY + depth * freqTilt -
               amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
-            return { x, y, age };
+            return applyWaveView({ x, y, age }, width, height);
           };
 
           for (let t = rows.length - 1; t >= 0; t--) {
@@ -807,8 +875,9 @@
               const y = timeY + depth * freqTilt -
                 amplitude * maxHeight * 0.70 * (0.55 + 0.45 * freqRatio);
 
-              if (b === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
+              const point = applyWaveView({ x, y, age }, width, height);
+              if (b === 0) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
             }
 
             ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
