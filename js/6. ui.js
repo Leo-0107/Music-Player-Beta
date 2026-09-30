@@ -1242,7 +1242,7 @@
     speakerSection:[STORAGE.channelLeft,STORAGE.channelRight,STORAGE.micMonitorVolume,STORAGE.micFeedbackStrength,STORAGE.speakerPairSwap,STORAGE.outputRoutes,STORAGE.mainOutputDevice,STORAGE.speakerSettings],
     playlistSection:[STORAGE.playlistSettings],
     queueSection:[STORAGE.queue],
-    statsSection:[STORAGE.playCounts,STORAGE.playHistory,STORAGE.playStats],
+    statsSection:[STORAGE.playCounts,STORAGE.playHistory,STORAGE.playStats,STORAGE.playbackMonthly],
     themeSection:[STORAGE.themeMode,STORAGE.customTheme]
   };
   function showSectionHelp(id){
