@@ -4,6 +4,7 @@
     playCounts: "mp_counts_v12",
     playHistory: "mp_history_v12",
     playStats: "mp_stats_v1",
+    playbackMonthly: "mp_playback_monthly_v1",
     waveParticleCount: "mp_wave_particle_count_v1",
     eqState: "mp_eq_v12",
     volume: "mp_vol_v12",
