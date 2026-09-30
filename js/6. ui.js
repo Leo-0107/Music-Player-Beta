@@ -804,44 +804,110 @@
         ctx.lineTo(waveLeft + waveWidth, height - 1);
         ctx.stroke();
       } else if (state.waveMode === "a5") {
-        // 案5: 音の空間。時間を奥行き、周波数を左右に展開する。
+        // 案5: 現在の音を3軸で立体化。左右=周波数、前後=ステレオ定位、上下=強度。
         const spaceBands = 56;
-        const spaceRows = 28;
         const centerX = width * 0.5;
-        const centerY = height * 0.72;
-        const depthWidth = width * 0.92;
-        const depthHeight = height * 0.62;
-        for (let row = spaceRows - 1; row >= 0; row--) {
-          const depth = row / Math.max(1, spaceRows - 1);
-          const yBase = centerY - depth * depthHeight;
-          const xScale = 0.35 + depth * 0.65;
-          ctx.beginPath();
-          for (let b = 0; b < spaceBands; b++) {
-            const ratio = b / Math.max(1, spaceBands - 1);
-            const bin = Math.min(dataLen - 1, Math.floor(Math.pow(ratio, 1.45) * (dataLen - 1)));
-            const level = waveSmoothData[bin] || 0;
-            const x = centerX + (ratio - 0.5) * depthWidth * xScale;
-            const y = yBase - level * height * 0.30 * (0.45 + 0.55 * (1 - depth));
-            if (b === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        const baseY = height * 0.88;
+        const spanX = width * 0.84;
+        const depthSpan = width * 0.22;
+        const depthLift = height * 0.18;
+        const heightScale = height * 0.62;
+
+        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
+          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
+
+          if (!drawWave._waveA5Smooth || drawWave._waveA5Smooth.length !== spaceBands) {
+            drawWave._waveA5Smooth = new Float32Array(spaceBands);
+            drawWave._waveA5Balance = new Float32Array(spaceBands);
           }
-          ctx.strokeStyle = `hsla(${190 + depth * 80}, 90%, 62%, ${0.12 + (1 - depth) * 0.65})`;
-          ctx.lineWidth = row === 0 ? 1.8 : 0.8;
+
+          const smoothLevel = drawWave._waveA5Smooth;
+          const smoothBalance = drawWave._waveA5Balance;
+
+          const getBand = (data, bandIndex) => {
+            const start = Math.floor(Math.pow(bandIndex / spaceBands, 1.45) * data.length);
+            const end = Math.min(
+              data.length,
+              Math.max(start + 1, Math.floor(Math.pow((bandIndex + 1) / spaceBands, 1.45) * data.length))
+            );
+            let level = 0;
+            for (let i = start; i < end; i++) level = Math.max(level, (data[i] || 0) / 255);
+            return level;
+          };
+
+          const points = [];
+          for (let b = 0; b < spaceBands; b++) {
+            const left = getBand(waveLeftOutputData, b);
+            const right = getBand(waveRightOutputData, b);
+            const levelTarget = Math.min(1, Math.max(left, right) * 2);
+            const balanceTarget = (right + left) > 0.02
+              ? (right - left) / Math.max(0.02, right + left)
+              : 0;
+
+            smoothLevel[b] += (levelTarget - smoothLevel[b]) * 0.16;
+            smoothBalance[b] += (balanceTarget - smoothBalance[b]) * 0.16;
+
+            const ratio = b / Math.max(1, spaceBands - 1);
+            const freqX = centerX + (ratio - 0.5) * spanX;
+            const depth = smoothBalance[b];
+            const x = freqX + depth * depthSpan;
+            const y = baseY - smoothLevel[b] * heightScale - depth * depthLift;
+            points.push({ x, y, depth, level: smoothLevel[b], ratio });
+          }
+
+          // 床面。前後方向が見えるよう、ステレオ位置の基準線を薄く表示。
+          ctx.strokeStyle = "rgba(255,255,255,0.10)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(centerX - spanX * 0.5 - depthSpan, baseY);
+          ctx.lineTo(centerX + spanX * 0.5 + depthSpan, baseY);
           ctx.stroke();
+
+          // 周波数方向の立体波形。
+          ctx.beginPath();
+          points.forEach((p, i) => {
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+          });
+          ctx.strokeStyle = "hsla(195, 90%, 62%, 0.92)";
+          ctx.lineWidth = 2.2;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          ctx.stroke();
+
+          // 各帯域を床まで接続して、強度と前後位置を同時に見えるようにする。
+          for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            if (p.level < 0.015) continue;
+            const alpha = 0.08 + p.level * 0.18;
+            ctx.strokeStyle = `hsla(${185 + p.ratio * 105}, 90%, 62%, ${alpha})`;
+            ctx.lineWidth = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(p.x, baseY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+          }
+
+          // ステレオ定位を示す前後方向の補助ライン。
+          const midY = baseY - height * 0.02;
+          ctx.strokeStyle = "rgba(255,255,255,0.07)";
+          ctx.beginPath();
+          ctx.moveTo(centerX - depthSpan, midY);
+          ctx.lineTo(centerX + depthSpan, midY);
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(255,255,255,0.68)";
+          ctx.font = "10px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("低", Math.max(4, centerX - spanX * 0.5), baseY + 14);
+          ctx.textAlign = "right";
+          ctx.fillText("高", Math.min(width - 4, centerX + spanX * 0.5), baseY + 14);
+          ctx.textAlign = "center";
+          ctx.fillText("L ← 前後 → R", centerX, Math.max(12, baseY - height * 0.74));
         }
-        ctx.strokeStyle = "rgba(255,255,255,0.12)";
-        ctx.beginPath();
-        ctx.moveTo(centerX - depthWidth * 0.5, centerY);
-        ctx.lineTo(centerX + depthWidth * 0.5, centerY);
-        ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.72)";
-        ctx.font = "10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText("低", 8, centerY + 4);
-        ctx.textAlign = "right";
-        ctx.fillText("高", width - 8, centerY + 4);
       } else if (state.waveMode === "a6") {
-        // 案6: 低・中・高域のエネルギーに連動して背景を変化させる。
+        // 案6: 低・中・高域を3つの動くリングとして表示し、背景の色変化だけで終わらせない。
         const bandEnergy = (from, to) => {
           let sum = 0;
           let count = 0;
@@ -853,23 +919,75 @@
           }
           return count ? sum / count : 0;
         };
+
         const low = bandEnergy(0.01, 0.10);
         const mid = bandEnergy(0.10, 0.42);
         const high = bandEnergy(0.42, 0.92);
-        const glow = Math.min(1, low * 1.7 + mid * 1.1 + high * 0.8);
-        const g = ctx.createRadialGradient(width * 0.5, height * 0.52, 0, width * 0.5, height * 0.52, Math.max(width, height) * 0.78);
-        g.addColorStop(0, `hsla(22, 90%, 60%, ${0.10 + low * 0.28})`);
-        g.addColorStop(0.48, `hsla(190, 85%, 58%, ${0.06 + mid * 0.20})`);
-        g.addColorStop(1, `hsla(285, 85%, 58%, ${0.03 + high * 0.16})`);
-        ctx.fillStyle = g;
+        const total = Math.min(1, low * 1.5 + mid * 1.1 + high * 0.8);
+        const cx = width * 0.5;
+        const cy = height * 0.52;
+        const baseRadius = Math.min(width, height) * 0.13;
+
+        const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.82);
+        bg.addColorStop(0, `hsla(205, 90%, 58%, ${0.06 + total * 0.14})`);
+        bg.addColorStop(0.5, `hsla(265, 85%, 58%, ${0.035 + mid * 0.10})`);
+        bg.addColorStop(1, `hsla(320, 85%, 58%, ${0.015 + high * 0.07})`);
+        ctx.fillStyle = bg;
         ctx.fillRect(0, 0, width, height);
-        for (let i = 0; i < 3; i++) {
-          const radius = (0.18 + i * 0.16 + glow * 0.12) * Math.min(width, height);
+
+        const rings = [
+          { energy: low, hue: 35, radius: baseRadius * (1.45 + low * 2.1), wobble: height * 0.12, speed: 0.75, tilt: 0.38 },
+          { energy: mid, hue: 185, radius: baseRadius * (2.25 + mid * 2.3), wobble: height * 0.10, speed: -0.52, tilt: -0.25 },
+          { energy: high, hue: 285, radius: baseRadius * (3.05 + high * 2.0), wobble: height * 0.08, speed: 0.95, tilt: 0.16 }
+        ];
+
+        rings.forEach((ring, ringIndex) => {
+          const points = 96;
+          const phase = now * 0.001 * ring.speed;
           ctx.beginPath();
-          ctx.arc(width * 0.5, height * 0.52, radius, 0, Math.PI * 2);
-          ctx.strokeStyle = `hsla(${180 + i * 45}, 90%, 65%, ${0.08 + glow * 0.16})`;
-          ctx.lineWidth = 1 + glow * 2;
+          for (let i = 0; i <= points; i++) {
+            const t = (i / points) * Math.PI * 2;
+            const wave = Math.sin(t * (3 + ringIndex) + phase * 2.2) * ring.wobble * (0.20 + ring.energy * 1.35);
+            const pulse = ring.energy * Math.sin(t * 2 - phase * 1.4) * Math.min(width, height) * 0.035;
+            const rx = ring.radius + wave + pulse;
+            const ry = ring.radius * (0.48 + ring.energy * 0.22) + wave * 0.42;
+            const x = cx + Math.cos(t + phase) * rx;
+            const y = cy + Math.sin(t + phase * 0.7) * ry + Math.sin(t * 2 + phase) * ring.tilt * ring.energy * 14;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = `hsla(${ring.hue}, 88%, 64%, ${0.22 + ring.energy * 0.62})`;
+          ctx.lineWidth = 1.2 + ring.energy * 2.8;
+          ctx.shadowBlur = 8 + ring.energy * 18;
+          ctx.shadowColor = `hsla(${ring.hue}, 90%, 62%, 0.45)`;
           ctx.stroke();
+          ctx.shadowBlur = 0;
+        });
+
+        // 中央の反応体。全帯域の強さに合わせて膨張・収縮する。
+        const coreRadius = baseRadius * (0.55 + total * 1.45);
+        const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius);
+        core.addColorStop(0, `hsla(195, 95%, 72%, ${0.10 + total * 0.28})`);
+        core.addColorStop(0.7, `hsla(270, 90%, 64%, ${0.04 + total * 0.12})`);
+        core.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 低音が強いほど大きく、高音が強いほど細かく見える短い光点。
+        const dots = 18;
+        for (let i = 0; i < dots; i++) {
+          const t = (i / dots) * Math.PI * 2 + now * 0.0004 * (i % 2 ? -1 : 1);
+          const orbit = baseRadius * (3.5 + low * 2.5 + high * 0.8);
+          const wobble = Math.sin(t * 3 + now * 0.002) * high * 12;
+          const x = cx + Math.cos(t) * (orbit + wobble);
+          const y = cy + Math.sin(t) * (orbit * 0.52 + wobble * 0.35);
+          const size = 0.8 + high * 2.4 + mid * 1.4;
+          ctx.fillStyle = `hsla(${210 + i * 7}, 90%, 70%, ${0.20 + total * 0.55})`;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
         }
       } else if (state.waveMode === "a7") {
         // 案7: 粒子ビジュアライザー。粒子数0なら粒子処理を行わない。
