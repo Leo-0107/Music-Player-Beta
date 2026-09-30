@@ -1347,6 +1347,34 @@
     }
   }
 
+  function appendSpeakerNameContent(nameEl, label, disconnected = false) {
+    nameEl.classList.add("speakerNameScroll");
+    const viewport = document.createElement("span");
+    viewport.className = "speakerNameScrollViewport";
+    const textEl = document.createElement("span");
+    textEl.className = "speakerNameScrollText";
+    textEl.textContent = String(label || "");
+    viewport.appendChild(textEl);
+    nameEl.appendChild(viewport);
+    if (disconnected) {
+      const disconnectedMark = document.createElement("span");
+      disconnectedMark.className = "speakerDisconnectedMark";
+      disconnectedMark.textContent = "▲";
+      disconnectedMark.title = "出力機器が接続されていません";
+      nameEl.appendChild(disconnectedMark);
+    }
+    requestAnimationFrame(() => {
+      const overflow = textEl.scrollWidth > viewport.clientWidth + 1;
+      nameEl.classList.toggle("speakerNameIsLong", overflow);
+      if (overflow) {
+        const distance = Math.max(20, textEl.scrollWidth - viewport.clientWidth);
+        const duration = Math.max(3.5, Math.min(12, distance / 24 + 2.5));
+        nameEl.style.setProperty("--speaker-name-scroll-distance", distance + "px");
+        nameEl.style.setProperty("--speaker-name-scroll-duration", duration + "s");
+      }
+    });
+  }
+
   function renderAdditionalOutputSpeakers() {
     if (!el.additionalOutputSpeakers) return;
     el.additionalOutputSpeakers.innerHTML = "";
@@ -1363,16 +1391,7 @@
 
       const name = document.createElement("strong");
       name.className = "additionalOutputSpeakerName";
-      name.textContent = "";
-      if (entry.disconnected) {
-        const disconnectedMark = document.createElement("span");
-        disconnectedMark.style.color = "#f8d25c";
-        disconnectedMark.style.marginRight = "4px";
-        disconnectedMark.textContent = "▲";
-        disconnectedMark.title = "出力機器が接続されていません";
-        name.appendChild(disconnectedMark);
-      }
-      name.appendChild(document.createTextNode(entry.label));
+      appendSpeakerNameContent(name, entry.label, entry.disconnected);
 
       const actions = document.createElement("div");
       actions.className = "additionalOutputSpeakerActions";
@@ -1908,7 +1927,7 @@
         info.className = "outputDeviceItemInfo";
 
         const name = document.createElement("strong");
-        name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
+        appendSpeakerNameContent(name, getOutputDeviceLabel(device, "音声出力デバイス"), false);
 
         const stateText = document.createElement("small");
         const isMain = key === mainId || (
@@ -2171,7 +2190,7 @@
         info.className = "outputDeviceItemInfo";
 
         const name = document.createElement("strong");
-        name.textContent = getOutputDeviceLabel(device, "音声出力デバイス");
+        appendSpeakerNameContent(name, getOutputDeviceLabel(device, "音声出力デバイス"), false);
 
         const stateText = document.createElement("small");
         const isMain = key === mainId || (
