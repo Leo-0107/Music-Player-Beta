@@ -3,6 +3,7 @@
     queue: "mp_queue_v12",
     playCounts: "mp_counts_v12",
     playHistory: "mp_history_v12",
+  playStats: "mp_stats_v1",
     eqState: "mp_eq_v12",
     volume: "mp_vol_v12",
     pitch: "mp_pitch_v12",
