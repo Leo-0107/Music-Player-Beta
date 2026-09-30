@@ -696,6 +696,9 @@
     if (!stats) return;
     stats.totalPlayback += deltaSeconds;
     stats.lastPlayed = Date.now();
+    const monthKey = localDateKey(new Date()).slice(0, 7);
+    if (!state.playbackMonthly || typeof state.playbackMonthly !== "object") state.playbackMonthly = {};
+    state.playbackMonthly[monthKey] = Math.max(0, Number(state.playbackMonthly[monthKey]) || 0) + deltaSeconds;
     saveState();
   }
 
@@ -1891,9 +1894,10 @@
         d.setMonth(d.getMonth()-i);
         const prefix=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
         const count=Object.entries(state.playHistory).reduce((sum,[key,val])=>key.startsWith(prefix)?sum+(Number(val)||0):sum,0);
+        const playback=Number(state.playbackMonthly?.[prefix]) || 0;
         const row=document.createElement("div");
         row.className="statTrackRow";
-        row.innerHTML=`<div class="statTrackMain"><strong>${prefix}</strong></div><div class="statTrackMeta">再生 ${count}回</div>`;
+        row.innerHTML=`<div class="statTrackMain"><strong>${prefix}</strong></div><div class="statTrackMeta">再生 ${count}回<br>再生時間 ${formatPlaybackDuration(playback)}</div>`;
         el.statsMonthlyList.appendChild(row);
       }
     }
