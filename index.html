@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.2</title>
+<title>Music Player v7.2.02</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 <style id="responsive-song-list-fix">
@@ -150,8 +150,13 @@
           <button class="btn small" id="btnSilenceSkip" style="width:100%;">無音スキップ: ON</button>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
           <button class="btn small" id="btnMicMonitor" style="width:100%; margin-top:10px;">マイクモニター: OFF</button>
-          <button class="btn small" id="btnMicFeedbackProtection" style="width:100%; margin-top:10px;">ハウリング防止: ON</button>
+          <button class="btn small" id="btnMicFeedbackProtection" style="width:100%; margin-top:10px;">ハウリング防止: 常時ON</button>
+          <div class="field" style="margin-top:10px;">
+            <label>ハウリング抑制強度: <span id="micFeedbackStrengthText">100%</span></label>
+            <input type="range" id="micFeedbackStrength" min="0" max="100" step="1" value="100">
+          </div>
           <div id="micFeedbackStatus" style="min-height:1.2em; font-size:.78rem; color:var(--accent); margin-top:6px;"></div>
+          <div id="micClipStatus" style="min-height:1.2em; font-size:.78rem; color:var(--accent); margin-top:4px;"></div>
           <div id="micMonitorLatencyText" style="font-size:.82rem; color:var(--muted); margin-top:6px;">推定遅延: --</div>
           <div class="field" style="margin-top:10px;">
             <label>マイク音量: <span id="micMonitorVolumeText">100%</span></label>
@@ -239,13 +244,14 @@
           <div class="speakerSectionHeader">
             <div>
               <div class="sectionTitle" style="margin-bottom:4px;">スピーカー</div>
-              <div class="speakerSectionHint">出力先を選択・追加し、各スピーカーのL/R音量と遅延を個別に調整できます。</div>
+              <div class="speakerSectionHint">出力先を選択・追加し、入力信号のL/Rと実際の出力L/R、状態、遅延を確認できます。</div>
             </div>
             <div class="speakerDeviceActions">
               <button class="btn small" id="btnSelectOutput" type="button">スピーカーを選択</button>
             </div>
           </div>
           <div id="additionalOutputSpeakers" class="speakerList"></div>
+          <button class="btn small ghost" id="btnSpeakerPairSwap" type="button" style="width:100%; margin-top:10px;">左右を入れ替え: OFF</button>
         </div>
 
         <div class="sectionCard speakerPanel">
