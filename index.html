@@ -151,6 +151,8 @@
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
           <button class="btn small" id="btnMicMonitor" style="width:100%; margin-top:10px;">マイクモニター: OFF</button>
           <button class="btn small" id="btnMicFeedbackProtection" style="width:100%; margin-top:10px;">ハウリング防止: ON</button>
+          <div id="micFeedbackStatus" style="min-height:1.2em; font-size:.78rem; color:var(--accent); margin-top:6px;"></div>
+          <div id="micMonitorLatencyText" style="font-size:.82rem; color:var(--muted); margin-top:6px;">推定遅延: --</div>
           <div class="field" style="margin-top:10px;">
             <label>マイク音量: <span id="micMonitorVolumeText">100%</span></label>
             <input type="range" id="micMonitorVolume" min="0" max="2" step="0.01" value="1">
@@ -187,6 +189,14 @@
             <button class="btn small" data-wave="a2">案2</button>
             <button class="btn small" data-wave="a3">案3</button>
             <button class="btn small" data-wave="a4">案4</button>
+            <button class="btn small" data-wave="a5">案5</button>
+            <button class="btn small" data-wave="a6">案6</button>
+            <button class="btn small" data-wave="a7">案7</button>
+            <button class="btn small" data-wave="a8">案8</button>
+            <div class="field" style="width:100%; margin-top:10px;">
+              <label>案7 粒子数: <span id="waveParticleCountText">0</span></label>
+              <input type="range" id="waveParticleCount" min="0" max="1200" step="10" value="0">
+            </div>
           </div>
         </div>
       </div>
@@ -486,7 +496,7 @@
         </button>
         <button class="settingsCard" data-settings-section="waveSection">
           <span class="settingsIcon">〰️</span>
-          <span class="settingsCardText"><strong>波形</strong><small>3D・2D・案1〜案4から表示方法を選択</small></span>
+          <span class="settingsCardText"><strong>波形</strong><small>3D・2D・案1〜案8から表示方法を選択</small></span>
           <span class="settingsArrow">›</span>
         </button>
       </div>
