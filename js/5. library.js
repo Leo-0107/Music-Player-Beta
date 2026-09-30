@@ -1628,11 +1628,7 @@
           .filter(Boolean)
       : getVisibleSongs();
 
-    const candidates = sourceSongs.filter(song => !used.has(song.name));
-    if (candidates.length) {
-      remaining.push(candidates[Math.floor(Math.random() * candidates.length)].name);
-    }
-
+    // 選択位置より後ろの順番は、現在のキュー／サイクル順をそのまま維持する。
     const nextOrder = [selectedName, ...remaining];
 
     if (state.activePlaylistName) {
@@ -1656,7 +1652,7 @@
       return;
     }
     const manualSet = new Set(state.queue);
-    let plannedIndex = -1;
+    let manualIndex = 0;
     let draggedQueueName = null;
     let dragPreview = null;
     names.forEach((name) => {
@@ -1664,8 +1660,8 @@
       if (!s) return;
       const row = document.createElement("div");
       const isManual = manualSet.has(name);
-      if (!isManual) plannedIndex++;
-      const currentPlannedIndex = plannedIndex;
+      const isNextManual = isManual && manualIndex === 0;
+      if (isManual) manualIndex++;
       row.className = "song queuePreviewRow";
       row.draggable = isManual;
       row.dataset.queueName = name;
@@ -1676,7 +1672,7 @@
           <div class="songDuration queueDuration" data-duration-for="${escapeHTML(s.name)}">${formatTrackDuration(s.duration)}</div>
         </div>
         <div class="songRight">
-          <span class="queuePlanBadge">${isManual ? "次に再生" : "予定"}</span>
+          <span class="queuePlanBadge">${isNextManual ? "次に再生" : (isManual ? "キュー" : "予定")}</span>
           ${isManual ? '<button class="btn small danger delQueueBtn">削除</button>' : ''}
         </div>
       `;
@@ -1743,13 +1739,25 @@
           return;
         }
 
-        const selectedIndex = names.indexOf(name);
-        state.queue = selectedIndex >= 0
-          ? names.slice(selectedIndex + 1).filter(queueName =>
-              queueName !== name && state.playlist.some(song => song.name === queueName))
-          : [];
-        saveState();
-        playSong(s, true, { preservePlaylistContext: false });
+        // 予定曲を選んでも、後続のサイクル順や手動キューを作り直さない。
+        // これにより、選択した位置によって後続曲だけがランダム化されることを防ぐ。
+        if (state.activePlaylistName) {
+          const cycleIndex = Array.isArray(state.playlistCycleOrder)
+            ? state.playlistCycleOrder.indexOf(name)
+            : -1;
+          if (cycleIndex >= 0) {
+            state.playlistCycleIndex = cycleIndex;
+            state.playlistCycleSeen = state.playlistCycleOrder.slice(0, cycleIndex + 1);
+          }
+          saveState();
+          playSong(s, true, { preservePlaylistContext: true });
+        } else {
+          ensureHomeCycle();
+          const cycleIndex = homeCycleOrder.indexOf(name);
+          if (cycleIndex >= 0) homeCycleIndex = cycleIndex;
+          saveState();
+          playSong(s, true, { preservePlaylistContext: false });
+        }
         renderQueue();
       });
       el.queueList.appendChild(row);
