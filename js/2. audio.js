@@ -675,6 +675,48 @@
       status.style.color = "var(--text)";
       status.style.fontWeight = "600";
       list.appendChild(status);
+
+      const controls = document.createElement("div");
+      controls.className = "speakerMeasurementControls";
+
+      const makeMeasurementControl = (labelText, initial, aria, onInput) => {
+        const wrap = document.createElement("label");
+        wrap.className = "speakerMeasurementControl";
+        const title = document.createElement("span");
+        title.textContent = labelText;
+        const value = document.createElement("span");
+        value.className = "speakerMeasurementControlValue";
+        value.textContent = Math.round(initial * 100) + "%";
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.min = "0";
+        slider.max = "2";
+        slider.step = "0.01";
+        slider.value = String(initial);
+        slider.setAttribute("aria-label", aria);
+        slider.addEventListener("input", () => {
+          const n = Math.max(0, Math.min(2, Number(slider.value)));
+          value.textContent = Math.round(n * 100) + "%";
+          onInput(n);
+        });
+        wrap.append(title, value, slider);
+        return wrap;
+      };
+
+      let measurementMicGain = 1;
+      let measurementOutputGain = 1;
+      controls.append(
+        makeMeasurementControl("マイク入力", measurementMicGain, "測定用マイク入力レベル", n => {
+          measurementMicGain = n;
+          if (window.__musicPlayerMeasurementMicGain) {
+            window.__musicPlayerMeasurementMicGain.gain.setTargetAtTime(n, audioCtx.currentTime, 0.03);
+          }
+        }),
+        makeMeasurementControl("スピーカー出力", measurementOutputGain, "測定用スピーカー出力レベル", n => {
+          measurementOutputGain = n;
+        })
+      );
+      list.appendChild(controls);
     }
     if (modal) modal.hidden = false;
     document.body.classList.add("output-device-modal-open");
@@ -688,10 +730,14 @@
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
       const micSource = audioCtx.createMediaStreamSource(micStream);
+      const measurementMicGainNode = audioCtx.createGain();
+      measurementMicGainNode.gain.value = 1;
+      window.__musicPlayerMeasurementMicGain = measurementMicGainNode;
+      micSource.connect(measurementMicGainNode);
       const micAnalyser = audioCtx.createAnalyser();
       micAnalyser.fftSize = 2048;
       micAnalyser.smoothingTimeConstant = 0;
-      micSource.connect(micAnalyser);
+      measurementMicGainNode.connect(micAnalyser);
       const micData = new Uint8Array(micAnalyser.fftSize);
 
       const allEntries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
@@ -737,7 +783,7 @@
         osc.type = "sine";
         osc.frequency.setValueAtTime(1100, now);
         gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.008);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.12 * measurementOutputGain), now + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
         osc.connect(gain);
 
@@ -791,6 +837,10 @@
     } finally {
       if (modal) modal.hidden = true;
       document.body.classList.remove("output-device-modal-open");
+      if (window.__musicPlayerMeasurementMicGain === measurementMicGainNode) {
+        delete window.__musicPlayerMeasurementMicGain;
+      }
+      try { measurementMicGainNode?.disconnect(); } catch (e) {}
       if (outputBridgeAudio) outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
       if (typeof speakerBusNode !== "undefined" && speakerBusNode) {
         for (const route of state.outputRoutes) {
