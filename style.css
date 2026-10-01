@@ -1151,10 +1151,13 @@ kbd {
   background: var(--panel2);
 }
 .additionalOutputSpeakerHead {
+  display: grid;
+  gap: 6px;
+}
+.additionalOutputSpeakerActionRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  min-width: 0;
 }
 .additionalOutputSpeakerActions {
   display: flex;
