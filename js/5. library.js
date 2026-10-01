@@ -1037,12 +1037,16 @@
       startX = e.clientX;
       startY = e.clientY;
       clearTimer();
+      // 長押し後の最初の移動でブラウザ側へポインターが奪われないよう、
+      // pointerdown の時点で対象行を pointer capture しておく。
+      try { row.setPointerCapture(pointerId); } catch {}
       timer = setTimeout(() => {
         dragging = true;
         suppressNextSongClick = true;
         row._suppressClick = true;
         row.classList.add("longPressDragging");
         document.body.classList.add("reorder-dragging");
+        // capture は pointerdown 時から維持する。ここで取り直してもよい。
         try { row.setPointerCapture(pointerId); } catch {}
       }, LONG_PRESS_MS);
     });
