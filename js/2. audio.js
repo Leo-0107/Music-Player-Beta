@@ -1247,6 +1247,7 @@
         mainDelayNode.delayTime.setTargetAtTime(state.speakerSettings.mainDelayMs / 1000, audioCtx.currentTime, 0.01);
       }
       state.speakerSettings.mainOutputLabel = newMain.label;
+      state.speakerSettings.mainOutputGroupId = newMain.groupId || "";
 
       state.mainOutputDeviceId = normalized;
       applyPairedSpeakerRouting();
@@ -1468,16 +1469,6 @@
         actions.appendChild(mainToggle);
       }
 
-      const signal = document.createElement("small");
-      signal.className = "speakerSignalPath";
-      const pair = getActiveSpeakerPair();
-      const sourceChannel = state.speakerPairSwap ? "R/L" : "L/R";
-      signal.textContent = "入力 " + sourceChannel + " → 出力 L/R";
-      signal.style.display = "block";
-      signal.style.fontSize = ".75rem";
-      signal.style.color = "var(--muted)";
-      signal.style.marginTop = "2px";
-
       if (!entry.selected) {
         const toggle = document.createElement("button");
         toggle.className = "btn small additionalOutputSpeakerToggle";
@@ -1498,8 +1489,11 @@
         actions.append(toggle, remove);
       }
 
-      actions.prepend(status);
-      head.append(name, actions);
+      head.append(name);
+      const actionRow = document.createElement("div");
+      actionRow.className = "additionalOutputSpeakerActionRow";
+      actionRow.append(actions);
+      head.append(actionRow);
 
       const wrap = document.createElement("div");
       wrap.className = "channelVolumeWrap additionalChannelVolumeWrap";
@@ -1602,7 +1596,7 @@
 
       delayWrap.append(delayLabel, delayDown, delayInput, delayUnit, delayUp);
       wrap.append(makeChannel("left", entry.left), makeChannel("right", entry.right));
-      card.append(head, signal, wrap, delayWrap);
+      card.append(head, wrap, delayWrap);
       el.additionalOutputSpeakers.appendChild(card);
     }
   }
@@ -1794,6 +1788,76 @@
     return runtime;
   }
 
+  async function rebindStoredOutputRoutes(outputs = null) {
+    const devices = outputs || await enumerateAudioOutputs();
+    const physical = devices.filter(device =>
+      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
+    );
+    const used = new Set();
+
+    const findMatch = (saved, excludeId = "") => {
+      const exact = physical.find(device =>
+        device.deviceId === saved?.deviceId && device.deviceId !== excludeId
+      );
+      if (exact) return exact;
+      if (saved?.groupId) {
+        const groupMatches = physical.filter(device =>
+          device.groupId && device.groupId === saved.groupId && device.deviceId !== excludeId
+        );
+        if (groupMatches.length === 1) return groupMatches[0];
+      }
+      const label = String(saved?.label || "").trim();
+      if (label) {
+        const labelMatches = physical.filter(device =>
+          String(device.label || "").trim() === label &&
+          device.deviceId !== excludeId &&
+          !used.has(device.deviceId)
+        );
+        if (labelMatches.length === 1) return labelMatches[0];
+      }
+      return null;
+    };
+
+    for (const route of state.outputRoutes) {
+      if (!route?.deviceId) continue;
+      const match = findMatch(route, route.deviceId);
+      if (!match || match.deviceId === route.deviceId) {
+        if (match) used.add(match.deviceId);
+        continue;
+      }
+      const oldId = route.deviceId;
+      const oldRuntime = additionalOutputRuntimes.get(oldId);
+      if (oldRuntime) {
+        try { speakerBusNode?.disconnect(oldRuntime.splitter); } catch (e) {}
+        try { oldRuntime.audio.pause(); } catch (e) {}
+        try { oldRuntime.audio.srcObject = null; } catch (e) {}
+        try { oldRuntime.audio.remove(); } catch (e) {}
+        additionalOutputRuntimes.delete(oldId);
+      }
+      route.deviceId = match.deviceId;
+      route.label = match.label || route.label;
+      route.groupId = match.groupId || route.groupId || "";
+      used.add(match.deviceId);
+    }
+
+    const mainId = state.mainOutputDeviceId || "";
+    if (mainId) {
+      const mainSaved = {
+        deviceId: mainId,
+        label: state.speakerSettings?.mainOutputLabel || "",
+        groupId: state.speakerSettings?.mainOutputGroupId || ""
+      };
+      const match = findMatch(mainSaved, mainId);
+      if (match && match.deviceId !== mainId) {
+        state.mainOutputDeviceId = match.deviceId;
+        if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+        state.speakerSettings.mainOutputLabel = match.label || mainSaved.label;
+        state.speakerSettings.mainOutputGroupId = match.groupId || mainSaved.groupId || "";
+      }
+    }
+    saveState();
+  }
+
   async function updateDisconnectedOutputDeviceIds() {
     if (!navigator.mediaDevices?.enumerateDevices) return;
 
@@ -1906,6 +1970,7 @@
     const route = {
       deviceId,
       label,
+      groupId: device?.groupId || "",
       left: 1,
       right: 1,
       delayMs: 0,
@@ -2362,6 +2427,8 @@
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
+      const outputs = await enumerateAudioOutputs();
+      await rebindStoredOutputRoutes(outputs);
       await restoreStoredMainOutputIfAvailable();
       await updateOutputDeviceName();
       await updateDisconnectedOutputDeviceIds();
@@ -2741,13 +2808,21 @@
 
   function createPitchShifter(ctx){
     const node = ctx.createScriptProcessor(1024, 2, 2);
-    const bufferLength = Math.max(2048, Math.round(ctx.sampleRate * 0.18));
+    const bufferLength = Math.max(4096, Math.round(ctx.sampleRate * 0.22));
     const buffers = [new Float32Array(bufferLength), new Float32Array(bufferLength)];
-    const grainSize = Math.max(512, Math.round(ctx.sampleRate * 0.09));
+    const grainSize = Math.max(1024, Math.round(ctx.sampleRate * 0.11));
     const stateRef = { pitch: 1 };
     let writeIndex = 0;
-    let readA = 0;
-    let readB = bufferLength * 0.5;
+    let readA = bufferLength * 0.25;
+    let readB = bufferLength * 0.75;
+
+    const resetState = () => {
+      buffers.forEach(buffer => buffer.fill(0));
+      writeIndex = 0;
+      readA = bufferLength * 0.25;
+      readB = bufferLength * 0.75;
+    };
+
     const readInterpolated = (buffer, pos) => {
       const p = (pos + bufferLength) % bufferLength;
       const i0 = Math.floor(p);
@@ -2755,40 +2830,62 @@
       const f = p - i0;
       return buffer[i0] * (1 - f) + buffer[i1] * f;
     };
+
     node.onaudioprocess = e => {
       const input = e.inputBuffer;
       const output = e.outputBuffer;
       const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
+
       if (Math.abs(pitch - 1) < 0.0001) {
         for (let ch = 0; ch < 2; ch++) {
           const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
           const dst = output.getChannelData(ch);
-          if (src) dst.set(src); else dst.fill(0);
+          if (src) dst.set(src);
+          else dst.fill(0);
         }
         return;
       }
+
       for (let ch = 0; ch < 2; ch++) {
         const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
         const dst = output.getChannelData(ch);
         const buf = buffers[ch];
         let w = writeIndex, a = readA, b = readB;
+
         for (let i = 0; i < dst.length; i++) {
           buf[w] = src ? (src[i] || 0) : 0;
           const phaseA = (((a % grainSize) + grainSize) % grainSize) / grainSize;
           const phaseB = (((b % grainSize) + grainSize) % grainSize) / grainSize;
           const gainA = phaseA < 0.5 ? phaseA * 2 : (1 - phaseA) * 2;
           const gainB = phaseB < 0.5 ? phaseB * 2 : (1 - phaseB) * 2;
-          dst[i] = readInterpolated(buf, a) * gainA + readInterpolated(buf, b) * gainB;
+          const weight = Math.max(0.0001, gainA + gainB);
+
+          dst[i] = (
+            readInterpolated(buf, a) * gainA +
+            readInterpolated(buf, b) * gainB
+          ) / weight;
+
           w = (w + 1) % bufferLength;
           a += pitch;
           b += pitch;
         }
-        if (ch === 0) { writeIndex = w; readA = a; readB = b; }
+        if (ch === 0) {
+          writeIndex = w;
+          readA = a;
+          readB = b;
+        }
       }
     };
+
     Object.defineProperty(node, 'pitch', {
       get: () => stateRef.pitch,
-      set: v => { stateRef.pitch = Math.max(0.5, Math.min(2, Number(v) || 1)); }
+      set: v => {
+        const next = Math.max(0.5, Math.min(2, Number(v) || 1));
+        if (Math.abs(next - stateRef.pitch) > 0.0001) {
+          stateRef.pitch = next;
+          resetState();
+        }
+      }
     });
     return node;
   }
