@@ -1742,19 +1742,36 @@
         // 予定曲を選んでも、後続のサイクル順や手動キューを作り直さない。
         // これにより、選択した位置によって後続曲だけがランダム化されることを防ぐ。
         if (state.activePlaylistName) {
-          const cycleIndex = Array.isArray(state.playlistCycleOrder)
-            ? state.playlistCycleOrder.indexOf(name)
-            : -1;
+          const cycleOrder = Array.isArray(state.playlistCycleOrder)
+            ? state.playlistCycleOrder.slice()
+            : [];
+          const cycleIndex = cycleOrder.indexOf(name);
           if (cycleIndex >= 0) {
-            state.playlistCycleIndex = cycleIndex;
-            state.playlistCycleSeen = state.playlistCycleOrder.slice(0, cycleIndex + 1);
+            // 選択した曲を先頭にし、選択前の曲も後ろへ残す。
+            // 例: 1,2,3,4,5,6,7,8 で4を選択 → 4,1,2,3,5,6,7,8
+            state.playlistCycleOrder = [
+              name,
+              ...cycleOrder.slice(0, cycleIndex),
+              ...cycleOrder.slice(cycleIndex + 1)
+            ];
+            state.playlistCycleIndex = 0;
+            state.playlistCycleSeen = [name];
           }
           saveState();
           playSong(s, true, { preservePlaylistContext: true });
         } else {
           ensureHomeCycle();
-          const cycleIndex = homeCycleOrder.indexOf(name);
-          if (cycleIndex >= 0) homeCycleIndex = cycleIndex;
+          const cycleOrder = homeCycleOrder.slice();
+          const cycleIndex = cycleOrder.indexOf(name);
+          if (cycleIndex >= 0) {
+            // ホームでも選択前の曲をスキップせず、選択曲の後に残す。
+            homeCycleOrder = [
+              name,
+              ...cycleOrder.slice(0, cycleIndex),
+              ...cycleOrder.slice(cycleIndex + 1)
+            ];
+            homeCycleIndex = 0;
+          }
           saveState();
           playSong(s, true, { preservePlaylistContext: false });
         }
