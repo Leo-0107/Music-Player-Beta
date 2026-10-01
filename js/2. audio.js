@@ -1337,6 +1337,24 @@
     return "使用中";
   }
 
+  function renameAdditionalOutputSpeaker(index) {
+    const route = state.outputRoutes?.[index];
+    if (!route) return;
+    const current = String(route.label || "").trim();
+    const next = window.prompt("スピーカーの名前を入力してください", current);
+    if (next === null) return;
+    const label = next.trim();
+    if (!label) {
+      toast("スピーカー名を空にはできません");
+      return;
+    }
+    route.label = label;
+    saveState();
+    renderAdditionalOutputSpeakers();
+    renderOutputDevicePicker();
+    toast("スピーカー名を変更しました");
+  }
+
   function setSpeakerChannelRoute(entry, side, mode) {
     const normalized = ["left", "right", "off"].includes(mode) ? mode : "off";
     const key = side === "left" ? "leftChannel" : "rightChannel";
@@ -1450,7 +1468,7 @@
 
       const status = document.createElement("small");
       status.className = "speakerRuntimeStatus";
-      status.textContent = entry.selected ? "選択中" : getAdditionalOutputStatus(entry.route);
+      status.textContent = entry.selected ? (state.speakerSettings?.mainEnabled !== false ? "出力中" : "出力OFF") : getAdditionalOutputStatus(entry.route);
       status.style.marginRight = "8px";
 
       if (entry.selected) {
@@ -1480,13 +1498,22 @@
         toggle.setAttribute("aria-label", entry.label + "の使用状態を切り替える");
         toggle.addEventListener("click", () => toggleAdditionalOutputSpeaker(entry.index));
 
+        const edit = document.createElement("button");
+        edit.className = "btn small ghost";
+        edit.type = "button";
+        edit.textContent = "名前を編集";
+        edit.addEventListener("click", e => {
+          e.stopPropagation();
+          renameAdditionalOutputSpeaker(entry.index);
+        });
+
         const remove = document.createElement("button");
         remove.className = "btn small ghost";
         remove.type = "button";
         remove.textContent = "削除";
         remove.addEventListener("click", () => removeAdditionalOutputSpeaker(entry.index));
 
-        actions.append(toggle, remove);
+        actions.append(status, toggle, edit, remove);
       }
 
       head.append(name);
