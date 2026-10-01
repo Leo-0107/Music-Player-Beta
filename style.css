@@ -1318,6 +1318,26 @@ body.output-device-modal-open {
   width: 100%;
 }
 .plSingleRow .plTitleContainer { flex: 1 1 auto; min-width: 0; }
+.plTitleMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.plTitleMetaRow .plTitleText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plTrackCount,
+.plTotalDuration {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .78rem;
+  white-space: nowrap;
+}
 .plMenuBtn {
   flex: 0 0 auto;
   min-width: 42px;
@@ -1360,22 +1380,7 @@ body.output-device-modal-open {
   font-size: .76rem;
 }
 
-/* プレイリスト名の右側に曲数・曲一覧ボタンを表示 */
-.plSingleRow .plOpenBtn {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  min-width: 88px;
-  padding-left: 10px !important;
-  padding-right: 10px !important;
-}
-@media (max-width: 520px) {
-  .plSingleRow .plOpenBtn {
-    min-width: 78px;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    font-size: .78rem;
-  }
-}
+/* プレイリストの曲数・総時間は名前と同じ行に表示 */
 
 /* 長押し並べ替え */
 .reorder-dragging { user-select: none; }
@@ -1483,8 +1488,21 @@ body.sheet-open { overflow: hidden; overscroll-behavior: none; }
 .plTrackText {
   min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plTrackText strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plTrackText .plTrackDuration {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 .plTrackActions {
