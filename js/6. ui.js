@@ -1661,43 +1661,44 @@
   });
 
   let appLoadingDisplayedProgress = 0;
-  let appLoadingAnimationToken = 0;
+  let appLoadingTargetProgress = 0;
+  let appLoadingProgressTimer = null;
 
   function updateAppLoadingProgress(percent, message) {
-    const target = Math.max(0, Math.min(100, Math.round(percent)));
+    appLoadingTargetProgress = Math.max(0, Math.min(100, Math.round(percent)));
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
     if (messageText && message) messageText.textContent = message;
 
-    const token = ++appLoadingAnimationToken;
-    if (target <= appLoadingDisplayedProgress) {
-      if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
-      if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
-      return Promise.resolve();
-    }
+    if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
+    if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
 
-    return new Promise(resolve => {
+    if (appLoadingProgressTimer === null) {
       const step = () => {
-        if (token !== appLoadingAnimationToken) {
-          resolve();
-          return;
+        if (appLoadingDisplayedProgress < appLoadingTargetProgress) {
+          appLoadingDisplayedProgress = Math.min(
+            appLoadingTargetProgress,
+            appLoadingDisplayedProgress + 1
+          );
+          if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
+          if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
         }
-        appLoadingDisplayedProgress = Math.min(target, appLoadingDisplayedProgress + 1);
-        if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
-        if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
-        if (appLoadingDisplayedProgress >= target) {
-          resolve();
-          return;
+        if (appLoadingDisplayedProgress < appLoadingTargetProgress) {
+          appLoadingProgressTimer = setTimeout(() => {
+            appLoadingProgressTimer = null;
+            step();
+          }, 12);
+        } else {
+          appLoadingProgressTimer = null;
         }
-        setTimeout(step, 12);
       };
       step();
-    });
+    }
   }
 
-  async function revealAppAfterHomeReady() {
-    await updateAppLoadingProgress(100, "ホーム画面を表示します...");
+  function revealAppAfterHomeReady() {
+    updateAppLoadingProgress(100, "ホーム画面を表示します...");
     requestAnimationFrame(() => {
       document.body.classList.remove("app-loading");
       document.getElementById("appLoadingScreen")?.remove();
@@ -1705,7 +1706,7 @@
   }
 
   (async () => {
-    await updateAppLoadingProgress(20, "ホーム画面を準備しています...");
+    updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
     applyTheme();
     if (!state.currentSong && typeof updateArtwork === "function") {
@@ -1721,13 +1722,13 @@
     applyPitchAndRate();
     setupMediaSessionRemoteControls();
 
-    await updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
+    updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
     requestWaveStaticFrame();
 
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
+    updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
 
-    await revealAppAfterHomeReady();
+    revealAppAfterHomeReady();
 
     await new Promise(resolve => requestAnimationFrame(resolve));
     await initDB();
