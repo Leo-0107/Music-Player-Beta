@@ -28,6 +28,7 @@
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
   let disconnectedOutputDeviceIds = new Set();
+  let lastSystemDefaultOutputDeviceId = "";
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
   let backgroundPlaybackRecovery = false;
 
@@ -1231,26 +1232,9 @@
         };
       }
 
-      // スピーカー一覧は「選択中」と「追加済み」を分離せず、一つの一覧として扱う。
-      const oldMainIdentity = oldMain.deviceId || "default";
-      const newMainIdentity = newMain.deviceId || "default";
-      const canKeepOldMain =
-        oldMainIdentity !== "default" &&
-        oldMainIdentity !== newMainIdentity &&
-        String(oldMain.label || "").trim();
-
-      if (canKeepOldMain && !hasAdditionalOutput(oldMain.deviceId)) {
-        state.outputRoutes.push({
-          deviceId: oldMain.deviceId,
-          label: oldMain.label,
-          left: Number.isFinite(Number(oldMain.left)) ? Number(oldMain.left) : 1,
-          right: Number.isFinite(Number(oldMain.right)) ? Number(oldMain.right) : 1,
-          delayMs: clampSpeakerDelay(oldMain.delayMs),
-          enabled: true,
-          leftChannel: oldMain.leftChannel || "left",
-          rightChannel: oldMain.rightChannel || "right"
-        });
-      }
+      // メイン出力を切り替えても、以前のメインを自動で追加出力へ移さない。
+      // 複数出力はユーザーが明示的に追加したルートだけを維持する。
+      state.outputRoutes = state.outputRoutes.filter(route => route.deviceId !== newMain.deviceId);
 
       currentLeftVolumeTarget = Number.isFinite(Number(newMain.left)) ? Number(newMain.left) : 1;
       currentRightVolumeTarget = Number.isFinite(Number(newMain.right)) ? Number(newMain.right) : 1;
@@ -2473,7 +2457,26 @@
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       const outputs = await enumerateAudioOutputs();
       await rebindStoredOutputRoutes(outputs);
-      await restoreStoredMainOutputIfAvailable();
+
+      // OS/Chrome側の既定出力が変わった場合、接続中の既定物理デバイスをメインに同期する。
+      const defaultDevice = outputs.find(device => device.deviceId === "default");
+      const defaultPhysical = outputs.find(device =>
+        device.deviceId &&
+        device.deviceId !== "default" &&
+        defaultDevice &&
+        areSameOutputDevice(defaultDevice, device)
+      );
+      const currentMainId = state.mainOutputDeviceId || "";
+      const currentMainConnected = !currentMainId ||
+        outputs.some(device => device.deviceId === currentMainId);
+
+      if (defaultPhysical && (!currentMainId || !currentMainConnected)) {
+        await setMainOutputDevice(defaultPhysical.deviceId);
+      } else if (defaultPhysical && currentMainId === lastSystemDefaultOutputDeviceId) {
+        await setMainOutputDevice(defaultPhysical.deviceId);
+      }
+      if (defaultPhysical) lastSystemDefaultOutputDeviceId = defaultPhysical.deviceId;
+
       await updateOutputDeviceName();
       await updateDisconnectedOutputDeviceIds();
       await renderOutputDevicePicker();
