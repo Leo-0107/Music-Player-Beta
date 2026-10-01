@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 62;
+  const BUILD_REVISION = 63;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -859,6 +859,9 @@
     const modal = document.getElementById("speakerDelayMeasurementModal");
     const list = document.getElementById("speakerDelayMeasurementList");
     if (!modal || !list) return;
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
     list.innerHTML = "";
     const entries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
     if (!entries.length) {
@@ -913,7 +916,21 @@
     el.btnAutoCalibrateSpeakers.addEventListener("click", openSpeakerDelayMeasurementModal);
   }
   const btnCloseSpeakerDelayMeasurement = document.getElementById("btnCloseSpeakerDelayMeasurement");
-  if (btnCloseSpeakerDelayMeasurement) btnCloseSpeakerDelayMeasurement.addEventListener("click", closeSpeakerDelayMeasurementModal);
+  const speakerDelayMeasurementModal = document.getElementById("speakerDelayMeasurementModal");
+  if (btnCloseSpeakerDelayMeasurement) {
+    btnCloseSpeakerDelayMeasurement.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSpeakerDelayMeasurementModal();
+    });
+  }
+  if (speakerDelayMeasurementModal) {
+    speakerDelayMeasurementModal.addEventListener("click", event => {
+      if (event.target === speakerDelayMeasurementModal) {
+        closeSpeakerDelayMeasurementModal();
+      }
+    });
+  }
 
   if (el.btnSpeakerPairSwap) el.btnSpeakerPairSwap.remove();
 
