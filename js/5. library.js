@@ -56,6 +56,28 @@
         node.textContent = formatTrackDuration(duration);
       }
     });
+    updateRenderedPlaylistTotals();
+  }
+
+  function getPlaylistTotalDuration(trackNames) {
+    const songs = Array.isArray(trackNames) ? trackNames : [];
+    let total = 0;
+    let hasUnknown = false;
+    songs.forEach(name => {
+      const song = state.playlist.find(item => item.name === name);
+      const duration = Number(song?.duration);
+      if (Number.isFinite(duration) && duration > 0) total += duration;
+      else hasUnknown = true;
+    });
+    return { total, hasUnknown };
+  }
+
+  function updateRenderedPlaylistTotals() {
+    document.querySelectorAll("[data-playlist-total]").forEach(node => {
+      const pName = node.dataset.playlistTotal;
+      const result = getPlaylistTotalDuration(state.playlists[pName]);
+      node.textContent = result.hasUnknown ? "総時間 --:--" : "総時間 " + formatTrackDuration(result.total);
+    });
   }
 
   const durationProbeTasks = new Map();
@@ -1228,37 +1250,41 @@
 
         const row = document.createElement("div");
         row.className = "plSingleRow";
+        const playlistDuration = getPlaylistTotalDuration(tracksInPl);
         row.innerHTML = `
           <div class="plTitleContainer">
-            <div class="plTitleText" title="${escapeHTML(pName)}">${escapeHTML(pName)}</div>
+            <div class="plTitleMetaRow">
+              <div class="plTitleText" title="${escapeHTML(pName)}">${escapeHTML(pName)}</div>
+              <span class="plTrackCount">${tracksInPl.length}曲</span>
+              <span class="plTotalDuration" data-playlist-total="${escapeHTML(pName)}">${playlistDuration.hasUnknown ? "総時間 --:--" : "総時間 " + formatTrackDuration(playlistDuration.total)}</span>
+            </div>
           </div>
-          <button class="btn small ghost plOpenBtn" type="button" title="曲一覧を開く" aria-label="曲一覧を開く">${tracksInPl.length}曲・曲一覧</button>
-          <button class="btn small ghost plMenuBtn" type="button" title="プレイリストメニュー" aria-label="プレイリストメニュー">︙</button>
+          <button class="btn small ghost plMenuBtn" type="button" title="プレイリストメニュー" aria-label="プレイリストメニュー" aria-expanded="false">︙</button>
           <div class="plMenuPopup" hidden>
             <button type="button" class="plMenuItem" data-pl-rename>名前変更</button>
             <button type="button" class="plMenuItem dangerText" data-pl-delete>プレイリストの削除</button>
           </div>`;
+
 
         card.appendChild(row);
         container.appendChild(card);
 
         setupPlNameScroll(row.querySelector(".plTitleText"));
 
-        const openBtn = row.querySelector(".plOpenBtn");
-        openBtn.addEventListener("pointerdown", e => e.stopPropagation());
-        openBtn.addEventListener("click", e => {
-          e.stopPropagation();
-          document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(m => { m.hidden = true; });
-          openPlaylistTrackSheet(pName);
-        });
-
         const menuBtn = row.querySelector(".plMenuBtn");
         const menu = row.querySelector(".plMenuPopup");
         menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
         menuBtn.addEventListener("click", e => {
+          e.preventDefault();
           e.stopPropagation();
-          document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(m => { m.hidden = true; });
-          menu.hidden = !menu.hidden;
+          const willOpen = menu.hidden;
+          document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(m => {
+            m.hidden = true;
+            const owner = m.parentElement?.querySelector(".plMenuBtn");
+            if (owner) owner.setAttribute("aria-expanded", "false");
+          });
+          menu.hidden = !willOpen;
+          menuBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
         });
         row.querySelector("[data-pl-rename]").addEventListener("pointerdown", e => e.stopPropagation());
         row.querySelector("[data-pl-rename]").addEventListener("click", e => {
@@ -1292,7 +1318,11 @@
 
   document.addEventListener("click", e => {
     if (e.target.closest(".plMenuBtn, .plMenuPopup")) return;
-    document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(menu => { menu.hidden = true; });
+    document.querySelectorAll(".plMenuPopup:not([hidden])").forEach(menu => {
+      menu.hidden = true;
+      const owner = menu.parentElement?.querySelector(".plMenuBtn");
+      if (owner) owner.setAttribute("aria-expanded", "false");
+    });
   });
 
   if (el.btnClosePlaylistTrackSheet) el.btnClosePlaylistTrackSheet.addEventListener("click", closePlaylistTrackSheet);
