@@ -1217,10 +1217,11 @@
         ctx.fillText("現在", Math.min(width - 8, width * 0.04 + 34), height - 8);
         ctx.fillText("過去", width - 8, height - 8);
       } else {
+        // 3D波形：時間を奥行きではなく固定された横方向へ流し、音量だけを高さとして持ち上げる。
+        // 「現在 → 過去」の時間方向は常に左から右。カメラの動きや音量で時間軸そのものは変化しない。
         const SAMPLE_INTERVAL = 0.04;
-        const HISTORY_SECONDS = 5.5;
-        const BANDS_3D = 72;
-        const maxHistory = Math.max(24, Math.round(HISTORY_SECONDS / SAMPLE_INTERVAL));
+        const HISTORY_SECONDS = 6.0;
+        const BANDS_3D = 64;
 
         if (!drawWave._wave3DHistory || drawWave._wave3DMode !== state.waveMode) {
           drawWave._wave3DHistory = [];
@@ -1235,32 +1236,34 @@
         if (isPlaying && analyserData?.length) {
           const audioTime = Number(audio.currentTime) || 0;
           const trackKey = state.currentSong?.name || audio.src || "";
-
           drawWave._wave3DTrackKey = trackKey;
 
-          if (drawWave._wave3DLastAudioTime >= 0 &&
-              (audioTime < drawWave._wave3DLastAudioTime ||
-               Math.abs(audioTime - drawWave._wave3DLastAudioTime) > 0.4)) {
+          if (
+            drawWave._wave3DLastAudioTime >= 0 &&
+            (audioTime < drawWave._wave3DLastAudioTime ||
+             Math.abs(audioTime - drawWave._wave3DLastAudioTime) > 0.4)
+          ) {
             drawWave._wave3DHistory = [];
             drawWave._wave3DSampleElapsed = 0;
             drawWave._wave3DLastSampleTime = -1;
           }
 
-          if (drawWave._wave3DLastSampleTime < 0 ||
-              audioTime - drawWave._wave3DLastSampleTime >= SAMPLE_INTERVAL) {
+          if (
+            drawWave._wave3DLastSampleTime < 0 ||
+            audioTime - drawWave._wave3DLastSampleTime >= SAMPLE_INTERVAL
+          ) {
             const bands = new Float32Array(BANDS_3D);
             const maxBin = analyserData.length - 1;
 
             for (let b = 0; b < BANDS_3D; b++) {
-              const lo = Math.floor(Math.pow(b / BANDS_3D, 1.45) * maxBin);
+              const lo = Math.floor(Math.pow(b / BANDS_3D, 1.42) * maxBin);
               const hi = Math.max(
                 lo + 1,
-                Math.floor(Math.pow((b + 1) / BANDS_3D, 1.45) * maxBin)
+                Math.floor(Math.pow((b + 1) / BANDS_3D, 1.42) * maxBin)
               );
 
               let sum = 0;
               let count = 0;
-
               for (let k = lo; k <= hi && k <= maxBin; k++) {
                 const value = (analyserData[k] || 0) / 255;
                 sum += value * value;
@@ -1268,7 +1271,7 @@
               }
 
               bands[b] = count
-                ? Math.sqrt(sum / count) * 2.0
+                ? Math.min(1, Math.sqrt(sum / count) * 2.15)
                 : 0;
             }
 
@@ -1293,129 +1296,225 @@
         }
 
         const rows = drawWave._wave3DHistory;
+        const currentAudioTime = Number(audio.currentTime) || 0;
+        const pauseFade = isPlaying
+          ? 1
+          : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
+
+        if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
+
+        // 現在の解析値を補間して、先頭だけが段差状にならないようにする。
         const liveBands = isPlaying && waveSmoothData?.length
           ? (() => {
               const bands = new Float32Array(BANDS_3D);
               const maxBin = waveSmoothData.length - 1;
               for (let b = 0; b < BANDS_3D; b++) {
-                const lo = Math.floor(Math.pow(b / BANDS_3D, 1.45) * maxBin);
+                const lo = Math.floor(Math.pow(b / BANDS_3D, 1.42) * maxBin);
                 const hi = Math.max(
                   lo + 1,
-                  Math.floor(Math.pow((b + 1) / BANDS_3D, 1.45) * maxBin)
+                  Math.floor(Math.pow((b + 1) / BANDS_3D, 1.42) * maxBin)
                 );
                 let level = 0;
                 for (let k = lo; k <= hi && k <= maxBin; k++) {
                   level = Math.max(level, waveSmoothData[k] || 0);
                 }
-                bands[b] = level * 2.0;
+                bands[b] = Math.min(1, level * 2.15);
               }
               return bands;
             })()
           : null;
-        const timeLeft = 0;
-        const timeRight = width;
-        const baseY = 0;
-        const maxHeight = height * 0.78;
-        const freqDepth = width * 0.62;
-        const timeLift = 0;
+
+        const timeLeft = width * 0.06;
+        const timeRight = width * 0.94;
+        const baseY = height * 0.82;
+        const maxHeight = height * 0.66;
+        const freqDepth = width * 0.48;
+        const floorDepth = height * 0.18;
+
+        // 奥行き方向の床グリッド。波形そのものとは独立した固定の基準面。
+        const project3DPoint = (age, freqRatio, amplitude) => {
+          const timeX = timeLeft + age * (timeRight - timeLeft);
+          const depth = (freqRatio - 0.5) * freqDepth;
+          const heightValue = Math.max(0, Math.min(1, amplitude)) * maxHeight;
+
+          return applyWaveView({
+            x: timeX,
+            y: heightValue,
+            depth,
+            age
+          }, width, height);
+        };
 
         if (rows.length) {
-          const currentAudioTime = Number(audio.currentTime) || 0;
-          const pauseFade = isPlaying
-            ? 1
-            : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
+          // 床の奥行きを先に描画して、メッシュが空間内に浮いているように見せる。
+          ctx.save();
+          ctx.globalAlpha = 0.34 * pauseFade;
+          ctx.lineWidth = 1;
 
-          if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
-
-          const project3DPoint = (time, amplitudeBands, bandIndex) => {
-            const ageSeconds = Math.max(0, currentAudioTime - time);
-            const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
-            const freqRatio = bandIndex / Math.max(1, BANDS_3D - 1);
-            const depth = freqRatio - 0.5;
-            const timeX = timeLeft + age * (timeRight - timeLeft);
-            const amplitude = Math.max(0, amplitudeBands?.[bandIndex] || 0);
-            const y = -amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
-            return applyWaveView({ x: timeX, y, depth: depth * freqDepth, age }, width, height);
-          };
-
-          for (let t = rows.length - 1; t >= 0; t--) {
-            const row = rows[t];
-            const ageSeconds = Math.max(0, currentAudioTime - row.time);
-            const age = Math.min(1, ageSeconds / HISTORY_SECONDS);
-            const timeX = timeLeft + age * (timeRight - timeLeft);
-            const timeY = baseY;
-
-            const fade = (0.18 + 0.82 * (1 - age)) * pauseFade;
-            const hue = 180 + (1 - age) * 100;
-
+          for (let g = 0; g <= 8; g++) {
+            const ratio = g / 8;
+            const p1 = project3DPoint(0, ratio, 0);
+            const p2 = project3DPoint(1, ratio, 0);
+            ctx.strokeStyle = g === 4
+              ? "rgba(255,255,255,0.16)"
+              : "rgba(255,255,255,0.055)";
             ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y + floorDepth);
+            ctx.lineTo(p2.x, p2.y + floorDepth);
+            ctx.stroke();
+          }
 
-            for (let b = 0; b < BANDS_3D; b++) {
-              const freqRatio = b / Math.max(1, BANDS_3D - 1);
-              const depth = freqRatio - 0.5;
-              const amplitude = Math.max(0, row.bands?.[b] || 0);
-              const y = -amplitude * maxHeight * (0.55 + 0.45 * freqRatio);
+          for (let t = 0; t <= 10; t++) {
+            const age = t / 10;
+            const p1 = project3DPoint(age, 0, 0);
+            const p2 = project3DPoint(age, 1, 0);
+            ctx.strokeStyle = t === 0
+              ? "rgba(255,255,255,0.18)"
+              : "rgba(255,255,255,0.045)";
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y + floorDepth);
+            ctx.lineTo(p2.x, p2.y + floorDepth);
+            ctx.stroke();
+          }
 
-              const point = applyWaveView({ x: timeX, y, depth: depth * freqDepth, age }, width, height);
-              if (b === 0) ctx.moveTo(point.x, point.y);
+          ctx.restore();
+
+          // 各時間断面を面として塗り、線だけでは出ない立体感を作る。
+          // 現在に近いほど明るく、過去へ行くほど透明になる。
+          ctx.save();
+          for (let t = rows.length - 1; t > 0; t--) {
+            const row = rows[t];
+            const nextRow = rows[t - 1];
+            const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
+            const nextAge = Math.min(1, Math.max(0, (currentAudioTime - nextRow.time) / HISTORY_SECONDS));
+            const fade = (0.10 + 0.58 * (1 - age)) * pauseFade;
+
+            for (let b = 0; b < BANDS_3D - 1; b++) {
+              const freqRatio = b / (BANDS_3D - 1);
+              const nextFreqRatio = (b + 1) / (BANDS_3D - 1);
+
+              const p00 = project3DPoint(age, freqRatio, row.bands[b]);
+              const p10 = project3DPoint(age, nextFreqRatio, row.bands[b + 1]);
+              const p01 = project3DPoint(nextAge, freqRatio, nextRow.bands[b]);
+              const p11 = project3DPoint(nextAge, nextFreqRatio, nextRow.bands[b + 1]);
+
+              const energy = Math.max(
+                row.bands[b] || 0,
+                row.bands[b + 1] || 0,
+                nextRow.bands[b] || 0,
+                nextRow.bands[b + 1] || 0
+              );
+              const hue = 190 + freqRatio * 105;
+              const lightness = 43 + energy * 20;
+
+              ctx.fillStyle = "hsla(" + hue.toFixed(1) + ", 88%, " + lightness.toFixed(1) + "%, " + (fade * (0.26 + energy * 0.42)).toFixed(3) + ")";
+              ctx.beginPath();
+              ctx.moveTo(p00.x, p00.y);
+              ctx.lineTo(p10.x, p10.y);
+              ctx.lineTo(p11.x, p11.y);
+              ctx.lineTo(p01.x, p01.y);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+
+          // 時間方向のリボン。時間軸を固定したまま、音量による高さの変化だけを連続線で見せる。
+          ctx.save();
+          ctx.globalAlpha = pauseFade;
+          for (let b = 0; b < BANDS_3D; b += 2) {
+            ctx.beginPath();
+            for (let t = rows.length - 1; t >= 0; t--) {
+              const row = rows[t];
+              const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
+              const freqRatio = b / (BANDS_3D - 1);
+              const point = project3DPoint(age, freqRatio, row.bands[b]);
+              if (t === rows.length - 1) ctx.moveTo(point.x, point.y);
               else ctx.lineTo(point.x, point.y);
             }
-
-            ctx.strokeStyle = `hsl(${hue}, 100%, 60%)`;
-            ctx.globalAlpha = fade;
-            ctx.lineWidth = t === 0 ? 2.6 : 1.05;
+            const hue = 190 + (b / (BANDS_3D - 1)) * 105;
+            ctx.strokeStyle = "hsla(" + hue.toFixed(1) + ", 94%, 72%, 0.42)";
+            ctx.lineWidth = b % 8 === 0 ? 1.35 : 0.72;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
             ctx.stroke();
           }
+          ctx.restore();
 
-          // 周波数方向の線だけでなく、時間方向にも各波形を接続して連続した面にする
-          ctx.globalAlpha = 0.28 * pauseFade;
-          ctx.strokeStyle = "rgba(95, 214, 255, 0.72)";
-          ctx.lineWidth = 0.65;
-          for (let b = 0; b < BANDS_3D; b++) {
-            ctx.beginPath();
-            for (let t = rows.length - 1; t >= 0; t--) {
-              const point = project3DPoint(rows[t].time, rows[t].bands, b);
-              if (t === rows.length - 1) ctx.moveTo(point.x, point.y);
-              else ctx.lineTo(point.x, point.y);
-            }
-            ctx.stroke();
-          }
+          // 周波数方向の稜線。現在位置ほど太くして「波の壁」を強調する。
+          ctx.save();
+          ctx.globalAlpha = pauseFade;
+          for (let t = rows.length - 1; t >= 0; t--) {
+            const row = rows[t];
+            const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
+            const fade = 0.12 + 0.88 * (1 - age);
 
-          // 最前面は現在の解析値を毎フレーム描画し、0.04秒刻みの段差を目立たせない。
-          // 履歴より明るく目立たせる専用のネオン色にはせず、波形全体の色調に合わせる。
-          if (liveBands) {
-            ctx.globalAlpha = pauseFade;
-            ctx.strokeStyle = "hsl(280, 100%, 60%)";
-            ctx.lineWidth = 1.6;
             ctx.beginPath();
             for (let b = 0; b < BANDS_3D; b++) {
-              const point = project3DPoint(currentAudioTime, liveBands, b);
+              const freqRatio = b / (BANDS_3D - 1);
+              const point = project3DPoint(age, freqRatio, row.bands[b]);
               if (b === 0) ctx.moveTo(point.x, point.y);
               else ctx.lineTo(point.x, point.y);
             }
+
+            const hue = 190 + (1 - age) * 105;
+            ctx.strokeStyle = "hsla(" + hue.toFixed(1) + ", 100%, 76%, " + (fade * 0.74).toFixed(3) + ")";
+            ctx.lineWidth = age < 0.08 ? 2.8 : 0.9;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
             ctx.stroke();
           }
+          ctx.restore();
 
-          ctx.globalAlpha = 1;
-
-          if (!isPlaying) {
-            const pauseFade = Math.max(0, drawWave._wave3DPauseFade ?? 0);
-            const restAlpha = 0.18 + 0.62 * (1 - pauseFade);
-            ctx.strokeStyle = "rgba(95, 214, 255, 1)";
-            ctx.globalAlpha = restAlpha;
-            ctx.lineWidth = 1.6;
+          // 現在の断面だけは毎フレーム描画。音量が上がるほど、カメラから見て明確に上へ持ち上がる。
+          if (liveBands) {
+            ctx.save();
+            ctx.globalAlpha = pauseFade;
             ctx.beginPath();
-            ctx.moveTo(timeLeft, height * 0.56);
-            ctx.lineTo(timeRight, height * 0.56);
-            ctx.stroke();
-
-            if (pauseFade <= 0) {
-              waveDecayActive = false;
+            for (let b = 0; b < BANDS_3D; b++) {
+              const freqRatio = b / (BANDS_3D - 1);
+              const point = project3DPoint(0, freqRatio, liveBands[b]);
+              if (b === 0) ctx.moveTo(point.x, point.y);
+              else ctx.lineTo(point.x, point.y);
             }
+            ctx.strokeStyle = "rgba(245,250,255,0.96)";
+            ctx.lineWidth = 2.8;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "rgba(120, 210, 255, 0.32)";
+            ctx.stroke();
+            ctx.restore();
           }
-          ctx.globalAlpha = 1;
+
+          // 現在位置の固定マーカー。時間方向の基準が常に同じ位置で分かる。
+          const currentBase = project3DPoint(0, 0.5, 0);
+          ctx.save();
+          ctx.globalAlpha = 0.5 * pauseFade;
+          ctx.strokeStyle = "rgba(255,255,255,0.32)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(currentBase.x, currentBase.y + floorDepth);
+          ctx.lineTo(currentBase.x, currentBase.y - maxHeight * 0.72);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        if (!isPlaying) {
+          const restAlpha = 0.16 + 0.62 * (1 - pauseFade);
+          ctx.save();
+          ctx.globalAlpha = restAlpha;
+          ctx.strokeStyle = "rgba(170,220,255,0.82)";
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(timeLeft, baseY);
+          ctx.lineTo(timeRight, baseY);
+          ctx.stroke();
+          ctx.restore();
+
+          if (pauseFade <= 0) {
+            waveDecayActive = false;
+          }
         }
       }
     }
