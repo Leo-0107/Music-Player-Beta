@@ -2470,9 +2470,7 @@
       const currentMainConnected = !currentMainId ||
         outputs.some(device => device.deviceId === currentMainId);
 
-      if (defaultPhysical && (!currentMainId || !currentMainConnected)) {
-        await setMainOutputDevice(defaultPhysical.deviceId);
-      } else if (defaultPhysical && currentMainId === lastSystemDefaultOutputDeviceId) {
+      if (defaultPhysical && defaultPhysical.deviceId !== currentMainId) {
         await setMainOutputDevice(defaultPhysical.deviceId);
       }
       if (defaultPhysical) lastSystemDefaultOutputDeviceId = defaultPhysical.deviceId;
