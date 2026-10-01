@@ -410,7 +410,14 @@ input[type="range"] {
 .songName { font-size: .96rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .songArtist { color: var(--muted); font-size: .82rem; margin-top: 2px; }
 .songMeta { margin-top: 2px; color: var(--muted); font-size: .78rem; }
-.songRight { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.songRight {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
 
 .starBtn, .queueBtn, .addPlBtn, .delTrackBtn {
   border: 0;
