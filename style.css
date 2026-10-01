@@ -1911,3 +1911,93 @@ body.output-device-modal-open .sidebar {
 .speakerMeasurementControlValue {
   font-variant-numeric: tabular-nums;
 }
+
+/* 2026-10-01 曲情報の横並び・速度/ピッチバー幅統一 */
+#optionsSection .field:has(#playbackRate),
+#optionsSection .field:has(#pitchShift) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+#optionsSection #playbackRate,
+#optionsSection #pitchShift {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  inline-size: 100% !important;
+  box-sizing: border-box;
+  margin-left: 0;
+  margin-right: 0;
+}
+.songMain {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 2px;
+}
+.songName {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.songArtist,
+.songMeta {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-top: 0;
+  white-space: nowrap;
+}
+.songMeta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.songMeta span { min-width: 0; }
+.songDuration {
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+.queuePreviewRow .songMain { align-items: baseline; }
+.queuePreviewRow .songName,
+.queuePreviewRow .songArtist,
+.queuePreviewRow .songDuration { margin-top: 0; }
+.plTrackText {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 7px;
+  row-gap: 2px;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: normal;
+}
+.plTrackText strong,
+.plTrackText .plTrackDuration { min-width: 0; margin: 0; }
+.plTrackText strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+.plTrackText .plTrackDuration {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .song { align-items: flex-start; }
+  .songMain { column-gap: 6px; }
+  .songRight {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .songName { flex-basis: 100%; }
+  .songArtist,
+  .songMeta { max-width: 100%; }
+  .plTrackItem { align-items: flex-start; }
+  .plTrackText { column-gap: 5px; }
+}
