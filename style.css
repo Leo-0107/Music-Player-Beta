@@ -1995,7 +1995,6 @@ body.output-device-modal-open .sidebar {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  .songName { flex-basis: 100%; }
   .songArtist,
   .songMeta { max-width: 100%; }
   .plTrackItem { align-items: flex-start; }
