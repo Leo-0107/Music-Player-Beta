@@ -696,14 +696,14 @@
           ctx.fillText("L / R", 8, Math.max(12, baseY - maxBarHeight - 6));
         }
       } else if (state.waveMode === "a3") {
-        const sideBars = Math.min(32, waveLeftOutputAnalyser?.frequencyBinCount || 32);
+        // 案3: 左右それぞれの波形を残し、バーの見た目と反応は2D波形に合わせる。
+        const sideBars = Math.min(36, Math.floor((waveLeftOutputAnalyser?.frequencyBinCount || 36)));
         const centerX = width * 0.5;
-        const baseY = height - 1;
         const maxBarHeight = height * 0.86;
-        const sideWidth = width * 0.92;
-        const stepX = sideWidth / Math.max(1, sideBars);
-        // 一本ごとの太さは2D波形と同じ基準にする。
-        const barWidth = Math.max(1, Math.min(18, width * 0.022) - 2);
+        const halfWidth = width * 0.46;
+        const barGap = 2;
+        const barWidth = Math.max(1, halfWidth / Math.max(1, sideBars) - barGap);
+        const stepX = halfWidth / Math.max(1, sideBars);
 
         if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
           if (!waveLeftOutputAnalyser._spectrumSmooth || waveLeftOutputAnalyser._spectrumSmooth.length !== sideBars) {
@@ -711,60 +711,59 @@
             waveRightOutputAnalyser._spectrumSmooth = new Float32Array(sideBars);
           }
 
-          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-
           const leftSmooth = waveLeftOutputAnalyser._spectrumSmooth;
           const rightSmooth = waveRightOutputAnalyser._spectrumSmooth;
 
-          const getBandLevel = (data, bandIndex) => {
-            const start = Math.floor(Math.pow(bandIndex / sideBars, 1.35) * data.length);
-            const end = Math.min(
-              data.length,
-              Math.max(start + 1, Math.floor(Math.pow((bandIndex + 1) / sideBars, 1.35) * data.length))
-            );
+          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
 
+          const getBandLevel = (data, bandIndex) => {
+            const startBin = Math.floor((bandIndex / sideBars) * data.length);
+            const endBin = Math.min(
+              data.length,
+              Math.max(startBin + 1, Math.floor(((bandIndex + 1) / sideBars) * data.length))
+            );
             let level = 0;
-            for (let i = start; i < end; i++) {
+            for (let i = startBin; i < endBin; i++) {
               level = Math.max(level, (data[i] || 0) / 255);
             }
             return level;
           };
 
           for (let i = 0; i < sideBars; i++) {
-            // 以前の2倍感度から落とし、2Dに近い反応量にする。
-            const leftTarget = Math.min(1, getBandLevel(waveLeftOutputData, i) * 1.2);
-            const rightTarget = Math.min(1, getBandLevel(waveRightOutputData, i) * 1.2);
+            const leftTarget = isPlaying ? Math.min(1, getBandLevel(waveLeftOutputData, i) * 1.25) : 0;
+            const rightTarget = isPlaying ? Math.min(1, getBandLevel(waveRightOutputData, i) * 1.25) : 0;
+            const smoothing = isPlaying ? 0.24 : 0.16;
 
-            leftSmooth[i] += (leftTarget - leftSmooth[i]) * 0.13;
-            rightSmooth[i] += (rightTarget - rightSmooth[i]) * 0.13;
+            leftSmooth[i] += (leftTarget - leftSmooth[i]) * smoothing;
+            rightSmooth[i] += (rightTarget - rightSmooth[i]) * smoothing;
 
-            const distanceIndex = i + 1;
-            const xLeft = centerX - distanceIndex * stepX;
-            const xRight = centerX + distanceIndex * stepX;
+            const leftHeight = Math.max(1, maxBarHeight * leftSmooth[i]);
+            const rightHeight = Math.max(1, maxBarHeight * rightSmooth[i]);
 
-            const leftHeight = maxBarHeight * leftSmooth[i];
-            const rightHeight = maxBarHeight * rightSmooth[i];
+            const distance = (i + 1) * stepX;
+            const leftX = centerX - distance;
+            const rightX = centerX + distance - barWidth;
 
             const hue = (i / Math.max(1, sideBars - 1)) * 280 + 120;
-            ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.82)`;
+            ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;
 
-            if (leftHeight > 0.5) {
-              ctx.fillRect(xLeft - barWidth * 0.5, baseY - leftHeight, barWidth, leftHeight);
-            }
-            if (rightHeight > 0.5) {
-              ctx.fillRect(xRight - barWidth * 0.5, baseY - rightHeight, barWidth, rightHeight);
-            }
+            ctx.fillRect(leftX, height - leftHeight, barWidth, leftHeight);
+            ctx.fillRect(rightX, height - rightHeight, barWidth, rightHeight);
+
+            ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.25)`;
+            ctx.fillRect(leftX, Math.max(0, height - leftHeight - 4), barWidth, 3);
+            ctx.fillRect(rightX, Math.max(0, height - rightHeight - 4), barWidth, 3);
           }
         }
 
         ctx.strokeStyle = "rgba(255,255,255,0.14)";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, baseY);
-        ctx.lineTo(width, baseY);
+        ctx.moveTo(0, height - 1);
+        ctx.lineTo(width, height - 1);
         ctx.stroke();
-      } else if (state.waveMode === "a4") {
+      }      } else if (state.waveMode === "a4") {
         const bars = Math.min(72, dataLen);
         const step = dataLen / bars;
         const barGap = 2;
