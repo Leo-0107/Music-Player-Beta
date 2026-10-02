@@ -30,6 +30,7 @@
   let disconnectedOutputDeviceIds = new Set();
   let lastSystemDefaultOutputDeviceId = "";
   let knownPhysicalOutputDeviceIds = new Set();
+  let pendingOutputDeviceRefresh = false;
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
   let backgroundPlaybackRecovery = false;
 
@@ -78,7 +79,7 @@
   });
 
   audio.addEventListener("pause", () => {
-    if (playbackIntent && document.visibilityState === "hidden") {
+    if (playbackIntent && document.visibilityState === "hidden" && !backgroundPlaybackRecovery) {
       setTimeout(() => {
         recoverBackgroundPlayback().catch(() => {});
       }, 0);
@@ -108,6 +109,11 @@
         resumeAudioCtx().catch(() => {});
         startOutputBridge?.().catch(() => {});
       }
+    } else if (document.visibilityState === "visible" && pendingOutputDeviceRefresh) {
+      pendingOutputDeviceRefresh = false;
+      setTimeout(() => {
+        navigator.mediaDevices?.dispatchEvent?.(new Event("devicechange"));
+      }, 0);
     } else if (playbackIntent) {
       recoverBackgroundPlayback().catch(() => {});
     }
@@ -545,7 +551,9 @@
       ensureOutputBridge();
 
       if (state.mainOutputDeviceId && outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-        outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(() => {});
+        outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(error => {
+          console.warn("Music Player output device restore failed:", error);
+        });
       }
 
       mainDelayNode = audioCtx.createDelay(1.5);
@@ -2464,6 +2472,10 @@
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
+      if (document.visibilityState !== "visible") {
+        pendingOutputDeviceRefresh = true;
+        return;
+      }
       const outputs = await enumerateAudioOutputs();
       await rebindStoredOutputRoutes(outputs);
 
@@ -2504,6 +2516,7 @@
       }
 
       knownPhysicalOutputDeviceIds = currentPhysicalIds;
+      pendingOutputDeviceRefresh = false;
 
       await updateOutputDeviceName();
       await updateDisconnectedOutputDeviceIds();
