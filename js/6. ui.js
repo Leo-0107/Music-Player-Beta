@@ -763,7 +763,7 @@
         ctx.moveTo(0, height - 1);
         ctx.lineTo(width, height - 1);
         ctx.stroke();
-      }      } else if (state.waveMode === "a4") {
+      } else if (state.waveMode === "a4") {
         const bars = Math.min(72, dataLen);
         const step = dataLen / bars;
         const barGap = 2;
@@ -867,7 +867,7 @@
         ctx.font = "10px sans-serif";
         ctx.textAlign = "left";
         ctx.fillText("音量", 8, Math.max(12, centerY - amplitudeScale - 6));
-      }      } else if (state.waveMode === "a6") {
+      } else if (state.waveMode === "a6") {
         // 案6: 低・中・高域を3つの動くリングとして表示し、背景の色変化だけで終わらせない。
         const bandEnergy = (from, to) => {
           let sum = 0;
