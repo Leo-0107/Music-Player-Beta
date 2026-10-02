@@ -1036,7 +1036,7 @@
         ctx.strokeStyle = `rgba(180,225,235,${0.08 + total * 0.18})`;
         ctx.lineWidth = 0.8 + total;
         ctx.stroke();
-      }      } else if (state.waveMode === "a8") {      } else if (state.waveMode === "a8") {
+      } else if (state.waveMode === "a8") {
         // 案8: 心電図風。上=R、下=L、左=現在に近い、右=過去。
         if (!drawWave._wave8History) {
           drawWave._wave8History = [];
