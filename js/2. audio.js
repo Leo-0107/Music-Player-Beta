@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 86;
+  const BUILD_REVISION = 87;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -3090,6 +3090,9 @@
       case "3D":
         // YouTubeの動画で聞くような自然な前方定位：HRTFで左右の位置だけを連続的に変える。
         x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
+      case "BINAURAL":
+        // 固定バイノーラル：HRTFで音源を正面の一定位置へ固定する。
+        x = 0; y = 0; z = -1.5; setPos(x, y, z); break;
       case "4D":
         x = Math.sin(t * 0.4) * 2.5; y = Math.sin(t * 0.8) * 1.2; z = Math.cos(t * 0.4) * 2.5; setPos(x, y, z); break;
       case "8D":
@@ -3120,6 +3123,7 @@
     const descriptions = {
       "2D": "2D: 標準ステレオ再生",
       "3D": "3D: HRTFによる前方の自然な立体音響",
+      "BINAURAL": "バイノーラル: HRTFで正面に固定した立体音響",
       "4D": "4D: 前後左右＋上下の緩やかな空間揺らぎ",
       "8D": "8D: 頭の周りを360度全方位回転",
       "16D": "16D: 高度なマルチトラック8の字立体周回"
