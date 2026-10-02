@@ -957,12 +957,11 @@
           ctx.fill();
         }
       } else if (state.waveMode === "a7") {
-        // 案7: 水面を真上から見た円形の波。音の強さで波紋が広がる。
-        const cx = width * 0.5;
-        const cy = height * 0.5;
-        // 横方向は表示領域の左右端まで届くよう、画面幅を基準にする。
-        const maxRadius = width * 0.5;
-        const verticalScale = Math.min(1, height / Math.max(1, width));
+        // 案7: 平面の水面を真上から見て、音で波が奥へ流れていくように表示する。
+        const bandCount = Math.max(18, Math.min(34, Math.floor(height / 16)));
+        const centerX = width * 0.5;
+        const bandSpacing = height / bandCount;
+
         const bandEnergy = (from, to) => {
           let sum = 0;
           let count = 0;
@@ -980,93 +979,64 @@
         const high = bandEnergy(0.42, 0.92);
         const total = Math.min(1, low * 1.6 + mid * 1.15 + high * 0.9);
 
-        if (!drawWave._wave7Ripples) {
-          drawWave._wave7Ripples = [];
+        if (isPlaying) {
+          drawWave._wave7Flow = (drawWave._wave7Flow || 0) + dt * (34 + total * 48);
         }
 
-        const ripples = drawWave._wave7Ripples;
-        const spawnEnergy = Math.min(1, total * 1.8);
-        if (isPlaying && spawnEnergy > 0.045 && now - (drawWave._wave7LastSpawn || 0) > 145) {
-          ripples.unshift({
-            radius: Math.max(2, maxRadius * (0.025 + low * 0.08)),
-            strength: 0.35 + spawnEnergy * 0.9,
-            speed: 0.38 + low * 1.05,
-            phase: now * 0.002 + mid * 4
-          });
-          drawWave._wave7LastSpawn = now;
-          if (ripples.length > 18) ripples.length = 18;
-        }
+        const flow = drawWave._wave7Flow || 0;
 
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
+        // 水面そのもの。遠近法を使わず、画面全体を同じ平面として描く。
+        const surface = ctx.createLinearGradient(0, 0, 0, height);
+        surface.addColorStop(0, "rgba(8,18,24,0.20)");
+        surface.addColorStop(0.5, "rgba(8,24,30,0.12)");
+        surface.addColorStop(1, "rgba(8,18,24,0.20)");
+        ctx.fillStyle = surface;
+        ctx.fillRect(0, 0, width, height);
 
-        // 水面の中心にある小さな波紋と、そこから外へ伝わる円形の波。
-        for (let i = ripples.length - 1; i >= 0; i--) {
-          const r = ripples[i];
-          r.radius += r.speed * (dt * 60) * (0.62 + total * 0.72);
-          r.strength *= Math.pow(0.985, dt * 60);
+        // 波の帯が上から下へ流れる。音が大きいほど波の上下動が大きくなる。
+        for (let row = -2; row < bandCount + 3; row++) {
+          const yBase = ((row * bandSpacing + flow) % (height + bandSpacing * 3)) - bandSpacing * 1.5;
+          const waveAmplitude = height * (0.008 + total * 0.055);
+          const frequency = 1.5 + low * 2.2 + high * 1.8;
+          const phase = row * 0.72 + flow * 0.018;
 
-          if (r.radius > maxRadius * 1.18 || r.strength < 0.015) {
-            ripples.splice(i, 1);
-            continue;
+          ctx.beginPath();
+          const points = 96;
+          for (let p = 0; p <= points; p++) {
+            const x = (p / points) * width;
+            const nx = p / points;
+            const wave =
+              Math.sin(nx * Math.PI * 2 * frequency + phase) * waveAmplitude +
+              Math.sin(nx * Math.PI * 2 * (frequency * 2.1) - phase * 0.7) * waveAmplitude * (0.22 + high * 0.28);
+            const y = yBase + wave;
+            if (p === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
           }
 
-          const ringCount = 3;
-          for (let ring = 0; ring < ringCount; ring++) {
-            const radius = r.radius - ring * (7 + high * 14);
-            if (radius < 3) continue;
-
-            ctx.beginPath();
-            const points = 128;
-            for (let p = 0; p <= points; p++) {
-              const t = (p / points) * Math.PI * 2;
-              const freqWarp =
-                Math.sin(t * (5 + ring) + r.phase) * high * 7 +
-                Math.sin(t * (2 + ring) - r.phase * 0.7) * low * 10;
-              const radialWave =
-                Math.sin(t * 7 + r.phase * 1.5) * mid * 5 +
-                Math.sin(t * 13 - r.phase) * high * 2.5;
-              const rr = radius + freqWarp + radialWave;
-              const x = cx + Math.cos(t) * rr;
-              const y = cy + Math.sin(t) * rr * verticalScale * (0.94 + low * 0.06);
-              if (p === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
-            }
-
-            ctx.strokeStyle = `hsla(${185 + ring * 24 + high * 35}, 85%, ${58 + ring * 5}%, ${0.06 + r.strength * 0.18})`;
-            ctx.lineWidth = 0.8 + r.strength * (1.1 - ring * 0.18);
-            ctx.stroke();
-          }
+          const alpha = 0.10 + total * 0.30;
+          ctx.strokeStyle = `hsla(${190 + high * 55}, 82%, ${55 + mid * 18}%, ${alpha})`;
+          ctx.lineWidth = 0.8 + total * 1.5;
+          ctx.stroke();
         }
 
-        // 現在の音圧に反応する中心波。低音ほど大きく、高音ほど細かく揺れる。
-        const coreRadius = Math.max(4, maxRadius * (0.035 + low * 0.11 + total * 0.035));
+        // 音の変化が小さいときも水面の細かな揺れが見えるようにする。
+        const detailAmplitude = height * (0.004 + total * 0.022);
         ctx.beginPath();
-        const corePoints = 96;
-        for (let p = 0; p <= corePoints; p++) {
-          const t = (p / corePoints) * Math.PI * 2;
-          const rr =
-            coreRadius +
-            Math.sin(t * 5 + now * 0.004) * mid * 8 +
-            Math.sin(t * 11 - now * 0.003) * high * 4;
-          const x = cx + Math.cos(t) * rr;
-          const y = cy + Math.sin(t) * rr;
+        const detailPoints = 128;
+        for (let p = 0; p <= detailPoints; p++) {
+          const x = (p / detailPoints) * width;
+          const nx = p / detailPoints;
+          const y =
+            height * 0.5 +
+            Math.sin(nx * Math.PI * 2 * (3.2 + high * 3) + flow * 0.028) * detailAmplitude +
+            Math.sin(nx * Math.PI * 2 * 7 - flow * 0.019) * detailAmplitude * 0.35;
           if (p === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
-        ctx.strokeStyle = `hsla(195, 90%, 68%, ${0.35 + total * 0.45})`;
-        ctx.lineWidth = 1.2 + total * 2.2;
+        ctx.strokeStyle = `rgba(180,225,235,${0.08 + total * 0.18})`;
+        ctx.lineWidth = 0.8 + total;
         ctx.stroke();
-
-        // ごく薄い水面の円。音が強いほど存在感が増す。
-        ctx.beginPath();
-        ctx.arc(cx, cy, maxRadius * 0.98, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,255,255,${0.035 + total * 0.08})`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.restore();
-      } else if (state.waveMode === "a8") {      } else if (state.waveMode === "a8") {
+      }      } else if (state.waveMode === "a8") {      } else if (state.waveMode === "a8") {
         // 案8: 心電図風。上=R、下=L、左=現在に近い、右=過去。
         if (!drawWave._wave8History) {
           drawWave._wave8History = [];
