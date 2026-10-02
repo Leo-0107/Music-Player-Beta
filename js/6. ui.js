@@ -642,64 +642,58 @@
           ctx.stroke();
         }
       } else if (state.waveMode === "a2") {
+        // 案2: 左右いっぱいに周波数バーを並べ、実際の出力レベルで上下させる。
+        const bars = Math.min(64, waveLeftOutputAnalyser?.frequencyBinCount || 64);
+        const gap = Math.max(1, width * 0.006);
+        const barWidth = Math.max(2, (width - gap * (bars - 1)) / bars);
+        const maxBarHeight = height * 0.86;
+        const baseY = height * 0.92;
+
         if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
-          if (!waveLeftOutputAnalyser._displayData || waveLeftOutputAnalyser._displayData.length !== waveLeftOutputAnalyser.fftSize) {
-            waveLeftOutputAnalyser._displayData = new Float32Array(waveLeftOutputAnalyser.fftSize);
-            waveRightOutputAnalyser._displayData = new Float32Array(waveRightOutputAnalyser.fftSize);
-            waveLeftOutputAnalyser._displayData.fill(128);
-            waveRightOutputAnalyser._displayData.fill(128);
+          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
+
+          if (!waveLeftOutputAnalyser._a2Smooth || waveLeftOutputAnalyser._a2Smooth.length !== bars) {
+            waveLeftOutputAnalyser._a2Smooth = new Float32Array(bars);
           }
 
-          const leftDisplay = waveLeftOutputAnalyser._displayData;
-          const rightDisplay = waveRightOutputAnalyser._displayData;
+          const smooth = waveLeftOutputAnalyser._a2Smooth;
 
-          if (isPlaying) {
-            waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputData);
-            waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputData);
-            for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (waveLeftOutputData[i] - leftDisplay[i]) * 0.13;
-              rightDisplay[i] += (waveRightOutputData[i] - rightDisplay[i]) * 0.13;
+          for (let i = 0; i < bars; i++) {
+            const startBin = Math.floor(Math.pow(i / bars, 1.35) * waveLeftOutputData.length);
+            const endBin = Math.min(
+              waveLeftOutputData.length,
+              Math.max(startBin + 1, Math.floor(Math.pow((i + 1) / bars, 1.35) * waveLeftOutputData.length))
+            );
+
+            let level = 0;
+            for (let k = startBin; k < endBin; k++) {
+              const left = (waveLeftOutputData[k] || 0) / 255;
+              const right = (waveRightOutputData[k] || 0) / 255;
+              level = Math.max(level, (left + right) * 0.5);
             }
-          } else {
-            for (let i = 0; i < leftDisplay.length; i++) {
-              leftDisplay[i] += (128 - leftDisplay[i]) * 0.13;
-              rightDisplay[i] += (128 - rightDisplay[i]) * 0.13;
-            }
+
+            const target = Math.min(1, level * 1.8);
+            smooth[i] += (target - smooth[i]) * (isPlaying ? 0.22 : 0.12);
+
+            const barHeight = Math.max(1, smooth[i] * maxBarHeight);
+            const x = i * (barWidth + gap);
+
+            ctx.fillStyle = "rgba(95, 214, 255, 0.88)";
+            ctx.fillRect(x, baseY - barHeight, barWidth, barHeight);
           }
 
-          const drawChannelWave = (data, top, bottom, label) => {
-            const centerY = (top + bottom) * 0.5;
-            const amplitudeScale = (bottom - top) * 0.42;
+          ctx.strokeStyle = "rgba(255,255,255,0.14)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, baseY);
+          ctx.lineTo(width, baseY);
+          ctx.stroke();
 
-            ctx.beginPath();
-            for (let i = 0; i < data.length; i++) {
-              const x = (i / Math.max(1, data.length - 1)) * width;
-              const sample = (data[i] - 128) / 128;
-              const y = centerY - sample * amplitudeScale;
-              if (i === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
-            }
-            ctx.strokeStyle = "rgba(95, 214, 255, 0.92)";
-            ctx.lineWidth = 1.8;
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
-            ctx.stroke();
-
-            ctx.strokeStyle = "rgba(255,255,255,0.12)";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(width, centerY);
-            ctx.stroke();
-
-            ctx.fillStyle = "rgba(255,255,255,0.72)";
-            ctx.font = "10px sans-serif";
-            ctx.textAlign = "left";
-            ctx.fillText(label, 8, Math.max(12, top + 12));
-          };
-
-          drawChannelWave(leftDisplay, 0, height * 0.5, "L");
-          drawChannelWave(rightDisplay, height * 0.5, height, "R");
+          ctx.fillStyle = "rgba(255,255,255,0.72)";
+          ctx.font = "10px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("L / R", 8, Math.max(12, baseY - maxBarHeight - 6));
         }
       } else if (state.waveMode === "a3") {
         const sideBars = Math.min(32, waveLeftOutputAnalyser?.frequencyBinCount || 32);
