@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 85;
+  const BUILD_REVISION = 86;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2907,24 +2907,24 @@
   }
 
   function createPitchShifter(ctx){
-    // 2つのオーバーラップするグレインを使う簡易OLA方式。
-    // 旧実装は読み出し位置が書き込み位置に追いついた際に未確定/上書き済み領域を読むため、
-    // ピッチ変更時に音が潰れたりノイズ化しやすかった。
+    // 2グレインOLA方式を安定化したピッチシフター。
+    // グレインの位相を読み出し位置から独立させ、常に50%オーバーラップで
+    // クロスフェードする。これにより、旧実装で起きていた読み出し位置の
+    // 不整合による「少しズレた音が重なる」症状と不規則なノイズを抑える。
     const node = ctx.createScriptProcessor(1024, 2, 2);
-    const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.10));
+    const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.09));
+    const hopSize = Math.floor(grainSize / 2);
     const bufferLength = grainSize * 6;
     const buffers = [new Float32Array(bufferLength), new Float32Array(bufferLength)];
     const stateRef = { pitch: 1 };
-    let writeIndex = 0;
-    let readA = bufferLength - grainSize * 2;
-    let readB = readA + grainSize / 2;
 
-    const resetState = () => {
-      buffers.forEach(buffer => buffer.fill(0));
-      writeIndex = 0;
-      readA = bufferLength - grainSize * 2;
-      readB = readA + grainSize / 2;
-    };
+    let writeIndex = 0;
+    let spawnCountdown = 0;
+    let nextSlot = 0;
+    const grains = [
+      { active: false, readPos: 0, phase: 0 },
+      { active: false, readPos: 0, phase: 0 }
+    ];
 
     const wrap = value => {
       value %= bufferLength;
@@ -2939,80 +2939,114 @@
       return buffer[i0] * (1 - f) + buffer[i1] * f;
     };
 
+    // Hann窓。50%オーバーラップ時の境界を滑らかにして、
+    // 三角窓よりもグレイン境界の周期的な音色変化を抑える。
     const window = phase => {
-      // 0 -> 1 -> 0 の三角窓。2グレインの重なりで連続した音にする。
       const x = Math.max(0, Math.min(1, phase));
-      return x < 0.5 ? x * 2 : (1 - x) * 2;
+      return 0.5 - 0.5 * Math.cos(Math.PI * x);
     };
 
-    const keepReadHeadAwayFromWrite = (read, pitch) => {
-      let distance = wrap(writeIndex - read);
-      const safeMin = grainSize * 1.15;
-      const safeMax = bufferLength - grainSize * 1.15;
-
-      if (pitch > 1 && distance < safeMin) {
-        // 高音側：読み出しが追いついたら1グレイン戻して時間を補う。
-        read = wrap(read - grainSize);
-      } else if (pitch < 1 && distance > safeMax) {
-        // 低音側：読み出しが遅れすぎたら1グレイン先へ進める。
-        read = wrap(read + grainSize);
-      }
-      return read;
+    const getStartDelay = pitch => {
+      // 高音側は読み出しが書き込み位置へ追いつきやすいため、
+      // ピッチに応じて少し深い位置から読み出す。
+      return grainSize * (pitch > 1 ? pitch + 0.35 : 1.35);
     };
+
+    const spawnGrain = (pitch, writePos) => {
+      const grain = grains[nextSlot];
+      grain.active = true;
+      grain.phase = 0;
+      grain.readPos = wrap(writePos - getStartDelay(pitch));
+      nextSlot = nextSlot === 0 ? 1 : 0;
+    };
+
+    const resetHeads = () => {
+      const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
+      const startDelay = getStartDelay(pitch);
+      const firstPos = wrap(writeIndex - startDelay);
+      const secondPos = wrap(firstPos - hopSize * pitch);
+
+      grains[0].active = true;
+      grains[0].phase = 0;
+      grains[0].readPos = firstPos;
+
+      grains[1].active = true;
+      grains[1].phase = 0.5;
+      grains[1].readPos = secondPos;
+
+      nextSlot = 0;
+      spawnCountdown = hopSize;
+    };
+
+    const writeInput = input => {
+      const inputL = input.numberOfChannels ? input.getChannelData(0) : null;
+      const inputR = input.numberOfChannels > 1 ? input.getChannelData(1) : inputL;
+      buffers[0][writeIndex] = inputL ? inputL[_writeSample] : 0;
+      buffers[1][writeIndex] = inputR ? inputR[_writeSample] : buffers[0][writeIndex];
+    };
+
+    let _writeSample = 0;
 
     node.onaudioprocess = e => {
       const input = e.inputBuffer;
       const output = e.outputBuffer;
       const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
-
-      if (Math.abs(pitch - 1) < 0.0001) {
-        for (let ch = 0; ch < output.numberOfChannels; ch++) {
-          const src = input.numberOfChannels
-            ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1))
-            : null;
-          const dst = output.getChannelData(ch);
-          if (src) dst.set(src);
-          else dst.fill(0);
-        }
-        return;
-      }
-
-      let w = writeIndex;
-      let a = readA;
-      let b = readB;
+      const inputL = input.numberOfChannels ? input.getChannelData(0) : null;
+      const inputR = input.numberOfChannels > 1 ? input.getChannelData(1) : inputL;
+      const outputL = output.numberOfChannels ? output.getChannelData(0) : null;
+      const outputR = output.numberOfChannels > 1 ? output.getChannelData(1) : outputL;
 
       for (let i = 0; i < output.length; i++) {
-        const inputL = input.numberOfChannels ? input.getChannelData(0)[i] : 0;
-        const inputR = input.numberOfChannels > 1 ? input.getChannelData(1)[i] : inputL;
-        buffers[0][w] = inputL;
-        buffers[1][w] = inputR;
+        // ピッチ1倍でもリングバッファには常に書き込んでおく。
+        // そのためピッチ変更時にバッファを消去する必要がなく、
+        // 変更直後の無音や余計な待ち時間を発生させない。
+        _writeSample = i;
+        buffers[0][writeIndex] = inputL ? inputL[i] : 0;
+        buffers[1][writeIndex] = inputR ? inputR[i] : buffers[0][writeIndex];
 
-        const phaseA = wrap(a - (w - grainSize * 2)) / grainSize;
-        const phaseB = wrap(b - (w - grainSize * 2)) / grainSize;
-        const gainA = window(phaseA % 1);
-        const gainB = window(phaseB % 1);
-        const weight = Math.max(0.001, gainA + gainB);
-
-        for (let ch = 0; ch < output.numberOfChannels; ch++) {
-          const src = buffers[Math.min(ch, 1)];
-          const dst = output.getChannelData(ch);
-          dst[i] = (
-            readInterpolated(src, a) * gainA +
-            readInterpolated(src, b) * gainB
-          ) / weight;
+        if (Math.abs(pitch - 1) < 0.0001) {
+          if (outputL) outputL[i] = inputL ? inputL[i] : 0;
+          if (outputR) outputR[i] = inputR ? inputR[i] : (inputL ? inputL[i] : 0);
+          writeIndex = wrap(writeIndex + 1);
+          continue;
         }
 
-        w = wrap(w + 1);
-        a = wrap(a + pitch);
-        b = wrap(b + pitch);
-        writeIndex = w;
-        a = keepReadHeadAwayFromWrite(a, pitch);
-        b = keepReadHeadAwayFromWrite(b, pitch);
-      }
+        if (spawnCountdown <= 0) {
+          spawnGrain(pitch, writeIndex);
+          spawnCountdown = hopSize;
+        }
 
-      writeIndex = w;
-      readA = a;
-      readB = b;
+        let sumL = 0;
+        let sumR = 0;
+        let weight = 0;
+
+        for (let g = 0; g < grains.length; g++) {
+          const grain = grains[g];
+          if (!grain.active) continue;
+
+          const gain = window(grain.phase);
+          if (gain > 0) {
+            sumL += readInterpolated(buffers[0], grain.readPos) * gain;
+            sumR += readInterpolated(buffers[1], grain.readPos) * gain;
+            weight += gain;
+          }
+
+          grain.readPos = wrap(grain.readPos + pitch);
+          grain.phase += 1 / grainSize;
+          if (grain.phase >= 1) grain.active = false;
+        }
+
+        if (weight > 0.0001) {
+          if (outputL) outputL[i] = sumL / weight;
+          if (outputR) outputR[i] = sumR / weight;
+        } else {
+          if (outputL) outputL[i] = 0;
+          if (outputR) outputR[i] = 0;
+        }
+
+        writeIndex = wrap(writeIndex + 1);
+        spawnCountdown--;
+      }
     };
 
     Object.defineProperty(node, "pitch", {
@@ -3021,10 +3055,17 @@
         const next = Math.max(0.5, Math.min(2, Number(v) || 1));
         if (Math.abs(next - stateRef.pitch) > 0.0001) {
           stateRef.pitch = next;
-          resetState();
+          if (Math.abs(next - 1) >= 0.0001) {
+            resetHeads();
+          } else {
+            grains[0].active = false;
+            grains[1].active = false;
+            spawnCountdown = 0;
+          }
         }
       }
     });
+
     return node;
   }
 
