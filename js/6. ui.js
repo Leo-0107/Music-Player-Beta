@@ -1753,33 +1753,44 @@
   }
 
   (async () => {
-    updateAppLoadingProgress(20, "ホーム画面を準備しています...");
+    let homeRevealed = false;
+    try {
+      updateAppLoadingProgress(20, "ホーム画面を準備しています...");
 
-    applyTheme();
-    if (!state.currentSong && typeof updateArtwork === "function") {
-      updateArtwork(null);
+      applyTheme();
+      if (!state.currentSong && typeof updateArtwork === "function") {
+        updateArtwork(null);
+      }
+      renderColorPickers();
+      setDMode(state.dMode);
+      setWaveMode(state.waveMode);
+      if (el.playbackRate) el.playbackRate.value = Math.min(2.0, Math.max(0.0, currentRate));
+      if (el.customRateInput) el.customRateInput.value = currentRate.toFixed(2);
+      if (el.pitchShift) el.pitchShift.value = state.pitchSemitones;
+      updateVolumeUI(currentVolumeTarget);
+      applyPitchAndRate();
+      setupMediaSessionRemoteControls();
+
+      updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
+      requestWaveStaticFrame();
+
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
+
+      revealAppAfterHomeReady();
+      homeRevealed = true;
+
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await initDB();
+      await reloadPlaylistFromDB();
+      restoreLastPlaybackMemory();
+      renderEqualizer();
+    } catch (error) {
+      console.error("Music Player startup initialization failed:", error);
+      updateAppLoadingProgress(100, "ホーム画面を表示します...");
+    } finally {
+      if (!homeRevealed) {
+        revealAppAfterHomeReady();
+      }
     }
-    renderColorPickers();
-    setDMode(state.dMode);
-    setWaveMode(state.waveMode);
-    if (el.playbackRate) el.playbackRate.value = Math.min(2.0, Math.max(0.0, currentRate));
-    if (el.customRateInput) el.customRateInput.value = currentRate.toFixed(2);
-    if (el.pitchShift) el.pitchShift.value = state.pitchSemitones;
-    updateVolumeUI(currentVolumeTarget);
-    applyPitchAndRate();
-    setupMediaSessionRemoteControls();
-
-    updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
-    requestWaveStaticFrame();
-
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
-
-    revealAppAfterHomeReady();
-
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    await initDB();
-    await reloadPlaylistFromDB();
-    restoreLastPlaybackMemory();
-    renderEqualizer();
   })();
