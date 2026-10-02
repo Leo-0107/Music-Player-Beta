@@ -805,109 +805,69 @@
         ctx.lineTo(waveLeft + waveWidth, height - 1);
         ctx.stroke();
       } else if (state.waveMode === "a5") {
-        // 案5: 現在の音を3軸で立体化。左右=周波数、前後=ステレオ定位、上下=強度。
-        const spaceBands = 56;
-        const centerX = width * 0.5;
-        const baseY = height * 0.88;
-        const spanX = width * 0.84;
-        const depthSpan = width * 0.22;
-        const depthLift = height * 0.18;
-        const heightScale = height * 0.62;
+        // 案5: 心電図のように、音量を上下の振幅として左から右へ流す。
+        const pointCount = Math.max(80, Math.min(180, Math.floor(width / 5)));
+        const centerY = height * 0.5;
+        const amplitudeScale = height * 0.42;
 
-        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
-          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-
-          if (!drawWave._waveA5Smooth || drawWave._waveA5Smooth.length !== spaceBands) {
-            drawWave._waveA5Smooth = new Float32Array(spaceBands);
-            drawWave._waveA5Balance = new Float32Array(spaceBands);
-          }
-
-          const smoothLevel = drawWave._waveA5Smooth;
-          const smoothBalance = drawWave._waveA5Balance;
-
-          const getBand = (data, bandIndex) => {
-            const start = Math.floor(Math.pow(bandIndex / spaceBands, 1.45) * data.length);
-            const end = Math.min(
-              data.length,
-              Math.max(start + 1, Math.floor(Math.pow((bandIndex + 1) / spaceBands, 1.45) * data.length))
-            );
-            let level = 0;
-            for (let i = start; i < end; i++) level = Math.max(level, (data[i] || 0) / 255);
-            return level;
-          };
-
-          const points = [];
-          for (let b = 0; b < spaceBands; b++) {
-            const left = getBand(waveLeftOutputData, b);
-            const right = getBand(waveRightOutputData, b);
-            const levelTarget = Math.min(1, Math.max(left, right) * 2);
-            const balanceTarget = (right + left) > 0.02
-              ? (right - left) / Math.max(0.02, right + left)
-              : 0;
-
-            smoothLevel[b] += (levelTarget - smoothLevel[b]) * 0.16;
-            smoothBalance[b] += (balanceTarget - smoothBalance[b]) * 0.16;
-
-            const ratio = b / Math.max(1, spaceBands - 1);
-            const freqX = centerX + (ratio - 0.5) * spanX;
-            const depth = smoothBalance[b];
-            const x = freqX + depth * depthSpan;
-            const y = baseY - smoothLevel[b] * heightScale - depth * depthLift;
-            points.push({ x, y, depth, level: smoothLevel[b], ratio });
-          }
-
-          // 床面。前後方向が見えるよう、ステレオ位置の基準線を薄く表示。
-          ctx.strokeStyle = "rgba(255,255,255,0.10)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(centerX - spanX * 0.5 - depthSpan, baseY);
-          ctx.lineTo(centerX + spanX * 0.5 + depthSpan, baseY);
-          ctx.stroke();
-
-          // 周波数方向の立体波形。
-          ctx.beginPath();
-          points.forEach((p, i) => {
-            if (i === 0) ctx.moveTo(p.x, p.y);
-            else ctx.lineTo(p.x, p.y);
-          });
-          ctx.strokeStyle = "hsla(195, 90%, 62%, 0.92)";
-          ctx.lineWidth = 2.2;
-          ctx.lineJoin = "round";
-          ctx.lineCap = "round";
-          ctx.stroke();
-
-          // 各帯域を床まで接続して、強度と前後位置を同時に見えるようにする。
-          for (let i = 0; i < points.length; i++) {
-            const p = points[i];
-            if (p.level < 0.015) continue;
-            const alpha = 0.08 + p.level * 0.18;
-            ctx.strokeStyle = `hsla(${185 + p.ratio * 105}, 90%, 62%, ${alpha})`;
-            ctx.lineWidth = 0.7;
-            ctx.beginPath();
-            ctx.moveTo(p.x, baseY);
-            ctx.lineTo(p.x, p.y);
-            ctx.stroke();
-          }
-
-          // ステレオ定位を示す前後方向の補助ライン。
-          const midY = baseY - height * 0.02;
-          ctx.strokeStyle = "rgba(255,255,255,0.07)";
-          ctx.beginPath();
-          ctx.moveTo(centerX - depthSpan, midY);
-          ctx.lineTo(centerX + depthSpan, midY);
-          ctx.stroke();
-
-          ctx.fillStyle = "rgba(255,255,255,0.68)";
-          ctx.font = "10px sans-serif";
-          ctx.textAlign = "left";
-          ctx.fillText("低", Math.max(4, centerX - spanX * 0.5), baseY + 14);
-          ctx.textAlign = "right";
-          ctx.fillText("高", Math.min(width - 4, centerX + spanX * 0.5), baseY + 14);
-          ctx.textAlign = "center";
-          ctx.fillText("L ← 前後 → R", centerX, Math.max(12, baseY - height * 0.74));
+        if (!drawWave._waveA5History || drawWave._waveA5History.length !== pointCount) {
+          drawWave._waveA5History = new Float32Array(pointCount);
         }
-      } else if (state.waveMode === "a6") {
+
+        const history = drawWave._waveA5History;
+
+        let level = 0;
+        if (isPlaying && leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
+          leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+          rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+
+          let leftSum = 0;
+          let rightSum = 0;
+          for (let i = 0; i < leftLevelData.length; i++) {
+            const sample = (leftLevelData[i] - 128) / 128;
+            leftSum += sample * sample;
+          }
+          for (let i = 0; i < rightLevelData.length; i++) {
+            const sample = (rightLevelData[i] - 128) / 128;
+            rightSum += sample * sample;
+          }
+
+          const leftRms = Math.sqrt(leftSum / Math.max(1, leftLevelData.length));
+          const rightRms = Math.sqrt(rightSum / Math.max(1, rightLevelData.length));
+          level = Math.min(1, ((leftRms + rightRms) * 0.5) * 2.4);
+        }
+
+        // 新しい音量を右端へ追加し、古い波形を左へ送る。
+        const incoming = Math.min(1, level);
+        history.copyWithin(0, 1);
+        history[history.length - 1] += (incoming - history[history.length - 1]) * (isPlaying ? 0.32 : 0.18);
+
+        ctx.beginPath();
+        for (let i = 0; i < history.length; i++) {
+          const x = (i / Math.max(1, history.length - 1)) * width;
+          const y = centerY - history[i] * amplitudeScale;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "hsla(195, 90%, 62%, 0.92)";
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.stroke();
+
+        // 中央線を薄く表示し、無音時は中央へ戻ることが分かるようにする。
+        ctx.strokeStyle = "rgba(255,255,255,0.10)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(255,255,255,0.68)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("音量", 8, Math.max(12, centerY - amplitudeScale - 6));
+      }      } else if (state.waveMode === "a6") {
         // 案6: 低・中・高域を3つの動くリングとして表示し、背景の色変化だけで終わらせない。
         const bandEnergy = (from, to) => {
           let sum = 0;
