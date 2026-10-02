@@ -848,11 +848,8 @@
         return playSong(next, true, { preservePlaylistContext: true });
       }
       clearPlaylistContext();
-      setPlaybackIntent(false);
-      audio.pause();
-      updatePlayPauseUI();
       renderQueue();
-      return;
+      // プレイリストの最後まで再生した場合も、通常ライブラリの次曲へ継続する。
     }
 
     if(!isAuto && historyIndex < historyStack.length - 1) {
