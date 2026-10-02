@@ -1295,13 +1295,28 @@
           drawWave._wave3DLastSampleTime = -1;
         }
 
-        const rows = drawWave._wave3DHistory;
         const currentAudioTime = Number(audio.currentTime) || 0;
+        const hasHistory = drawWave._wave3DHistory.length > 0;
         const pauseFade = isPlaying
           ? 1
-          : Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8);
+          : hasHistory
+            ? Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8)
+            : 1;
 
-        if (!isPlaying) drawWave._wave3DPauseFade = pauseFade;
+        if (!isPlaying && hasHistory) drawWave._wave3DPauseFade = pauseFade;
+
+        // 再生していないときも3D表示そのものは残す。
+        // 実音声を解析できない状態では、中央に緩やかな基準波形を表示する。
+        const staticBands = (() => {
+          const bands = new Float32Array(BANDS_3D);
+          for (let b = 0; b < BANDS_3D; b++) {
+            const x = b / Math.max(1, BANDS_3D - 1);
+            bands[b] = 0.055
+              + 0.025 * Math.sin(x * Math.PI * 2.4)
+              + 0.018 * Math.sin(x * Math.PI * 5.8 + 0.7);
+          }
+          return bands;
+        })();
 
         // 現在の解析値を補間して、先頭だけが段差状にならないようにする。
         const liveBands = isPlaying && waveSmoothData?.length
@@ -1323,6 +1338,11 @@
               return bands;
             })()
           : null;
+
+        const rows = hasHistory
+          ? drawWave._wave3DHistory
+          : [{ time: currentAudioTime, bands: staticBands }];
+        const displayBands = liveBands || staticBands;
 
         const timeLeft = width * 0.06;
         const timeRight = width * 0.94;
@@ -1467,13 +1487,13 @@
           ctx.restore();
 
           // 現在の断面だけは毎フレーム描画。音量が上がるほど、カメラから見て明確に上へ持ち上がる。
-          if (liveBands) {
+          if (displayBands) {
             ctx.save();
             ctx.globalAlpha = pauseFade;
             ctx.beginPath();
             for (let b = 0; b < BANDS_3D; b++) {
               const freqRatio = b / (BANDS_3D - 1);
-              const point = project3DPoint(0, freqRatio, liveBands[b]);
+              const point = project3DPoint(0, freqRatio, displayBands[b]);
               if (b === 0) ctx.moveTo(point.x, point.y);
               else ctx.lineTo(point.x, point.y);
             }
