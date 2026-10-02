@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 67;
+  const BUILD_REVISION = 68;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2824,15 +2824,19 @@
 
   function updateMicFeedbackStrength(value) {
     const n = Math.max(0, Math.min(1, Number(value) / 100));
+    const percent = Math.round(n * 100);
     state.micFeedbackStrength = n;
-    if (el.micFeedbackStrength) el.micFeedbackStrength.value = String(Math.round(n * 100));
-    if (el.micFeedbackStrengthText) el.micFeedbackStrengthText.textContent = Math.round(n * 100) + "%";
+    const strengthInput = el.micFeedbackStrength || document.getElementById("micFeedbackStrength");
+    const strengthText = el.micFeedbackStrengthText || document.getElementById("micFeedbackStrengthText");
+    if (strengthInput) strengthInput.value = String(percent);
+    if (strengthText) strengthText.textContent = percent + "%";
     saveState();
   }
 
   if (el.micFeedbackStrength) {
     el.micFeedbackStrength.value = String(Math.round(state.micFeedbackStrength * 100));
     el.micFeedbackStrength.addEventListener("input", e => updateMicFeedbackStrength(e.target.value));
+    el.micFeedbackStrength.addEventListener("change", e => updateMicFeedbackStrength(e.target.value));
   }
   if (el.micFeedbackStrengthText) {
     el.micFeedbackStrengthText.textContent = Math.round(state.micFeedbackStrength * 100) + "%";
