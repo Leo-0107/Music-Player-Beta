@@ -1197,6 +1197,19 @@ kbd {
 .additionalChannelVolumeWrap {
   margin-top: 10px;
 }
+
+/* L/R/停止の出力切替ボタンは文字数に左右されず同じ枠サイズにする */
+.speakerChannelRouteButton {
+  width: 54px;
+  min-width: 54px;
+  height: 36px;
+  padding: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
 .outputDeviceModal {
   position: fixed;
   inset: 0;
