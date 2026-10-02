@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 83;
+  const BUILD_REVISION = 84;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -3422,6 +3422,7 @@
   async function resetAllFiles() {
     await clearAllTracksFromDB();
     revokeAllObjectURLs();
+    setPlaybackIntent(false);
     audio.pause();
     audio.removeAttribute("src");
     audio.load();
