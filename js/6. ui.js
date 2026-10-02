@@ -606,7 +606,7 @@
           if (isPlaying) {
             analyser.getByteTimeDomainData(waveTimeTargetData);
             for (let i = 0; i < waveTimeData.length; i++) {
-              waveTimeData[i] += (waveTimeTargetData[i] - waveTimeData[i]) * WAVE_TIME_SMOOTHING;
+              waveTimeData[i] += (waveTimeTargetData[i] - waveTimeData[i]) * 0.18;
             }
           } else {
             for (let i = 0; i < waveTimeData.length; i++) {
@@ -614,14 +614,17 @@
             }
           }
 
+          // 案1は常に画面中央を基準にする。無音時も中央線上に留める。
           const centerY = height * 0.5;
-          const amplitudeScale = height * 0.43;
+          const amplitudeScale = height * 0.78;
+          const visualGain = 1.9;
 
           ctx.beginPath();
           for (let i = 0; i < waveTimeData.length; i++) {
             const x = (i / Math.max(1, waveTimeData.length - 1)) * width;
             const sample = (waveTimeData[i] - 128) / 128;
-            const y = centerY - sample * amplitudeScale;
+            const amplifiedSample = Math.max(-1, Math.min(1, sample * visualGain));
+            const y = centerY - amplifiedSample * amplitudeScale;
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
           }
