@@ -1183,6 +1183,12 @@ kbd {
   gap: 6px;
   flex: 0 0 auto;
 }
+.additionalOutputSpeakerToggle {
+  min-width: 76px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  box-sizing: border-box;
+}
 .additionalOutputSpeakerToggle.active {
   background: var(--accent) !important;
   color: #07120a !important;
