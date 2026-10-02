@@ -55,6 +55,8 @@
       script.onerror = () => {
         cleanup();
         console.error('Music Player JS execution failed');
+        document.body.classList.remove('app-loading');
+        document.getElementById('appLoadingScreen')?.remove();
       };
       script.src = url;
       document.head.appendChild(script);
