@@ -2978,15 +2978,6 @@
       spawnCountdown = hopSize;
     };
 
-    const writeInput = input => {
-      const inputL = input.numberOfChannels ? input.getChannelData(0) : null;
-      const inputR = input.numberOfChannels > 1 ? input.getChannelData(1) : inputL;
-      buffers[0][writeIndex] = inputL ? inputL[_writeSample] : 0;
-      buffers[1][writeIndex] = inputR ? inputR[_writeSample] : buffers[0][writeIndex];
-    };
-
-    let _writeSample = 0;
-
     node.onaudioprocess = e => {
       const input = e.inputBuffer;
       const output = e.outputBuffer;
@@ -3000,7 +2991,6 @@
         // ピッチ1倍でもリングバッファには常に書き込んでおく。
         // そのためピッチ変更時にバッファを消去する必要がなく、
         // 変更直後の無音や余計な待ち時間を発生させない。
-        _writeSample = i;
         buffers[0][writeIndex] = inputL ? inputL[i] : 0;
         buffers[1][writeIndex] = inputR ? inputR[i] : buffers[0][writeIndex];
 
