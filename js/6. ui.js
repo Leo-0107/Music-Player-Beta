@@ -259,23 +259,6 @@
   if (el.btnThemeLight) el.btnThemeLight.addEventListener("click", () => { state.themeMode = "light"; saveState(); applyTheme(); });
   if (el.btnThemeCustom) el.btnThemeCustom.addEventListener("click", () => { state.themeMode = "custom"; saveState(); applyTheme(); renderColorPickers(); });
 
-  function getSleepTimerMode() {
-    return localStorage.getItem("mp_sleep_timer_mode_v1") === "end" ? "end" : "immediate";
-  }
-
-  function updateSleepTimerModeUI() {
-    const mode = getSleepTimerMode();
-    if (el.timerModeEnd) el.timerModeEnd.classList.toggle("active", mode === "end");
-    if (el.timerModeImmediate) el.timerModeImmediate.classList.toggle("active", mode === "immediate");
-  }
-
-  function setSleepTimerMode(mode) {
-    const nextMode = mode === "end" ? "end" : "immediate";
-    localStorage.setItem("mp_sleep_timer_mode_v1", nextMode);
-    updateSleepTimerModeUI();
-    toast(nextMode === "end" ? "終了方法: 現在の曲が終わったら停止" : "終了方法: 時間になったら停止");
-  }
-
   function setSleepTimer(minutes) {
     if (sleepTimerId) clearTimeout(sleepTimerId);
     if (sleepIntervalId) clearInterval(sleepIntervalId);
@@ -292,12 +275,11 @@
 
     const ms = minutes * 60 * 1000;
     sleepTimerEnd = Date.now() + ms;
-    const mode = getSleepTimerMode();
 
     const updateTimerText = () => {
       const remain = Math.max(0, Math.ceil((sleepTimerEnd - Date.now()) / 1000));
       if (remain <= 0) {
-        if (el.timerStatus) el.timerStatus.textContent = mode === "end" ? "現在の曲の終了待ち" : "タイマーOFF";
+        if (el.timerStatus) el.timerStatus.textContent = "現在の曲の終了待ち";
         if (sleepIntervalId) clearInterval(sleepIntervalId);
         sleepIntervalId = null;
         return;
@@ -312,7 +294,7 @@
 
     sleepTimerId = setTimeout(() => {
       sleepTimerId = null;
-      if (mode === "end" && !audio.paused && state.currentSong) {
+      if (!audio.paused && state.currentSong) {
         sleepTimerPendingStop = true;
         if (el.timerStatus) el.timerStatus.textContent = "現在の曲の終了待ち";
         toast("タイマー時間になりました。現在の曲の終了後に停止します");
@@ -331,10 +313,6 @@
     toast(`${minutes}分後に自動停止します`);
   }
 
-  if (el.timerModeEnd) el.timerModeEnd.addEventListener("click", () => setSleepTimerMode("end"));
-  if (el.timerModeImmediate) el.timerModeImmediate.addEventListener("click", () => setSleepTimerMode("immediate"));
-  updateSleepTimerModeUI();
-
   document.querySelectorAll("[data-timer]").forEach(btn => {
     btn.addEventListener("click", () => {
       const t = btn.dataset.timer;
@@ -344,9 +322,16 @@
   });
 
   if (el.btnSetCustomTimer && el.customTimerInput) {
-    el.btnSetCustomTimer.addEventListener("click", () => {
+    const applyCustomTimer = () => {
       const v = Number(el.customTimerInput.value);
       if (v > 0) setSleepTimer(v);
+    };
+    el.btnSetCustomTimer.addEventListener("click", applyCustomTimer);
+    el.customTimerInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyCustomTimer();
+      }
     });
   }
 
