@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 68;
+  const BUILD_REVISION = 69;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2856,28 +2856,57 @@
   }
 
   function createPitchShifter(ctx){
+    // 2つのオーバーラップするグレインを使う簡易OLA方式。
+    // 旧実装は読み出し位置が書き込み位置に追いついた際に未確定/上書き済み領域を読むため、
+    // ピッチ変更時に音が潰れたりノイズ化しやすかった。
     const node = ctx.createScriptProcessor(1024, 2, 2);
-    const bufferLength = Math.max(4096, Math.round(ctx.sampleRate * 0.22));
+    const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.10));
+    const bufferLength = grainSize * 6;
     const buffers = [new Float32Array(bufferLength), new Float32Array(bufferLength)];
-    const grainSize = Math.max(1024, Math.round(ctx.sampleRate * 0.11));
     const stateRef = { pitch: 1 };
     let writeIndex = 0;
-    let readA = bufferLength * 0.25;
-    let readB = bufferLength * 0.75;
+    let readA = bufferLength - grainSize * 2;
+    let readB = readA + grainSize / 2;
 
     const resetState = () => {
       buffers.forEach(buffer => buffer.fill(0));
       writeIndex = 0;
-      readA = bufferLength * 0.25;
-      readB = bufferLength * 0.75;
+      readA = bufferLength - grainSize * 2;
+      readB = readA + grainSize / 2;
+    };
+
+    const wrap = value => {
+      value %= bufferLength;
+      return value < 0 ? value + bufferLength : value;
     };
 
     const readInterpolated = (buffer, pos) => {
-      const p = (pos + bufferLength) % bufferLength;
+      const p = wrap(pos);
       const i0 = Math.floor(p);
       const i1 = (i0 + 1) % bufferLength;
       const f = p - i0;
       return buffer[i0] * (1 - f) + buffer[i1] * f;
+    };
+
+    const window = phase => {
+      // 0 -> 1 -> 0 の三角窓。2グレインの重なりで連続した音にする。
+      const x = Math.max(0, Math.min(1, phase));
+      return x < 0.5 ? x * 2 : (1 - x) * 2;
+    };
+
+    const keepReadHeadAwayFromWrite = (read, pitch) => {
+      let distance = wrap(writeIndex - read);
+      const safeMin = grainSize * 1.15;
+      const safeMax = bufferLength - grainSize * 1.15;
+
+      if (pitch > 1 && distance < safeMin) {
+        // 高音側：読み出しが追いついたら1グレイン戻して時間を補う。
+        read = wrap(read - grainSize);
+      } else if (pitch < 1 && distance > safeMax) {
+        // 低音側：読み出しが遅れすぎたら1グレイン先へ進める。
+        read = wrap(read + grainSize);
+      }
+      return read;
     };
 
     node.onaudioprocess = e => {
@@ -2886,8 +2915,10 @@
       const pitch = Math.max(0.5, Math.min(2, Number(stateRef.pitch) || 1));
 
       if (Math.abs(pitch - 1) < 0.0001) {
-        for (let ch = 0; ch < 2; ch++) {
-          const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
+        for (let ch = 0; ch < output.numberOfChannels; ch++) {
+          const src = input.numberOfChannels
+            ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1))
+            : null;
           const dst = output.getChannelData(ch);
           if (src) dst.set(src);
           else dst.fill(0);
@@ -2895,38 +2926,45 @@
         return;
       }
 
-      for (let ch = 0; ch < 2; ch++) {
-        const src = input.numberOfChannels ? input.getChannelData(Math.min(ch, input.numberOfChannels - 1)) : null;
-        const dst = output.getChannelData(ch);
-        const buf = buffers[ch];
-        let w = writeIndex, a = readA, b = readB;
+      let w = writeIndex;
+      let a = readA;
+      let b = readB;
 
-        for (let i = 0; i < dst.length; i++) {
-          buf[w] = src ? (src[i] || 0) : 0;
-          const phaseA = (((a % grainSize) + grainSize) % grainSize) / grainSize;
-          const phaseB = (((b % grainSize) + grainSize) % grainSize) / grainSize;
-          const gainA = phaseA < 0.5 ? phaseA * 2 : (1 - phaseA) * 2;
-          const gainB = phaseB < 0.5 ? phaseB * 2 : (1 - phaseB) * 2;
-          const weight = Math.max(0.0001, gainA + gainB);
+      for (let i = 0; i < output.length; i++) {
+        const inputL = input.numberOfChannels ? input.getChannelData(0)[i] : 0;
+        const inputR = input.numberOfChannels > 1 ? input.getChannelData(1)[i] : inputL;
+        buffers[0][w] = inputL;
+        buffers[1][w] = inputR;
 
+        const phaseA = wrap(a - (w - grainSize * 2)) / grainSize;
+        const phaseB = wrap(b - (w - grainSize * 2)) / grainSize;
+        const gainA = window(phaseA % 1);
+        const gainB = window(phaseB % 1);
+        const weight = Math.max(0.001, gainA + gainB);
+
+        for (let ch = 0; ch < output.numberOfChannels; ch++) {
+          const src = buffers[Math.min(ch, 1)];
+          const dst = output.getChannelData(ch);
           dst[i] = (
-            readInterpolated(buf, a) * gainA +
-            readInterpolated(buf, b) * gainB
+            readInterpolated(src, a) * gainA +
+            readInterpolated(src, b) * gainB
           ) / weight;
+        }
 
-          w = (w + 1) % bufferLength;
-          a += pitch;
-          b += pitch;
-        }
-        if (ch === 0) {
-          writeIndex = w;
-          readA = a;
-          readB = b;
-        }
+        w = wrap(w + 1);
+        a = wrap(a + pitch);
+        b = wrap(b + pitch);
+        writeIndex = w;
+        a = keepReadHeadAwayFromWrite(a, pitch);
+        b = keepReadHeadAwayFromWrite(b, pitch);
       }
+
+      writeIndex = w;
+      readA = a;
+      readB = b;
     };
 
-    Object.defineProperty(node, 'pitch', {
+    Object.defineProperty(node, "pitch", {
       get: () => stateRef.pitch,
       set: v => {
         const next = Math.max(0.5, Math.min(2, Number(v) || 1));
