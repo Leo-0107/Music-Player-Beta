@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 80;
+  const BUILD_REVISION = 81;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -559,7 +559,11 @@
 
       audioGraphReady = true;
       syncAdditionalOutputRuntimes().catch(() => {});
-    } catch(e) {}
+    } catch(e) {
+      audioGraphReady = false;
+      console.error("Music Player audio graph initialization failed:", e);
+      try { outputBridgeAudio?.pause(); } catch (ignore) {}
+    }
   }
 
   function getActiveSpeakerPair() {
@@ -1277,7 +1281,11 @@
         } catch (ignore) {}
         state.mainOutputDeviceId = "";
       }
-      state.mainOutputDeviceId = previousId;
+      if (outputBridgeAudio?.sinkId === previousId) {
+        state.mainOutputDeviceId = previousId;
+      } else if (outputBridgeAudio?.sinkId === "") {
+        state.mainOutputDeviceId = "";
+      }
       if (e?.name === "NotAllowedError") {
         toast("この出力機器の使用がブラウザで許可されていません");
       } else if (e?.name === "NotFoundError") {
