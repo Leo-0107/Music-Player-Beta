@@ -881,10 +881,12 @@
           return count ? sum / count : 0;
         };
 
-        const low = bandEnergy(0.01, 0.10);
-        const mid = bandEnergy(0.10, 0.42);
-        const high = bandEnergy(0.42, 0.92);
-        const total = Math.min(1, low * 1.5 + mid * 1.1 + high * 0.8);
+        // 小さい音量差も見えるよう、低いレベルを持ち上げてから表示に使う。
+        const enhance = value => Math.min(1, Math.pow(Math.max(0, value), 0.62) * 1.08);
+        const low = enhance(bandEnergy(0.01, 0.10));
+        const mid = enhance(bandEnergy(0.10, 0.42));
+        const high = enhance(bandEnergy(0.42, 0.92));
+        const total = Math.min(1, low * 1.65 + mid * 1.3 + high * 1.0);
         const cx = width * 0.5;
         const cy = height * 0.52;
         const baseRadius = Math.min(width, height) * 0.13;
@@ -897,9 +899,9 @@
         ctx.fillRect(0, 0, width, height);
 
         const rings = [
-          { energy: low, hue: 35, radius: baseRadius * (1.45 + low * 2.1), wobble: height * 0.12, speed: 0.75, tilt: 0.38 },
-          { energy: mid, hue: 185, radius: baseRadius * (2.25 + mid * 2.3), wobble: height * 0.10, speed: -0.52, tilt: -0.25 },
-          { energy: high, hue: 285, radius: baseRadius * (3.05 + high * 2.0), wobble: height * 0.08, speed: 0.95, tilt: 0.16 }
+          { energy: low, hue: 35, radius: baseRadius * (1.35 + low * 2.7), wobble: height * 0.12, speed: 0.75, tilt: 0.38 },
+          { energy: mid, hue: 185, radius: baseRadius * (2.15 + mid * 3.0), wobble: height * 0.10, speed: -0.52, tilt: -0.25 },
+          { energy: high, hue: 285, radius: baseRadius * (2.95 + high * 2.6), wobble: height * 0.08, speed: 0.95, tilt: 0.16 }
         ];
 
         rings.forEach((ring, ringIndex) => {
@@ -912,8 +914,8 @@
           ctx.beginPath();
           for (let i = 0; i <= points; i++) {
             const t = (i / points) * Math.PI * 2;
-            const wave = Math.sin(t * (3 + ringIndex) + phase * 2.2) * ring.wobble * (0.20 + ring.energy * 1.35);
-            const pulse = ring.energy * Math.sin(t * 2 - phase * 1.4) * Math.min(width, height) * 0.035;
+            const wave = Math.sin(t * (3 + ringIndex) + phase * 2.2) * ring.wobble * (0.28 + ring.energy * 1.55);
+            const pulse = ring.energy * Math.sin(t * 2 - phase * 1.4) * Math.min(width, height) * 0.045;
             const rx = ring.radius + wave + pulse;
             const ry = ring.radius * (0.48 + ring.energy * 0.22) + wave * 0.42;
             const x = cx + Math.cos(t + phase) * rx;
