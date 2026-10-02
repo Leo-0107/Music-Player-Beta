@@ -23,7 +23,8 @@
       startOutputBridge().catch(() => {});
     }
     if (typeof drawWave === "function" && drawWave._wave3DHistory) {
-      drawWave._wave3DHistory = [];
+      // 曲が変わっても3D波形の履歴は継続させる。
+      // 実際の曲変更・シーク判定はdrawWave側で行う。
       drawWave._wave3DSampleElapsed = 0;
       drawWave._wave3DLastAudioTime = -1;
       drawWave._wave3DLastSampleTime = -1;
@@ -323,9 +324,10 @@
     const depth = -x * sinY + z * cosY;
     const cosE = Math.cos(cameraElevation);
     const sinE = Math.sin(cameraElevation);
+    const fitScale = Number.isFinite(point.fitScale) ? point.fitScale : 1;
     return {
-      x: cx + horizontal,
-      y: cy - y * cosE + depth * sinE,
+      x: cx + horizontal * fitScale,
+      y: cy + (-y * cosE + depth * sinE) * fitScale,
       age: point.age
     };
   }
@@ -1164,13 +1166,21 @@
         if (isPlaying && analyserData?.length) {
           const audioTime = Number(audio.currentTime) || 0;
           const trackKey = state.currentSong?.name || audio.src || "";
+          const previousTrackKey = drawWave._wave3DTrackKey;
+          const trackChanged = previousTrackKey !== null && previousTrackKey !== trackKey;
           drawWave._wave3DTrackKey = trackKey;
 
-          if (
+          if (trackChanged) {
+            // 曲変更では履歴を消さず、そのまま次の波形を後ろへつなぐ。
+            drawWave._wave3DSampleElapsed = 0;
+            drawWave._wave3DLastAudioTime = audioTime;
+            drawWave._wave3DLastSampleTime = -1;
+          } else if (
             drawWave._wave3DLastAudioTime >= 0 &&
             (audioTime < drawWave._wave3DLastAudioTime ||
              Math.abs(audioTime - drawWave._wave3DLastAudioTime) > 0.4)
           ) {
+            // 同じ曲のシークなど、時間が不連続になった場合だけ履歴をリセットする。
             drawWave._wave3DHistory = [];
             drawWave._wave3DSampleElapsed = 0;
             drawWave._wave3DLastSampleTime = -1;
@@ -1279,6 +1289,20 @@
         const freqDepth = width * 0.48;
         const floorDepth = height * 0.18;
 
+        // 視点操作そのものは変更せず、投影後の全体だけを画面内へ収める。
+        // ワイド画面では奥行きの回転による横/縦方向の広がりが大きくなるため、
+        // 理論上の最大範囲から縮小率を決め、波の山を描画時に上限クリップしない。
+        const cameraElevation = 0.62;
+        const halfTimeSpan = (timeRight - timeLeft) * 0.5;
+        const halfFreqDepth = freqDepth * 0.5;
+        const horizontalExtent = Math.hypot(halfTimeSpan, halfFreqDepth);
+        const verticalExtent = maxHeight * Math.cos(cameraElevation) + halfFreqDepth * Math.sin(cameraElevation);
+        const waveFitScale = Math.min(
+          1,
+          (width * 0.46) / Math.max(1, horizontalExtent),
+          (height * 0.44) / Math.max(1, verticalExtent)
+        );
+
         // 奥行き方向の床グリッド。波形そのものとは独立した固定の基準面。
         const project3DPoint = (age, freqRatio, amplitude) => {
           const timeX = timeLeft + age * (timeRight - timeLeft);
@@ -1289,7 +1313,8 @@
             x: timeX,
             y: heightValue,
             depth,
-            age
+            age,
+            fitScale: waveFitScale
           }, width, height);
         };
 
