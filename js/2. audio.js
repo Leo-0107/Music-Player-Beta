@@ -2504,7 +2504,7 @@
       await updateOutputPermissionStatus();
       await syncAdditionalOutputRuntimes();
       renderAdditionalOutputSpeakers();
-);
+    });
   }
 
   enumerateAudioOutputs().then(outputs => {
