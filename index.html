@@ -345,6 +345,13 @@
             <button class="btn small" data-timer="60">60分</button>
           </div>
           <div class="field" style="margin-top:12px;">
+            <label>終了方法</label>
+            <div class="controls">
+              <button class="btn small" id="timerModeEnd" type="button">現在の曲が終わったら停止</button>
+              <button class="btn small" id="timerModeImmediate" type="button">時間になったら停止</button>
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px;">
             <label>カスタム時間 (分)</label>
             <div style="display:flex; gap:8px;">
               <input type="number" id="customTimerInput" min="1" max="1440" placeholder="分数（例: 45）">
