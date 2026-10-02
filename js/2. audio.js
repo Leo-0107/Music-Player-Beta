@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 76;
+  const BUILD_REVISION = 78;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -29,6 +29,7 @@
   let waveDecayActive = false;
   let disconnectedOutputDeviceIds = new Set();
   let lastSystemDefaultOutputDeviceId = "";
+  let knownPhysicalOutputDeviceIds = new Set();
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
   let backgroundPlaybackRecovery = false;
 
@@ -2458,22 +2459,41 @@
       const outputs = await enumerateAudioOutputs();
       await rebindStoredOutputRoutes(outputs);
 
-      // OS/Chrome側の既定出力が変わった場合、接続中の既定物理デバイスをメインに同期する。
-      const defaultDevice = outputs.find(device => device.deviceId === "default");
-      const defaultPhysical = outputs.find(device =>
-        device.deviceId &&
-        device.deviceId !== "default" &&
-        defaultDevice &&
-        areSameOutputDevice(defaultDevice, device)
+      const physicalOutputs = outputs.filter(device =>
+        device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
       );
-      const currentMainId = state.mainOutputDeviceId || "";
-      const currentMainConnected = !currentMainId ||
-        outputs.some(device => device.deviceId === currentMainId);
+      const currentPhysicalIds = new Set(physicalOutputs.map(device => device.deviceId));
+      const newlyConnected = physicalOutputs.filter(device =>
+        !knownPhysicalOutputDeviceIds.has(device.deviceId)
+      );
+      const externalNewDevice = newlyConnected.find(device => getOutputDevicePriority(device) === 0);
 
-      if (defaultPhysical && defaultPhysical.deviceId !== currentMainId) {
-        await setMainOutputDevice(defaultPhysical.deviceId);
+      // 本体以外の新しい出力機器が接続された場合、その機器をメインにして
+      // 以前のメイン・追加スピーカーをすべてOFFにする。
+      if (externalNewDevice) {
+        state.outputRoutes.forEach(route => { route.enabled = false; });
+        if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
+          state.speakerSettings = {};
+        }
+        state.speakerSettings.mainEnabled = true;
+        await setMainOutputDevice(externalNewDevice.deviceId);
+      } else {
+        const defaultDevice = outputs.find(device => device.deviceId === "default");
+        const defaultPhysical = outputs.find(device =>
+          device.deviceId &&
+          device.deviceId !== "default" &&
+          defaultDevice &&
+          areSameOutputDevice(defaultDevice, device)
+        );
+        const currentMainId = state.mainOutputDeviceId || "";
+
+        if (defaultPhysical && defaultPhysical.deviceId !== currentMainId) {
+          await setMainOutputDevice(defaultPhysical.deviceId);
+        }
+        if (defaultPhysical) lastSystemDefaultOutputDeviceId = defaultPhysical.deviceId;
       }
-      if (defaultPhysical) lastSystemDefaultOutputDeviceId = defaultPhysical.deviceId;
+
+      knownPhysicalOutputDeviceIds = currentPhysicalIds;
 
       await updateOutputDeviceName();
       await updateDisconnectedOutputDeviceIds();
@@ -2482,7 +2502,7 @@
       await updateOutputPermissionStatus();
       await syncAdditionalOutputRuntimes();
       renderAdditionalOutputSpeakers();
-    });
+);
   }
 
   updateOutputDeviceName();
