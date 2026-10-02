@@ -2466,7 +2466,9 @@
       const newlyConnected = physicalOutputs.filter(device =>
         !knownPhysicalOutputDeviceIds.has(device.deviceId)
       );
-      const externalNewDevice = newlyConnected.find(device => getOutputDevicePriority(device) === 0);
+      const externalNewDevice =
+        newlyConnected.find(device => getOutputDevicePriority(device) === 0) ||
+        newlyConnected[0];
 
       // 本体以外の新しい出力機器が接続された場合、その機器をメインにして
       // 以前のメイン・追加スピーカーをすべてOFFにする。
@@ -2504,6 +2506,14 @@
       renderAdditionalOutputSpeakers();
 );
   }
+
+  enumerateAudioOutputs().then(outputs => {
+    knownPhysicalOutputDeviceIds = new Set(
+      outputs
+        .filter(device => device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default")
+        .map(device => device.deviceId)
+    );
+  }).catch(() => {});
 
   updateOutputDeviceName();
   renderAdditionalOutputSpeakers();
