@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 3;
+  const BUILD_REVISION = 4;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -364,7 +364,7 @@
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
       sourceNode = audioCtx.createMediaElementSource(audio);
       
       const freqs = [60, 250, 1000, 4000, 12000];
@@ -2919,7 +2919,7 @@
     // グレインの位相を読み出し位置から独立させ、常に50%オーバーラップで
     // クロスフェードする。これにより、旧実装で起きていた読み出し位置の
     // 不整合による「少しズレた音が重なる」症状と不規則なノイズを抑える。
-    const node = ctx.createScriptProcessor(1024, 2, 2);
+    const node = ctx.createScriptProcessor(256, 2, 2);
     const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.09));
     const hopSize = Math.floor(grainSize / 2);
     const bufferLength = grainSize * 6;
