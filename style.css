@@ -2234,3 +2234,240 @@ body:not(.theme-light) .btn:hover,
 body:not(.theme-light) .pill:hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
 }
+
+
+/* ホームレイアウト切替：大案1〜5
+   既存DOMを共通利用し、再生状態・曲データ・波形状態を複製しない。 */
+#homeElements {
+  min-width: 0;
+}
+#homeElements.home-layout-default {
+  display: block;
+}
+#homeElements.home-layout-default .homeLayout {
+  display: grid;
+}
+#homeLayoutSettingsBtns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+#homeLayoutSettingsBtns .btn.active {
+  background: var(--accent) !important;
+  color: #07120a !important;
+  border-color: rgba(255,255,255,.28) !important;
+  box-shadow: 0 0 0 2px rgba(29,185,84,.20);
+}
+
+/* 案1：3カラム本格音楽アプリ */
+#homeElements.home-layout-1 {
+  display: grid;
+  grid-template-columns: minmax(170px, .72fr) minmax(300px, 1.55fr) minmax(230px, .9fr);
+  grid-template-rows: auto minmax(300px, 1fr);
+  grid-template-areas:
+    "cover controls library"
+    "cover wave library";
+  gap: 16px;
+  align-items: stretch;
+}
+#homeElements.home-layout-1 .homeLayout { display: contents; }
+#homeElements.home-layout-1 .nowCoverBox { grid-area: cover; min-height: 0; height: 100%; }
+#homeElements.home-layout-1 .homeControls { grid-area: controls; align-self: center; }
+#homeElements.home-layout-1 .waveWrap { grid-area: wave; min-height: 300px; }
+#homeElements.home-layout-1 .homeLibrarySection {
+  grid-area: library;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 0 !important;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  overflow: auto;
+}
+#homeElements.home-layout-1 .homeLibrarySection .songList { max-height: 72vh; overflow:auto; }
+
+/* 案2：Now Playing中心 */
+#homeElements.home-layout-2 {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+#homeElements.home-layout-2 .homeLayout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+#homeElements.home-layout-2 .nowCoverBox {
+  width: min(68vw, 520px);
+  max-width: 100%;
+  aspect-ratio: 1;
+}
+#homeElements.home-layout-2 .homeControls {
+  width: min(760px, 100%);
+}
+#homeElements.home-layout-2 .waveWrap {
+  min-height: 280px;
+  height: clamp(280px, 42vh, 520px);
+}
+#homeElements.home-layout-2 .homeLibrarySection {
+  margin-top: 0 !important;
+}
+
+/* 案3：ライブラリ中心 */
+#homeElements.home-layout-3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr);
+  grid-template-areas:
+    "library now"
+    "library wave";
+  gap: 16px;
+  align-items: start;
+}
+#homeElements.home-layout-3 .homeLayout {
+  grid-area: now;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+#homeElements.home-layout-3 .nowCoverBox {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+#homeElements.home-layout-3 .homeControls { width: 100%; }
+#homeElements.home-layout-3 .waveWrap {
+  grid-area: wave;
+  min-height: 220px;
+}
+#homeElements.home-layout-3 .homeLibrarySection {
+  grid-area: library;
+  min-width: 0;
+  margin-top: 0 !important;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+#homeElements.home-layout-3 .homeLibrarySection .songList {
+  max-height: 75vh;
+  overflow: auto;
+}
+
+/* 案4：波形特化 */
+#homeElements.home-layout-4 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#homeElements.home-layout-4 .waveWrap {
+  order: -1;
+  height: clamp(360px, 58vh, 680px);
+  min-height: 360px;
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  box-shadow: 0 16px 50px rgba(0,0,0,.22);
+}
+#homeElements.home-layout-4 .homeLayout {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: center;
+}
+#homeElements.home-layout-4 .nowCoverBox {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+#homeElements.home-layout-4 .homeLibrarySection { margin-top: 0 !important; }
+
+/* 案5：再生・ライブラリ管理型 */
+#homeElements.home-layout-5 {
+  display: grid;
+  grid-template-columns: minmax(280px, .9fr) minmax(0, 1.3fr);
+  grid-template-areas:
+    "now library"
+    "wave wave";
+  gap: 16px;
+  align-items: start;
+}
+#homeElements.home-layout-5 .homeLayout {
+  grid-area: now;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#homeElements.home-layout-5 .nowCoverBox {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+#homeElements.home-layout-5 .homeControls { width: 100%; }
+#homeElements.home-layout-5 .homeLibrarySection {
+  grid-area: library;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 0 !important;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+#homeElements.home-layout-5 .homeLibrarySection .songList {
+  max-height: 52vh;
+  overflow: auto;
+}
+#homeElements.home-layout-5 .waveWrap {
+  grid-area: wave;
+  min-height: 280px;
+  height: clamp(280px, 38vh, 460px);
+}
+
+/* どの大案でも狭い画面では無理な横並びを避ける */
+@media (max-width: 900px) {
+  #homeElements.home-layout-1,
+  #homeElements.home-layout-3,
+  #homeElements.home-layout-5 {
+    display: flex;
+    flex-direction: column;
+  }
+  #homeElements.home-layout-1 .homeLayout,
+  #homeElements.home-layout-3 .homeLayout,
+  #homeElements.home-layout-5 .homeLayout {
+    display: flex;
+    flex-direction: column;
+  }
+  #homeElements.home-layout-1 .nowCoverBox,
+  #homeElements.home-layout-3 .nowCoverBox,
+  #homeElements.home-layout-5 .nowCoverBox {
+    width: min(440px, 100%);
+    margin: 0 auto;
+    aspect-ratio: 1;
+  }
+  #homeElements.home-layout-1 .homeLibrarySection,
+  #homeElements.home-layout-3 .homeLibrarySection,
+  #homeElements.home-layout-5 .homeLibrarySection {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #homeElements.home-layout-4 .homeLayout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  #homeLayoutSettingsBtns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #homeElements.home-layout-2 .nowCoverBox,
+  #homeElements.home-layout-3 .nowCoverBox,
+  #homeElements.home-layout-5 .nowCoverBox {
+    width: min(88vw, 420px);
+  }
+  #homeElements.home-layout-4 .waveWrap {
+    height: min(58vh, 500px);
+    min-height: 300px;
+  }
+}
