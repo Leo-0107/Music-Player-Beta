@@ -875,9 +875,12 @@
     if (next) return playSong(next);
   }
 
-  function updateVolumeUI(targetVal, isMuteAction = false) {
+  function updateVolumeUI(targetVal, isMuteAction = false, skipSnap = false) {
     const prevVol = currentVolumeTarget;
-    currentVolumeTarget = Math.max(0, Math.min(2, snapToDefault(targetVal, 1, 0.07)));
+    currentVolumeTarget = Math.max(
+      0,
+      Math.min(2, skipSnap ? targetVal : snapToDefault(targetVal, 1, 0.07))
+    );
     if (el.volume) el.volume.value = currentVolumeTarget;
     if (el.volText) el.volText.textContent = `${Math.round(currentVolumeTarget * 100)}%`;
     if (el.btnMuteToggle) el.btnMuteToggle.textContent = currentVolumeTarget === 0 ? "🔇" : currentVolumeTarget < 0.5 ? "🔉" : "🔊";
