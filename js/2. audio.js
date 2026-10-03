@@ -495,6 +495,9 @@
       pitchShiftNode.connect(pitchProcessedGainNode);
       pitchBypassGainNode.connect(pitchRouteNode);
       audioCtx._musicPlayerPitchSource = spatialSourceNode;
+      if (Math.abs(pitchRatio - 1) >= 0.0001) {
+        spatialSourceNode.connect(pitchShiftNode);
+      }
       pitchProcessedGainNode.connect(pitchRouteNode);
       spatialSourceNode = pitchRouteNode;
       if (pannerNode) {
