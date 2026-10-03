@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 5;
+  const BUILD_REVISION = 6;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2693,7 +2693,7 @@
       ? Math.min(1, referenceEnergy / Math.max(0.0001, micEnergy))
       : 0;
 
-    if (similarity >= 0.84) {
+    if (similarity >= 0.90) {
       micFeedbackHighSimilarityFrames += 1;
       micFeedbackStableFrames += 1;
     } else {
@@ -2702,9 +2702,9 @@
     }
 
     const isLikelyFeedback =
-      micFeedbackHighSimilarityFrames >= 3 &&
-      micFeedbackStableFrames >= 3 &&
-      referenceDominance >= 0.55;
+      micFeedbackHighSimilarityFrames >= 5 &&
+      micFeedbackStableFrames >= 5 &&
+      referenceDominance >= 0.90;
 
     // 声などのマイク成分が優勢なら全体を強くミュートせず、
     // スピーカー由来成分が優勢なときだけ強く抑制する。
@@ -2718,7 +2718,7 @@
       targetGain = 1 - (1 - baseGain) * strength;
       timeConstant = 0.035;
       if (el.micFeedbackStatus) el.micFeedbackStatus.textContent = "ハウリング抑制中";
-    } else if (similarity >= 0.72 && referenceDominance >= 0.35) {
+    } else if (similarity >= 0.82 && referenceDominance >= 0.75) {
       const strength = Math.max(0, Math.min(1, Number(state.micFeedbackStrength) || 0));
       targetGain = 1 - (1 - 0.70) * strength;
       timeConstant = 0.09;
