@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 4;
+  const BUILD_REVISION = 5;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2809,10 +2809,11 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { ideal: "default" },
-          echoCancellation: state.micFeedbackProtection ? true : false,
-          noiseSuppression: state.micFeedbackProtection,
+          echoCancellation: false,
+          noiseSuppression: false,
           autoGainControl: false,
-          channelCount: { ideal: 2 }
+          channelCount: { ideal: 2 },
+          latency: { ideal: 0 }
         }
       });
 
@@ -2827,9 +2828,12 @@
       micStream = stream;
       micSourceNode = audioCtx.createMediaStreamSource(stream);
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
+
+      // マイクモニターは最短経路を優先し、入力→音量→最終ミックスへ直接接続する。
+      // ハウリング検出用の解析系は並列に接続し、音声経路には入れない。
+      micSourceNode.connect(micGainNode);
       micSourceNode.connect(micFeedbackGainNode);
       micFeedbackGainNode.connect(micFeedbackAnalyser);
-      micFeedbackGainNode.connect(micGainNode);
       startMicFeedbackMonitor();
       toast("マイクモニターを開始しました");
 
