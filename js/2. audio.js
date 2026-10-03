@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 9;
+  const BUILD_REVISION = 10;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -476,11 +476,27 @@
       
       const pitchShiftNode = createPitchShifter(audioCtx);
       audioCtx._musicPlayerPitchShifter = pitchShiftNode;
-      pitchShiftNode.pitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+
+      // 通常再生（ピッチ0）はピッチシフターを経由させず、元信号をそのまま使う。
+      // ピッチ変更時だけ処理済み経路へ切り替える。
+      const pitchBypassGainNode = audioCtx.createGain();
+      const pitchProcessedGainNode = audioCtx.createGain();
+      const pitchRouteNode = audioCtx.createGain();
+      audioCtx._musicPlayerPitchBypassGain = pitchBypassGainNode;
+      audioCtx._musicPlayerPitchProcessedGain = pitchProcessedGainNode;
+      pitchBypassGainNode.gain.value = 1;
+      pitchProcessedGainNode.gain.value = 0;
+
+      const pitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+      pitchShiftNode.pitch = pitchRatio;
 
       let spatialSourceNode = filters[filters.length - 1];
+      spatialSourceNode.connect(pitchBypassGainNode);
       spatialSourceNode.connect(pitchShiftNode);
-      spatialSourceNode = pitchShiftNode;
+      pitchShiftNode.connect(pitchProcessedGainNode);
+      pitchBypassGainNode.connect(pitchRouteNode);
+      pitchProcessedGainNode.connect(pitchRouteNode);
+      spatialSourceNode = pitchRouteNode;
       if (pannerNode) {
         spatialSourceNode.connect(pannerNode);
         spatialSourceNode = pannerNode;
@@ -525,12 +541,7 @@
       micGainNode.connect(finalMixGainNode);
 
       speakerBusNode = audioCtx.createGain();
-      if (state.clippingProtection) {
-        finalMixGainNode.connect(limiterNode);
-        limiterNode.connect(speakerBusNode);
-      } else {
-        finalMixGainNode.connect(speakerBusNode);
-      }
+      finalMixGainNode.connect(speakerBusNode);
 
       speakerBusNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
@@ -539,11 +550,19 @@
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
 
-      // スピーカーのL/Rを反映した信号だけをメーター・波形に使用する。
-      channelMerger.connect(outputSplitter);
+      // 最終クリッピング保護はL/R個別ゲインの「後」に置く。
+      // ここより前で抑えても、その後に最大2倍のチャンネルゲインを
+      // 掛けられると再びピーク超過するため、最終出力直前で保護する。
+      if (state.clippingProtection) {
+        channelMerger.connect(limiterNode);
+        limiterNode.connect(outputSplitter);
+        limiterNode.connect(analyser);
+      } else {
+        channelMerger.connect(outputSplitter);
+        channelMerger.connect(analyser);
+      }
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
-      channelMerger.connect(analyser);
       analyser.connect(waveOutputSplitter);
 
       waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
@@ -2917,8 +2936,18 @@
 
   function updatePitchShiftNode(){
     const shifter = audioCtx?._musicPlayerPitchShifter;
-    if (!shifter) return;
-    shifter.pitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const pitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    if (shifter) shifter.pitch = pitchRatio;
+
+    // ピッチ0ではピッチシフターを実音声経路から完全にバイパスする。
+    // ScriptProcessor/OLAを通した信号を混ぜないことで、不要な重なりや
+    // CPU負荷由来の再生アーティファクトが通常再生へ影響しないようにする。
+    if (audioCtx?._musicPlayerPitchBypassGain && audioCtx?._musicPlayerPitchProcessedGain) {
+      const now = audioCtx.currentTime;
+      const isNeutral = Math.abs(pitchRatio - 1) < 0.0001;
+      audioCtx._musicPlayerPitchBypassGain.gain.setTargetAtTime(isNeutral ? 1 : 0, now, 0.005);
+      audioCtx._musicPlayerPitchProcessedGain.gain.setTargetAtTime(isNeutral ? 0 : 1, now, 0.005);
+    }
   }
 
   function createPitchShifter(ctx){
