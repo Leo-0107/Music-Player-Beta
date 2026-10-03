@@ -455,13 +455,15 @@
       finalMixGainNode = audioCtx.createGain();
       finalMixGainNode.gain.value = 1;
 
-      // --- DynamicsCompressorNode (リミッター) 挿入 ---
+      // --- DynamicsCompressorNode (リミッター) ---
+      // 急激なピークだけを穏やかに抑え、強い非線形処理による
+      // 高調波・風のようなノイズの発生を抑える。
       limiterNode = audioCtx.createDynamicsCompressor();
-      limiterNode.threshold.setValueAtTime(-0.5, audioCtx.currentTime);
-      limiterNode.knee.setValueAtTime(0, audioCtx.currentTime);
-      limiterNode.ratio.setValueAtTime(20, audioCtx.currentTime);
-      limiterNode.attack.setValueAtTime(0.003, audioCtx.currentTime);
-      limiterNode.release.setValueAtTime(0.1, audioCtx.currentTime);
+      limiterNode.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
+      limiterNode.knee.setValueAtTime(18, audioCtx.currentTime);
+      limiterNode.ratio.setValueAtTime(4, audioCtx.currentTime);
+      limiterNode.attack.setValueAtTime(0.01, audioCtx.currentTime);
+      limiterNode.release.setValueAtTime(0.15, audioCtx.currentTime);
 
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
