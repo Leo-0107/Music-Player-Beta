@@ -118,6 +118,7 @@
           <div class="menuGroupLabel">再生</div>
           <button class="menuItem" data-section="optionsSection">🎛️ 再生設定<span>速度・ピッチ・無音スキップ・立体音響</span></button>
           <button class="menuItem" data-section="waveSection">〰️ ビジュアライザー表示<span>3D・2D・案1〜案8から表示方法を選択</span></button>
+          <button class="menuItem" data-section="layoutSection">▦ ホームレイアウト<span>デフォルト・案1〜案5から配置を選択</span></button>
         </div>
         <div class="menuGroup">
           <div class="menuGroupLabel">音響</div>
@@ -149,6 +150,23 @@
       </div>
 
       <!-- パネルセクション群 -->
+      <div class="panelSection" id="layoutSection">
+        <div class="sectionCard">
+          <div class="sectionTitle">ホームレイアウト</div>
+          <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">
+            現在の機能と再生状態を共通のまま、ホーム画面の配置だけを切り替えます。
+          </div>
+          <div class="controls" id="homeLayoutSettingsBtns">
+            <button class="btn small" data-home-layout="default" type="button">デフォルト</button>
+            <button class="btn small" data-home-layout="1" type="button">案1</button>
+            <button class="btn small" data-home-layout="2" type="button">案2</button>
+            <button class="btn small" data-home-layout="3" type="button">案3</button>
+            <button class="btn small" data-home-layout="4" type="button">案4</button>
+            <button class="btn small" data-home-layout="5" type="button">案5</button>
+          </div>
+        </div>
+      </div>
+
       <div class="panelSection" id="optionsSection">
         <div class="sectionCard">
           <div class="sectionTitle">速度・ピッチ</div>
