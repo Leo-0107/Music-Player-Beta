@@ -2471,3 +2471,52 @@ body:not(.theme-light) .pill:hover {
     min-height: 300px;
   }
 }
+
+/* 設定を「カテゴリ → 項目 → 詳細」の3段階で表示 */
+.settingsCategoryHome,
+.settingsCategoryView {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settingsCategoryHome[hidden],
+.settingsCategoryView[hidden] {
+  display: none;
+}
+.settingsCategoryCard {
+  width: 100%;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .12s ease, background .15s ease, border-color .15s ease;
+}
+.settingsCategoryCard:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.settingsCategoryCard:active {
+  transform: scale(.985);
+}
+.settingsCategoryTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 4px 2px 2px;
+}
+.settingsBackButton {
+  width: fit-content;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel2);
+  color: var(--text);
+  cursor: pointer;
+}
