@@ -1676,6 +1676,56 @@
     });
   }
 
+  const HOME_LAYOUTS = ["default", "1", "2", "3", "4", "5"];
+
+  function normalizeHomeLayout(value) {
+    const mode = String(value || "default");
+    return HOME_LAYOUTS.includes(mode) ? mode : "default";
+  }
+
+  function applyHomeLayout(value, persist = true) {
+    const home = document.getElementById("homeElements");
+    const settingsButtons = document.querySelectorAll("[data-home-layout]");
+    const mode = normalizeHomeLayout(value);
+
+    if (!home) return mode;
+
+    HOME_LAYOUTS.forEach(name => {
+      home.classList.remove(name === "default" ? "home-layout-default" : "home-layout-" + name);
+    });
+    home.classList.add(mode === "default" ? "home-layout-default" : "home-layout-" + mode);
+
+    settingsButtons.forEach(button => {
+      const active = button.dataset.homeLayout === mode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+
+    state.homeLayout = mode;
+    if (persist) {
+      try { localStorage.setItem(STORAGE.homeLayout, mode); } catch {}
+    }
+    return mode;
+  }
+
+  function setupHomeLayoutSettings() {
+    const container = document.getElementById("homeLayoutSettingsBtns");
+    if (!container) return;
+
+    container.querySelectorAll("[data-home-layout]").forEach(button => {
+      button.addEventListener("click", () => {
+        const mode = normalizeHomeLayout(button.dataset.homeLayout);
+        applyHomeLayout(mode, true);
+        const label = mode === "default" ? "デフォルト" : "案" + mode;
+        toast("ホームレイアウトを「" + label + "」に変更しました");
+      });
+    });
+
+    applyHomeLayout(state.homeLayout, false);
+  }
+
+  setupHomeLayoutSettings();
+
   document.querySelectorAll(".navTab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
