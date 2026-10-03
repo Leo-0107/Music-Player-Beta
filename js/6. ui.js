@@ -94,8 +94,9 @@
     recordPlaybackTime(Math.min(1.5, Math.max(0, (Number(audio.duration) || 0) - (Number(lastStatsTime) || 0))));
     lastStatsTime = 0;
     releaseWakeLock();
-    if (sleepTimerPendingStop) {
+    if (sleepTimerPendingStop && sleepTimerPendingSongName === state.currentSong?.name) {
       sleepTimerPendingStop = false;
+      sleepTimerPendingSongName = null;
       setPlaybackIntent(false);
       audio.pause();
       if (sleepIntervalId) clearInterval(sleepIntervalId);
@@ -259,12 +260,15 @@
   if (el.btnThemeLight) el.btnThemeLight.addEventListener("click", () => { state.themeMode = "light"; saveState(); applyTheme(); });
   if (el.btnThemeCustom) el.btnThemeCustom.addEventListener("click", () => { state.themeMode = "custom"; saveState(); applyTheme(); renderColorPickers(); });
 
+  let sleepTimerPendingSongName = null;
+
   function setSleepTimer(minutes) {
     if (sleepTimerId) clearTimeout(sleepTimerId);
     if (sleepIntervalId) clearInterval(sleepIntervalId);
     sleepTimerId = null;
     sleepIntervalId = null;
     sleepTimerPendingStop = false;
+    sleepTimerPendingSongName = null;
 
     if (minutes === "off" || minutes <= 0) {
       sleepTimerEnd = null;
@@ -296,6 +300,7 @@
       sleepTimerId = null;
       if (!audio.paused && state.currentSong) {
         sleepTimerPendingStop = true;
+        sleepTimerPendingSongName = state.currentSong?.name || null;
         if (el.timerStatus) el.timerStatus.textContent = "現在の曲の終了待ち";
         toast("タイマー時間になりました。現在の曲の終了後に停止します");
         return;
