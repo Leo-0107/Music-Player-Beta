@@ -1515,6 +1515,7 @@
       row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
       row.dataset.name = song.name;
       row.innerHTML = `
+        <div class="songNowIndicator" aria-hidden="true"></div>
         <div class="songMain">
           <div class="songName">${escapeHTML(song.title)}</div>
           <div class="songArtist">${escapeHTML(song.artist)}</div>
