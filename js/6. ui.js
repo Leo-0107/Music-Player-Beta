@@ -1635,6 +1635,7 @@
 
   const SETTINGS_CATEGORIES = {
     playback: {
+      icon: "▶️",
       title: "再生",
       items: [
         ["optionsSection", "🎛️", "再生設定", "速度・ピッチ・再生機能・立体音響"],
@@ -1643,6 +1644,7 @@
       ]
     },
     audio: {
+      icon: "🔊",
       title: "音声",
       items: [
         ["speakerSection", "🔊", "出力設定", "スピーカー・出力先・左右音量など"],
@@ -1651,6 +1653,7 @@
       ]
     },
     display: {
+      icon: "🖥️",
       title: "表示",
       items: [
         ["waveSection", "〰️", "波形", "3D・2D・案1〜案8から表示方法を選択"],
@@ -1660,12 +1663,14 @@
       ]
     },
     history: {
+      icon: "📊",
       title: "履歴",
       items: [
         ["statsSection", "📊", "再生履歴・統計", "再生回数・よく聴く曲・月間統計など"]
       ]
     },
     other: {
+      icon: "⚙️",
       title: "その他",
       items: [
         ["queueSection", "⏭️", "再生キュー", "次に再生する曲の確認・並べ替え"]
@@ -1678,6 +1683,50 @@
   const settingsCategoryCards = document.getElementById("settingsCategoryCards");
   const settingsCategoryTitle = document.getElementById("settingsCategoryTitle");
   const btnSettingsCategoryBack = document.getElementById("btnSettingsCategoryBack");
+
+  const menuSettingsMirror = document.getElementById("menuSettingsMirror");
+
+  function renderSettingsStructure() {
+    if (settingsCategoryHome) {
+      settingsCategoryHome.innerHTML = "";
+      Object.entries(SETTINGS_CATEGORIES).forEach(([key, category]) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "settingsCategoryCard";
+        card.dataset.settingsCategory = key;
+        card.innerHTML = `
+          <span class="settingsIcon">${category.icon}</span>
+          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.items.map(item => item[2]).join("・")}</small></span>
+          <span class="settingsArrow">›</span>
+        `;
+        settingsCategoryHome.appendChild(card);
+      });
+    }
+
+    if (menuSettingsMirror) {
+      menuSettingsMirror.innerHTML = "";
+      Object.entries(SETTINGS_CATEGORIES).forEach(([key, category]) => {
+        const group = document.createElement("div");
+        group.className = "menuGroup";
+
+        const label = document.createElement("div");
+        label.className = "menuGroupLabel";
+        label.textContent = category.title;
+        group.appendChild(label);
+
+        category.items.forEach(([secId, icon, title, description]) => {
+          const item = document.createElement("button");
+          item.className = "menuItem";
+          item.type = "button";
+          item.dataset.section = secId;
+          item.innerHTML = `${icon} ${title}<span>${description}</span>`;
+          item.addEventListener("click", () => openSettingsDetail(secId, title));
+          group.appendChild(item);
+        });
+        menuSettingsMirror.appendChild(group);
+      });
+    }
+  }
 
   function openSettingsDetail(secId, title) {
     if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
@@ -1716,6 +1765,8 @@
       settingsCategoryCards.appendChild(card);
     });
   }
+
+  renderSettingsStructure();
 
   document.querySelectorAll("[data-settings-category]").forEach(card => {
     card.addEventListener("click", () => showSettingsCategory(card.dataset.settingsCategory));
