@@ -929,6 +929,14 @@
   if (el.btnAutoCalibrateSpeakers) {
     el.btnAutoCalibrateSpeakers.addEventListener("click", openSpeakerDelayMeasurementModal);
   }
+  const btnMeasureMicLatency = document.getElementById("btnMeasureMicLatency");
+  if (btnMeasureMicLatency) {
+    btnMeasureMicLatency.addEventListener("click", () => {
+      openSpeakerDelayMeasurementModal();
+      const status = document.getElementById("micLatencyMeasurementStatus");
+      if (status) status.textContent = "マイクを使った実測を開始します。測定するスピーカーを選択してください。";
+    });
+  }
   const btnCloseSpeakerDelayMeasurement = document.getElementById("btnCloseSpeakerDelayMeasurement");
   const speakerDelayMeasurementModal = document.getElementById("speakerDelayMeasurementModal");
   if (btnCloseSpeakerDelayMeasurement) {
