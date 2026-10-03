@@ -2054,3 +2054,183 @@ body.output-device-modal-open .sidebar {
   .plTrackItem { align-items: flex-start; }
   .plTrackText { column-gap: 5px; }
 }
+
+
+/* --- ホームUIの簡易デザイン改善 --- */
+
+/* 2. 再生操作5ボタン：画面幅に合わせて5個全体を縮小し、2列目へ落とさない */
+.homeControls > .controls:has(#btnRewind10) {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(4px, 1vw, 8px);
+  width: 100%;
+}
+.homeControls > .controls:has(#btnRewind10) .btn {
+  width: 100%;
+  min-width: 0;
+  padding-left: clamp(4px, 1vw, 12px);
+  padding-right: clamp(4px, 1vw, 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.homeControls > .controls:has(#btnRewind10) .btnPlayMain {
+  width: 100%;
+  min-width: 0;
+}
+
+/* 4. シークバーを主操作として見やすく */
+.seekbarContainer input[type="range"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.seekbarContainer input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+}
+.seekbarContainer input[type="range"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+}
+.seekbarContainer input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+}
+.seekbarContainer input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+}
+
+/* 5. 再生中の曲だけSpotify風に左側インジケーターを表示 */
+.song {
+  position: relative;
+  border: 1px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.songNowIndicator {
+  display: none;
+  flex: 0 0 4px;
+  width: 4px;
+  align-self: stretch;
+  min-height: 42px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(29,185,84,.35);
+}
+.song.active .songNowIndicator {
+  display: block;
+}
+.song.active {
+  background: color-mix(in srgb, var(--accent) 13%, var(--panel2));
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.song.active .songName {
+  color: var(--accent);
+}
+.song.active .songArtist {
+  color: color-mix(in srgb, var(--accent) 68%, var(--muted));
+}
+
+/* 7. 設定カードを少し整理し、選択先を見つけやすく */
+.settingsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.settingsCard {
+  min-height: 70px;
+  background: color-mix(in srgb, var(--panel2) 72%, var(--panel));
+}
+.settingsCard:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.settingsCard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settingsIcon {
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel2));
+}
+.settingsArrow {
+  transition: transform .15s ease, color .15s ease;
+}
+.settingsCard:hover .settingsArrow {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+/* 8. 設定検索を検索欄として明確化 */
+#settingsSearch {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-height: 42px;
+  padding-left: 14px;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+#settingsSearch::placeholder {
+  color: var(--muted);
+}
+#settingsSearch:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(29,185,84,.12);
+}
+
+/* 9. ヘッダーは画面幅が変わっても最大2列 */
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 12px;
+}
+.brand {
+  min-width: 0;
+  width: auto;
+}
+.headerRight {
+  width: auto;
+  max-width: 100%;
+  padding-left: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.headerRight .pill,
+.headerRight #btnShortcutHelp {
+  flex: 0 0 auto;
+}
+@media (max-width: 520px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 42%);
+  }
+  .headerRight {
+    gap: 5px;
+  }
+  .headerRight .pill {
+    padding: 6px 8px;
+    font-size: .78rem;
+  }
+  .headerRight #btnShortcutHelp {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+  }
+}
+
+/* 10. ダークテーマの面・境界・アクセントを統一 */
+body:not(.theme-light) {
+  --panel: rgba(255,255,255,.045);
+  --panel2: rgba(255,255,255,.075);
+  --panel3: rgba(255,255,255,.12);
+  --line: rgba(255,255,255,.11);
+}
+body:not(.theme-light) .shell,
+body:not(.theme-light) .sectionCard,
+body:not(.theme-light) .settingsCard {
+  border-color: var(--line);
+}
+body:not(.theme-light) .btn:hover,
+body:not(.theme-light) .pill:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
+}
