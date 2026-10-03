@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 10;
+  const BUILD_REVISION = 11;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -492,9 +492,9 @@
 
       let spatialSourceNode = filters[filters.length - 1];
       spatialSourceNode.connect(pitchBypassGainNode);
-      spatialSourceNode.connect(pitchShiftNode);
       pitchShiftNode.connect(pitchProcessedGainNode);
       pitchBypassGainNode.connect(pitchRouteNode);
+      audioCtx._musicPlayerPitchSource = spatialSourceNode;
       pitchProcessedGainNode.connect(pitchRouteNode);
       spatialSourceNode = pitchRouteNode;
       if (pannerNode) {
@@ -2936,15 +2936,23 @@
 
   function updatePitchShiftNode(){
     const shifter = audioCtx?._musicPlayerPitchShifter;
+    const pitchSource = audioCtx?._musicPlayerPitchSource;
     const pitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const isNeutral = Math.abs(pitchRatio - 1) < 0.0001;
+
     if (shifter) shifter.pitch = pitchRatio;
 
-    // ピッチ0ではピッチシフターを実音声経路から完全にバイパスする。
-    // ScriptProcessor/OLAを通した信号を混ぜないことで、不要な重なりや
-    // CPU負荷由来の再生アーティファクトが通常再生へ影響しないようにする。
+    // ピッチ0ではピッチシフターへの音声入力そのものを外す。
+    // 無音化した処理経路を裏で動かし続けることも避ける。
+    if (pitchSource && shifter) {
+      try { pitchSource.disconnect(shifter); } catch (e) {}
+      if (!isNeutral) {
+        try { pitchSource.connect(shifter); } catch (e) {}
+      }
+    }
+
     if (audioCtx?._musicPlayerPitchBypassGain && audioCtx?._musicPlayerPitchProcessedGain) {
       const now = audioCtx.currentTime;
-      const isNeutral = Math.abs(pitchRatio - 1) < 0.0001;
       audioCtx._musicPlayerPitchBypassGain.gain.setTargetAtTime(isNeutral ? 1 : 0, now, 0.005);
       audioCtx._musicPlayerPitchProcessedGain.gain.setTargetAtTime(isNeutral ? 0 : 1, now, 0.005);
     }
