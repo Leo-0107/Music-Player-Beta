@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 11;
+  const BUILD_REVISION = 13;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -51,10 +51,13 @@
     backgroundPlaybackRecovery = true;
     try {
       ensureGraph();
+
+      // 画面切り替え・スリープ復帰時はAudioContextの状態も即座に戻す。
       if (audioCtx && (audioCtx.state === "suspended" || audioCtx.state === "interrupted")) {
         try { await audioCtx.resume(); } catch (e) {}
       }
 
+      // 復帰時は本体の再生再開を最優先にする。
       if (audio.paused) {
         try {
           await audio.play();
@@ -63,7 +66,8 @@
         }
       }
 
-      await startOutputBridge?.();
+      // 追加スピーカーの復帰は本体再生を待たせない。
+      startOutputBridge?.().catch(() => {});
 
       if ("mediaSession" in navigator) {
         try { navigator.mediaSession.playbackState = "playing"; } catch (e) {}
@@ -79,10 +83,10 @@
   });
 
   audio.addEventListener("pause", () => {
+    // ユーザー操作ではなくバックグラウンド移行で一時停止された場合は、
+    // タイマーを挟まず直ちに復帰を試みる。
     if (playbackIntent && document.visibilityState === "hidden" && !backgroundPlaybackRecovery) {
-      setTimeout(() => {
-        recoverBackgroundPlayback().catch(() => {});
-      }, 0);
+      recoverBackgroundPlayback().catch(() => {});
     }
   });
 
@@ -106,8 +110,7 @@
     if (document.visibilityState === "hidden") {
       savePlaybackMemory?.(true);
       if (playbackIntent) {
-        resumeAudioCtx().catch(() => {});
-        startOutputBridge?.().catch(() => {});
+        recoverBackgroundPlayback().catch(() => {});
       }
     } else if (document.visibilityState === "visible" && pendingOutputDeviceRefresh) {
       pendingOutputDeviceRefresh = false;
@@ -118,9 +121,19 @@
       recoverBackgroundPlayback().catch(() => {});
     }
 
+    if (document.visibilityState === "visible" && playbackIntent) {
+      recoverBackgroundPlayback().catch(() => {});
+    }
+
     if (document.visibilityState === "visible" && !audio.paused) {
       lastFrameTime = performance.now();
       startWaveAnimation();
+    }
+  });
+
+  window.addEventListener("pageshow", () => {
+    if (playbackIntent) {
+      recoverBackgroundPlayback().catch(() => {});
     }
   });
 
