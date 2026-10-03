@@ -117,6 +117,7 @@
   let sleepTimerId = null;
   let sleepIntervalId = null;
   let sleepTimerEnd = null;
+  let sleepTimerPendingStop = false;
   let hasCountedCurrentSong = false;
 
   function loadJSON(k, f){ try{ const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; }catch{ return f; } }
