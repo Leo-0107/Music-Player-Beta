@@ -178,6 +178,7 @@
     playlistCycleIndex: -1,
     playlistCycleSeen: [],
     panValue: 0,
+    homeLayout: loadStr(STORAGE.homeLayout, "default"),
     menuOpen: false
   };
 
