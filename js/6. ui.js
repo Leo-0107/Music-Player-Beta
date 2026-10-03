@@ -1628,31 +1628,102 @@
     });
   }
 
-  document.querySelectorAll(".settingsCard").forEach(card => {
-    card.addEventListener("click", () => {
-      const secId = card.dataset.settingsSection;
-      if (!secId) return;
+  const SETTINGS_CATEGORIES = {
+    playback: {
+      title: "再生",
+      items: [
+        ["optionsSection", "🎛️", "再生設定", "速度・ピッチ・再生機能・立体音響"],
+        ["eqSection", "🎚️", "音質調整", "イコライザー・周波数帯を調整"],
+        ["timerSection", "⏱️", "スリープタイマー", "再生を自動停止する時間を設定"]
+      ]
+    },
+    audio: {
+      title: "音声",
+      items: [
+        ["speakerSection", "🔊", "出力設定", "スピーカー・出力先・左右音量など"],
+        ["inputSection", "🎤", "入力設定", "マイク・モニター・ハウリング防止など"],
+        ["delaySection", "⏱️", "遅延", "スピーカーの遅延測定・自動補正"]
+      ]
+    },
+    display: {
+      title: "表示",
+      items: [
+        ["waveSection", "〰️", "波形", "3D・2D・案1〜案8から表示方法を選択"],
+        ["visualizerDetailSection", "📈", "ビジュアライザー詳細", "モード別設定・FPS・描画負荷"],
+        ["layoutSection", "▦", "ホームレイアウト", "デフォルト・案1〜案5から配置を選択"],
+        ["themeSection", "🎨", "テーマ", "システム・ダーク・ライト・カスタムを選択"]
+      ]
+    },
+    history: {
+      title: "履歴",
+      items: [
+        ["statsSection", "📊", "再生履歴・統計", "再生回数・よく聴く曲・月間統計など"]
+      ]
+    },
+    other: {
+      title: "その他",
+      items: [
+        ["queueSection", "⏭️", "再生キュー", "次に再生する曲の確認・並べ替え"]
+      ]
+    }
+  };
 
-      if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
-      openSidebar();
+  const settingsCategoryHome = document.getElementById("settingsCategoryHome");
+  const settingsCategoryView = document.getElementById("settingsCategoryView");
+  const settingsCategoryCards = document.getElementById("settingsCategoryCards");
+  const settingsCategoryTitle = document.getElementById("settingsCategoryTitle");
+  const btnSettingsCategoryBack = document.getElementById("btnSettingsCategoryBack");
 
-      if (el.mainMenuList) el.mainMenuList.style.display = "none";
-      document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+  function openSettingsDetail(secId, title) {
+    if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
+    openSidebar();
 
-      const target = document.getElementById(secId);
-      if (target) target.classList.add("active");
+    if (el.mainMenuList) el.mainMenuList.style.display = "none";
+    document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
 
-      // 設定タブから開いた詳細画面では、左上の「戻る」でメニューへ戻らない。
-      if (el.btnSideBack) el.btnSideBack.style.display = "none";
+    const target = document.getElementById(secId);
+    if (target) target.classList.add("active");
 
-      const menuItem = document.querySelector(`.menuItem[data-section="${secId}"]`);
-      if (el.sideTitle) {
-        el.sideTitle.textContent = menuItem
-          ? menuItem.childNodes[0].textContent.trim()
-          : "設定";
-      }
+    if (el.btnSideBack) el.btnSideBack.style.display = "none";
+    if (el.sideTitle) el.sideTitle.textContent = title || "設定";
+  }
+
+  function showSettingsCategory(key) {
+    const category = SETTINGS_CATEGORIES[key];
+    if (!category || !settingsCategoryHome || !settingsCategoryView || !settingsCategoryCards) return;
+
+    settingsCategoryHome.hidden = true;
+    settingsCategoryView.hidden = false;
+    settingsCategoryTitle.textContent = category.title;
+
+    settingsCategoryCards.innerHTML = "";
+    category.items.forEach(([secId, icon, title, description]) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "settingsCard";
+      card.dataset.settingsSection = secId;
+      card.innerHTML = `
+        <span class="settingsIcon">${icon}</span>
+        <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
+        <span class="settingsArrow">›</span>
+      `;
+      card.addEventListener("click", () => openSettingsDetail(secId, title));
+      settingsCategoryCards.appendChild(card);
     });
+  }
+
+  document.querySelectorAll("[data-settings-category]").forEach(card => {
+    card.addEventListener("click", () => showSettingsCategory(card.dataset.settingsCategory));
   });
+
+  if (btnSettingsCategoryBack) {
+    btnSettingsCategoryBack.addEventListener("click", () => {
+      if (settingsCategoryView) settingsCategoryView.hidden = true;
+      if (settingsCategoryHome) settingsCategoryHome.hidden = false;
+      if (settingsCategoryTitle) settingsCategoryTitle.textContent = "";
+      if (settingsCategoryCards) settingsCategoryCards.innerHTML = "";
+    });
+  }
 
   const settingsAddMusic = document.getElementById("btnSettingsAddMusic");
   if (settingsAddMusic) {
