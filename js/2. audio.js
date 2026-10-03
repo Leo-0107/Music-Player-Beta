@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 7;
+  const BUILD_REVISION = 8;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -455,15 +455,16 @@
       finalMixGainNode = audioCtx.createGain();
       finalMixGainNode.gain.value = 1;
 
-      // --- DynamicsCompressorNode (リミッター) ---
-      // 急激なピークだけを穏やかに抑え、強い非線形処理による
-      // 高調波・風のようなノイズの発生を抑える。
+      // --- DynamicsCompressorNode (最終クリッピング保護) ---
+      // masterGain は最大2.0倍まで許可されているため、-1dB/4:1では
+      // 強いピークを十分に抑え切れず、後段で0dBを超える可能性がある。
+      // 余裕を持った閾値と穏やかな比率で早めに圧縮し、急激な非線形処理を避ける。
       limiterNode = audioCtx.createDynamicsCompressor();
-      limiterNode.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
-      limiterNode.knee.setValueAtTime(18, audioCtx.currentTime);
-      limiterNode.ratio.setValueAtTime(4, audioCtx.currentTime);
-      limiterNode.attack.setValueAtTime(0.01, audioCtx.currentTime);
-      limiterNode.release.setValueAtTime(0.15, audioCtx.currentTime);
+      limiterNode.threshold.setValueAtTime(-6.0, audioCtx.currentTime);
+      limiterNode.knee.setValueAtTime(24, audioCtx.currentTime);
+      limiterNode.ratio.setValueAtTime(2.5, audioCtx.currentTime);
+      limiterNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
+      limiterNode.release.setValueAtTime(0.2, audioCtx.currentTime);
 
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
