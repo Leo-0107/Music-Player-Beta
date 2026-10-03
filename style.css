@@ -27,7 +27,17 @@ body.theme-light {
   --bg-gradient: linear-gradient(180deg, #ffffff 0%, #f2f4f7 100%);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
 html, body { height: 100%; }
 
 body.app-loading {
