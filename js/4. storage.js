@@ -33,6 +33,7 @@
     mainOutputDevice: "mp_main_output_device_v1",
     speakerSettings: "mp_speaker_settings_v1",
     playlistSettings: "mp_playlist_settings_v12",
+    homeLayout: "mp_home_layout_v1",
     lastSong: "mp_last_song_v12",
     lastPosition: "mp_last_position_v1",
     lastPlayback: "mp_last_playback_v1"
