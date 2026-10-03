@@ -558,114 +558,40 @@
       <div id="settingsTabContainer" style="display:none;">
   <div class="settingsHome">
     <div class="sectionTitle">設定</div>
-    <div class="settingsDescription">再生・音響・プレイリスト・テーマなどの設定をまとめています。</div>
-    <div style="display:flex;gap:8px;margin:12px 0;">
-      <input id="settingsSearch" type="search" placeholder="設定を検索..." style="flex:1;min-width:0;">
+    <div class="settingsDescription">カテゴリを選択して、目的の設定へ進んでください。</div>
+
+    <div id="settingsCategoryHome" class="settingsCategoryHome">
+      <button class="settingsCategoryCard" data-settings-category="playback">
+        <span class="settingsIcon">▶️</span>
+        <span class="settingsCardText"><strong>再生</strong><small>再生速度・音質・スリープタイマーなど</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+      <button class="settingsCategoryCard" data-settings-category="audio">
+        <span class="settingsIcon">🔊</span>
+        <span class="settingsCardText"><strong>音声</strong><small>出力・入力・音響遅延など</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+      <button class="settingsCategoryCard" data-settings-category="display">
+        <span class="settingsIcon">🖥️</span>
+        <span class="settingsCardText"><strong>表示</strong><small>波形・ビジュアライザー・レイアウト・テーマ</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+      <button class="settingsCategoryCard" data-settings-category="history">
+        <span class="settingsIcon">📊</span>
+        <span class="settingsCardText"><strong>履歴</strong><small>再生履歴・統計</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
+      <button class="settingsCategoryCard" data-settings-category="other">
+        <span class="settingsIcon">⚙️</span>
+        <span class="settingsCardText"><strong>その他</strong><small>再生キュー・データ管理</small></span>
+        <span class="settingsArrow">›</span>
+      </button>
     </div>
 
-    <div class="settingsGroup">
-      <div class="settingsGroupHeader">
-        <strong>再生</strong>
-        <span>再生そのものに関する設定</span>
-      </div>
-      <div class="settingsGrid">
-        <button class="settingsCard" data-settings-section="optionsSection">
-          <span class="settingsIcon">🎛️</span>
-          <span class="settingsCardText"><strong>再生設定</strong><small>速度・ピッチ・再生機能・立体音響</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="eqSection">
-          <span class="settingsIcon">🎚️</span>
-          <span class="settingsCardText"><strong>音質調整</strong><small>イコライザー・周波数帯を調整</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="timerSection">
-          <span class="settingsIcon">⏱️</span>
-          <span class="settingsCardText"><strong>スリープタイマー</strong><small>再生を自動停止する時間を設定</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="settingsGroup">
-      <div class="settingsGroupHeader">
-        <strong>音声</strong>
-        <span>音声の入出力と遅延を管理</span>
-      </div>
-      <div class="settingsGrid">
-        <button class="settingsCard" data-settings-section="speakerSection">
-          <span class="settingsIcon">🔊</span>
-          <span class="settingsCardText"><strong>出力設定</strong><small>スピーカー・出力先・左右音量など</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="inputSection">
-          <span class="settingsIcon">🎤</span>
-          <span class="settingsCardText"><strong>入力設定</strong><small>マイク・モニター・ハウリング防止など</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="delaySection">
-          <span class="settingsIcon">⏱️</span>
-          <span class="settingsCardText"><strong>遅延</strong><small>スピーカーの遅延測定・自動補正</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="settingsGroup">
-      <div class="settingsGroupHeader">
-        <strong>表示</strong>
-        <span>画面の見え方とビジュアライザー</span>
-      </div>
-      <div class="settingsGrid">
-        <button class="settingsCard" data-settings-section="waveSection">
-          <span class="settingsIcon">〰️</span>
-          <span class="settingsCardText"><strong>波形</strong><small>3D・2D・案1〜案8から表示方法を選択</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="visualizerDetailSection">
-          <span class="settingsIcon">📈</span>
-          <span class="settingsCardText"><strong>ビジュアライザー詳細</strong><small>モード別設定・FPS・描画負荷</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="layoutSection">
-          <span class="settingsIcon">▦</span>
-          <span class="settingsCardText"><strong>ホームレイアウト</strong><small>デフォルト・案1〜案5から配置を選択</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-        <button class="settingsCard" data-settings-section="themeSection">
-          <span class="settingsIcon">🎨</span>
-          <span class="settingsCardText"><strong>テーマ</strong><small>システム・ダーク・ライト・カスタムを選択</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="settingsGroup">
-      <div class="settingsGroupHeader">
-        <strong>履歴</strong>
-        <span>再生履歴と統計を確認</span>
-      </div>
-      <div class="settingsGrid">
-        <button class="settingsCard" data-settings-section="statsSection">
-          <span class="settingsIcon">📊</span>
-          <span class="settingsCardText"><strong>再生履歴・統計</strong><small>再生回数・よく聴く曲・月間統計など</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="settingsGroup">
-      <div class="settingsGroupHeader">
-        <strong>その他</strong>
-        <span>ライブラリ操作・データ管理</span>
-      </div>
-      <div class="settingsGrid">
-        <button class="settingsCard" data-settings-section="queueSection">
-          <span class="settingsIcon">⏭️</span>
-          <span class="settingsCardText"><strong>再生キュー</strong><small>次に再生する曲の確認・並べ替え</small></span>
-          <span class="settingsArrow">›</span>
-        </button>
-      </div>
+    <div id="settingsCategoryView" class="settingsCategoryView" hidden>
+      <button class="settingsBackButton" id="btnSettingsCategoryBack" type="button">← 設定</button>
+      <div class="settingsCategoryTitle" id="settingsCategoryTitle"></div>
+      <div class="settingsGrid" id="settingsCategoryCards"></div>
     </div>
 
     <div class="settingsTools">
@@ -682,7 +608,7 @@
         <button class="btn danger" id="btnSettingsResetSettings">すべての設定をリセット</button>
       </div>
     </div>
-  </div>
+  </div>div>
 </div>
     </div>
   </div>
