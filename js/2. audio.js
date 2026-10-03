@@ -3531,6 +3531,7 @@
             STORAGE.visualizerSettings,
             STORAGE.visualizerModeSettings,
             STORAGE.playlistSettings,
+            STORAGE.homeLayout,
             STORAGE.lastSong,
             STORAGE.lastPosition
           ].forEach(key => localStorage.removeItem(key));
