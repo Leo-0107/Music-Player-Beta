@@ -2538,6 +2538,7 @@
   }
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
   if (el.btnRefreshOutputAddList) el.btnRefreshOutputAddList.addEventListener("click", renderOutputDeviceAddPicker);
+  void renderOutputDeviceAddPicker();
   if (el.btnDiscoverOutputSpeaker) {
     el.btnDiscoverOutputSpeaker.addEventListener("click", async () => {
       try {
