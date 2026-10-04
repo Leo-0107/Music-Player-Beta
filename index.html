@@ -691,21 +691,6 @@
 </div>
 
 <script src="js/1. ctrl.js"></script>
-<script>
-  // 起動最終保護: 初期化処理が停止してもロード画面を永久表示しない。
-  setTimeout(() => {
-    const screen = document.getElementById("appLoadingScreen");
-    if (!screen) return;
-    console.error("Music Player startup recovery: loading screen timeout");
-    const fill = document.getElementById("appLoadingProgressFill");
-    const percent = document.getElementById("appLoadingPercent");
-    const text = document.getElementById("appLoadingText");
-    if (fill) fill.style.width = "100%";
-    if (percent) percent.textContent = "100%";
-    if (text) text.textContent = "ホーム画面を表示します...";
-    document.body.classList.remove("app-loading");
-    screen.remove();
-  }, 20000);
-</script>
+
 </body>
 </html>
