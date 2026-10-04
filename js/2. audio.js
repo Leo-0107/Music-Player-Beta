@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 17;
+  const BUILD_REVISION = 18;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2504,30 +2504,11 @@
     }
   }
 
-  function openOutputDeviceModal() {
-    if (!el.outputDeviceModal) return;
-    moveOutputDeviceModalsToBody();
-    ensureGraph();
-    el.outputDeviceModal.hidden = false;
-    document.body.classList.add("output-device-modal-open");
-    renderOutputDevicePicker();
-  }
-
   function openOutputDeviceAddModal() {
     if (!el.outputDeviceAddModal) return;
-    if (el.outputDeviceModal) el.outputDeviceModal.hidden = true;
-    moveOutputDeviceModalsToBody();
     ensureGraph();
-    el.outputDeviceAddModal.hidden = false;
-    document.body.classList.add("output-device-modal-open");
     renderOutputDeviceAddPicker();
   }
-
-  async function chooseMainOutputDevice() {
-    openOutputDeviceModal();
-  }
-
-  if (el.btnSelectOutput) el.btnSelectOutput.addEventListener("click", chooseMainOutputDevice);
 
   const requestOutputPermissionFromUser = () => {
     // ブラウザ標準の出力機器選択UIは、ユーザー操作から直接呼び出す。
@@ -2556,10 +2537,6 @@
     });
   }
   if (el.btnAddOutputSpeaker) el.btnAddOutputSpeaker.addEventListener("click", openOutputDeviceAddModal);
-  if (el.btnCloseOutputDeviceModal) el.btnCloseOutputDeviceModal.addEventListener("click", closeOutputDeviceModal);
-  if (el.btnCloseOutputDeviceModalBottom) el.btnCloseOutputDeviceModalBottom.addEventListener("click", closeOutputDeviceModal);
-  if (el.btnCloseOutputDeviceAddModal) el.btnCloseOutputDeviceAddModal.addEventListener("click", closeOutputDeviceAddModal);
-  if (el.btnCloseOutputDeviceAddModalBottom) el.btnCloseOutputDeviceAddModalBottom.addEventListener("click", closeOutputDeviceAddModal);
   if (el.btnRefreshOutputAddList) el.btnRefreshOutputAddList.addEventListener("click", renderOutputDeviceAddPicker);
   if (el.btnDiscoverOutputSpeaker) {
     el.btnDiscoverOutputSpeaker.addEventListener("click", async () => {
