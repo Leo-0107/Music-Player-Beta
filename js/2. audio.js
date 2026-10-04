@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 24;
+  const BUILD_REVISION = 25;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
