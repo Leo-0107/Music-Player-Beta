@@ -690,22 +690,6 @@
   </div>
 </div>
 
-<script>
-  // 最終起動保護: JavaScriptの途中で例外が起きてもロード画面を永久表示しない。
-  window.__musicPlayerIndexWatchdog = setTimeout(() => {
-    const screen = document.getElementById("appLoadingScreen");
-    if (!screen) return;
-    console.error("Music Player index startup watchdog: forcing app reveal");
-    const fill = document.getElementById("appLoadingProgressFill");
-    const percent = document.getElementById("appLoadingPercent");
-    const text = document.getElementById("appLoadingText");
-    if (fill) fill.style.width = "100%";
-    if (percent) percent.textContent = "100%";
-    if (text) text.textContent = "ホーム画面を表示します...";
-    document.body.classList.remove("app-loading");
-    screen.remove();
-  }, 30000);
-</script>
 <script src="js/1. ctrl.js"></script>
 </body>
 </html>
