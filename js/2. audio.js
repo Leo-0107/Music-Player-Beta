@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 23;
+  const BUILD_REVISION = 24;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2068,7 +2068,7 @@
     applyAllSpeakerDelayNodes();
   }
 
-  async function startOutputBridge {
+  async function startOutputBridge() {
     if (outputBridgeAudio) {
       try {
         if (outputBridgeAudio.paused) await outputBridgeAudio.play();
