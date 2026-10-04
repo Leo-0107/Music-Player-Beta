@@ -1983,6 +1983,9 @@
 
   function revealAppAfterHomeReady() {
     updateAppLoadingProgress(100, "ホーム画面を表示します...");
+    if (typeof window.__musicPlayerStartupFinished === "function") {
+      window.__musicPlayerStartupFinished();
+    }
     requestAnimationFrame(() => {
       document.body.classList.remove("app-loading");
       document.getElementById("appLoadingScreen")?.remove();
