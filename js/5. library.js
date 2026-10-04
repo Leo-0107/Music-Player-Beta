@@ -1579,17 +1579,23 @@
     normalizeQueue();
     if (!name) return;
     if (!state.playlist.some(song => song.name === name)) return;
+
     if (state.queue.includes(name)) {
-      state.queue = [name, ...state.queue.filter(item => item !== name)];
-      saveState();
-      renderQueue();
-      toast("その曲を次に再生する位置へ移しました");
-      return;
+      state.queue = state.queue.filter(item => item !== name);
     }
-    state.queue = [name, ...state.queue.filter(item => item !== name)];
+
+    // シャッフルOFFは現在のキュー順を維持して末尾へ追加。
+    // シャッフルONは既存キューを並べ替えず、新規曲だけをランダムな位置へ追加する。
+    if (state.shuffle && state.queue.length > 0) {
+      const insertIndex = Math.floor(Math.random() * (state.queue.length + 1));
+      state.queue.splice(insertIndex, 0, name);
+    } else {
+      state.queue.push(name);
+    }
+
     saveState();
     renderQueue();
-    toast("次に再生する曲として追加しました");
+    toast(state.shuffle ? "シャッフル設定に従ってキューへ追加しました" : "キューの末尾に追加しました");
   }
 
   function getPlannedQueue(limit = 10) {
@@ -1664,6 +1670,9 @@
       : getVisibleSongs();
 
     // 選択位置より後ろの順番は、現在のキュー／サイクル順をそのまま維持する。
+    // 選択した曲だけを現在の再生対象から外し、残りの順番は維持する。
+    // シャッフルONでも、すでに表示されている再生予定を途中で並べ替えない。
+    // 残りを再生し終えた後の次曲選択で、シャッフル設定を再び適用する。
     const nextOrder = [selectedName, ...remaining];
 
     if (state.activePlaylistName) {
