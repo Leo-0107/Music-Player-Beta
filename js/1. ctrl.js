@@ -29,6 +29,13 @@
     document.getElementById("appLoadingScreen")?.remove();
   }, STARTUP_WATCHDOG_MS);
 
+  window.__musicPlayerStartupFinished = () => {
+    if (startupWatchdog) {
+      clearTimeout(startupWatchdog);
+      startupWatchdog = null;
+    }
+  };
+
   function updateStartupProgress(percent, message) {
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
