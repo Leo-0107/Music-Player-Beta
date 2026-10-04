@@ -45,7 +45,9 @@
 
   Promise.all(files.map(file => loadScriptPart(file)))
     .then(parts => {
-      const original = `(() => {\n${parts.join('\n')}})();`;
+      const original = `(() => {
+${parts.join('
+')}})();`;
       const blob = new Blob([original], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
       const script = document.createElement('script');
