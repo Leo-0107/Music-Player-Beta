@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 16;
+  const BUILD_REVISION = 17;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1199,7 +1199,12 @@
     if (!deviceId) return true;
 
     const outputs = await enumerateAudioOutputs();
-    if (!outputs.some(device => device.deviceId === deviceId)) {
+    const connected = outputs.some(device =>
+      device.kind === "audiooutput" &&
+      device.deviceId === deviceId
+    );
+    if (!connected) {
+      await updateDisconnectedOutputDeviceIds();
       await updateOutputDeviceName();
       renderOutputDevicePicker();
       return false;
@@ -2595,12 +2600,18 @@
       const newlyConnected = physicalOutputs.filter(device =>
         !knownPhysicalOutputDeviceIds.has(device.deviceId)
       );
-      const externalNewDevice =
-        newlyConnected.find(device => getOutputDevicePriority(device) === 0) ||
-        newlyConnected[0];
+      // 現在接続されている物理出力だけをメイン候補にする。
+      // devicechange は接続・切断のたびに発火するため、新たに現れた機器を
+      // 「直近に接続されたスピーカー」として優先する。
+      const externalNewDevice = newlyConnected.find(device =>
+        currentPhysicalIds.has(device.deviceId) &&
+        getOutputDevicePriority(device) === 0
+      ) || newlyConnected.find(device =>
+        currentPhysicalIds.has(device.deviceId)
+      );
 
-      // 本体以外の新しい出力機器が接続された場合、その機器をメインにして
-      // 以前のメイン・追加スピーカーをすべてOFFにする。
+      // Bluetooth・有線などの新しい物理スピーカーが接続されたら、
+      // その接続中の機器だけをメインにし、他の出力をすべて停止する。
       if (externalNewDevice) {
         state.outputRoutes.forEach(route => { route.enabled = false; });
         if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
