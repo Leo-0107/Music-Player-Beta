@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 13;
+  const BUILD_REVISION = 14;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -351,6 +351,36 @@
       b = Math.round(b * p);
     }
     return `rgb(${Math.min(255, Math.max(0, r))}, ${Math.min(255, Math.max(0, g))}, ${Math.min(255, Math.max(0, b))})`;
+  }
+
+  // 出力先の切替直後に発生する一時的な音声経路の不安定化を防ぐ。
+  // 再生位置・再生速度・ピッチは変更せず、最終ミックスだけをごく短時間フェードアウトしてから復帰させる。
+  let outputTransitionPromise = Promise.resolve();
+  async function runOutputTransition(task) {
+    const previous = outputTransitionPromise;
+    let release;
+    outputTransitionPromise = new Promise(resolve => { release = resolve; });
+    await previous;
+    const gainNode = finalMixGainNode;
+    const now = audioCtx?.currentTime || 0;
+    const currentGain = gainNode ? Math.max(0, Number(gainNode.gain.value) || 0) : 1;
+    try {
+      if (gainNode && audioCtx) {
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(currentGain, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.025);
+      }
+      await new Promise(resolve => setTimeout(resolve, 35));
+      return await task();
+    } finally {
+      const restoreAt = (audioCtx?.currentTime || now) + 0.015;
+      if (gainNode && audioCtx) {
+        gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(currentGain, restoreAt);
+      }
+      release();
+    }
   }
 
   function ensureOutputBridge() {
@@ -1248,12 +1278,19 @@
         throw new Error("HTMLMediaElement.setSinkId is unavailable");
       }
 
-      await outputBridgeAudio.setSinkId(normalized);
-      if (wasPlaying) {
-        try { await audioCtx?.resume(); } catch (ignore) {}
-        await outputBridgeAudio.play();
-        if (outputBridgeAudio.paused) throw new Error("Output bridge did not resume");
-      }
+      await runOutputTransition(async () => {
+        // 切替中は旧出力を止めてから新しいsinkへ接続し、旧出力と新出力が
+        // 一瞬重なって再生される状態を避ける。
+        if (wasPlaying && outputBridgeAudio && !outputBridgeAudio.paused) {
+          try { outputBridgeAudio.pause(); } catch (ignore) {}
+        }
+        await outputBridgeAudio.setSinkId(normalized);
+        if (wasPlaying) {
+          try { await audioCtx?.resume(); } catch (ignore) {}
+          await outputBridgeAudio.play();
+          if (outputBridgeAudio.paused) throw new Error("Output bridge did not resume");
+        }
+      });
 
       let newMain;
 
@@ -1731,28 +1768,30 @@
     route.enabled = route.enabled === false;
     saveState();
 
-    if (route.enabled) {
-      const runtime = additionalOutputRuntimes.get(route.deviceId);
-      if (runtime) {
-        if (!runtime.connected) {
+    await runOutputTransition(async () => {
+      if (route.enabled) {
+        const runtime = additionalOutputRuntimes.get(route.deviceId);
+        if (runtime) {
+          if (!runtime.connected) {
+            try {
+              speakerBusNode.connect(runtime.splitter);
+              runtime.connected = true;
+            } catch (e) {}
+          }
           try {
-            speakerBusNode.connect(runtime.splitter);
-            runtime.connected = true;
-          } catch (e) {}
-        }
-        try {
-          await runtime.audio.play();
-          runtime.playError = null;
-        } catch (e) {
-          runtime.playError = e?.name || "PlaybackError";
-          toast("追加スピーカーの再生を開始できませんでした");
+            await runtime.audio.play();
+            runtime.playError = null;
+          } catch (e) {
+            runtime.playError = e?.name || "PlaybackError";
+            toast("追加スピーカーの再生を開始できませんでした");
+          }
+        } else {
+          await createAdditionalOutputRuntime(route);
         }
       } else {
-        await createAdditionalOutputRuntime(route);
+        disconnectAdditionalOutputRuntime(route.deviceId);
       }
-    } else {
-      disconnectAdditionalOutputRuntime(route.deviceId);
-    }
+    });
 
     applyPairedSpeakerRouting();
     renderAdditionalOutputSpeakers();
