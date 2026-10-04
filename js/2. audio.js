@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 15;
+  const BUILD_REVISION = 16;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -626,12 +626,6 @@
 
       mainDelayNode = audioCtx.createDelay(1.5);
       applyMainOutputDelayNode();
-      analyser.connect(mainDelayNode);
-
-      ensureOutputBridge();
-      if (outputBridgeAudio && outputStreamDestination) {
-        mainDelayNode.connect(outputStreamDestination);
-      }
 
       audioGraphReady = true;
       syncAdditionalOutputRuntimes().catch(() => {});
@@ -706,18 +700,32 @@
     if (!audioCtx) return;
     const now = audioCtx.currentTime;
     if (mainDelayNode) {
-      mainDelayNode.delayTime.setValueAtTime(
-        Math.min(1.5, getEffectiveSpeakerDelay(getMainOutputDelay()) / 1000),
-        now
-      );
+      const delayMs = getEffectiveSpeakerDelay(getMainOutputDelay());
+      mainDelayNode.delayTime.setValueAtTime(Math.min(1.5, delayMs / 1000), now);
+      if (outputStreamDestination) {
+        try { analyser.disconnect(mainDelayNode); } catch (e) {}
+        try { mainDelayNode.disconnect(outputStreamDestination); } catch (e) {}
+        try { analyser.disconnect(outputStreamDestination); } catch (e) {}
+        if (delayMs <= 0) analyser.connect(outputStreamDestination);
+        else {
+          analyser.connect(mainDelayNode);
+          mainDelayNode.connect(outputStreamDestination);
+        }
+      }
     }
     for (const route of state.outputRoutes) {
       const runtime = additionalOutputRuntimes.get(route.deviceId);
       if (runtime?.delayNode) {
-        runtime.delayNode.delayTime.setValueAtTime(
-          Math.min(1.5, getEffectiveSpeakerDelay(route.delayMs) / 1000),
-          now
-        );
+        const delayMs = getEffectiveSpeakerDelay(route.delayMs);
+        runtime.delayNode.delayTime.setValueAtTime(Math.min(1.5, delayMs / 1000), now);
+        try { runtime.merger.disconnect(runtime.delayNode); } catch (e) {}
+        try { runtime.delayNode.disconnect(runtime.destination); } catch (e) {}
+        try { runtime.merger.disconnect(runtime.destination); } catch (e) {}
+        if (delayMs <= 0) runtime.merger.connect(runtime.destination);
+        else {
+          runtime.merger.connect(runtime.delayNode);
+          runtime.delayNode.connect(runtime.destination);
+        }
       }
     }
   }
@@ -1893,8 +1901,13 @@
     applyPairedSpeakerRouting();
     leftGain.connect(merger, 0, 0);
     rightGain.connect(merger, 0, 1);
-    merger.connect(delayNode);
-    delayNode.connect(destination);
+    // 遅延補正が0 msのときはDelayNodeを経由せず、最短経路で出力する。
+    // 補正値が必要なスピーカーだけDelayNodeを使用する。
+    if (getEffectiveSpeakerDelay(route.delayMs) <= 0) merger.connect(destination);
+    else {
+      merger.connect(delayNode);
+      delayNode.connect(destination);
+    }
 
     media.volume = 1;
     media.muted = false;
@@ -2047,9 +2060,10 @@
       }
       await createAdditionalOutputRuntime(route);
     }
+    applyAllSpeakerDelayNodes();
   }
 
-  async function startOutputBridge() {
+  async function startOutputBridge {
     if (outputBridgeAudio) {
       try {
         if (outputBridgeAudio.paused) await outputBridgeAudio.play();
