@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 14;
+  const BUILD_REVISION = 15;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1770,6 +1770,13 @@
 
     await runOutputTransition(async () => {
       if (route.enabled) {
+        await updateDisconnectedOutputDeviceIds();
+        if (disconnectedOutputDeviceIds.has(route.deviceId)) {
+          route.enabled = false;
+          saveState();
+          toast("このスピーカーは現在接続されていません");
+          return;
+        }
         const runtime = additionalOutputRuntimes.get(route.deviceId);
         if (runtime) {
           if (!runtime.connected) {
@@ -2030,8 +2037,11 @@
     }
 
     applyPairedSpeakerRouting();
+    // 登録情報は残しても、現在接続されていない機器には音声経路を作らない。
+    // 再接続時は devicechange / 再同期後に通常どおり復帰させる。
+    await updateDisconnectedOutputDeviceIds();
     for (const route of state.outputRoutes) {
-      if (route.enabled === false) {
+      if (route.enabled === false || disconnectedOutputDeviceIds.has(route.deviceId)) {
         disconnectAdditionalOutputRuntime(route.deviceId);
         continue;
       }
