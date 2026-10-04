@@ -13,8 +13,8 @@
     '6. ui.js'
   ];
 
-  const LOAD_TIMEOUT_MS = 10000;
-  const LOAD_RETRY_COUNT = 2;
+  const LOAD_TIMEOUT_MS = 5000;
+  const LOAD_RETRY_COUNT = 1;
 
   function loadScriptPart(file, attempt = 0) {
     const url = new URL(file, base).href;
@@ -29,10 +29,16 @@
       .catch(error => {
         if (attempt < LOAD_RETRY_COUNT) {
           console.warn(`Music Player JS retry: ${file} (${attempt + 1}/${LOAD_RETRY_COUNT})`, error);
-          return new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)))
+          return new Promise(resolve => setTimeout(resolve, 300))
             .then(() => loadScriptPart(file, attempt + 1));
         }
-        throw error;
+
+        // 通信が一時的に止まった場合は、Service Workerのキャッシュを最後の復旧手段として使う。
+        return caches.match(url).then(cached => {
+          if (!cached) throw error;
+          console.warn(`Music Player JS cache fallback: ${file}`);
+          return cached.text();
+        });
       })
       .finally(() => clearTimeout(timer));
   }
