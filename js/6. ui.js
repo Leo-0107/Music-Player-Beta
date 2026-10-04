@@ -1983,6 +1983,10 @@
 
   function revealAppAfterHomeReady() {
     updateAppLoadingProgress(100, "ホーム画面を表示します...");
+    if (window.__musicPlayerIndexWatchdog) {
+      clearTimeout(window.__musicPlayerIndexWatchdog);
+      window.__musicPlayerIndexWatchdog = null;
+    }
     if (typeof window.__musicPlayerStartupFinished === "function") {
       window.__musicPlayerStartupFinished();
     }
