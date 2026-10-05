@@ -1705,18 +1705,29 @@
 
     if (menuCategoryHome) {
       menuCategoryHome.innerHTML = "";
-      Object.entries(SETTINGS_CATEGORIES).forEach(([key, category]) => {
+      Object.entries(MENU_CATEGORIES).forEach(([key, category]) => {
         const card = document.createElement("button");
         card.type = "button";
         card.className = "settingsCategoryCard";
         card.dataset.menuCategory = key;
         card.innerHTML = `
           <span class="settingsIcon">${category.icon}</span>
-          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.items.map(item => item[2]).join("・")}</small></span>
+          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.description}</small></span>
           <span class="settingsArrow">›</span>
         `;
         menuCategoryHome.appendChild(card);
       });
+
+      const settingsCard = document.createElement("button");
+      settingsCard.type = "button";
+      settingsCard.className = "settingsCategoryCard";
+      settingsCard.innerHTML = `
+        <span class="settingsIcon">⚙️</span>
+        <span class="settingsCardText"><strong>詳細設定</strong><small>再生・音声・表示などの仕組みを変更</small></span>
+        <span class="settingsArrow">›</span>
+      `;
+      settingsCard.addEventListener("click", openSettingsFromMenu);
+      menuCategoryHome.appendChild(settingsCard);
     }
   }
 
@@ -1728,26 +1739,101 @@
     const target = document.getElementById(secId);
     if (target) target.classList.add("active");
     if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
-    if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+    if (el.sideTitle) el.sideTitle.textContent = "←メニュー";
+  }
+
+  const MENU_CATEGORIES = {
+    playback: {
+      icon: "▶️",
+      title: "再生",
+      description: "今すぐ使う再生操作",
+      items: [
+        ["click", "btnPlay", "▶", "再生 / 一時停止"],
+        ["click", "btnPrev", "◀◀", "前の曲"],
+        ["click", "btnNext", "▶▶", "次の曲"],
+        ["click", "btnRewind10", "↶", "10秒戻す"],
+        ["click", "btnForward10", "↷", "10秒進める"],
+        ["click", "btnMainShuffle", "🔀", "シャッフル"],
+        ["click", "btnMainRepeat", "🔁", "リピート"],
+        ["section", "optionsSection", "🎚️", "速度・ピッチ", "再生速度とピッチをその場で調整"]
+      ]
+    },
+    library: {
+      icon: "♫",
+      title: "曲",
+      description: "曲・キュー・プレイリストを操作",
+      items: [
+        ["click", "btnAddMusic", "＋", "音楽 / ZIP / フォルダを追加"],
+        ["section", "queueSection", "⏭️", "再生キュー", "次に再生する曲を確認・並べ替え"],
+        ["section", "playlistSection", "📋", "プレイリスト", "プレイリストを作成・管理"],
+        ["click", "btnFav", "☆", "現在の曲をお気に入りに追加 / 解除"]
+      ]
+    },
+    audio: {
+      icon: "🔊",
+      title: "音声",
+      description: "出力・入力をすぐ操作",
+      items: [
+        ["section", "speakerSection", "🔊", "スピーカー", "出力先・複数出力・L/Rを操作"],
+        ["click", "btnMicMonitor", "🎤", "マイクモニター", "マイク入力のON / OFF"],
+        ["section", "inputSection", "🎙️", "マイク", "マイク音量・ハウリング抑制を調整"]
+      ]
+    },
+    display: {
+      icon: "〰️",
+      title: "表示",
+      description: "波形・ビジュアライザーを変更",
+      items: [
+        ["section", "waveSection", "〰️", "波形", "3D・2D・案1〜案8を選択"],
+        ["section", "visualizerDetailSection", "📈", "ビジュアライザー", "表示負荷やFPSなどを調整"],
+        ["click", "btnWaveViewReset", "↺", "3D視点をリセット"]
+      ]
+    }
+  };
+
+  function openSettingsFromMenu() {
+    const settingsTab = document.querySelector('.navTab[data-target="settings"]');
+    if (settingsTab) settingsTab.click();
+    closeSidebar();
+  }
+
+  function openMenuAction(targetId) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    target.click();
   }
 
   function showMenuCategory(key) {
-    const category = SETTINGS_CATEGORIES[key];
+    const category = MENU_CATEGORIES[key];
     if (!category || !menuCategoryHome || !menuCategoryView || !menuCategoryCards) return;
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
     menuCategoryTitle.textContent = category.title;
     menuCategoryCards.innerHTML = "";
-    category.items.forEach(([secId, icon, title, description]) => {
+
+    category.items.forEach(item => {
+      const type = item[0];
+      const targetId = item[1];
+      const icon = item[2];
+      const title = item[3];
+      const description = item[4] || "";
+
       const card = document.createElement("button");
       card.type = "button";
       card.className = "settingsCard";
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
         <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
-        <span class="settingsArrow">›</span>
+        <span class="settingsArrow">${type === "click" ? "" : "›"}</span>
       `;
-      card.addEventListener("click", () => openMenuDetail(secId, title));
+
+      card.addEventListener("click", () => {
+        if (type === "click") {
+          openMenuAction(targetId);
+          return;
+        }
+        openMenuDetail(targetId, title);
+      });
       menuCategoryCards.appendChild(card);
     });
   }
