@@ -1464,7 +1464,20 @@
           ? state.speakerSettings.rightChannel
           : (state.speakerSettings?.channelMode === "left" ? "left" : "right")
       },
-      ...state.outputRoutes.map((route, index) => ({
+      ...[...state.outputRoutes]
+        .map((route, index) => ({ route, index }))
+        .sort((a, b) => {
+          const aDisconnected = !!a.route?.deviceId && disconnectedOutputDeviceIds.has(a.route.deviceId);
+          const bDisconnected = !!b.route?.deviceId && disconnectedOutputDeviceIds.has(b.route.deviceId);
+          if (aDisconnected !== bDisconnected) return aDisconnected ? 1 : -1;
+          if (!aDisconnected && !bDisconnected) {
+            const aAdded = Number(a.route?.addedAt) || 0;
+            const bAdded = Number(b.route?.addedAt) || 0;
+            if (aAdded !== bAdded) return bAdded - aAdded;
+          }
+          return a.index - b.index;
+        })
+        .map(({ route, index }) => ({
         selected: false,
         route,
         index,
@@ -1586,8 +1599,8 @@
     if (disconnected) {
       const disconnectedMark = document.createElement("span");
       disconnectedMark.className = "speakerDisconnectedMark";
-      disconnectedMark.textContent = "▲";
-      disconnectedMark.title = "出力機器が接続されていません";
+      disconnectedMark.textContent = "⚠ 未接続";
+      disconnectedMark.title = "この出力機器は現在接続されていません";
       nameEl.appendChild(disconnectedMark);
     }
     requestAnimationFrame(() => {
@@ -2180,7 +2193,8 @@
       delayMs: 0,
       enabled: true,
       leftChannel: "left",
-      rightChannel: "right"
+      rightChannel: "right",
+      addedAt: Date.now()
     };
 
     // 接続に成功してから登録する。失敗した機器を「登録スピーカー」として保存しない。
