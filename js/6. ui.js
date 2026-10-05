@@ -1571,7 +1571,11 @@
     if (menuCategoryCards) menuCategoryCards.innerHTML = "";
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
-    if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+    if (el.sideTitle) {
+      el.sideTitle.textContent = "メニュー";
+      el.sideTitle.onclick = null;
+      el.sideTitle.style.cursor = "";
+    }
   }
   if (el.btnMenu) el.btnMenu.addEventListener("click", openSidebar);
   if (el.btnCloseMenu) el.btnCloseMenu.addEventListener("click", closeSidebar);
@@ -1758,8 +1762,12 @@
     const target = document.getElementById(secId);
     if (target) target.classList.add("active");
 
-    if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
-    if (el.sideTitle) el.sideTitle.textContent = "設定";
+    if (el.btnSideBack) el.btnSideBack.style.display = "none";
+    if (el.sideTitle) {
+      el.sideTitle.textContent = "←設定";
+      el.sideTitle.onclick = resetSidebarView;
+      el.sideTitle.style.cursor = "pointer";
+    }
   }
 
   function showSettingsCategory(key) {
