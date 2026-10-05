@@ -1738,8 +1738,8 @@
     const target = document.getElementById(secId);
     if (target) target.classList.add("active");
 
-    if (el.btnSideBack) el.btnSideBack.style.display = "none";
-    if (el.sideTitle) el.sideTitle.textContent = title || "設定";
+    if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
+    if (el.sideTitle) el.sideTitle.textContent = "設定";
   }
 
   function showSettingsCategory(key) {
