@@ -114,7 +114,14 @@
     </div>
     <div class="sideBody">
       <div class="menuList" id="mainMenuList">
-        <div class="menuSettingsMirror" id="menuSettingsMirror"></div>
+        <div class="menuSettingsMirror" id="menuSettingsMirror">
+          <div id="menuCategoryHome" class="settingsCategoryHome"></div>
+          <div id="menuCategoryView" class="settingsCategoryView" hidden>
+            <button class="settingsBackButton" id="btnMenuCategoryBack" type="button">← メニュー</button>
+            <div class="settingsCategoryTitle" id="menuCategoryTitle"></div>
+            <div class="settingsGrid" id="menuCategoryCards"></div>
+          </div>
+        </div>
         <div class="menuTools">
           <div class="menuToolsTitle">ライブラリ操作</div>
           <button class="btn small" id="btnAddMusic" type="button">音楽 / ZIP / フォルダを追加</button>
@@ -690,7 +697,7 @@
   </div>
 </div>
 
-<script src="js/1. ctrl.js?v=7.3.26"></script>
+<script src="js/1. ctrl.js?v=7.3.28"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
