@@ -1712,7 +1712,7 @@
         card.dataset.menuCategory = key;
         card.innerHTML = `
           <span class="settingsIcon">${category.icon}</span>
-          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.description}</small></span>
+          <span class="settingsCardText"><strong>${category.title}</strong></span>
           <span class="settingsArrow">›</span>
         `;
         menuCategoryHome.appendChild(card);
@@ -1823,7 +1823,7 @@
       card.className = "menuQuickActionCard";
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
-        <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
+        <span class="settingsCardText"><strong>${title}</strong>${description ? `<small>${description}</small>` : ""}</span>
         <span class="settingsArrow">${type === "click" ? "" : "›"}</span>
       `;
 
