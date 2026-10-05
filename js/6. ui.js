@@ -1745,7 +1745,7 @@
   const MENU_CATEGORIES = {
     playback: {
       icon: "▶️",
-      title: "再生",
+      title: "再生操作",
       
       items: [
         ["click", "btnPlay", "▶", "再生 / 一時停止"],
@@ -1760,7 +1760,7 @@
     },
     library: {
       icon: "♫",
-      title: "曲",
+      title: "曲操作",
       
       items: [
         ["click", "btnAddMusic", "＋", "音楽 / ZIP / フォルダを追加"],
@@ -1771,7 +1771,7 @@
     },
     audio: {
       icon: "🔊",
-      title: "音声",
+      title: "出力操作",
       
       items: [
         ["section", "speakerSection", "🔊", "スピーカー", ],
@@ -1781,7 +1781,7 @@
     },
     display: {
       icon: "〰️",
-      title: "表示",
+      title: "表示操作",
       
       items: [
         ["section", "waveSection", "〰️", "波形", ],
