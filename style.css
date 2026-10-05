@@ -1933,9 +1933,18 @@ body.output-device-modal-open .sidebar {
   animation: speakerNameScroll var(--speaker-name-scroll-duration, 6s) ease-in-out infinite;
 }
 .speakerDisconnectedMark {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
-  color: #f8d25c;
   margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid rgba(248,210,92,.55);
+  border-radius: 999px;
+  background: rgba(248,210,92,.12);
+  color: #f8d25c;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 @keyframes speakerNameScroll {
   0%, 12% { transform: translateX(0); opacity: 1; }
