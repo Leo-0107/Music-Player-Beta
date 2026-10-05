@@ -1565,27 +1565,18 @@
 
   function resetSidebarView() {
     if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+    if (menuCategoryView) menuCategoryView.hidden = true;
+    if (menuCategoryHome) menuCategoryHome.hidden = false;
+    if (menuCategoryTitle) menuCategoryTitle.textContent = "";
+    if (menuCategoryCards) menuCategoryCards.innerHTML = "";
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
     if (el.sideTitle) el.sideTitle.textContent = "メニュー";
   }
-
   if (el.btnMenu) el.btnMenu.addEventListener("click", openSidebar);
   if (el.btnCloseMenu) el.btnCloseMenu.addEventListener("click", closeSidebar);
   if (el.overlay) el.overlay.addEventListener("click", closeSidebar);
 
-  document.querySelectorAll(".menuItem").forEach(item => {
-    item.addEventListener("click", () => {
-      const secId = item.dataset.section;
-      if (!secId) return;
-      if (el.mainMenuList) el.mainMenuList.style.display = "none";
-      document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
-      const target = document.getElementById(secId);
-      if (target) target.classList.add("active");
-      if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
-      if (el.sideTitle) el.sideTitle.textContent = item.childNodes[0].textContent.trim();
-    });
-  });
 
   if (el.btnSideBack) {
     el.btnSideBack.addEventListener("click", resetSidebarView);
@@ -1685,6 +1676,11 @@
   const btnSettingsCategoryBack = document.getElementById("btnSettingsCategoryBack");
 
   const menuSettingsMirror = document.getElementById("menuSettingsMirror");
+  const menuCategoryHome = document.getElementById("menuCategoryHome");
+  const menuCategoryView = document.getElementById("menuCategoryView");
+  const menuCategoryTitle = document.getElementById("menuCategoryTitle");
+  const menuCategoryCards = document.getElementById("menuCategoryCards");
+  const btnMenuCategoryBack = document.getElementById("btnMenuCategoryBack");
 
   function renderSettingsStructure() {
     if (settingsCategoryHome) {
@@ -1703,29 +1699,53 @@
       });
     }
 
-    if (menuSettingsMirror) {
-      menuSettingsMirror.innerHTML = "";
+    if (menuCategoryHome) {
+      menuCategoryHome.innerHTML = "";
       Object.entries(SETTINGS_CATEGORIES).forEach(([key, category]) => {
-        const group = document.createElement("div");
-        group.className = "menuGroup";
-
-        const label = document.createElement("div");
-        label.className = "menuGroupLabel";
-        label.textContent = category.title;
-        group.appendChild(label);
-
-        category.items.forEach(([secId, icon, title, description]) => {
-          const item = document.createElement("button");
-          item.className = "menuItem";
-          item.type = "button";
-          item.dataset.section = secId;
-          item.innerHTML = `${icon} ${title}<span>${description}</span>`;
-          item.addEventListener("click", () => openSettingsDetail(secId, title));
-          group.appendChild(item);
-        });
-        menuSettingsMirror.appendChild(group);
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "settingsCategoryCard";
+        card.dataset.menuCategory = key;
+        card.innerHTML = `
+          <span class="settingsIcon">${category.icon}</span>
+          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.items.map(item => item[2]).join("・")}</small></span>
+          <span class="settingsArrow">›</span>
+        `;
+        menuCategoryHome.appendChild(card);
       });
     }
+  }
+
+  function openMenuDetail(secId, title) {
+    if (el.mainMenuList) el.mainMenuList.style.display = "none";
+    if (menuCategoryHome) menuCategoryHome.hidden = true;
+    if (menuCategoryView) menuCategoryView.hidden = true;
+    document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+    const target = document.getElementById(secId);
+    if (target) target.classList.add("active");
+    if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
+    if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+  }
+
+  function showMenuCategory(key) {
+    const category = SETTINGS_CATEGORIES[key];
+    if (!category || !menuCategoryHome || !menuCategoryView || !menuCategoryCards) return;
+    menuCategoryHome.hidden = true;
+    menuCategoryView.hidden = false;
+    menuCategoryTitle.textContent = category.title;
+    menuCategoryCards.innerHTML = "";
+    category.items.forEach(([secId, icon, title, description]) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "settingsCard";
+      card.innerHTML = `
+        <span class="settingsIcon">${icon}</span>
+        <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
+        <span class="settingsArrow">›</span>
+      `;
+      card.addEventListener("click", () => openMenuDetail(secId, title));
+      menuCategoryCards.appendChild(card);
+    });
   }
 
   function openSettingsDetail(secId, title) {
@@ -1771,6 +1791,19 @@
   document.querySelectorAll("[data-settings-category]").forEach(card => {
     card.addEventListener("click", () => showSettingsCategory(card.dataset.settingsCategory));
   });
+
+  document.querySelectorAll("[data-menu-category]").forEach(card => {
+    card.addEventListener("click", () => showMenuCategory(card.dataset.menuCategory));
+  });
+
+  if (btnMenuCategoryBack) {
+    btnMenuCategoryBack.addEventListener("click", () => {
+      if (menuCategoryView) menuCategoryView.hidden = true;
+      if (menuCategoryHome) menuCategoryHome.hidden = false;
+      if (menuCategoryTitle) menuCategoryTitle.textContent = "";
+      if (menuCategoryCards) menuCategoryCards.innerHTML = "";
+    });
+  }
 
   if (btnSettingsCategoryBack) {
     btnSettingsCategoryBack.addEventListener("click", () => {
