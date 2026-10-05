@@ -854,9 +854,9 @@ input[type="range"] {
 }
 .panelSection.active {
   display: flex;
-  animation: settingsSectionFromBottom .24s ease-out both;
+  animation: settingsSectionFromBottomV2 .24s ease-out both;
 }
-@keyframes settingsSectionFromBottom {
+@keyframes settingsSectionFromBottomV2 {
   from {
     opacity: 0;
     transform: translateY(18px);
