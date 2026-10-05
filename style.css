@@ -2143,8 +2143,14 @@ body.output-device-modal-open .sidebar {
   background: color-mix(in srgb, var(--panel2) 72%, var(--panel));
 }
 .settingsCard:hover {
-  background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--panel2);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.settingsCard:hover .settingsCardText strong {
+  color: var(--accent);
+}
+.settingsCard:hover .settingsIcon {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel2));
 }
 .settingsCard:focus-visible {
   outline: 2px solid var(--accent);
@@ -2499,8 +2505,11 @@ body:not(.theme-light) .pill:hover {
   transition: transform .12s ease, background .15s ease, border-color .15s ease;
 }
 .settingsCategoryCard:hover {
-  background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--panel);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.settingsCategoryCard:hover .settingsCategoryTitle {
+  color: var(--accent);
 }
 .settingsCategoryCard:active {
   transform: scale(.985);
