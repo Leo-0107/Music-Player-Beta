@@ -2538,3 +2538,46 @@ body:not(.theme-light) .pill:hover {
   color: var(--text);
   cursor: pointer;
 }
+
+
+/* メニューは設定とは異なる「操作パネル」として表示 */
+.menuQuickCategoryCard,
+.menuQuickActionCard {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .12s ease;
+}
+.menuQuickCategoryCard {
+  display: grid;
+  grid-template-columns: 38px minmax(0,1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+}
+.menuQuickActionCard {
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+}
+.menuQuickCategoryCard:hover,
+.menuQuickActionCard:hover {
+  background: var(--panel);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  transform: translateY(-1px);
+}
+.menuQuickCategoryCard .settingsIcon,
+.menuQuickActionCard .settingsIcon {
+  font-size: 1.15rem;
+  text-align: center;
+}
+.menuQuickCategoryCard .settingsCardText,
+.menuQuickActionCard .settingsCardText {
+  min-width: 0;
+}
