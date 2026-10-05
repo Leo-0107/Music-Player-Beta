@@ -1746,7 +1746,7 @@
     playback: {
       icon: "▶️",
       title: "再生",
-      description: "今すぐ使う再生操作",
+      
       items: [
         ["click", "btnPlay", "▶", "再生 / 一時停止"],
         ["click", "btnPrev", "◀◀", "前の曲"],
@@ -1755,37 +1755,37 @@
         ["click", "btnForward10", "↷", "10秒進める"],
         ["click", "btnMainShuffle", "🔀", "シャッフル"],
         ["click", "btnMainRepeat", "🔁", "リピート"],
-        ["section", "optionsSection", "🎚️", "速度・ピッチ", "再生速度とピッチをその場で調整"]
+        ["section", "optionsSection", "🎚️", "速度・ピッチ", ]
       ]
     },
     library: {
       icon: "♫",
       title: "曲",
-      description: "曲・キュー・プレイリストを操作",
+      
       items: [
         ["click", "btnAddMusic", "＋", "音楽 / ZIP / フォルダを追加"],
-        ["section", "queueSection", "⏭️", "再生キュー", "次に再生する曲を確認・並べ替え"],
-        ["section", "playlistSection", "📋", "プレイリスト", "プレイリストを作成・管理"],
+        ["section", "queueSection", "⏭️", "再生キュー", ],
+        ["section", "playlistSection", "📋", "プレイリスト", ],
         ["click", "btnFav", "☆", "現在の曲をお気に入りに追加 / 解除"]
       ]
     },
     audio: {
       icon: "🔊",
       title: "音声",
-      description: "出力・入力をすぐ操作",
+      
       items: [
-        ["section", "speakerSection", "🔊", "スピーカー", "出力先・複数出力・L/Rを操作"],
-        ["click", "btnMicMonitor", "🎤", "マイクモニター", "マイク入力のON / OFF"],
-        ["section", "inputSection", "🎙️", "マイク", "マイク音量・ハウリング抑制を調整"]
+        ["section", "speakerSection", "🔊", "スピーカー", ],
+        ["click", "btnMicMonitor", "🎤", "マイクモニター", ],
+        ["section", "inputSection", "🎙️", "マイク", ]
       ]
     },
     display: {
       icon: "〰️",
       title: "表示",
-      description: "波形・ビジュアライザーを変更",
+      
       items: [
-        ["section", "waveSection", "〰️", "波形", "3D・2D・案1〜案8を選択"],
-        ["section", "visualizerDetailSection", "📈", "ビジュアライザー", "表示負荷やFPSなどを調整"],
+        ["section", "waveSection", "〰️", "波形", ],
+        ["section", "visualizerDetailSection", "📈", "ビジュアライザー", ],
         ["click", "btnWaveViewReset", "↺", "3D視点をリセット"]
       ]
     }
