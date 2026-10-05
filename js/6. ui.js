@@ -1708,7 +1708,7 @@
       Object.entries(MENU_CATEGORIES).forEach(([key, category]) => {
         const card = document.createElement("button");
         card.type = "button";
-        card.className = "settingsCategoryCard";
+        card.className = "menuQuickCategoryCard";
         card.dataset.menuCategory = key;
         card.innerHTML = `
           <span class="settingsIcon">${category.icon}</span>
@@ -1720,7 +1720,7 @@
 
       const settingsCard = document.createElement("button");
       settingsCard.type = "button";
-      settingsCard.className = "settingsCategoryCard";
+      settingsCard.className = "menuQuickCategoryCard";
       settingsCard.innerHTML = `
         <span class="settingsIcon">⚙️</span>
         <span class="settingsCardText"><strong>詳細設定</strong><small>再生・音声・表示などの仕組みを変更</small></span>
@@ -1820,7 +1820,7 @@
 
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "settingsCard";
+      card.className = "menuQuickActionCard";
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
         <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
