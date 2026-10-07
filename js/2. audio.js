@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 35;
+  const BUILD_REVISION = 36;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -387,6 +387,18 @@
   // 非表示audio要素を経由する余分な出力段を省いて、サイト側の遅延を最小化する。
   let mainOutputDirectGainNode = null;
   let mainOutputUsesDirectSink = false;
+  let mainOutputUsesNativeDestination = false;
+
+  function isAndroidStandalonePwa() {
+    try {
+      return /Android/i.test(navigator.userAgent || "") && (
+        window.matchMedia?.("(display-mode: standalone)")?.matches ||
+        navigator.standalone === true
+      );
+    } catch (e) {
+      return false;
+    }
+  }
 
   function ensureOutputBridge() {
     if (!audioCtx || outputBridgeAudio || !audioCtx.createMediaStreamDestination) return;
@@ -624,11 +636,21 @@
       mainOutputDirectGainNode = audioCtx.createGain();
       mainOutputDirectGainNode.gain.value = state.speakerSettings?.mainEnabled === false ? 0 : 1;
 
-      if (typeof audioCtx.setSinkId === "function") {
+      // Androidのホーム画面追加PWAでは、AudioContext.setSinkId()を使うと
+      // Chromeのスタンドアロン音声経路で出力が途切れたり音が不安定になる場合がある。
+      // 明示的な出力機器を指定していない場合は、OS標準のdestinationへ直接出力する。
+      if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
+        mainOutputUsesDirectSink = false;
+        mainOutputUsesNativeDestination = true;
+        analyser.connect(mainOutputDirectGainNode);
+        mainOutputDirectGainNode.connect(audioCtx.destination);
+      } else if (typeof audioCtx.setSinkId === "function") {
         mainOutputUsesDirectSink = true;
+        mainOutputUsesNativeDestination = false;
         analyser.connect(mainOutputDirectGainNode);
         audioCtx.setSinkId(state.mainOutputDeviceId || "").catch(error => {
           mainOutputUsesDirectSink = false;
+          mainOutputUsesNativeDestination = false;
           try { mainOutputDirectGainNode.disconnect(); } catch (e) {}
           ensureOutputBridge();
           if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
@@ -724,7 +746,7 @@
     if (mainDelayNode) {
       const delayMs = getEffectiveSpeakerDelay(getMainOutputDelay());
       mainDelayNode.delayTime.setValueAtTime(Math.min(1.5, delayMs / 1000), now);
-      const mainOutputTarget = mainOutputUsesDirectSink
+      const mainOutputTarget = (mainOutputUsesDirectSink || mainOutputUsesNativeDestination)
         ? mainOutputDirectGainNode
         : outputStreamDestination;
       if (mainOutputTarget) {
@@ -1314,7 +1336,15 @@
 
     try {
       await runOutputTransition(async () => {
+        if (mainOutputUsesNativeDestination && !normalized) {
+          // Android PWAの既定出力はAudioContext.destinationを維持する。
+          mainOutputUsesDirectSink = false;
+          mainOutputUsesNativeDestination = true;
+          applyAllSpeakerDelayNodes();
+          return;
+        }
         if (typeof audioCtx?.setSinkId === "function") {
+          mainOutputUsesNativeDestination = false;
           await audioCtx.setSinkId(normalized);
           mainOutputUsesDirectSink = true;
           if (outputBridgeAudio && !outputBridgeAudio.paused) {
