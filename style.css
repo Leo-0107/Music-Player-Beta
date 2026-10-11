@@ -2589,3 +2589,16 @@ body:not(.theme-light) .pill:hover {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+
+/* 狭い画面ではメニュー・設定の項目カードを1列にして改行崩れを防ぐ */
+@media (max-width: 760px) {
+  .settingsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 設定から開いた詳細項目も、設定画面と同じ下方向の表示アニメーションに統一 */
+.sidebar.settingsBottomSheet .panelSection.active {
+  animation: settingsSectionFromBottomV2 .24s ease-out both !important;
+}
