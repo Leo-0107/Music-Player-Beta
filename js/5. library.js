@@ -1366,9 +1366,13 @@
   if (el.btnPlaylistTrackPlay) el.btnPlaylistTrackPlay.addEventListener("click", () => {
     const pName = openPlaylistTrackSheetName;
     if (!pName || !state.playlists[pName]?.length) return toast("このプレイリストに再生できる曲がありません");
-    const firstName = getPlaylistNames(pName)[0];
-    const first = state.playlist.find(x => x.name === firstName);
-    if (first) playSongFromPlaylist(first, pName);
+    const playlistNames = getPlaylistNames(pName);
+    const settings = getPlaylistSettings(pName);
+    const startName = settings.shuffle
+      ? playlistNames[Math.floor(Math.random() * playlistNames.length)]
+      : playlistNames[0];
+    const startSong = state.playlist.find(x => x.name === startName);
+    if (startSong) playSongFromPlaylist(startSong, pName);
   });
 
   function addSongToPlaylist(songName) {
