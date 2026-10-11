@@ -2602,3 +2602,20 @@ body:not(.theme-light) .pill:hover {
 .sidebar.settingsBottomSheet .panelSection.active {
   animation: settingsSectionFromBottomV2 .24s ease-out both !important;
 }
+
+
+/* プレイリスト曲一覧：上部操作欄を除いた残りの高さを使い、末尾までスクロール可能にする */
+.playlistTrackSheet .playlistTrackSheetCard {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.playlistTrackSheet .bottomSheetList {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+}
