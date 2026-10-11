@@ -1541,6 +1541,10 @@
       });
       el.list.appendChild(row);
       setupSongNameScroll(row.querySelector(".songName"));
+      // 描画時にも未取得の再生時間を再確認し、個別取得の失敗で表示が欠けたままになるのを防ぐ。
+      if (!Number.isFinite(song.duration) || song.duration <= 0) {
+        void ensureSongDuration(song);
+      }
       attachLongPressReorder(
         row,
         el.list,
