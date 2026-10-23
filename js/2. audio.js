@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 45;
+  const BUILD_REVISION = 46;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1464,9 +1464,9 @@
         state.mainOutputDeviceId = "";
       }
       if (e?.name === "NotAllowedError") {
-        toast("この出力機器の使用がブラウザで許可されていません");
+        toast("この出力機器を選ぶには、ブラウザの機器選択許可が必要です。「ブラウザの機器選択を許可」を押してください。");
       } else if (e?.name === "NotFoundError") {
-        toast("接続中の出力機器が見つかりません");
+        toast("接続中の出力機器が見つかりません。機器を接続してから一覧を再読み込みしてください。");
       } else if (e?.name === "AbortError") {
         toast("出力機器の切り替えに失敗しました。元のスピーカーへ戻しました");
       } else {
@@ -2368,9 +2368,9 @@
             await renderOutputDevicePicker();
           } catch (e) {
             if (e?.name === "NotAllowedError") {
-              toast("ブラウザの出力機器選択が許可されていません");
+              toast("ブラウザで出力機器を選ぶ許可がありません。許可操作を行ってから、もう一度機器を選んでください。");
             } else if (e?.name === "NotFoundError") {
-              toast("接続中の出力機器が見つかりません");
+              toast("接続中の出力機器が見つかりません。機器を接続してから一覧を再読み込みしてください。");
             } else if (e?.name === "InvalidStateError") {
               toast("このボタンからもう一度実行してください");
             } else {
@@ -2383,7 +2383,7 @@
         el.outputDeviceList.appendChild(discoverWrap);
       }
     } catch (e) {
-      el.outputDeviceList.textContent = "利用できるスピーカーを取得できませんでした。";
+      el.outputDeviceList.textContent = "出力機器一覧を取得できませんでした。ブラウザの機器選択許可を確認し、再読み込みしてください。";
     }
   }
 
@@ -2415,11 +2415,11 @@
           }
         }
         if (e?.name === "NotAllowedError") {
-          toast("ブラウザの出力機器選択が許可されていません");
+          toast("ブラウザで出力機器を選ぶ許可がありません。許可操作を行ってから、もう一度機器を選んでください。");
         } else if (e?.name === "NotFoundError") {
-          toast("接続中の出力機器が見つかりません");
+          toast("接続中の出力機器が見つかりません。機器を接続してから一覧を再読み込みしてください。");
         } else if (e?.name === "InvalidStateError") {
-          toast("出力機器の選択をもう一度ボタンから実行してください");
+          toast("機器の選択を完了できませんでした。許可ボタンからもう一度操作してください。");
         } else {
           toast("出力機器の選択に失敗しました");
         }
@@ -2433,7 +2433,7 @@
       typeof navigator.mediaDevices?.getUserMedia !== "function" ||
       typeof navigator.mediaDevices?.enumerateDevices !== "function"
     ) {
-      toast("このブラウザでは出力機器の取得に対応していません");
+      toast("このブラウザでは出力機器一覧の取得に対応していません。ブラウザの対応状況を確認してください。");
       return null;
     }
 
@@ -2475,7 +2475,7 @@
         el.outputDevicePermissionStatus.textContent =
           "出力機器の許可: 出力機器を取得できませんでした";
       }
-      toast("接続中の出力機器が見つかりません");
+      toast("接続中の出力機器が見つかりません。機器を接続してから一覧を再読み込みしてください。");
       return null;
     } catch (e) {
       if (el.outputDevicePermissionStatus) {
@@ -2488,9 +2488,9 @@
         }
       }
       if (e?.name === "NotAllowedError") {
-        toast("出力機器を取得するにはマイクの許可が必要です");
+        toast("利用できる出力機器が表示されない場合は、ブラウザの出力機器選択許可を確認してください。");
       } else {
-        toast("出力機器の取得に失敗しました");
+        toast("出力機器一覧を取得できませんでした。許可を確認してから一覧を再読み込みしてください。");
       }
       return null;
     }
@@ -2585,11 +2585,11 @@
         emptyMessage.style.color = "var(--muted)";
         emptyMessage.style.fontSize = ".82rem";
         emptyMessage.textContent =
-          "接続中の出力機器が一覧に表示されていません。「出力機器の権限を許可」を押してから一覧を更新してください。";
+          "接続中の出力機器が一覧にありません。「ブラウザの機器選択を許可」を押し、許可画面で機器を選んでから「接続中の機器を再読み込み」を押してください。";
         el.outputDeviceAddList.appendChild(emptyMessage);
       }
     } catch (e) {
-      el.outputDeviceAddList.textContent = "利用できるスピーカーを取得できませんでした。";
+      el.outputDeviceAddList.textContent = "出力機器一覧を取得できませんでした。ブラウザの機器選択許可を確認し、再読み込みしてください。";
     }
   }
 
@@ -3352,12 +3352,12 @@
     state.dMode = mode;
     saveState();
     const descriptions = {
-      "2D": "2D: 標準ステレオ再生",
-      "3D": "3D: HRTFによる前方の自然な立体音響",
-      "BINAURAL": "バイノーラル: HRTFで正面に固定した立体音響",
-      "4D": "4D: 前後左右＋上下の緩やかな空間揺らぎ",
-      "8D": "8D: 頭の周りを360度全方位回転",
-      "16D": "16D: 高度なマルチトラック8の字立体周回"
+      "2D": "2D：通常の左右ステレオで再生します。",
+      "3D": "3D：音が前方にあるような立体感を加えます。",
+      "BINAURAL": "バイノーラル：音を正面に定位させ、ヘッドホン向けの立体感を加えます。",
+      "4D": "4D：音が前後左右や上下にゆっくり移動します。",
+      "8D": "8D：音が周囲を回るように移動します。",
+      "16D": "16D：音が上下も交えて複雑に周回します。"
     };
     if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
     if (el.dModeBtns) {
