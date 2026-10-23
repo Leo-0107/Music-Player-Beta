@@ -1845,6 +1845,7 @@
     const { target, parent, nextSibling } = activeSettingsDetail;
     target.classList.remove("active");
     if (parent) parent.insertBefore(target, nextSibling && nextSibling.parentNode === parent ? nextSibling : null);
+    if (settingsCategoryView) settingsCategoryView.classList.remove("settingsDetailScreenOpen");
     activeSettingsDetail = null;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
@@ -1870,6 +1871,10 @@
     }
     target.classList.add("active");
     settingsCategoryView.appendChild(target);
+    // 設定詳細はメニューとは独立した画面として、下からフェードインさせる。
+    settingsCategoryView.classList.remove("settingsDetailScreenOpen");
+    void settingsCategoryView.offsetWidth;
+    settingsCategoryView.classList.add("settingsDetailScreenOpen");
   }
 
   function showSettingsCategory(key) {
