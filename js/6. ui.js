@@ -1838,24 +1838,38 @@
     });
   }
 
+  let activeSettingsDetail = null;
+
+  function restoreSettingsDetail() {
+    if (!activeSettingsDetail) return;
+    const { target, parent, nextSibling } = activeSettingsDetail;
+    target.classList.remove("active");
+    if (parent) parent.insertBefore(target, nextSibling && nextSibling.parentNode === parent ? nextSibling : null);
+    activeSettingsDetail = null;
+    if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
+    if (settingsCategoryCards) settingsCategoryCards.hidden = false;
+    if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
+  }
+
   function openSettingsDetail(secId, title) {
-    if (el.sidebar) el.sidebar.classList.add("settingsBottomSheet");
-    openSidebar();
-
-    if (el.mainMenuList) el.mainMenuList.style.display = "none";
-    document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
-
     const target = document.getElementById(secId);
-    if (target) target.classList.add("active");
+    if (!target || !settingsCategoryView || !settingsCategoryCards) return;
 
-    if (el.btnSideBack) el.btnSideBack.style.display = "none";
-    if (el.sideTitle) {
-      // 設定詳細はカテゴリ一覧の上に重ねて表示するため、戻る操作では
-      // メニューへ戻さず詳細パネルだけを閉じ、カテゴリ一覧を残す。
-      el.sideTitle.textContent = "←カテゴリ一覧";
-      el.sideTitle.onclick = closeSidebar;
-      el.sideTitle.style.cursor = "pointer";
+    // 設定詳細は左メニューではなく、設定画面のカテゴリ内で表示する。
+    restoreSettingsDetail();
+    activeSettingsDetail = {
+      target,
+      parent: target.parentNode,
+      nextSibling: target.nextSibling
+    };
+    document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+    settingsCategoryCards.hidden = true;
+    if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
+    if (btnSettingsCategoryBack) {
+      btnSettingsCategoryBack.textContent = "← " + (settingsCategoryTitle?.textContent || "設定");
     }
+    target.classList.add("active");
+    settingsCategoryView.appendChild(target);
   }
 
   function showSettingsCategory(key) {
@@ -1903,10 +1917,21 @@
 
   if (btnSettingsCategoryBack) {
     btnSettingsCategoryBack.addEventListener("click", () => {
+      if (activeSettingsDetail) {
+        restoreSettingsDetail();
+        return;
+      }
       if (settingsCategoryView) settingsCategoryView.hidden = true;
       if (settingsCategoryHome) settingsCategoryHome.hidden = false;
-      if (settingsCategoryTitle) settingsCategoryTitle.textContent = "";
-      if (settingsCategoryCards) settingsCategoryCards.innerHTML = "";
+      if (settingsCategoryTitle) {
+        settingsCategoryTitle.textContent = "";
+        settingsCategoryTitle.hidden = false;
+      }
+      if (settingsCategoryCards) {
+        settingsCategoryCards.innerHTML = "";
+        settingsCategoryCards.hidden = false;
+      }
+      btnSettingsCategoryBack.textContent = "← 設定";
     });
   }
 
