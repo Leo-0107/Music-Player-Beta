@@ -1013,45 +1013,17 @@
   }
 
   function attachLongPressReorder(row, container, selector, getKey, onDropOrder) {
-    if (!row || !container) return;
-    let timer = null;
-    let dragging = false;
-    let pointerId = null;
-    let startX = 0;
-    let startY = 0;
+    if (!row || !container || row._isLongPressReorderBound) return;
+    let timer = null, dragging = false, pointerId = null, startX = 0, startY = 0;
     const ignoreSelector = 'button, input, textarea, select, a, .noReorder';
-
-    const clearTimer = () => {
-      if (timer) clearTimeout(timer);
-      timer = null;
+    const clearTimer = () => { if (timer) clearTimeout(timer); timer = null; };
+    const cleanupDocumentListeners = () => {
+      document.removeEventListener("pointermove", onDocumentPointerMove, true);
+      document.removeEventListener("pointerup", finish, true);
+      document.removeEventListener("pointercancel", finish, true);
     };
-
-    row.addEventListener("contextmenu", e => {
-      if (dragging) e.preventDefault();
-    });
-
-    row.addEventListener("pointerdown", e => {
-      if (e.pointerType === "mouse" && e.button !== undefined && e.button !== 0) return;
-      if (e.target.closest(ignoreSelector)) return;
-      pointerId = e.pointerId;
-      startX = e.clientX;
-      startY = e.clientY;
-      clearTimer();
-      // 長押し後の最初の移動でブラウザ側へポインターが奪われないよう、
-      // pointerdown の時点で対象行を pointer capture しておく。
-      try { row.setPointerCapture(pointerId); } catch {}
-      timer = setTimeout(() => {
-        dragging = true;
-        suppressNextSongClick = true;
-        row._suppressClick = true;
-        row.classList.add("longPressDragging");
-        document.body.classList.add("reorder-dragging");
-        // capture は pointerdown 時から維持する。ここで取り直してもよい。
-        try { row.setPointerCapture(pointerId); } catch {}
-      }, LONG_PRESS_MS);
-    });
-
-    row.addEventListener("pointermove", e => {
+    const onDocumentPointerMove = e => {
+      if (pointerId !== e.pointerId) return;
       if (!dragging) {
         if (Math.hypot(e.clientX - startX, e.clientY - startY) > 10) clearTimer();
         return;
@@ -1059,9 +1031,7 @@
       e.preventDefault();
       const rows = Array.from(container.querySelectorAll(selector)).filter(item => item !== row);
       if (!rows.length) return;
-
-      let insertBefore = null;
-      let nearestDistance = Infinity;
+      let insertBefore = null, nearestDistance = Infinity;
       for (const candidate of rows) {
         const rect = candidate.getBoundingClientRect();
         const center = rect.top + rect.height / 2;
@@ -1071,32 +1041,44 @@
           insertBefore = e.clientY < center ? candidate : candidate.nextElementSibling;
         }
       }
-
       if (insertBefore === row) insertBefore = row.nextElementSibling;
       if (insertBefore) container.insertBefore(row, insertBefore);
       else container.appendChild(row);
-    });
-
+    };
     const finish = e => {
+      if (e?.pointerId !== undefined && pointerId !== null && e.pointerId !== pointerId) return;
       clearTimer();
-      if (!dragging) return;
+      cleanupDocumentListeners();
+      if (!dragging) { pointerId = null; return; }
       dragging = false;
-      try { row.releasePointerCapture(pointerId); } catch {}
       row.classList.remove("longPressDragging");
       document.body.classList.remove("reorder-dragging");
       const orderedKeys = Array.from(container.querySelectorAll(selector)).map(getKey).filter(Boolean);
       onDropOrder(orderedKeys);
-      setTimeout(() => {
-        row._suppressClick = false;
-        suppressNextSongClick = false;
-      }, 120);
+      setTimeout(() => { row._suppressClick = false; suppressNextSongClick = false; }, 120);
+      pointerId = null;
       renderPlaylistsAfterReorder(container, selector);
     };
-
-    row.addEventListener("pointerup", finish);
-    row.addEventListener("pointercancel", finish);
-    row.addEventListener("lostpointercapture", () => {
-      if (dragging) finish(new Event("pointerup"));
+    row.addEventListener("contextmenu", e => { if (dragging) e.preventDefault(); });
+    row.addEventListener("pointerdown", e => {
+      if (e.pointerType === "mouse" && e.button !== undefined && e.button !== 0) return;
+      if (e.target.closest(ignoreSelector)) return;
+      pointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      clearTimer();
+      cleanupDocumentListeners();
+      document.addEventListener("pointermove", onDocumentPointerMove, {capture:true,passive:false});
+      document.addEventListener("pointerup", finish, true);
+      document.addEventListener("pointercancel", finish, true);
+      timer = setTimeout(() => {
+        if (pointerId === null) return;
+        dragging = true;
+        suppressNextSongClick = true;
+        row._suppressClick = true;
+        row.classList.add("longPressDragging");
+        document.body.classList.add("reorder-dragging");
+      }, LONG_PRESS_MS);
     });
     row._isLongPressReorderBound = true;
   }
