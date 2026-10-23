@@ -2723,3 +2723,26 @@ body:not(.theme-light) .pill:hover {
   overscroll-behavior: contain;
   padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
 }
+
+
+/* v7.3.46: 説明付きの縦並び設定 */
+.settingsHelpText{display:block;color:var(--muted);font-size:.82rem;line-height:1.5;margin:4px 0 10px}
+.modeOptionList,.waveOptionList,.homeLayoutOptionList{display:flex;flex-direction:column;gap:8px;width:100%}
+.modeOption,.waveOption,.homeLayoutOption{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;width:100%;min-width:0;text-align:left;padding:11px 12px}
+.modeOptionName,.waveOptionName,.homeLayoutOptionName{flex:0 0 118px;font-weight:700;line-height:1.35}
+.modeOptionDescription,.waveOptionDescription,.homeLayoutOptionDescription{min-width:0;flex:1 1 auto;color:var(--muted);font-size:.8rem;line-height:1.45;font-weight:400}
+.modeOption.active .modeOptionDescription,.waveOption.active .waveOptionDescription,.homeLayoutOption.active .homeLayoutOptionDescription{color:inherit}
+.modeOptionFootnote{margin-top:8px;color:var(--muted);font-size:.8rem;line-height:1.5}
+.waveParticleField{width:100%;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;box-sizing:border-box}
+.settingCheckRow{display:flex;gap:10px;align-items:flex-start;margin:12px 0}
+.settingCheckRow input{margin-top:4px;flex:0 0 auto}
+.settingCheckRow span{display:flex;flex-direction:column;gap:3px}
+.settingCheckRow small{color:var(--muted);font-size:.8rem;line-height:1.45}
+.statsMetric{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 140px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.statsMetric>span{color:var(--muted);font-size:.8rem}
+.statsMetric>strong{font-size:1.1rem;overflow-wrap:anywhere}
+.statsMetric>small{color:var(--muted);font-size:.72rem;line-height:1.35}
+#dModeDesc{display:none}
+@media(max-width:480px){.modeOption,.waveOption,.homeLayoutOption{gap:9px;padding:10px}.modeOptionName,.waveOptionName,.homeLayoutOptionName{flex-basis:94px}.modeOptionDescription,.waveOptionDescription,.homeLayoutOptionDescription{font-size:.76rem}}
+/* 並べ替え中の行が DOM 上で移動してもポインター追跡を継続 */
+.reorder-dragging .song,.reorder-dragging .plTrackItem,.reorder-dragging .plCard{transition:none!important}
