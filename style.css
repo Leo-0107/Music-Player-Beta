@@ -2619,6 +2619,95 @@ body:not(.theme-light) .pill:hover {
 }
 
 
+/* 設定詳細：メニューとは独立したパネルを画面下からスライド＋フェード表示 */
+.settingsDetailOverlay[hidden] {
+  display: none !important;
+}
+.settingsDetailOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.settingsDetailBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .48);
+  opacity: 0;
+  transition: opacity .28s ease;
+}
+.settingsDetailPanel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(100vw, 760px);
+  height: min(92vh, 1000px);
+  max-height: calc(100dvh - 20px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, .32);
+  opacity: 0;
+  transform: translateY(42px);
+  transition: transform .30s cubic-bezier(.2,.75,.25,1), opacity .30s ease;
+  overflow: hidden;
+}
+.settingsDetailOverlay.open .settingsDetailBackdrop {
+  opacity: 1;
+}
+.settingsDetailOverlay.open .settingsDetailPanel {
+  opacity: 1;
+  transform: translateY(0);
+}
+.settingsDetailHeader {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.settingsDetailPanelTitle {
+  min-width: 0;
+  text-align: center;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settingsDetailClose {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel2);
+  color: var(--text);
+  cursor: pointer;
+}
+.settingsDetailBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+}
+.settingsDetailBody .panelSection.active {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settingsDetailBackdrop,
+  .settingsDetailPanel {
+    transition-duration: .01ms;
+  }
+}
+
 /* プレイリスト曲一覧：上部操作欄を除いた残りの高さを使い、末尾までスクロール可能にする */
 .playlistTrackSheet .playlistTrackSheetCard {
   display: flex;
