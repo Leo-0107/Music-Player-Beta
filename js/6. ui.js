@@ -1839,14 +1839,24 @@
   }
 
   let activeSettingsDetail = null;
+  const settingsDetailOverlay = document.getElementById("settingsDetailOverlay");
+  const settingsDetailPanelBody = document.getElementById("settingsDetailPanelBody");
+  const settingsDetailPanelTitle = document.getElementById("settingsDetailPanelTitle");
+  const btnSettingsDetailBack = document.getElementById("btnSettingsDetailBack");
+  const btnCloseSettingsDetail = document.getElementById("btnCloseSettingsDetail");
+  const settingsDetailBackdrop = document.getElementById("settingsDetailBackdrop");
 
   function restoreSettingsDetail() {
     if (!activeSettingsDetail) return;
     const { target, parent, nextSibling } = activeSettingsDetail;
     target.classList.remove("active");
     if (parent) parent.insertBefore(target, nextSibling && nextSibling.parentNode === parent ? nextSibling : null);
-    if (settingsCategoryView) settingsCategoryView.classList.remove("settingsDetailScreenOpen");
     activeSettingsDetail = null;
+    if (settingsDetailOverlay) {
+      settingsDetailOverlay.classList.remove("open");
+      settingsDetailOverlay.hidden = true;
+    }
+    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = "設定";
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
     if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
@@ -1854,9 +1864,9 @@
 
   function openSettingsDetail(secId, title) {
     const target = document.getElementById(secId);
-    if (!target || !settingsCategoryView || !settingsCategoryCards) return;
+    if (!target || !settingsCategoryView || !settingsCategoryCards || !settingsDetailOverlay || !settingsDetailPanelBody) return;
 
-    // 設定詳細は左メニューではなく、設定画面のカテゴリ内で表示する。
+    // 詳細は既存の設定一覧や左メニュー内ではなく、独立したボトムシートに表示する。
     restoreSettingsDetail();
     activeSettingsDetail = {
       target,
@@ -1864,18 +1874,21 @@
       nextSibling: target.nextSibling
     };
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
-    settingsCategoryCards.hidden = true;
-    if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
-    if (btnSettingsCategoryBack) {
-      btnSettingsCategoryBack.textContent = "← " + (settingsCategoryTitle?.textContent || "設定");
-    }
+    settingsCategoryCards.hidden = false;
+    if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
+    if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
+    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = title || "設定";
     target.classList.add("active");
-    settingsCategoryView.appendChild(target);
-    // 設定詳細はメニューとは独立した画面として、下からフェードインさせる。
-    settingsCategoryView.classList.remove("settingsDetailScreenOpen");
-    void settingsCategoryView.offsetWidth;
-    settingsCategoryView.classList.add("settingsDetailScreenOpen");
+    settingsDetailPanelBody.appendChild(target);
+    settingsDetailOverlay.hidden = false;
+    settingsDetailOverlay.classList.remove("open");
+    void settingsDetailOverlay.offsetWidth;
+    requestAnimationFrame(() => settingsDetailOverlay.classList.add("open"));
   }
+
+  if (btnSettingsDetailBack) btnSettingsDetailBack.addEventListener("click", restoreSettingsDetail);
+  if (btnCloseSettingsDetail) btnCloseSettingsDetail.addEventListener("click", restoreSettingsDetail);
+  if (settingsDetailBackdrop) settingsDetailBackdrop.addEventListener("click", restoreSettingsDetail);
 
   function showSettingsCategory(key) {
     const category = SETTINGS_CATEGORIES[key];
