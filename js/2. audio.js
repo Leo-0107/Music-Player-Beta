@@ -1203,26 +1203,26 @@
     const sinkSupported = typeof HTMLMediaElement?.prototype?.setSinkId === "function";
     if (!selectSupported && sinkSupported) {
       setOutputPermissionStatusText(
-        "出力機器の許可: Chromeではマイクの許可を利用して出力機器を取得します"
+        "機器選択の状態: Chromeでは機器名の取得にマイクの許可が必要になる場合があります"
       );
       return;
     }
     if (!selectSupported) {
       setOutputPermissionStatusText(
-        "出力機器の許可: このブラウザでは出力機器の切り替えに対応していません"
+        "機器選択の状態: このブラウザでは出力機器の切り替えに対応していません"
       );
       return;
     }
 
     const permissionState = await getOutputPermissionState();
     if (permissionState === "granted") {
-      setOutputPermissionStatusText("出力機器の許可: 許可済み");
+      setOutputPermissionStatusText("機器選択の状態: 許可済み");
     } else if (permissionState === "denied") {
-      setOutputPermissionStatusText("出力機器の許可: ブラウザでブロックされています");
+      setOutputPermissionStatusText("機器選択の状態: ブラウザでブロックされています");
     } else if (permissionState === "prompt") {
-      setOutputPermissionStatusText("出力機器の許可: 未許可（下の許可ボタンから選択）");
+      setOutputPermissionStatusText("機器選択の状態: 未許可（許可ボタンから機器を選択してください）");
     } else {
-      setOutputPermissionStatusText("出力機器の許可: 状態を確認できません");
+      setOutputPermissionStatusText("機器選択の状態: 状態を確認できません");
     }
   }
 
@@ -2398,20 +2398,20 @@
         }
         if (selected?.deviceId && el.outputDevicePermissionStatus) {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 許可済み（選択した出力機器）";
+            "機器選択の状態: 許可済み（選択した出力機器）";
         }
         return selected?.deviceId ? selected : null;
       } catch (e) {
         if (el.outputDevicePermissionStatus) {
           if (e?.name === "NotAllowedError") {
             el.outputDevicePermissionStatus.textContent =
-              "出力機器の許可: 未許可またはブラウザでブロックされています";
+              "機器選択の状態: 未許可またはブラウザでブロックされています";
           } else if (e?.name === "NotFoundError") {
             el.outputDevicePermissionStatus.textContent =
-              "出力機器の許可: 利用できる出力機器がありません";
+              "機器選択の状態: 利用できる出力機器がありません";
           } else {
             el.outputDevicePermissionStatus.textContent =
-              "出力機器の許可: 選択を完了できませんでした";
+              "機器選択の状態: 選択を完了できませんでした";
           }
         }
         if (e?.name === "NotAllowedError") {
@@ -2453,7 +2453,7 @@
           recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
           if (el.outputDevicePermissionStatus) {
             el.outputDevicePermissionStatus.textContent =
-              "出力機器の許可: 許可済み（選択可能な出力機器を取得しました）";
+              "機器選択の状態: 許可済み（選択可能な出力機器を取得しました）";
           }
           return selected;
         }
@@ -2466,14 +2466,14 @@
         recentlyGrantedOutputDeviceUntil = Date.now() + 5000;
         if (el.outputDevicePermissionStatus) {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 許可済み（選択可能な出力機器を取得しました）";
+            "機器選択の状態: 許可済み（選択可能な出力機器を取得しました）";
         }
         return fallback;
       }
 
       if (el.outputDevicePermissionStatus) {
         el.outputDevicePermissionStatus.textContent =
-          "出力機器の許可: 出力機器を取得できませんでした";
+          "機器選択の状態: 出力機器を取得できませんでした";
       }
       toast("接続中の出力機器が見つかりません。機器を接続してから一覧を再読み込みしてください。");
       return null;
@@ -2481,10 +2481,10 @@
       if (el.outputDevicePermissionStatus) {
         if (e?.name === "NotAllowedError") {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: マイクの許可が必要です";
+            "機器選択の状態: ブラウザの機器選択許可または必要なマイク許可を確認してください";
         } else {
           el.outputDevicePermissionStatus.textContent =
-            "出力機器の許可: 出力機器を取得できませんでした";
+            "機器選択の状態: 出力機器を取得できませんでした";
         }
       }
       if (e?.name === "NotAllowedError") {
