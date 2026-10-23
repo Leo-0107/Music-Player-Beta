@@ -2015,7 +2015,7 @@
       button.addEventListener("click", () => {
         const mode = normalizeHomeLayout(button.dataset.homeLayout);
         applyHomeLayout(mode, true);
-        const label = mode === "default" ? "デフォルト" : "案" + mode;
+        const label = mode === "default" ? "デフォルト" : "レイアウト" + mode;
         toast("ホームレイアウトを「" + label + "」に変更しました");
       });
     });
