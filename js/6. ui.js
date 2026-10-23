@@ -1850,8 +1850,10 @@
 
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
     if (el.sideTitle) {
-      el.sideTitle.textContent = "←設定";
-      el.sideTitle.onclick = resetSidebarView;
+      // 設定詳細はカテゴリ一覧の上に重ねて表示するため、戻る操作では
+      // メニューへ戻さず詳細パネルだけを閉じ、カテゴリ一覧を残す。
+      el.sideTitle.textContent = "←カテゴリ一覧";
+      el.sideTitle.onclick = closeSidebar;
       el.sideTitle.style.cursor = "pointer";
     }
   }
