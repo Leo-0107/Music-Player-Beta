@@ -2598,6 +2598,21 @@ body:not(.theme-light) .pill:hover {
   }
 }
 
+/* 設定詳細は左メニューとは別画面として、画面全体を下からフェードイン */
+.settingsCategoryView.settingsDetailScreenOpen {
+  animation: settingsDetailScreenFromBottom .32s cubic-bezier(.2,.75,.25,1) both;
+}
+@keyframes settingsDetailScreenFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 設定から開いた詳細項目も、設定画面と同じ下方向の表示アニメーションに統一 */
 .sidebar.settingsBottomSheet .panelSection.active {
   animation: settingsSectionFromBottomV2 .24s ease-out both !important;
