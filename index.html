@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.3</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.3.45">
+<link rel="stylesheet" href="style.css?v=7.3.46">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -140,15 +140,15 @@
         <div class="sectionCard">
           <div class="sectionTitle">ホームレイアウト</div>
           <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">
-            現在の機能と再生状態を共通のまま、ホーム画面の配置だけを切り替えます。
+            ホーム画面の配置を切り替えます。曲や再生状態、保存済みデータはそのままです。各レイアウト名の説明を参考に選んでください。
           </div>
-          <div class="controls" id="homeLayoutSettingsBtns">
-            <button class="btn small" data-home-layout="default" type="button">デフォルト</button>
-            <button class="btn small" data-home-layout="1" type="button">案1</button>
-            <button class="btn small" data-home-layout="2" type="button">案2</button>
-            <button class="btn small" data-home-layout="3" type="button">案3</button>
-            <button class="btn small" data-home-layout="4" type="button">案4</button>
-            <button class="btn small" data-home-layout="5" type="button">案5</button>
+          <div class="homeLayoutOptionList" id="homeLayoutSettingsBtns">
+            <button class="btn small homeLayoutOption" data-home-layout="default" type="button"><span class="homeLayoutOptionName">デフォルト</span><span class="homeLayoutOptionDescription">基本の配置で再生・曲一覧を表示</span></button>
+            <button class="btn small homeLayoutOption" data-home-layout="1" type="button"><span class="homeLayoutOptionName">レイアウト1</span><span class="homeLayoutOptionDescription">曲一覧・再生エリアを横並びに配置</span></button>
+            <button class="btn small homeLayoutOption" data-home-layout="2" type="button"><span class="homeLayoutOptionName">レイアウト2</span><span class="homeLayoutOptionDescription">再生中の曲を中心に大きく表示</span></button>
+            <button class="btn small homeLayoutOption" data-home-layout="3" type="button"><span class="homeLayoutOptionName">レイアウト3</span><span class="homeLayoutOptionDescription">再生操作と曲一覧を見やすく整理</span></button>
+            <button class="btn small homeLayoutOption" data-home-layout="4" type="button"><span class="homeLayoutOptionName">レイアウト4</span><span class="homeLayoutOptionDescription">波形・ビジュアライザーを中心に表示</span></button>
+            <button class="btn small homeLayoutOption" data-home-layout="5" type="button"><span class="homeLayoutOptionName">レイアウト5</span><span class="homeLayoutOptionDescription">波形と再生情報をまとめて表示</span></button>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@
         <div class="sectionCard">
           <div class="sectionTitle">速度・ピッチ</div>
           <div class="field">
-            <label>速度: <span id="rateText">1.00x</span></label>
+            <label>再生速度: <span id="rateText">1.00x</span></label>
             <input type="range" id="playbackRate" min="0.0" max="2.0" step="0.05" value="1.0">
             <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0">
           </div>
@@ -175,15 +175,15 @@
         </div>
         <div class="sectionCard">
           <div class="sectionTitle">立体音響</div>
-          <div class="controls" id="dModeBtns">
-            <button class="btn small" data-d="2D">2D</button>
-            <button class="btn small" data-d="3D">3D</button>
-            <button class="btn small" data-d="BINAURAL">バイノーラル</button>
-            <button class="btn small" data-d="4D">4D</button>
-            <button class="btn small" data-d="8D">8D</button>
-            <button class="btn small" data-d="16D">16D</button>
+          <div class="modeOptionList" id="dModeBtns">
+            <button class="btn small modeOption" data-d="2D" type="button"><span class="modeOptionName">2D</span><span class="modeOptionDescription">通常の左右ステレオで再生</span></button>
+            <button class="btn small modeOption" data-d="3D" type="button"><span class="modeOptionName">3D</span><span class="modeOptionDescription">音が前方にあるような立体感</span></button>
+            <button class="btn small modeOption" data-d="BINAURAL" type="button"><span class="modeOptionName">バイノーラル</span><span class="modeOptionDescription">ヘッドホン向けの立体的な聞こえ方</span></button>
+            <button class="btn small modeOption" data-d="4D" type="button"><span class="modeOptionName">4D</span><span class="modeOptionDescription">音が前後左右や上下にゆっくり移動</span></button>
+            <button class="btn small modeOption" data-d="8D" type="button"><span class="modeOptionName">8D</span><span class="modeOptionDescription">音が周囲を回るように移動</span></button>
+            <button class="btn small modeOption" data-d="16D" type="button"><span class="modeOptionName">16D</span><span class="modeOptionDescription">音が上下も交えて複雑に周回</span></button>
           </div>
-          <div style="font-size:.82rem; color:var(--muted);" id="dModeDesc">2D: 標準ステレオ再生</div>
+          <div class="modeOptionFootnote" id="dModeDesc">選択したモードは再生音に反映されます。効果の感じ方はヘッドホンやスピーカーによって異なります。</div>
           <div class="field" style="margin-top:10px;">
             <label>左右パン: <span id="pannerValText">中央</span></label>
             <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
@@ -232,21 +232,22 @@
       <div class="panelSection" id="waveSection">
         <div class="sectionCard">
           <div class="sectionTitle">波形表示</div>
-          <div style="font-size:.82rem; color:var(--muted); margin-bottom:10px;">表示する波形の種類を選択できます。</div>
-          <button class="btn small ghost" id="btnWaveViewReset" type="button">3D視点をリセット</button>
-          <div class="controls" id="waveModeSettingsBtns">
-            <button class="btn small" data-wave="3d">3D波形</button>
-            <button class="btn small" data-wave="2d">2D波形</button>
-            <button class="btn small" data-wave="a1">案1</button>
-            <button class="btn small" data-wave="a2">案2</button>
-            <button class="btn small" data-wave="a3">案3</button>
-            <button class="btn small" data-wave="a4">案4</button>
-            <button class="btn small" data-wave="a5">案5</button>
-            <button class="btn small" data-wave="a6">案6</button>
-            <button class="btn small" data-wave="a7">案7</button>
-            <button class="btn small" data-wave="a8">案8</button>
-            <div class="field" style="width:100%; margin-top:10px;">
-              <label>案7 粒子数: <span id="waveParticleCountText">0</span></label>
+          <div class="settingsHelpText">波形を選ぶと、再生音に合わせて動く表示が切り替わります。各項目の説明を参考に選んでください。</div>
+          <button class="btn small ghost" id="btnWaveViewReset" type="button">3D波形の視点を初期位置に戻す</button>
+          <div class="waveOptionList" id="waveModeSettingsBtns">
+            <button class="btn small waveOption" data-wave="3d" type="button"><span class="waveOptionName">3D波形</span><span class="waveOptionDescription">奥行きのある波形を立体表示</span></button>
+            <button class="btn small waveOption" data-wave="2d" type="button"><span class="waveOptionName">2D波形</span><span class="waveOptionDescription">音の波形を平面上に表示</span></button>
+            <button class="btn small waveOption" data-wave="a1" type="button"><span class="waveOptionName">滑らかな波形</span><span class="waveOptionDescription">中央線を基準に音の変化を表示</span></button>
+            <button class="btn small waveOption" data-wave="a2" type="button"><span class="waveOptionName">周波数バー</span><span class="waveOptionDescription">周波数ごとの強さを縦棒で表示</span></button>
+            <button class="btn small waveOption" data-wave="a3" type="button"><span class="waveOptionName">左右対称バー</span><span class="waveOptionDescription">左右チャンネルを中央から左右へ表示</span></button>
+            <button class="btn small waveOption" data-wave="a4" type="button"><span class="waveOptionName">反応バー</span><span class="waveOptionDescription">音の変化に反応するカラーバー</span></button>
+            <button class="btn small waveOption" data-wave="a5" type="button"><span class="waveOptionName">音量ライン</span><span class="waveOptionDescription">音量の変化を線として流して表示</span></button>
+            <button class="btn small waveOption" data-wave="a6" type="button"><span class="waveOptionName">3重リング</span><span class="waveOptionDescription">低音・中音・高音に反応するリング</span></button>
+            <button class="btn small waveOption" data-wave="a7" type="button"><span class="waveOptionName">水面の波紋</span><span class="waveOptionDescription">真上から見た水面のような波が流れる</span></button>
+            <button class="btn small waveOption" data-wave="a8" type="button"><span class="waveOptionName">L/R心電図風</span><span class="waveOptionDescription">左右チャンネルの音量履歴を上下に表示</span></button>
+            <div class="field waveParticleField">
+              <label>水面の波の細かさ（粒子数）: <span id="waveParticleCountText">0</span></label>
+              <div class="settingsHelpText">水面表示で使う粒子の量を調整します。増やすほど描画負荷が高くなる場合があります。</div>
               <input type="range" id="waveParticleCount" min="0" max="1200" step="10" value="0">
             </div>
           </div>
@@ -291,10 +292,10 @@
           <div class="speakerSectionHeader">
             <div>
               <div class="sectionTitle" style="margin-bottom:4px;">スピーカー</div>
-              <div class="speakerSectionHint">出力先を選択・追加し、入力信号のL/Rと実際の出力L/R、状態、遅延を確認できます。</div>
+              <div class="speakerSectionHint">音を出す先を管理します。メイン出力の切り替え、複数機器への同時出力、左右チャンネルの音量・割り当て、出力遅延を個別に設定できます。</div>
             </div>
             <div class="speakerDeviceActions">
-              <button class="btn small" id="btnOpenSpeakerAdd" type="button">＋ スピーカーを追加</button>
+              <button class="btn small" id="btnOpenSpeakerAdd" type="button">＋ 同時出力する機器を追加</button>
             </div>
           </div>
           <div id="additionalOutputSpeakers" class="speakerList"></div>
@@ -310,7 +311,7 @@
             <strong id="speakerDelayMeasurementModalTitle">どのスピーカーの遅延を測定しますか？</strong>
             <button class="menuBtn" id="btnCloseSpeakerDelayMeasurement" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint" id="speakerDelayMeasurementHint">測定するスピーカーを選択してください。</div>
+          <div class="outputDeviceModalHint" id="speakerDelayMeasurementHint">遅延を測定したい出力機器を選んでください。測定後、その機器の出力タイミングを補正します。</div>
           <div class="outputDeviceList" id="speakerDelayMeasurementList"></div>
         </div>
       </div>
@@ -321,18 +322,18 @@
             <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">使用するスピーカーを選択できます。</div>
+          <div class="outputDeviceModalHint">音楽の主な出力先（メイン出力）を選択します。別の機器にも同時に音を出したい場合は、次の「同時出力する機器を追加」を使ってください。</div>
           <div class="outputDeviceList" id="outputDeviceList"></div>
           <div class="outputDevicePermissionPanel">
-            <div class="outputDevicePermissionText">スピーカーを切り替えるには、ブラウザの出力機器への許可が必要です。</div>
+            <div class="outputDevicePermissionText">機器名が表示されない場合や切り替えできない場合は、ブラウザに出力機器の選択を許可してください。許可の確認画面が開いたら、使用する機器を選択します。</div>
             <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatusMain">出力機器の許可: 確認中...</div>
-            <button class="btn small ghost" id="btnRequestOutputPermissionMain" type="button">出力機器の権限を許可</button>
+            <button class="btn small ghost" id="btnRequestOutputPermissionMain" type="button">ブラウザの機器選択を許可</button>
           </div>
           <div class="speakerAddActions">
-            <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ スピーカーを追加</button>
+            <button class="btn small ghost" id="btnAddOutputSpeaker" type="button">＋ 同時出力する機器を追加</button>
           </div>
           <div class="outputDeviceModalActions">
-            <button class="btn small" id="btnSelectOutputDirect" type="button">接続中の出力機器を選ぶ</button>
+            <button class="btn small" id="btnSelectOutputDirect" type="button">メイン出力を選び直す</button>
             <button class="btn small ghost" id="btnCloseOutputDeviceModalBottom" type="button">閉じる</button>
           </div>
         </div>
@@ -344,12 +345,12 @@
             <strong id="outputDeviceAddModalTitle">スピーカーを追加</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceAddModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">一覧に表示されているスピーカーから、同時出力に追加する機器を選択してください。</div>
+          <div class="outputDeviceModalHint">メイン出力とは別に、同時に音を出したい機器を選びます。追加後は機器ごとに使用状態・L/R音量・遅延を設定できます。</div>
           <div class="outputDeviceList" id="outputDeviceAddList"></div>
-          <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatus">出力機器の許可: 確認中...</div>
-          <button class="btn small ghost" id="btnRequestOutputPermission" type="button">出力機器の権限を許可</button>
+          <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatus">ブラウザの機器選択許可を確認しています...</div>
+          <button class="btn small ghost" id="btnRequestOutputPermission" type="button">ブラウザの機器選択を許可</button>
           <div class="outputDeviceModalActions">
-            <button class="btn small" id="btnRefreshOutputAddList" type="button">一覧を更新</button>
+            <button class="btn small" id="btnRefreshOutputAddList" type="button">接続中の機器を再読み込み</button>
             <button class="btn small ghost" id="btnCloseOutputDeviceAddModalBottom" type="button">閉じる</button>
           </div>
         </div>
@@ -378,32 +379,31 @@
       <div class="panelSection" id="visualizerDetailSection">
         <div class="sectionCard">
           <div class="sectionTitle">ビジュアライザー詳細</div>
-          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerLowPerformance"> 低性能モード</label>
-          <small style="display:block;color:var(--muted);margin-bottom:10px;">描画量を抑えるための設定。自動でユーザー設定を変更しません。</small>
-          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerShowFps"> FPSを表示</label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerLowPerformance"><span><strong>描画を軽くする</strong><small>波形・ビジュアライザーの描画量を抑え、動作が重いときの負荷を減らします。表示の細かさが変わる場合があります。</small></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowFps"><span><strong>描画速度（FPS）を表示</strong><small>1秒間に画面を何回描画できているかの目安です。数値が高いほど動きが滑らかです。</small></span></label>
           <div id="visualizerFps" hidden style="font-size:.8rem;color:var(--muted);">FPS: --</div>
-          <label style="display:flex;gap:8px;align-items:center;margin:10px 0;"><input type="checkbox" id="visualizerShowLoad"> 描画負荷を表示</label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowLoad"><span><strong>描画負荷を表示</strong><small>波形表示の処理負荷を確認するための情報です。機器や表示モードによって変化します。</small></span></label>
           <div id="visualizerLoad" hidden style="font-size:.8rem;color:var(--muted);">描画負荷: --</div>
         </div>
       </div>
       <div class="panelSection" id="statsSection">
         <div class="sectionCard">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div class="sectionTitle" style="margin:0;">再生統計</div>
-            <button class="btn small danger" id="btnResetStats">統計リセット</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+            <div><div class="sectionTitle" style="margin:0;">再生の記録</div><small class="settingsHelpText">再生回数や再生時間、よく聴く曲を確認できます。</small></div>
+            <button class="btn small danger" id="btnResetStats">統計データをリセット</button>
           </div>
-          <div style="display:flex; gap:16px; margin-bottom:12px;">
-            <div>再生回数: <strong id="statPlays">0</strong></div>
-            <div>総曲数: <strong id="statSongs">0</strong></div>
-            <div>総再生時間: <strong id="statTotalPlayback">0分0秒</strong></div>
-            <div>途中再生: <strong id="statPartialPlays">0</strong></div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+            <div class="statsMetric"><span>再生回数</span><strong id="statPlays">0</strong><small>再生として記録された回数</small></div>
+            <div class="statsMetric"><span>ライブラリの曲数</span><strong id="statSongs">0</strong><small>登録されている曲数</small></div>
+            <div class="statsMetric"><span>累計再生時間</span><strong id="statTotalPlayback">0分0秒</strong><small>これまでの再生時間</small></div>
+            <div class="statsMetric"><span>途中から再生した回数</span><strong id="statPartialPlays">0</strong><small>曲の途中から再生した回数</small></div>
           </div>
           <canvas id="playHistoryChart" style="width:100%; height:180px;"></canvas>
-          <div class="sectionTitle" style="margin-top:14px;">よく聴く曲</div>
+          <div class="sectionTitle" style="margin-top:14px;">再生回数が多い曲</div>
           <div id="statsPopularList" class="statsTrackList"></div>
-          <div class="sectionTitle" style="margin-top:14px;">曲ごとの詳細統計</div>
+          <div class="sectionTitle" style="margin-top:14px;">曲別の再生記録</div>
           <div id="statsDetailedList" class="statsTrackList"></div>
-          <div class="sectionTitle" style="margin-top:14px;">月間統計</div>
+          <div class="sectionTitle" style="margin-top:14px;">月ごとの再生記録</div>
           <div id="statsMonthlyList" class="statsTrackList"></div>
         </div>
       </div>
@@ -709,7 +709,7 @@
   </section>
 </div>
 
-<script src="js/1. ctrl.js?v=7.3.45"></script>
+<script src="js/1. ctrl.js?v=7.3.46"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
