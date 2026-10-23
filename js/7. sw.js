@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.3.45";
+const CACHE_NAME = "music-player-app-v7.3.46";
 const APP_SHELL = [
   "./sw.js",
   "./index.html",
