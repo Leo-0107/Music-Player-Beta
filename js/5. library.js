@@ -1031,17 +1031,16 @@
       e.preventDefault();
       const rows = Array.from(container.querySelectorAll(selector)).filter(item => item !== row);
       if (!rows.length) return;
-      let insertBefore = null, nearestDistance = Infinity;
+      let insertBefore = null;
       for (const candidate of rows) {
         const rect = candidate.getBoundingClientRect();
         const center = rect.top + rect.height / 2;
-        const distance = Math.abs(e.clientY - center);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          insertBefore = e.clientY < center ? candidate : candidate.nextElementSibling;
+        if (e.clientY < center) {
+          insertBefore = candidate;
+          break;
         }
       }
-      if (insertBefore === row) insertBefore = row.nextElementSibling;
+      // すべての行の中央より下なら最後に移動する。DOM移動中もdocumentのpointermoveで追跡する。
       if (insertBefore) container.insertBefore(row, insertBefore);
       else container.appendChild(row);
     };
