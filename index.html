@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.3</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.3.46">
+<link rel="stylesheet" href="style.css?v=7.3.47">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -155,22 +155,28 @@
 
       <div class="panelSection" id="optionsSection">
         <div class="sectionCard">
-          <div class="sectionTitle">速度・ピッチ</div>
+          <div class="sectionTitle">再生速度・ピッチ</div>
           <div class="field">
-            <label>再生速度: <span id="rateText">1.00x</span></label>
-            <input type="range" id="playbackRate" min="0.0" max="2.0" step="0.05" value="1.0">
-            <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0">
+            <label for="playbackRate">再生速度: <span id="rateText">1.00x</span></label>
+            <div class="settingsHelpText">曲の再生を速く／遅くします。1.00x が通常速度です。</div>
+            <input type="range" id="playbackRate" min="0.1" max="2.0" step="0.05" value="1.0">
+            <label class="customRateLabel" for="customRateInput">数値で指定（0.1〜10倍）</label>
+            <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0" aria-label="再生速度を数値で指定">
           </div>
           <div class="field">
-            <label>ピッチ (半音): <span id="pitchText">0</span></label>
+            <label for="pitchShift">ピッチ（音の高さ）: <span id="pitchText">0</span> 半音</label>
+            <div class="settingsHelpText">音の高さを変えます。再生速度とは別の設定です。0 は元の高さ、＋は高く、−は低くします。</div>
             <input type="range" id="pitchShift" min="-12" max="12" step="1" value="0">
           </div>
         </div>
         <div class="sectionCard">
           <div class="sectionTitle">再生機能</div>
-          <button class="btn small" id="btnCrossfade" style="width:100%; margin-bottom:8px;">クロスフェード: ON</button>
+          <button class="btn small" id="btnCrossfade" style="width:100%; margin-bottom:8px;" aria-label="曲の切り替え時に前後の曲を重ねて再生">クロスフェード: ON</button>
+          <div class="settingsHelpText">曲の終わりと次の曲の始まりを重ねて、切り替えを滑らかにします。</div>
           <button class="btn small" id="btnSilenceSkip" style="width:100%;">無音スキップ: ON</button>
+          <div class="settingsHelpText">曲の中の無音部分を自動で飛ばします。</div>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
+          <div class="settingsHelpText">音量が大きすぎるときの歪みを抑えます。音源や機器によって効果は異なります。</div>
           
         </div>
         <div class="sectionCard">
@@ -218,7 +224,7 @@
         <div class="sectionCard speakerPanel">
           <div class="sectionTitle">音響遅延補正</div>
           <div class="speakerSectionHint">
-            一番下の測定ボタンからスピーカーを選択すると、メイン出力との実測差を測定して、そのスピーカーの遅延を自動補正します。
+            メイン出力と追加の出力機器で音が届くタイミングに差があるときに使います。測定対象を選び、実測した遅延差をもとに追加機器の出力タイミングを補正します。
           </div>
           <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">スピーカーの遅延を測定</button>
           <button class="btn small" id="btnMeasureMicLatency" type="button" style="width:100%; margin-top:8px;">マイクで遅延を測定</button>
@@ -342,7 +348,7 @@
       <div class="outputDeviceModal" id="outputDeviceAddModal" hidden>
         <div class="outputDeviceModalCard" role="dialog" aria-modal="true" aria-labelledby="outputDeviceAddModalTitle">
           <div class="outputDeviceModalHead">
-            <strong id="outputDeviceAddModalTitle">スピーカーを追加</strong>
+            <strong id="outputDeviceAddModalTitle">同時出力する機器を追加</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceAddModal" type="button" aria-label="閉じる">✕</button>
           </div>
           <div class="outputDeviceModalHint">メイン出力とは別に、同時に音を出したい機器を選びます。追加後は機器ごとに使用状態・L/R音量・遅延を設定できます。</div>
@@ -709,7 +715,7 @@
   </section>
 </div>
 
-<script src="js/1. ctrl.js?v=7.3.46"></script>
+<script src="js/1. ctrl.js?v=7.3.47"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
