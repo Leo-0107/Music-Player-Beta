@@ -2245,9 +2245,17 @@ body:not(.theme-light) .sectionCard,
 body:not(.theme-light) .settingsCard {
   border-color: var(--line);
 }
-body:not(.theme-light) .btn:hover,
+body:not(.theme-light) .btn:hover:not(.danger):not(#btnSettingsAddMusic),
 body:not(.theme-light) .pill:hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel2));
+}
+
+/* 音楽データ操作は、ホバー時も操作の意味が色で伝わるようにする */
+#btnSettingsAddMusic:hover {
+  background: var(--panel3);
+}
+.btn.danger:hover {
+  background: color-mix(in srgb, var(--danger) 84%, #000 16%);
 }
 
 
