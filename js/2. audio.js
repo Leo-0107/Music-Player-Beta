@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 1;
+  const BUILD_REVISION = 2;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -94,13 +94,6 @@
     setPlaybackIntent(false);
   });
 
-  // 再生速度はユーザー設定のみを使用する。遅延・処理負荷などによる外部変更を即座に戻す。
-  audio.addEventListener("ratechange", () => {
-    if (!Number.isFinite(currentRate)) currentRate = 1.0;
-    if (Math.abs(audio.playbackRate - currentRate) > 0.0001) {
-      audio.playbackRate = currentRate;
-    }
-  });
 
 
 
