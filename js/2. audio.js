@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 2;
+  const BUILD_REVISION = 3;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -649,6 +649,8 @@
         mainOutputUsesDirectSink = true;
         mainOutputUsesNativeDestination = false;
         analyser.connect(mainOutputDirectGainNode);
+        // AudioContext.setSinkId() は出力先を選ぶだけなので、destination への接続も必要。
+        mainOutputDirectGainNode.connect(audioCtx.destination);
         audioCtx.setSinkId(state.mainOutputDeviceId || "").catch(error => {
           mainOutputUsesDirectSink = false;
           mainOutputUsesNativeDestination = false;
