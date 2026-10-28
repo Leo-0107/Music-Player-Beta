@@ -296,6 +296,7 @@
     outputDeviceAddModal: document.getElementById("outputDeviceAddModal"),
     outputDeviceAddList: document.getElementById("outputDeviceAddList"),
     btnAddOutputSpeaker: document.getElementById("btnAddOutputSpeaker"),
+    btnOpenSpeakerAdd: document.getElementById("btnOpenSpeakerAdd"),
     btnAutoCalibrateSpeakers: document.getElementById("btnAutoCalibrateSpeakers"),
     mainOutputDelay: document.getElementById("mainOutputDelay"),
     mainOutputDelayText: document.getElementById("mainOutputDelayText"),
