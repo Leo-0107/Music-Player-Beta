@@ -1859,7 +1859,10 @@
     if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = "設定";
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
-    if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
+    if (btnSettingsCategoryBack) {
+      btnSettingsCategoryBack.hidden = false;
+      btnSettingsCategoryBack.textContent = "← 設定";
+    }
   }
 
   function openSettingsDetail(secId, title) {
@@ -1874,9 +1877,9 @@
       nextSibling: target.nextSibling
     };
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
-    settingsCategoryCards.hidden = false;
-    if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
-    if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
+    settingsCategoryCards.hidden = true;
+    if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
+    if (btnSettingsCategoryBack) btnSettingsCategoryBack.hidden = true;
     if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = title || "設定";
     if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = `← ${title || "設定"}`;
     target.classList.add("active");
@@ -1950,6 +1953,7 @@
         settingsCategoryCards.innerHTML = "";
         settingsCategoryCards.hidden = false;
       }
+      btnSettingsCategoryBack.hidden = false;
       btnSettingsCategoryBack.textContent = "← 設定";
     });
   }
