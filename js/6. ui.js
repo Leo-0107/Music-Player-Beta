@@ -1878,6 +1878,7 @@
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
     if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = title || "設定";
+    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = `← ${title || "設定"}`;
     target.classList.add("active");
     settingsDetailPanelBody.appendChild(target);
     settingsDetailOverlay.hidden = false;
