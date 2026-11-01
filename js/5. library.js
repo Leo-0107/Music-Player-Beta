@@ -618,7 +618,7 @@
     }
   }
 
-  function startNewSong(song, pushHistory) {
+  async function startNewSong(song, pushHistory) {
     setPlaybackIntent(true);
     recordPartialPlayIfNeeded();
     state.currentSong = song;
@@ -645,17 +645,19 @@
     updateArtwork(song);
     updateNowPlayingUI(song);
     renderQueue();
-    resumeAudioCtx();
-    audio.play().then(async () => {
+    try {
+      await resumeAudioCtx();
+      await audio.play();
       setPlaybackIntent(true);
       await startOutputBridge?.();
       requestWakeLock();
       lastFrameTime = performance.now();
       startWaveAnimation();
-    }).catch(() => {
+    } catch (error) {
       setPlaybackIntent(false);
       savePlaybackMemory?.(true);
-    });
+      updatePlayPauseUI();
+    }
   }
 
   // --- DOMのピンポイント更新 ---
@@ -781,16 +783,22 @@
     updatePlayPauseUI();
   }
 
-  function playPause(){
+  async function playPause(){
     if(!state.currentSong && state.playlist.length) return playSong(getVisibleSongs()[0]);
     if(audio.paused) {
       ensureGraph();
-      audio.play().then(async () => {
+      try {
+        await resumeAudioCtx();
+        await audio.play();
         await startOutputBridge?.();
+        setPlaybackIntent(true);
         requestWakeLock();
         lastFrameTime = performance.now();
         startWaveAnimation();
-      }).catch(()=>{});
+      } catch (error) {
+        setPlaybackIntent(false);
+        savePlaybackMemory?.(true);
+      }
     } else {
       setPlaybackIntent(false);
       audio.pause();
