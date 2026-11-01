@@ -1881,7 +1881,7 @@
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
     if (btnSettingsCategoryBack) btnSettingsCategoryBack.hidden = true;
     if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = title || "設定";
-    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = `← ${title || "設定"}`;
+    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "←";
     target.classList.add("active");
     settingsDetailPanelBody.appendChild(target);
     settingsDetailOverlay.hidden = false;
