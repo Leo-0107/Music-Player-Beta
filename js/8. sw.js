@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.4.4";
+const CACHE_NAME = "music-player-app-v7.4.5";
 const APP_SHELL = [
   "./sw.js",
   "./index.html",
@@ -6,11 +6,12 @@ const APP_SHELL = [
   "./manifest.json",
   "./js/1. ctrl.js",
   "./js/2. audio.js",
-  "./js/3. state.js",
-  "./js/4. storage.js",
-  "./js/5. library.js",
-  "./js/6. ui.js",
-  "./js/7. sw.js"
+  "./js/3. audio-output.js",
+  "./js/4. state.js",
+  "./js/5. storage.js",
+  "./js/6. library.js",
+  "./js/7. ui.js",
+  "./js/8. sw.js"
 ];
 
 self.addEventListener("install", event => {

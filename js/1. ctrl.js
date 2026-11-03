@@ -6,11 +6,12 @@
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '4. storage.js',
-    '3. state.js',
+    '5. storage.js',
+    '4. state.js',
     '2. audio.js',
-    '5. library.js',
-    '6. ui.js'
+    '3. audio-output.js',
+    '6. library.js',
+    '7. ui.js'
   ];
 
   const LOAD_TIMEOUT_MS = 5000;
