@@ -81,6 +81,7 @@
     if (!item) return;
     currentYoutubeItem = item;
     pendingPlayId = item.id;
+    updatePlayPauseUI();
     const tab = document.querySelector('.navTab[data-target="youtube"]');
     if (tab) tab.click();
     const title = document.getElementById("youtubeCurrentTitle");
@@ -110,6 +111,7 @@
               }
               const button = document.getElementById("youtubePlayPauseBtn");
               if (button && currentYoutubeItem) button.textContent = event.data === YT.PlayerState.PLAYING ? "❚❚ 一時停止" : "▶ 再生";
+              updatePlayPauseUI();
             },
             onError: () => { if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。"; }
           }
