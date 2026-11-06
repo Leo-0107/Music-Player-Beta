@@ -327,6 +327,10 @@
   });
   document.getElementById("youtubePlayPauseBtn")?.addEventListener("click", () => playPause());
   document.getElementById("youtubeStopBtn")?.addEventListener("click", () => {
+    if (!isYoutubeSong(state.currentSong)) return;
+    // API読み込み中の停止も有効にし、停止後に遅れて再生が始まらないようにする。
+    youtubeRequestSerial++;
+    pendingPlayId = null;
     try { youtubePlayer?.stopVideo(); } catch {}
     setPlaybackIntent(false);
     updatePlayPauseUI();
