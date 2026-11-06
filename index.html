@@ -543,6 +543,30 @@
         </div>
       </div>
 
+      <div id="youtubeElements" style="display:none; flex-direction:column; gap:16px;">
+        <div class="sectionTitle">YouTube</div>
+        <div class="sectionCard" style="display:grid;gap:10px;">
+          <label for="youtubeUrlInput">YouTube動画のURL</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input id="youtubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:180px;">
+            <button class="btn small" id="youtubeAddUrlBtn" type="button">URLを追加</button>
+          </div>
+          <div class="settingsHelpText">動画URLを登録して、公式プレイヤーで再生できます。検索機能はAPI設定後に追加します。</div>
+        </div>
+        <div class="sectionCard" style="display:grid;gap:10px;">
+          <div id="youtubeCurrentTitle" style="font-weight:700;">動画を選択してください</div>
+          <div id="youtubePlayer" style="width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;"></div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn small" id="youtubePlayPauseBtn" type="button">▶ 再生</button>
+            <button class="btn small" id="youtubeStopBtn" type="button">■ 停止</button>
+            <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>プレイリストに追加</button>
+          </div>
+          <div id="youtubeStatus" class="settingsHelpText" aria-live="polite">YouTube動画はこのタブ内で再生されます。</div>
+        </div>
+        <div class="sectionTitle">登録した動画</div>
+        <div id="youtubeVideoList" class="songList"></div>
+      </div>
+
       <div id="playlistElements" style="display:none; flex-direction:column; gap:16px;">
         <div class="sectionTitle">プレイリスト一覧</div>
         <div id="playlistContainerMain"></div>
@@ -640,6 +664,10 @@
   <button class="navTab active" data-target="home">
     <span class="icon">🎵</span>
     <span>ホーム</span>
+  </button>
+  <button class="navTab" data-target="youtube">
+    <span class="icon">▶️</span>
+    <span>YouTube</span>
   </button>
   <button class="navTab" data-target="playlist">
     <span class="icon">📜</span>
