@@ -2759,3 +2759,27 @@ body:not(.theme-light) .pill:hover {
 /* v7.3.47: 再生設定の説明とドラッグ並べ替えの操作フィードバック */
 .customRateLabel{display:block;margin:10px 0 5px;color:var(--muted);font-size:.82rem}
 .song.longPressDragging,.plTrackItem.longPressDragging,.plCard.longPressDragging{position:relative;z-index:2;opacity:.82;outline:2px solid var(--accent);outline-offset:-2px;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+
+
+/* 曲・動画一覧の共通︙メニュー */
+.songMenuWrap { position: relative; flex: 0 0 auto; }
+.songMenuBtn {
+  min-width: 36px; min-height: 34px; padding: 4px 9px;
+  border: 0; border-radius: 9px; background: var(--panel3);
+  color: var(--text); font-size: 1.15rem; line-height: 1;
+}
+.songMenuBtn:hover, .songMenuBtn[aria-expanded="true"] { background: var(--panel); }
+.songMenuPopup {
+  position: absolute; z-index: 30; top: calc(100% + 6px); right: 0;
+  display: grid; min-width: 142px; padding: 5px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--panel); box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.songMenuPopup[hidden] { display: none !important; }
+.songMenuItem {
+  width: 100%; padding: 9px 11px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text); text-align: left;
+  font-size: .86rem; white-space: nowrap;
+}
+.songMenuItem:hover { background: var(--panel3); }
+.songMenuItem.delTrackBtn { color: var(--danger); }
