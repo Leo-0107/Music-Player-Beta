@@ -180,7 +180,8 @@
     const input = document.getElementById("youtubeUrlInput");
     if (input) input.value = "";
     toast("YouTube動画を登録しました");
-    playYoutubeItem(item);
+    const song = ensureYoutubeSong(item);
+    playSong(song);
   }
 
   function renderYoutubeList() {
@@ -197,7 +198,7 @@
       row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist">YouTube</div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button></div>';
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
       const buttons = row.querySelectorAll("button");
-      buttons[0].addEventListener("click", () => playYoutubeItem(item));
+      buttons[0].addEventListener("click", () => playSong(ensureYoutubeSong(item)));
       buttons[1].addEventListener("click", () => {
         const song = ensureYoutubeSong(item);
         addSongToPlaylist(song.name);
@@ -208,9 +209,9 @@
 
   const originalPlaySong = playSong;
   playSong = function(song, pushHistory = true, options = {}) {
-    if (song?.mediaType === "youtube" || String(song?.name || "").startsWith("yt:")) {
-      const id = song.youtubeId || String(song.name).slice(3);
-      const item = youtubeItems.get(id) || { id, title: song.title || "YouTube動画" };
+    if (isYoutubeSong(song)) {
+      const item = getYoutubeItemForSong(song);
+      if (!item) return;
       if (!options.preservePlaylistContext) clearPlaylistContext();
       if (pushHistory && (historyIndex === -1 || historyStack[historyIndex]?.name !== song.name)) {
         historyStack.splice(historyIndex + 1);
@@ -221,14 +222,20 @@
       try { localStorage.setItem(STORAGE.lastSong, song.name); } catch {}
       updateNowPlayingUI(song);
       renderQueue();
-      if (audio && !audio.paused) audio.pause();
+      try { audio.pause(); } catch {}
       playYoutubeItem(item);
       return;
     }
-    if (currentYoutubeItem && youtubePlayer?.pauseVideo) {
+
+    // 保留中のYouTube API読み込み・再生要求を無効化し、古い動画が後から再生されないようにする。
+    youtubeRequestSerial++;
+    pendingPlayId = null;
+    if (youtubePlayer?.pauseVideo) {
       try { youtubePlayer.pauseVideo(); } catch {}
-      currentYoutubeItem = null;
     }
+    currentYoutubeItem = null;
+    const youtubeButton = document.getElementById("youtubePlayPauseBtn");
+    if (youtubeButton) youtubeButton.textContent = "▶ 再生";
     return originalPlaySong(song, pushHistory, options);
   };
 
