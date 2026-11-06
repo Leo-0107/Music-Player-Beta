@@ -114,6 +114,45 @@
     return youtubeApiPromise;
   }
 
+  let youtubeStatsTimer = null;
+  let youtubeStatsLastTime = null;
+
+  function stopYoutubePlaybackStats() {
+    if (youtubeStatsTimer !== null) {
+      clearInterval(youtubeStatsTimer);
+      youtubeStatsTimer = null;
+    }
+    youtubeStatsLastTime = null;
+  }
+
+  function startYoutubePlaybackStats() {
+    if (youtubeStatsTimer !== null || !youtubePlayer?.getCurrentTime) return;
+    youtubeStatsLastTime = Number(youtubePlayer.getCurrentTime()) || 0;
+    youtubeStatsTimer = setInterval(() => {
+      if (!currentYoutubeItem || !isYoutubeSong(state.currentSong) ||
+          youtubePlayer?.getPlayerState?.() !== YT.PlayerState.PLAYING) {
+        stopYoutubePlaybackStats();
+        return;
+      }
+      const currentTime = Number(youtubePlayer.getCurrentTime()) || 0;
+      const delta = currentTime - youtubeStatsLastTime;
+      youtubeStatsLastTime = currentTime;
+      if (delta > 0 && delta <= 2) recordPlaybackTime(delta);
+    }, 1000);
+  }
+
+  function recordYoutubePartialPlayIfNeeded() {
+    if (!currentYoutubeItem || !isYoutubeSong(state.currentSong) || hasCountedCurrentSong) return;
+    const current = Number(youtubePlayer?.getCurrentTime?.()) || 0;
+    const duration = Number(youtubePlayer?.getDuration?.()) || 0;
+    if (current > 30 || (duration > 0 && current / duration > 0.5)) return;
+    const stats = getSongStats(state.currentSong.name);
+    if (!stats) return;
+    stats.partialPlays++;
+    stats.lastPlayed = Date.now();
+    saveState();
+  }
+
   async function playYoutubeItem(item) {
     if (!item || !/^[\w-]{11}$/.test(item.id)) return;
     const requestId = ++youtubeRequestSerial;
@@ -137,7 +176,8 @@
         youtubePlayer = new YT.Player(mount, {
           width: "100%",
           height: "100%",
-          videoId: item.id,
+          // 初期化時にvideoIdを渡すと、停止操作後でも自動ロードされるため、
+          // 再生要求が有効なonReady時だけ動画をロードする。
           playerVars: { playsinline: 1, rel: 0 },
           events: {
             onReady: event => {
@@ -149,7 +189,15 @@
               }
             },
             onStateChange: event => {
+              if (event.data === YT.PlayerState.PLAYING && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
+                // YouTube再生も既存の再生回数・再生時間統計へ反映する。
+                if (!hasCountedCurrentSong) recordPlayCount();
+                startYoutubePlaybackStats();
+              } else {
+                stopYoutubePlaybackStats();
+              }
               if (event.data === YT.PlayerState.ENDED && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
+                stopYoutubePlaybackStats();
                 setPlaybackIntent(false);
                 nextTrack(true);
               }
@@ -229,7 +277,8 @@
       if (!options.preservePlaylistContext) clearPlaylistContext();
       // 音楽ファイルから切り替える際、pauseイベントがYouTube曲の途中再生として記録されないようにする。
       recordPartialPlayIfNeeded();
-      hasCountedCurrentSong = true;
+      recordYoutubePartialPlayIfNeeded();
+      hasCountedCurrentSong = false;
       if (pushHistory && (historyIndex === -1 || historyStack[historyIndex]?.name !== song.name)) {
         historyStack.splice(historyIndex + 1);
         historyStack.push(song);
@@ -247,6 +296,7 @@
     // 保留中のYouTube API読み込み・再生要求を無効化し、古い動画が後から再生されないようにする。
     youtubeRequestSerial++;
     pendingPlayId = null;
+    stopYoutubePlaybackStats();
     if (youtubePlayer?.pauseVideo) {
       try { youtubePlayer.pauseVideo(); } catch {}
     }
@@ -325,6 +375,7 @@
         return;
       }
       // 通常Audio側に残った古い再生位置が、YouTubeの前曲移動を妨げないようにする。
+      // 元のprevTrack()はAudioの再生位置を先に判定するため、同期的に0へ戻してから委譲する。
       try { audio.currentTime = 0; } catch {}
     }
     return originalPrevTrack();
@@ -340,6 +391,7 @@
     // API読み込み中の停止も有効にし、停止後に遅れて再生が始まらないようにする。
     youtubeRequestSerial++;
     pendingPlayId = null;
+    stopYoutubePlaybackStats();
     try { youtubePlayer?.stopVideo(); } catch {}
     setPlaybackIntent(false);
     updatePlayPauseUI();
