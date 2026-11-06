@@ -276,8 +276,8 @@
       if (!item) return;
       if (!options.preservePlaylistContext) clearPlaylistContext();
       // 音楽ファイルから切り替える際、pauseイベントがYouTube曲の途中再生として記録されないようにする。
-      recordPartialPlayIfNeeded();
-      recordYoutubePartialPlayIfNeeded();
+      if (isYoutubeSong(state.currentSong)) recordYoutubePartialPlayIfNeeded();
+      else recordPartialPlayIfNeeded();
       hasCountedCurrentSong = false;
       if (pushHistory && (historyIndex === -1 || historyStack[historyIndex]?.name !== song.name)) {
         historyStack.splice(historyIndex + 1);
@@ -296,6 +296,7 @@
     // 保留中のYouTube API読み込み・再生要求を無効化し、古い動画が後から再生されないようにする。
     youtubeRequestSerial++;
     pendingPlayId = null;
+    recordYoutubePartialPlayIfNeeded();
     stopYoutubePlaybackStats();
     if (youtubePlayer?.pauseVideo) {
       try { youtubePlayer.pauseVideo(); } catch {}
