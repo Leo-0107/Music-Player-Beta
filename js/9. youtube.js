@@ -2,6 +2,7 @@
 // 公式IFrame Player APIを利用し、音声抽出や非公式ストリーム取得は行わない。
 (() => {
   const YT_STORAGE_KEY = "mp_youtube_v1";
+  const YT_API_KEY_STORAGE = "mp_youtube_api_key_v1";
   const youtubeItems = new Map();
   let youtubePlayer = null;
   let youtubePlayerReady = false;
@@ -259,6 +260,106 @@
     }
   }
 
+  function getYoutubeApiKey() {
+    try { return localStorage.getItem(YT_API_KEY_STORAGE) || ""; } catch { return ""; }
+  }
+
+  function setYoutubeSearchStatus(message) {
+    const status = document.getElementById("youtubeSearchStatus");
+    if (status) status.textContent = message;
+  }
+
+  function renderYoutubeSearchResults(items) {
+    const list = document.getElementById("youtubeSearchResults");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!items.length) { list.textContent = "検索結果がありません。"; return; }
+    items.forEach(video => {
+      const id = video.id?.videoId;
+      const snippet = video.snippet || {};
+      if (!id || !/^[\w-]{11}$/.test(id)) return;
+      const item = { id, title: String(snippet.title || "YouTube動画"), author: String(snippet.channelTitle || "YouTube"), addedAt: Date.now() };
+      const row = document.createElement("div");
+      row.className = "song";
+      row.style.alignItems = "center";
+      const main = document.createElement("div");
+      main.className = "songMain";
+      main.style.minWidth = "0";
+      const title = document.createElement("div");
+      title.className = "songName";
+      title.textContent = item.title;
+      const author = document.createElement("div");
+      author.className = "songArtist";
+      author.textContent = item.author;
+      main.append(title, author);
+      const actions = document.createElement("div");
+      actions.className = "songRight";
+      const play = document.createElement("button");
+      play.className = "btn small"; play.type = "button"; play.textContent = "▶ 再生";
+      play.addEventListener("click", () => {
+        const saved = youtubeItems.get(id);
+        if (saved) playSong(ensureYoutubeSong(saved));
+        else { youtubeItems.set(id, item); ensureYoutubeSong(item); playSong(ensureYoutubeSong(item)); }
+      });
+      const add = document.createElement("button");
+      add.className = "btn small ghost"; add.type = "button";
+      add.textContent = youtubeItems.has(id) ? "登録済み" : "＋ 登録";
+      add.disabled = youtubeItems.has(id);
+      add.addEventListener("click", () => {
+        if (youtubeItems.has(id)) return;
+        youtubeItems.set(id, item); saveYoutubeItems(); ensureYoutubeSong(item); renderYoutubeList();
+        add.textContent = "登録済み"; add.disabled = true; toast("YouTube動画を登録しました");
+      });
+      actions.append(play, add); row.append(main, actions); list.appendChild(row);
+    });
+  }
+
+  async function searchYoutubeVideos() {
+    const query = String(document.getElementById("youtubeSearchInput")?.value || "").trim();
+    const apiKey = getYoutubeApiKey();
+    const results = document.getElementById("youtubeSearchResults");
+    if (!query) { setYoutubeSearchStatus("検索キーワードを入力してください。"); return; }
+    if (!apiKey) { setYoutubeSearchStatus("先に「検索APIの設定」からAPIキーを保存してください。"); return; }
+    const button = document.getElementById("youtubeSearchBtn");
+    if (button) button.disabled = true;
+    if (results) results.textContent = "検索しています...";
+    setYoutubeSearchStatus("YouTubeを検索しています...");
+    try {
+      const params = new URLSearchParams({ part: "snippet", type: "video", maxResults: "10", q: query, key: apiKey });
+      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString());
+      const data = await response.json();
+      if (!response.ok) {
+        const reason = data.error?.errors?.[0]?.reason || "";
+        if (response.status === 403 && reason === "quotaExceeded") throw new Error("YouTube APIの検索上限に達しました。時間をおいて再度お試しください。");
+        if (response.status === 403) throw new Error("APIキーまたはYouTube Data API v3の設定を確認してください。");
+        throw new Error(data.error?.message || "検索に失敗しました。");
+      }
+      renderYoutubeSearchResults(Array.isArray(data.items) ? data.items : []);
+      setYoutubeSearchStatus((data.items?.length || 0) + "件の検索結果");
+    } catch (error) {
+      if (results) results.textContent = "";
+      setYoutubeSearchStatus(error.message || "検索に失敗しました。");
+    } finally { if (button) button.disabled = false; }
+  }
+
+  function initializeYoutubeSearch() {
+    const keyInput = document.getElementById("youtubeApiKeyInput");
+    if (keyInput) keyInput.value = getYoutubeApiKey();
+    document.getElementById("youtubeSaveApiKeyBtn")?.addEventListener("click", () => {
+      const value = String(keyInput?.value || "").trim();
+      if (!value) { setYoutubeSearchStatus("APIキーを入力してください。"); return; }
+      try { localStorage.setItem(YT_API_KEY_STORAGE, value); } catch { setYoutubeSearchStatus("APIキーを保存できませんでした。"); return; }
+      setYoutubeSearchStatus("APIキーを保存しました。キーワードを検索できます。");
+    });
+    document.getElementById("youtubeClearApiKeyBtn")?.addEventListener("click", () => {
+      try { localStorage.removeItem(YT_API_KEY_STORAGE); } catch {}
+      if (keyInput) keyInput.value = "";
+      setYoutubeSearchStatus("保存したAPIキーを削除しました。");
+    });
+    document.getElementById("youtubeSearchBtn")?.addEventListener("click", searchYoutubeVideos);
+    document.getElementById("youtubeSearchInput")?.addEventListener("keydown", event => { if (event.key === "Enter") searchYoutubeVideos(); });
+  }
+
   function addYoutubeUrl(value) {
     const id = parseYoutubeId(value);
     if (!id) return toast("YouTubeの動画URLを確認してください");
@@ -462,5 +563,6 @@
     if (currentYoutubeItem) addSongToPlaylist("yt:" + currentYoutubeItem.id);
   });
 
+  initializeYoutubeSearch();
   restoreYoutubeSongs();
 })();
