@@ -204,7 +204,8 @@
 
   const originalPlayPause = playPause;
   playPause = async function() {
-    if (currentYoutubeItem && youtubePlayer) {
+    if (currentYoutubeItem) {
+      if (!youtubePlayer) return playYoutubeItem(currentYoutubeItem);
       const stateValue = youtubePlayer.getPlayerState?.();
       if (stateValue === YT.PlayerState.PLAYING) {
         youtubePlayer.pauseVideo();
@@ -219,6 +220,29 @@
       return;
     }
     return originalPlayPause();
+  };
+
+  const originalUpdatePlayPauseUI = updatePlayPauseUI;
+  updatePlayPauseUI = function() {
+    if (!currentYoutubeItem) return originalUpdatePlayPauseUI();
+    const playing = !!youtubePlayer && youtubePlayer.getPlayerState?.() === YT.PlayerState.PLAYING;
+    if (el.btnPlay) {
+      el.btnPlay.textContent = playing ? "❚❚ 一時停止" : "▶ 再生";
+      el.btnPlay.classList.toggle("playing", playing);
+    }
+    if (el.miniPlay) {
+      el.miniPlay.textContent = playing ? "❚❚" : "▶";
+      el.miniPlay.classList.toggle("playing", playing);
+    }
+    if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+  };
+
+  const originalPrevTrack = prevTrack;
+  prevTrack = function() {
+    if (currentYoutubeItem) {
+      try { audio.currentTime = 0; } catch {}
+    }
+    return originalPrevTrack();
   };
 
   document.getElementById("youtubeAddUrlBtn")?.addEventListener("click", () => addYoutubeUrl(document.getElementById("youtubeUrlInput")?.value || ""));
