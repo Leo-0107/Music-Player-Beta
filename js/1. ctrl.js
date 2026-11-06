@@ -11,7 +11,8 @@
     '2. audio.js',
     '3. audio-output.js',
     '6. library.js',
-    '7. ui.js'
+    '7. ui.js',
+    '9. youtube.js'
   ];
 
   const LOAD_TIMEOUT_MS = 5000;
