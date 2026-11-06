@@ -253,18 +253,26 @@
 
   const originalPlayPause = playPause;
   playPause = async function() {
-    if (currentYoutubeItem) {
-      if (!youtubePlayer) return playYoutubeItem(currentYoutubeItem);
+    // リロード直後はcurrentYoutubeItemが未設定なので、保存済みのcurrentSongから復元する。
+    if (isYoutubeSong(state.currentSong)) {
+      const item = getYoutubeItemForSong(state.currentSong);
+      if (!item) return;
+      if (!currentYoutubeItem || currentYoutubeItem.id !== item.id) {
+        return playYoutubeItem(item);
+      }
+      if (!youtubePlayer || !window.YT?.PlayerState) return playYoutubeItem(item);
       const stateValue = youtubePlayer.getPlayerState?.();
       if (stateValue === YT.PlayerState.PLAYING) {
         youtubePlayer.pauseVideo();
         setPlaybackIntent(false);
-      } else {
+      } else if (stateValue === YT.PlayerState.PAUSED || stateValue === YT.PlayerState.CUED) {
         youtubePlayer.playVideo();
         setPlaybackIntent(true);
+      } else {
+        // stopVideo後や再生終了後は、先頭から動画を読み直して再生する。
+        youtubePlayer.loadVideoById(item.id);
+        setPlaybackIntent(true);
       }
-      const button = document.getElementById("youtubePlayPauseBtn");
-      if (button) button.textContent = stateValue === YT.PlayerState.PLAYING ? "▶ 再生" : "❚❚ 一時停止";
       updatePlayPauseUI();
       return;
     }
@@ -273,8 +281,11 @@
 
   const originalUpdatePlayPauseUI = updatePlayPauseUI;
   updatePlayPauseUI = function() {
-    if (!currentYoutubeItem) return originalUpdatePlayPauseUI();
-    const playing = !!youtubePlayer && youtubePlayer.getPlayerState?.() === YT.PlayerState.PLAYING;
+    if (!currentYoutubeItem || !window.YT?.PlayerState) return originalUpdatePlayPauseUI();
+    let playing = false;
+    try {
+      playing = !!youtubePlayer && youtubePlayer.getPlayerState?.() === YT.PlayerState.PLAYING;
+    } catch {}
     if (el.btnPlay) {
       el.btnPlay.textContent = playing ? "❚❚ 一時停止" : "▶ 再生";
       el.btnPlay.classList.toggle("playing", playing);
@@ -283,12 +294,20 @@
       el.miniPlay.textContent = playing ? "❚❚" : "▶";
       el.miniPlay.classList.toggle("playing", playing);
     }
+    const button = document.getElementById("youtubePlayPauseBtn");
+    if (button) button.textContent = playing ? "❚❚ 一時停止" : "▶ 再生";
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
   };
 
   const originalPrevTrack = prevTrack;
   prevTrack = function() {
-    if (currentYoutubeItem) {
+    if (isYoutubeSong(state.currentSong)) {
+      const position = Number(youtubePlayer?.getCurrentTime?.()) || 0;
+      if (position > 7 && youtubePlayer?.seekTo) {
+        youtubePlayer.seekTo(0, true);
+        return;
+      }
+      // 通常Audio側に残った古い再生位置が、YouTubeの前曲移動を妨げないようにする。
       try { audio.currentTime = 0; } catch {}
     }
     return originalPrevTrack();
@@ -302,6 +321,7 @@
   document.getElementById("youtubeStopBtn")?.addEventListener("click", () => {
     try { youtubePlayer?.stopVideo(); } catch {}
     setPlaybackIntent(false);
+    updatePlayPauseUI();
   });
   document.getElementById("youtubeAddPlaylistBtn")?.addEventListener("click", () => {
     if (currentYoutubeItem) addSongToPlaylist("yt:" + currentYoutubeItem.id);
