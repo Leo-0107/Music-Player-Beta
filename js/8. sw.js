@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.4.5";
+const CACHE_NAME = "music-player-app-v7.4.6";
 const APP_SHELL = [
   "./sw.js",
   "./index.html",
@@ -11,7 +11,8 @@ const APP_SHELL = [
   "./js/5. storage.js",
   "./js/6. library.js",
   "./js/7. ui.js",
-  "./js/8. sw.js"
+  "./js/8. sw.js",
+  "./js/9. youtube.js"
 ];
 
 self.addEventListener("install", event => {
