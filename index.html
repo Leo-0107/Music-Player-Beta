@@ -546,27 +546,6 @@
       <div id="youtubeElements" style="display:none; flex-direction:column; gap:16px;">
         <div class="sectionTitle">YouTube</div>
         <div class="sectionCard" style="display:grid;gap:10px;">
-          <label for="youtubeSearchInput">YouTube動画を検索</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input id="youtubeSearchInput" type="search" placeholder="曲名・アーティスト・動画名など" style="flex:1;min-width:180px;">
-            <button class="btn small" id="youtubeSearchBtn" type="button">検索</button>
-          </div>
-          <details>
-            <summary style="cursor:pointer;">検索APIの設定</summary>
-            <div style="display:grid;gap:8px;margin-top:10px;">
-              <label for="youtubeApiKeyInput">YouTube Data API v3 のAPIキー</label>
-              <input id="youtubeApiKeyInput" type="password" autocomplete="off" placeholder="APIキーを入力">
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn small" id="youtubeSaveApiKeyBtn" type="button">APIキーを保存</button>
-                <button class="btn small ghost" id="youtubeClearApiKeyBtn" type="button">削除</button>
-              </div>
-              <div class="settingsHelpText">APIキーはこのブラウザ内に保存されます。Google CloudでYouTube Data API v3を有効にしたAPIキーが必要です。</div>
-            </div>
-          </details>
-          <div id="youtubeSearchStatus" class="settingsHelpText" aria-live="polite">キーワードを入力して検索できます。</div>
-          <div id="youtubeSearchResults" class="songList"></div>
-        </div>
-        <div class="sectionCard" style="display:grid;gap:10px;">
           <label for="youtubeUrlInput">YouTube動画のURL</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <input id="youtubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:180px;">
