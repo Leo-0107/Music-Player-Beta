@@ -403,6 +403,52 @@
     );
   }
 
+  function deleteYoutubeItem(item) {
+    if (!item || !youtubeItems.has(item.id)) return;
+    showInSiteConfirm(
+      "登録した動画を削除しますか？",
+      "登録一覧から削除し、キュー・お気に入り・プレイリストからも外します。",
+      () => {
+        const name = "yt:" + item.id;
+        youtubeItems.delete(item.id);
+        saveYoutubeItems();
+        state.playlist = state.playlist.filter(song => song.name !== name);
+        state.playlistOrder = (state.playlistOrder || []).filter(songName => songName !== name);
+        state.queue = (state.queue || []).filter(songName => songName !== name);
+        state.favorites = (state.favorites || []).filter(songName => songName !== name);
+        Object.keys(state.playlists || {}).forEach(playlistName => {
+          state.playlists[playlistName] = (state.playlists[playlistName] || []).filter(songName => songName !== name);
+        });
+        if (state.currentSong?.name === name) {
+          recordYoutubePartialPlayIfNeeded();
+          youtubeRequestSerial++;
+          pendingPlayId = null;
+          stopYoutubePlaybackStats();
+          try { youtubePlayer?.stopVideo(); } catch {}
+          currentYoutubeItem = null;
+          setPlaybackIntent(false);
+          try { audio.pause(); } catch {}
+          state.currentSong = null;
+          try { localStorage.removeItem(STORAGE.lastSong); } catch {}
+          updateArtwork(null);
+          updateTitleTextAndScroll(el.nowTitle, "未再生");
+          updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
+          updateTitleTextAndScroll(el.miniTitle, "停止中");
+          updateNowPlayingUI(null);
+          const currentTitle = document.getElementById("youtubeCurrentTitle");
+          if (currentTitle) currentTitle.textContent = "動画を選択してください";
+          const playButton = document.getElementById("youtubePlayPauseBtn");
+          if (playButton) playButton.textContent = "▶ 再生";
+        }
+        saveState();
+        renderAll();
+        renderYoutubeList();
+        toast("登録動画を削除しました");
+      },
+      "削除"
+    );
+  }
+
   function renderYoutubeList() {
     const list = document.getElementById("youtubeVideoList");
     if (!list) return;
@@ -412,19 +458,66 @@
       return;
     }
     youtubeItems.forEach(item => {
+      const song = ensureYoutubeSong(item);
       const row = document.createElement("div");
-      row.className = "song";
-      row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist"></div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button><button class="btn small ghost" type="button">名前変更</button></div>';
+      row.className = "song" + (state.currentSong?.name === song.name ? " active" : "");
+      row.dataset.name = song.name;
+      row.innerHTML = `
+        <div class="songMain"><div class="songName"></div><div class="songArtist"></div></div>
+        <div class="songRight">
+          <button class="queueBtn" type="button">＋キュー</button>
+          <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}" type="button" aria-label="お気に入り">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
+          <div class="songMenuWrap">
+            <button class="songMenuBtn" type="button" aria-label="動画の操作" aria-expanded="false">︙</button>
+            <div class="songMenuPopup" hidden>
+              <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
+              <button class="songMenuItem renameYoutubeBtn" type="button">名前変更</button>
+              <button class="songMenuItem deleteYoutubeBtn" type="button">🗑 削除</button>
+            </div>
+          </div>
+        </div>`;
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
       row.querySelector(".songArtist").textContent = item.author || "YouTube";
-      const buttons = row.querySelectorAll("button");
-      buttons[0].addEventListener("click", () => playSong(ensureYoutubeSong(item)));
-      buttons[1].addEventListener("click", () => {
-        const song = ensureYoutubeSong(item);
-        addSongToPlaylist(song.name);
+      const menuWrap = row.querySelector(".songMenuWrap");
+      const menuBtn = row.querySelector(".songMenuBtn");
+      const menu = row.querySelector(".songMenuPopup");
+      menuWrap.addEventListener("click", e => e.stopPropagation());
+      menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
+      menuBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(open => {
+          if (open !== menu) open.hidden = true;
+        });
+        menu.hidden = !menu.hidden;
+        menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
       });
-      buttons[2].addEventListener("click", () => renameYoutubeItem(item));
+      const bindMenuAction = (selector, action) => {
+        const button = row.querySelector(selector);
+        button.addEventListener("pointerdown", e => e.stopPropagation());
+        button.addEventListener("click", e => {
+          e.stopPropagation();
+          menu.hidden = true;
+          menuBtn.setAttribute("aria-expanded", "false");
+          action();
+        });
+      };
+      bindMenuAction(".addPlBtn", () => addSongToPlaylist(song.name));
+      bindMenuAction(".renameYoutubeBtn", () => renameYoutubeItem(item));
+      bindMenuAction(".deleteYoutubeBtn", () => deleteYoutubeItem(item));
+      row.querySelector(".queueBtn").addEventListener("pointerdown", e => e.stopPropagation());
+      row.querySelector(".queueBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        addToQueue(song.name);
+      });
+      row.querySelector(".starBtn").addEventListener("pointerdown", e => e.stopPropagation());
+      row.querySelector(".starBtn").addEventListener("click", e => {
+        e.stopPropagation();
+        toggleFav(song.name);
+        renderYoutubeList();
+      });
+      row.addEventListener("click", () => playSong(song));
       list.appendChild(row);
+      setupSongNameScroll(row.querySelector(".songName"));
     });
   }
 
