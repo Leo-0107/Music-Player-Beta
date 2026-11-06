@@ -261,7 +261,11 @@
         youtubeItems.set(item.id, item);
         saveYoutubeItems();
         const song = ensureYoutubeSong(item);
-        if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
+        if (state.currentSong?.name === song.name) {
+          updateNowPlayingUI(song);
+          const currentTitle = document.getElementById("youtubeCurrentTitle");
+          if (currentTitle) currentTitle.textContent = title;
+        }
         renderYoutubeList();
         toast("動画名を変更しました");
       }
