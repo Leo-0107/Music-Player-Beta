@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.4</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.4">
+<link rel="stylesheet" href="style.css?v=7.4.18">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -32,11 +32,11 @@
   animation-play-state: running;
 }
 @keyframes songNameMarquee {
-  0%, 18% { transform: translateX(0); opacity: 1; }
-  72% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 1; }
-  82% { transform: translateX(var(--song-scroll-dist, -20px)); opacity: 0; }
-  83% { transform: translateX(0); opacity: 0; }
-  92%, 100% { transform: translateX(0); opacity: 1; }
+  0%, 100% { transform: translateX(var(--song-scroll-start, 100px)); opacity: 0; }
+  8% { transform: translateX(var(--song-scroll-start, 100px)); opacity: 1; }
+  78% { transform: translateX(var(--song-scroll-end, -100px)); opacity: 1; }
+  88% { transform: translateX(var(--song-scroll-end, -100px)); opacity: 0; }
+  89% { transform: translateX(var(--song-scroll-start, 100px)); opacity: 0; }
 }
 
 @media (max-width: 700px) {
