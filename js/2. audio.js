@@ -363,8 +363,14 @@ let mainOutputUsesNativeDestination = false;
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
-      sourceNode = audioCtx.createMediaElementSource(audio);
+      // 初期化失敗後も同じ AudioContext / MediaElementAudioSourceNode を再利用する。
+      // createMediaElementSource() は同じ audio 要素に対して複数回実行できないため。
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+      }
+      if (!sourceNode) {
+        sourceNode = audioCtx.createMediaElementSource(audio);
+      }
       
       const freqs = [60, 250, 1000, 4000, 12000];
       filters = freqs.map((f, i) => {
@@ -616,6 +622,9 @@ let mainOutputUsesNativeDestination = false;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
+      // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
+      // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
+      try { sourceNode?.disconnect(); } catch (ignore) {}
       console.error("Music Player audio graph initialization failed:", e);
       try { outputBridgeAudio?.pause(); } catch (ignore) {}
     }
