@@ -4,6 +4,7 @@
   const YT_STORAGE_KEY = "mp_youtube_v1";
   const youtubeItems = new Map();
   let youtubePlayer = null;
+  let youtubePlayerReady = false;
   let youtubeApiPromise = null;
   let currentYoutubeItem = null;
   let pendingPlayId = null;
@@ -140,10 +141,11 @@
           playerVars: { playsinline: 1, rel: 0 },
           events: {
             onReady: event => {
+              youtubePlayerReady = true;
               const active = currentYoutubeItem;
-              if (active && isYoutubeSong(state.currentSong)) {
-                pendingPlayId = active.id;
+              if (pendingPlayId && active && pendingPlayId === active.id && isYoutubeSong(state.currentSong)) {
                 event.target.loadVideoById(active.id);
+                pendingPlayId = null;
               }
             },
             onStateChange: event => {
@@ -162,8 +164,12 @@
             }
           }
         });
-      } else {
+      } else if (youtubePlayerReady) {
         youtubePlayer.loadVideoById(item.id);
+        pendingPlayId = null;
+      } else {
+        // プレイヤー生成直後でまだ準備ができていない場合は、最新の動画IDだけを保持する。
+        pendingPlayId = item.id;
       }
       if (status) status.textContent = "YouTube公式プレイヤーで再生します。";
     } catch (error) {
