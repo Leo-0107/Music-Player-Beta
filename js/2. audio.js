@@ -47,6 +47,8 @@
   }
 
   async function recoverBackgroundPlayback() {
+    // YouTubeはIFrame Playerが再生を担当するため、Audio要素の自動復帰対象から除外する。
+    if (state.currentSong?.mediaType === "youtube" || String(state.currentSong?.name || "").startsWith("yt:")) return false;
     if (backgroundPlaybackRecovery || !playbackIntent || !state.currentSong) return false;
     backgroundPlaybackRecovery = true;
     try {
