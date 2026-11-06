@@ -166,7 +166,8 @@
     if (title) title.textContent = item.title || "YouTube動画";
     if (addButton) addButton.disabled = false;
     updatePlayPauseUI();
-    setPlaybackIntent(true);
+    // YouTubeの再生開始まではAudio側の再生復帰フラグを立てない。
+    setPlaybackIntent(false);
     try {
       await loadYoutubeApi();
       if (requestId !== youtubeRequestSerial || !currentYoutubeItem || currentYoutubeItem.id !== item.id) return;
@@ -191,6 +192,7 @@
             onStateChange: event => {
               if (event.data === YT.PlayerState.PLAYING && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
                 // YouTube再生も既存の再生回数・再生時間統計へ反映する。
+                setPlaybackIntent(true);
                 if (!hasCountedCurrentSong) recordPlayCount();
                 startYoutubePlaybackStats();
               } else {
@@ -246,6 +248,26 @@
     playSong(song);
   }
 
+  function renameYoutubeItem(item) {
+    if (!item || !youtubeItems.has(item.id)) return;
+    showInSitePrompt(
+      "YouTube動画の名前を変更",
+      "新しい動画名を入力してください。",
+      item.title || "YouTube動画",
+      value => {
+        const title = String(value || "").trim();
+        if (!title || title === item.title) return;
+        item.title = title;
+        youtubeItems.set(item.id, item);
+        saveYoutubeItems();
+        const song = ensureYoutubeSong(item);
+        if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
+        renderYoutubeList();
+        toast("動画名を変更しました");
+      }
+    );
+  }
+
   function renderYoutubeList() {
     const list = document.getElementById("youtubeVideoList");
     if (!list) return;
@@ -257,7 +279,7 @@
     youtubeItems.forEach(item => {
       const row = document.createElement("div");
       row.className = "song";
-      row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist">YouTube</div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button></div>';
+      row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist">YouTube</div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button><button class="btn small ghost" type="button">名前変更</button></div>';
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
       const buttons = row.querySelectorAll("button");
       buttons[0].addEventListener("click", () => playSong(ensureYoutubeSong(item)));
@@ -265,6 +287,7 @@
         const song = ensureYoutubeSong(item);
         addSongToPlaylist(song.name);
       });
+      buttons[2].addEventListener("click", () => renameYoutubeItem(item));
       list.appendChild(row);
     });
   }
@@ -288,6 +311,8 @@
       try { localStorage.setItem(STORAGE.lastSong, song.name); } catch {}
       updateNowPlayingUI(song);
       renderQueue();
+      // Audio側のバックグラウンド自動復帰がpauseイベントに反応しないよう先に停止状態へ。
+      setPlaybackIntent(false);
       try { audio.pause(); } catch {}
       playYoutubeItem(item);
       return;
@@ -296,6 +321,7 @@
     // 保留中のYouTube API読み込み・再生要求を無効化し、古い動画が後から再生されないようにする。
     youtubeRequestSerial++;
     pendingPlayId = null;
+    setPlaybackIntent(false);
     recordYoutubePartialPlayIfNeeded();
     stopYoutubePlaybackStats();
     if (youtubePlayer?.pauseVideo) {
