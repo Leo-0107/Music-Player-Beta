@@ -434,7 +434,8 @@
           updateTitleTextAndScroll(el.nowTitle, "未再生");
           updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
           updateTitleTextAndScroll(el.miniTitle, "停止中");
-          updateNowPlayingUI(null);
+          document.querySelectorAll(".song.active").forEach(row => row.classList.remove("active"));
+          updatePlayPauseUI();
           const currentTitle = document.getElementById("youtubeCurrentTitle");
           if (currentTitle) currentTitle.textContent = "動画を選択してください";
           const playButton = document.getElementById("youtubePlayPauseBtn");
