@@ -2037,10 +2037,12 @@
       const target = tab.dataset.target;
 
       const homeEl = document.getElementById("homeElements");
+      const ytEl = document.getElementById("youtubeElements");
       const plEl = document.getElementById("playlistElements");
       const setEl = document.getElementById("settingsTabContainer");
 
       if (homeEl) homeEl.style.display = target === "home" ? "block" : "none";
+      if (ytEl) ytEl.style.display = target === "youtube" ? "flex" : "none";
       if (plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
       if (setEl) setEl.style.display = target === "settings" ? "block" : "none";
     });
