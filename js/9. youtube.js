@@ -221,6 +221,9 @@
       const item = getYoutubeItemForSong(song);
       if (!item) return;
       if (!options.preservePlaylistContext) clearPlaylistContext();
+      // 音楽ファイルから切り替える際、pauseイベントがYouTube曲の途中再生として記録されないようにする。
+      recordPartialPlayIfNeeded();
+      hasCountedCurrentSong = true;
       if (pushHistory && (historyIndex === -1 || historyStack[historyIndex]?.name !== song.name)) {
         historyStack.splice(historyIndex + 1);
         historyStack.push(song);
