@@ -230,12 +230,37 @@
     }
   }
 
+  async function fetchYoutubeVideoTitle(item) {
+    if (!item?.id) return;
+    const fallbackTitle = "YouTube動画 " + item.id;
+    const isPlaceholder = () => item.title === fallbackTitle || item.title === "動画情報を取得中...";
+    if (!isPlaceholder()) return;
+    try {
+      const url = "https://www.youtube.com/watch?v=" + encodeURIComponent(item.id);
+      const response = await fetch("https://www.youtube.com/oembed?url=" + encodeURIComponent(url) + "&format=json");
+      if (!response.ok) throw new Error("動画情報を取得できませんでした");
+      const data = await response.json();
+      const title = String(data.title || "").trim();
+      if (!title || !isPlaceholder() || youtubeItems.get(item.id) !== item) return;
+      item.title = title;
+      youtubeItems.set(item.id, item);
+      saveYoutubeItems();
+      const song = ensureYoutubeSong(item);
+      if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
+      const currentTitle = document.getElementById("youtubeCurrentTitle");
+      if (currentTitle && currentYoutubeItem?.id === item.id) currentTitle.textContent = title;
+      renderYoutubeList();
+    } catch (error) {
+      // oEmbedにアクセスできない場合も、URL登録と再生はそのまま利用できる。
+    }
+  }
+
   function addYoutubeUrl(value) {
     const id = parseYoutubeId(value);
     if (!id) return toast("YouTubeの動画URLを確認してください");
     let item = youtubeItems.get(id);
     if (!item) {
-      item = { id, title: "YouTube動画 " + id, addedAt: Date.now() };
+      item = { id, title: "動画情報を取得中...", addedAt: Date.now() };
       youtubeItems.set(id, item);
       saveYoutubeItems();
     }
@@ -246,6 +271,7 @@
     toast("YouTube動画を登録しました");
     const song = ensureYoutubeSong(item);
     playSong(song);
+    fetchYoutubeVideoTitle(item);
   }
 
   function renameYoutubeItem(item) {
