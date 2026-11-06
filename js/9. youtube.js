@@ -59,29 +59,57 @@
     renderYoutubeList();
   }
 
+  let youtubeRequestSerial = 0;
+
+  function isYoutubeSong(song) {
+    return !!song && (song.mediaType === "youtube" || String(song.name || "").startsWith("yt:"));
+  }
+
+  function getYoutubeItemForSong(song) {
+    if (!isYoutubeSong(song)) return null;
+    const id = song.youtubeId || String(song.name).slice(3);
+    return youtubeItems.get(id) || { id, title: song.title || "YouTube動画" };
+  }
+
   function loadYoutubeApi() {
     if (window.YT && window.YT.Player) return Promise.resolve();
     if (youtubeApiPromise) return youtubeApiPromise;
     youtubeApiPromise = new Promise((resolve, reject) => {
+      let settled = false;
       const previous = window.onYouTubeIframeAPIReady;
+      const finish = error => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (error) {
+          youtubeApiPromise = null;
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+      const timeout = setTimeout(() => finish(new Error("YouTube APIの読み込みがタイムアウトしました")), 15000);
       window.onYouTubeIframeAPIReady = () => {
         try { previous?.(); } catch {}
-        resolve();
+        finish();
       };
-      const script = document.createElement("script");
-      script.src = "https://www.youtube.com/iframe_api";
-      script.async = true;
-      script.onerror = () => reject(new Error("YouTube APIの読み込みに失敗しました"));
-      document.head.appendChild(script);
+      let script = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      if (!script) {
+        script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      script.onerror = () => finish(new Error("YouTube APIの読み込みに失敗しました"));
     });
     return youtubeApiPromise;
   }
 
   async function playYoutubeItem(item) {
-    if (!item) return;
+    if (!item || !/^[\w-]{11}$/.test(item.id)) return;
+    const requestId = ++youtubeRequestSerial;
     currentYoutubeItem = item;
     pendingPlayId = item.id;
-    updatePlayPauseUI();
     const tab = document.querySelector('.navTab[data-target="youtube"]');
     if (tab) tab.click();
     const title = document.getElementById("youtubeCurrentTitle");
@@ -89,11 +117,13 @@
     const addButton = document.getElementById("youtubeAddPlaylistBtn");
     if (title) title.textContent = item.title || "YouTube動画";
     if (addButton) addButton.disabled = false;
+    updatePlayPauseUI();
     setPlaybackIntent(true);
     try {
       await loadYoutubeApi();
+      if (requestId !== youtubeRequestSerial || !currentYoutubeItem || currentYoutubeItem.id !== item.id) return;
       const mount = document.getElementById("youtubePlayer");
-      if (!mount) return;
+      if (!mount) throw new Error("YouTubeプレイヤー領域が見つかりません");
       if (!youtubePlayer) {
         youtubePlayer = new YT.Player(mount, {
           width: "100%",
@@ -102,10 +132,14 @@
           playerVars: { playsinline: 1, rel: 0 },
           events: {
             onReady: event => {
-              if (pendingPlayId) event.target.loadVideoById(pendingPlayId);
+              const active = currentYoutubeItem;
+              if (active && isYoutubeSong(state.currentSong)) {
+                pendingPlayId = active.id;
+                event.target.loadVideoById(active.id);
+              }
             },
             onStateChange: event => {
-              if (event.data === YT.PlayerState.ENDED) {
+              if (event.data === YT.PlayerState.ENDED && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
                 setPlaybackIntent(false);
                 nextTrack(true);
               }
@@ -113,7 +147,11 @@
               if (button && currentYoutubeItem) button.textContent = event.data === YT.PlayerState.PLAYING ? "❚❚ 一時停止" : "▶ 再生";
               updatePlayPauseUI();
             },
-            onError: () => { if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。"; }
+            onError: () => {
+              if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。";
+              setPlaybackIntent(false);
+              updatePlayPauseUI();
+            }
           }
         });
       } else {
@@ -121,8 +159,10 @@
       }
       if (status) status.textContent = "YouTube公式プレイヤーで再生します。";
     } catch (error) {
+      if (requestId !== youtubeRequestSerial) return;
       if (status) status.textContent = error.message || "YouTubeプレイヤーを読み込めませんでした。";
       setPlaybackIntent(false);
+      updatePlayPauseUI();
     }
   }
 
