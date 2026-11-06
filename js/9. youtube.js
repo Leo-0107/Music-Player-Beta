@@ -39,11 +39,11 @@
     const name = "yt:" + item.id;
     let song = state.playlist.find(x => x.name === name);
     if (!song) {
-      song = { name, title: item.title || "YouTube動画", artist: "YouTube", duration: null, mediaType: "youtube", youtubeId: item.id, url: "" };
+      song = { name, title: item.title || "YouTube動画", artist: item.author || "YouTube", duration: null, mediaType: "youtube", youtubeId: item.id, url: "" };
       state.playlist.push(song);
     } else {
       song.title = item.title || song.title;
-      song.artist = "YouTube";
+      song.artist = item.author || "YouTube";
       song.mediaType = "youtube";
       song.youtubeId = item.id;
       song.url = "";
@@ -56,6 +56,7 @@
     readYoutubeItems().forEach(item => {
       youtubeItems.set(item.id, item);
       ensureYoutubeSong(item);
+      if (!item.author || !item.title || item.title === "YouTube動画 " + item.id || item.title === "動画情報を取得中...") fetchYoutubeVideoTitle(item);
     });
     renderYoutubeList();
   }
@@ -231,24 +232,27 @@
   }
 
   async function fetchYoutubeVideoTitle(item) {
-    if (!item?.id) return;
+    if (!item?.id || youtubeItems.get(item.id) !== item) return;
     const fallbackTitle = "YouTube動画 " + item.id;
     const isPlaceholder = () => item.title === fallbackTitle || item.title === "動画情報を取得中...";
-    if (!isPlaceholder()) return;
     try {
       const url = "https://www.youtube.com/watch?v=" + encodeURIComponent(item.id);
       const response = await fetch("https://www.youtube.com/oembed?url=" + encodeURIComponent(url) + "&format=json");
       if (!response.ok) throw new Error("動画情報を取得できませんでした");
       const data = await response.json();
       const title = String(data.title || "").trim();
-      if (!title || !isPlaceholder() || youtubeItems.get(item.id) !== item) return;
-      item.title = title;
+      const author = String(data.author_name || "").trim();
+      let changed = false;
+      // 手動で変更した動画名は保持し、未取得の作者名だけを補完する。
+      if (title && isPlaceholder()) { item.title = title; changed = true; }
+      if (author && item.author !== author) { item.author = author; changed = true; }
+      if (!changed || youtubeItems.get(item.id) !== item) return;
       youtubeItems.set(item.id, item);
       saveYoutubeItems();
       const song = ensureYoutubeSong(item);
       if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
       const currentTitle = document.getElementById("youtubeCurrentTitle");
-      if (currentTitle && currentYoutubeItem?.id === item.id) currentTitle.textContent = title;
+      if (currentTitle && currentYoutubeItem?.id === item.id) currentTitle.textContent = item.title || "YouTube動画";
       renderYoutubeList();
     } catch (error) {
       // oEmbedにアクセスできない場合も、URL登録と再生はそのまま利用できる。
@@ -309,8 +313,9 @@
     youtubeItems.forEach(item => {
       const row = document.createElement("div");
       row.className = "song";
-      row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist">YouTube</div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button><button class="btn small ghost" type="button">名前変更</button></div>';
+      row.innerHTML = '<div class="songMain"><div class="songName"></div><div class="songArtist"></div></div><div class="songRight"><button class="btn small" type="button">▶ 再生</button><button class="btn small ghost" type="button">リスト追加</button><button class="btn small ghost" type="button">名前変更</button></div>';
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
+      row.querySelector(".songArtist").textContent = item.author || "YouTube";
       const buttons = row.querySelectorAll("button");
       buttons[0].addEventListener("click", () => playSong(ensureYoutubeSong(item)));
       buttons[1].addEventListener("click", () => {
