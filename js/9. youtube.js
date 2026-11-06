@@ -76,12 +76,21 @@
     if (youtubeApiPromise) return youtubeApiPromise;
     youtubeApiPromise = new Promise((resolve, reject) => {
       let settled = false;
+      let script = null;
       const previous = window.onYouTubeIframeAPIReady;
+      const readyHandler = () => {
+        try { previous?.(); } catch {}
+        finish();
+      };
       const finish = error => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
         if (error) {
+          if (script) script.remove();
+          if (window.onYouTubeIframeAPIReady === readyHandler) {
+            window.onYouTubeIframeAPIReady = previous || null;
+          }
           youtubeApiPromise = null;
           reject(error);
         } else {
@@ -89,18 +98,17 @@
         }
       };
       const timeout = setTimeout(() => finish(new Error("YouTube APIの読み込みがタイムアウトしました")), 15000);
-      window.onYouTubeIframeAPIReady = () => {
-        try { previous?.(); } catch {}
-        finish();
-      };
-      let script = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      window.onYouTubeIframeAPIReady = readyHandler;
+      script = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
       if (!script) {
         script = document.createElement("script");
         script.src = "https://www.youtube.com/iframe_api";
         script.async = true;
+        script.onerror = () => finish(new Error("YouTube APIの読み込みに失敗しました"));
         document.head.appendChild(script);
+      } else {
+        script.onerror = () => finish(new Error("YouTube APIの読み込みに失敗しました"));
       }
-      script.onerror = () => finish(new Error("YouTube APIの読み込みに失敗しました"));
     });
     return youtubeApiPromise;
   }
