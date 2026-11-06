@@ -1481,23 +1481,68 @@
     });
   }
 
+  async function renameTrack(song) {
+    if (!song) return;
+    showInSitePrompt("曲名を変更", "新しい曲名を入力してください。", song.title || song.name, async value => {
+      const title = String(value || "").trim();
+      if (!title || title === song.title) return;
+      const saved = await new Promise(resolve => {
+        if (!db) return resolve(false);
+        let tx;
+        try {
+          tx = db.transaction("tracks", "readwrite");
+          const store = tx.objectStore("tracks");
+          const request = store.get(song.name);
+          request.onsuccess = () => {
+            const track = request.result;
+            if (!track) return resolve(false);
+            track.title = title;
+            store.put(track);
+          };
+          request.onerror = () => resolve(false);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = tx.onabort = () => resolve(false);
+        } catch {
+          resolve(false);
+        }
+      });
+      if (!saved) {
+        toast("曲名を保存できませんでした");
+        return;
+      }
+      song.title = title;
+      if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
+      renderAll();
+      if (openPlaylistTrackSheetName) renderPlaylistTrackSheet(openPlaylistTrackSheetName);
+      toast("曲名を変更しました");
+    });
+  }
+
   function setupSongNameScroll(element) {
     if (!element) return;
 
     element.classList.remove("songNameScrolling");
-    element.style.removeProperty("--song-scroll-dist");
+    element.style.removeProperty("--song-scroll-start");
+    element.style.removeProperty("--song-scroll-end");
     element.style.removeProperty("--song-scroll-duration");
 
     requestAnimationFrame(() => {
       const available = element.parentElement?.clientWidth || 0;
-      const overflow = element.scrollWidth - available;
+      const width = element.scrollWidth;
+      const overflow = width - available;
       if (overflow > 8) {
-        element.style.setProperty("--song-scroll-dist", `-${overflow + 18}px`);
-        element.style.setProperty("--song-scroll-duration", `${Math.max(7, Math.min(18, overflow / 12 + 6))}s`);
+        element.style.setProperty("--song-scroll-start", `${available}px`);
+        element.style.setProperty("--song-scroll-end", `-${overflow}px`);
+        element.style.setProperty("--song-scroll-duration", `${Math.max(8, Math.min(22, (width + available) / 45 + 4))}s`);
         element.classList.add("songNameScrolling");
       }
     });
   }
+
+  document.addEventListener("click", event => {
+    if (event.target.closest(".songMenuWrap")) return;
+    document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(menu => { menu.hidden = true; });
+  });
 
   function renderSongList(){
     const vis = getVisibleSongs();
@@ -1515,16 +1560,48 @@
           <div class="songMeta"><span>再生数 ${state.playCounts[song.name] || 0}回</span><span class="songDuration" data-duration-for="${escapeHTML(song.name)}">${formatTrackDuration(song.duration)}</span></div>
         </div>
         <div class="songRight">
-          <button class="addPlBtn">リスト追加</button>
-          <button class="queueBtn">＋キュー</button>
-          <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
-          <button class="delTrackBtn">🗑</button>
+          <button class="queueBtn" type="button">＋キュー</button>
+          <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}" type="button" aria-label="お気に入り">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
+          <div class="songMenuWrap">
+            <button class="songMenuBtn" type="button" aria-label="曲の操作" aria-expanded="false">︙</button>
+            <div class="songMenuPopup" hidden>
+              <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
+              <button class="songMenuItem renameTrackBtn" type="button">名前変更</button>
+              <button class="songMenuItem delTrackBtn" type="button">🗑 削除</button>
+            </div>
+          </div>
         </div>
       `;
-      row.querySelector(".addPlBtn").addEventListener("click", e => { e.stopPropagation(); addSongToPlaylist(song.name); });
+      const menuWrap = row.querySelector(".songMenuWrap");
+      const menuBtn = row.querySelector(".songMenuBtn");
+      const menu = row.querySelector(".songMenuPopup");
+      menuWrap.addEventListener("click", e => e.stopPropagation());
+      menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
+      menuBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(open => {
+          if (open !== menu) open.hidden = true;
+        });
+        menu.hidden = !menu.hidden;
+        menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
+      });
+      const bindMenuAction = (selector, action) => {
+        const button = row.querySelector(selector);
+        button.addEventListener("pointerdown", e => e.stopPropagation());
+        button.addEventListener("click", e => {
+          e.stopPropagation();
+          menu.hidden = true;
+          menuBtn.setAttribute("aria-expanded", "false");
+          action();
+        });
+      };
+      bindMenuAction(".addPlBtn", () => addSongToPlaylist(song.name));
+      bindMenuAction(".renameTrackBtn", () => renameTrack(song));
+      bindMenuAction(".delTrackBtn", () => deleteSingleTrack(song));
+      row.querySelector(".queueBtn").addEventListener("pointerdown", e => e.stopPropagation());
       row.querySelector(".queueBtn").addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
+      row.querySelector(".starBtn").addEventListener("pointerdown", e => e.stopPropagation());
       row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
-      row.querySelector(".delTrackBtn").addEventListener("click", e => { e.stopPropagation(); deleteSingleTrack(song); });
       row.addEventListener("click", () => {
         if (suppressNextSongClick || row._suppressClick) {
           suppressNextSongClick = false;
