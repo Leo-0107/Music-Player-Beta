@@ -76,8 +76,16 @@
       ensureYoutubeSong(item);
       if (!item.author || !item.title || item.title === "YouTube動画 " + item.id || item.title === "動画情報を取得中...") fetchYoutubeVideoTitle(item);
     });
-    // 登録解除後も、プレイリストに残したYouTube曲を再生できるよう情報を復元する。
-    youtubeLibraryItems.forEach(item => ensureYoutubeSong(item));
+    // 登録解除後も、プレイリストや最後に再生した曲に残るYouTube曲だけを復元する。
+    const retainedYoutubeNames = new Set(
+      Object.values(state.playlists || {}).flat().filter(name => String(name).startsWith("yt:"))
+    );
+    const lastSongName = loadStr(STORAGE.lastSong, "");
+    if (String(lastSongName).startsWith("yt:")) retainedYoutubeNames.add(lastSongName);
+    if (String(state.currentSong?.name || "").startsWith("yt:")) retainedYoutubeNames.add(state.currentSong.name);
+    youtubeLibraryItems.forEach(item => {
+      if (retainedYoutubeNames.has("yt:" + item.id)) ensureYoutubeSong(item);
+    });
     saveYoutubeLibraryItems();
     renderYoutubeList();
   }
