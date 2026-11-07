@@ -2,7 +2,15 @@
 // 公式IFrame Player APIを利用し、音声抽出や非公式ストリーム取得は行わない。
 (() => {
   const YT_STORAGE_KEY = "mp_youtube_v1";
+  const YT_LIBRARY_STORAGE_KEY = "mp_youtube_library_v1";
   const YT_API_KEY_STORAGE = "mp_youtube_api_key_v1";
+  function readYoutubeLibraryItems() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(YT_LIBRARY_STORAGE_KEY) || "[]");
+      return Array.isArray(raw) ? raw.filter(x => x && /^[\\w-]{11}$/.test(x.id)) : [];
+    } catch { return []; }
+  }
+  const youtubeLibraryItems = new Map(readYoutubeLibraryItems().map(item => [item.id, item]));
   const youtubeItems = new Map();
   let youtubePlayer = null;
   let youtubePlayerReady = false;
@@ -17,9 +25,17 @@
     } catch { return []; }
   }
 
+  function saveYoutubeLibraryItems() {
+    try {
+      localStorage.setItem(YT_LIBRARY_STORAGE_KEY, JSON.stringify(Array.from(youtubeLibraryItems.values())));
+    } catch { toast("プレイリスト用のYouTube曲情報を保存できませんでした"); }
+  }
+
   function saveYoutubeItems() {
     try { localStorage.setItem(YT_STORAGE_KEY, JSON.stringify(Array.from(youtubeItems.values()))); }
     catch { toast("YouTube動画を保存できませんでした"); }
+    youtubeItems.forEach(item => youtubeLibraryItems.set(item.id, { ...item }));
+    saveYoutubeLibraryItems();
   }
 
   function parseYoutubeId(value) {
@@ -56,9 +72,13 @@
     youtubeItems.clear();
     readYoutubeItems().forEach(item => {
       youtubeItems.set(item.id, item);
+      youtubeLibraryItems.set(item.id, { ...item });
       ensureYoutubeSong(item);
       if (!item.author || !item.title || item.title === "YouTube動画 " + item.id || item.title === "動画情報を取得中...") fetchYoutubeVideoTitle(item);
     });
+    // 登録解除後も、プレイリストに残したYouTube曲を再生できるよう情報を復元する。
+    youtubeLibraryItems.forEach(item => ensureYoutubeSong(item));
+    saveYoutubeLibraryItems();
     renderYoutubeList();
   }
 
@@ -71,8 +91,12 @@
   function getYoutubeItemForSong(song) {
     if (!isYoutubeSong(song)) return null;
     const id = song.youtubeId || String(song.name).slice(3);
-    return youtubeItems.get(id) || { id, title: song.title || "YouTube動画" };
+    return youtubeItems.get(id) || youtubeLibraryItems.get(id) || { id, title: song.title || "YouTube動画" };
   }
+
+  window.getYoutubePlaylistSongs = function() {
+    return Array.from(youtubeItems.values()).map(item => ensureYoutubeSong(item));
+  };
 
   function loadYoutubeApi() {
     if (window.YT && window.YT.Player) return Promise.resolve();
@@ -365,7 +389,10 @@
     if (!id) return toast("YouTubeの動画URLを確認してください");
     let item = youtubeItems.get(id);
     if (!item) {
-      item = { id, title: "動画情報を取得中...", addedAt: Date.now() };
+      const archived = youtubeLibraryItems.get(id);
+      item = archived
+        ? { ...archived, addedAt: Date.now() }
+        : { id, title: "動画情報を取得中...", addedAt: Date.now() };
       youtubeItems.set(id, item);
       saveYoutubeItems();
     }
@@ -411,6 +438,7 @@
       () => {
         const name = "yt:" + item.id;
         youtubeItems.delete(item.id);
+        youtubeLibraryItems.delete(item.id);
         saveYoutubeItems();
         state.playlist = state.playlist.filter(song => song.name !== name);
         state.playlistOrder = (state.playlistOrder || []).filter(songName => songName !== name);
@@ -447,6 +475,30 @@
         toast("登録動画を削除しました");
       },
       "削除"
+    );
+  }
+
+  function resetAllYoutubeItems() {
+    if (!youtubeItems.size) {
+      toast("登録したYouTube動画はありません");
+      return;
+    }
+    showInSiteConfirm(
+      "YouTube登録動画を一括リセットしますか？",
+      "登録一覧からすべて解除し、再生キューとお気に入りからも削除します。プレイリストとプレイリスト内のYouTube曲情報は残ります。",
+      () => {
+        const removedNames = new Set(Array.from(youtubeItems.keys(), id => "yt:" + id));
+        youtubeItems.clear();
+        saveYoutubeItems();
+        state.queue = (state.queue || []).filter(name => !removedNames.has(name));
+        state.favorites = (state.favorites || []).filter(name => !removedNames.has(name));
+        state.playlistOrder = (state.playlistOrder || []).filter(name => !removedNames.has(name));
+        saveState();
+        renderAll();
+        renderYoutubeList();
+        toast("YouTube登録動画を一括リセットしました");
+      },
+      "一括リセット"
     );
   }
 
@@ -638,6 +690,7 @@
     return originalPrevTrack();
   };
 
+  document.getElementById("btnResetYoutubeItems")?.addEventListener("click", resetAllYoutubeItems);
   document.getElementById("youtubeAddUrlBtn")?.addEventListener("click", () => addYoutubeUrl(document.getElementById("youtubeUrlInput")?.value || ""));
   document.getElementById("youtubeUrlInput")?.addEventListener("keydown", event => {
     if (event.key === "Enter") addYoutubeUrl(event.currentTarget.value);
