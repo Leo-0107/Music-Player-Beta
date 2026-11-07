@@ -172,7 +172,7 @@
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
-    speakerSettings: Object.assign({ mainEnabled: true, channelMode: "stereo" }, loadJSON(STORAGE.speakerSettings, {})),
+    speakerSettings: Object.assign({ mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
