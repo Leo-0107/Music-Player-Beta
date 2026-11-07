@@ -226,6 +226,10 @@
           <div class="speakerSectionHint">
             メイン出力と追加の出力機器で音が届くタイミングに差があるときに使います。測定対象を選び、実測した遅延差をもとに追加機器の出力タイミングを補正します。
           </div>
+          <label class="settingCheckRow" style="margin-top:12px;">
+            <input id="autoDelayEnabled" type="checkbox" checked>
+            <span><strong>自動遅延補正を有効にする</strong><small>無効にすると測定済みの補正値を保持したまま、出力への遅延補正だけを停止します。</small></span>
+          </label>
           <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">スピーカーの遅延を測定</button>
           <button class="btn small" id="btnMeasureMicLatency" type="button" style="width:100%; margin-top:8px;">マイクで遅延を測定</button>
           <div id="micLatencyMeasurementStatus" class="speakerSectionNote" style="margin-top:6px;"></div>
@@ -564,6 +568,7 @@
           <div id="youtubeStatus" class="settingsHelpText" aria-live="polite">YouTube動画はこのタブ内で再生されます。</div>
         </div>
         <div class="sectionTitle">登録した動画</div>
+        <button class="btn danger small" id="btnResetYoutubeItems" type="button" style="width:100%; margin:8px 0;">YouTube登録動画を一括リセット</button>
         <div id="youtubeVideoList" class="songList"></div>
       </div>
 
