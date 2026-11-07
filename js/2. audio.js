@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 15;
+  const BUILD_REVISION = 16;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -369,6 +369,14 @@ let mainOutputUsesNativeDestination = false;
       // createMediaElementSource() は同じ audio 要素に対して複数回実行できないため。
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+        // バックグラウンド移行などでAudioContextだけが停止した場合も、
+        // 再生意図が残っていれば状態変化を検知して音声経路を復帰させる。
+        audioCtx.addEventListener("statechange", () => {
+          if (!playbackIntent) return;
+          if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") {
+            recoverBackgroundPlayback().catch(() => {});
+          }
+        });
       }
       if (!sourceNode) {
         sourceNode = audioCtx.createMediaElementSource(audio);
