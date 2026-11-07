@@ -1426,7 +1426,10 @@
     if (el.btnBulkAddPl) el.btnBulkAddPl.style.display = "block";
 
     const current = new Set(state.playlists[pName]);
-    const songs = getVisibleSongs();
+    const youtubeSongs = window.getYoutubePlaylistSongs?.() || [];
+    const songs = Array.from(new Map(
+      [...getVisibleSongs(), ...youtubeSongs].map(song => [song.name, song])
+    ).values());
     if (!songs.length) {
       el.plSelectList.innerHTML = `<div style="color:var(--muted); font-size:.84rem; text-align:center; padding:12px;">追加できる曲がありません</div>`;
     } else {
