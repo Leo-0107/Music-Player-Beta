@@ -7,7 +7,7 @@
   function readYoutubeLibraryItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_LIBRARY_STORAGE_KEY) || "[]");
-      return Array.isArray(raw) ? raw.filter(x => x && /^[\\w-]{11}$/.test(x.id)) : [];
+      return Array.isArray(raw) ? raw.filter(x => x && /^[\w-]{11}$/.test(x.id)) : [];
     } catch { return []; }
   }
   const youtubeLibraryItems = new Map(readYoutubeLibraryItems().map(item => [item.id, item]));
