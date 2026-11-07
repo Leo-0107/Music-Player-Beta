@@ -53,7 +53,7 @@
     "#7209b7", "#f72585", "#121212", "#ffffff"
   ];
 
-  const dbName = "Music Player v7.2";
+  const dbName = "Music Player v7.4";
   let db = null;
   const activeObjectURLMap = new Map();
   let isWaveAnimating = false;
@@ -95,37 +95,51 @@
 
 
   function migrateLegacyDB() {
-    const oldDbName = "Music Player v3.8";
+    const oldDbNames = ["Music Player v7.2", "Music Player v3.8"];
     return new Promise(resolve => {
       if (!indexedDB.databases) return resolve();
 
-      indexedDB.databases().then(databases => {
-        if (!databases.some(info => info.name === oldDbName)) return resolve();
+      indexedDB.databases().then(async databases => {
+        let migratedCount = 0;
 
-        const req = indexedDB.open(oldDbName);
-        req.onblocked = () => resolve();
-        req.onsuccess = e => {
-          const oldDb = e.target.result;
-          if (!oldDb.objectStoreNames.contains("tracks")) {
-            oldDb.close();
-            return resolve();
-          }
+        for (const oldDbName of oldDbNames) {
+          if (!databases.some(info => info.name === oldDbName)) continue;
 
-          let readTx;
-          try {
-            readTx = oldDb.transaction("tracks", "readonly");
-          } catch {
-            oldDb.close();
-            return resolve();
-          }
+          const tracks = await new Promise(resolveTracks => {
+            const req = indexedDB.open(oldDbName);
+            req.onblocked = () => resolveTracks(null);
+            req.onsuccess = e => {
+              const oldDb = e.target.result;
+              if (!oldDb.objectStoreNames.contains("tracks")) {
+                oldDb.close();
+                return resolveTracks(null);
+              }
 
-          const getReq = readTx.objectStore("tracks").getAll();
-          getReq.onsuccess = () => {
-            const tracks = getReq.result || [];
-            oldDb.close();
+              let readTx;
+              try {
+                readTx = oldDb.transaction("tracks", "readonly");
+              } catch {
+                oldDb.close();
+                return resolveTracks(null);
+              }
 
-            if (!tracks.length || !db) return resolve();
+              const getReq = readTx.objectStore("tracks").getAll();
+              getReq.onsuccess = () => {
+                const result = getReq.result || [];
+                oldDb.close();
+                resolveTracks(result);
+              };
+              getReq.onerror = () => {
+                oldDb.close();
+                resolveTracks(null);
+              };
+            };
+            req.onerror = () => resolveTracks(null);
+          });
 
+          if (!tracks?.length || !db) continue;
+
+          const copied = await new Promise(resolveCopy => {
             try {
               const writeTx = db.transaction("tracks", "readwrite");
               const store = writeTx.objectStore("tracks");
@@ -140,23 +154,21 @@
                 }
               };
               existingReq.onerror = () => writeTx.abort();
-              writeTx.oncomplete = () => {
-                indexedDB.deleteDatabase(oldDbName);
-                toast("v3.8の保存曲をv7.2へ移行しました");
-                resolve();
-              };
-              writeTx.onerror = () => resolve();
-              writeTx.onabort = () => resolve();
+              writeTx.oncomplete = () => resolveCopy(true);
+              writeTx.onerror = () => resolveCopy(false);
+              writeTx.onabort = () => resolveCopy(false);
             } catch {
-              resolve();
+              resolveCopy(false);
             }
-          };
-          getReq.onerror = () => {
-            oldDb.close();
-            resolve();
-          };
-        };
-        req.onerror = () => resolve();
+          });
+
+          if (copied) migratedCount += tracks.length;
+        }
+
+        if (migratedCount > 0) {
+          toast("旧データベースの保存曲をv7.4へ移行しました");
+        }
+        resolve();
       }).catch(() => resolve());
     });
   }
