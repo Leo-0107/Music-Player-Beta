@@ -742,6 +742,11 @@
           mainOutputUsesNativeDestination = false;
           await audioCtx.setSinkId(normalized);
           mainOutputUsesDirectSink = true;
+          if (wasPlaying && (audioCtx.state === "suspended" || audioCtx.state === "interrupted")) {
+            try { await audioCtx.resume(); } catch (resumeError) {
+              console.warn("Music Player AudioContext resume after output switch failed:", resumeError);
+            }
+          }
           if (outputBridgeAudio && !outputBridgeAudio.paused) {
             try { outputBridgeAudio.pause(); } catch (ignore) {}
           }
