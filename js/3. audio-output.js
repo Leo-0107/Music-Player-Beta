@@ -120,7 +120,7 @@
   }
 
   function getEffectiveSpeakerDelay(delayMs) {
-    return clampSpeakerDelay(delayMs);
+    return state.speakerSettings?.autoDelayEnabled === false ? 0 : clampSpeakerDelay(delayMs);
   }
 
   function applyAllSpeakerDelayNodes() {
@@ -177,6 +177,18 @@
 
   function adjustMainOutputDelay(step) {
     setMainOutputDelay(getMainOutputDelay() + step);
+  }
+
+  const autoDelayEnabledToggle = document.getElementById("autoDelayEnabled");
+  if (autoDelayEnabledToggle) {
+    autoDelayEnabledToggle.checked = state.speakerSettings?.autoDelayEnabled !== false;
+    autoDelayEnabledToggle.addEventListener("change", () => {
+      state.speakerSettings.autoDelayEnabled = autoDelayEnabledToggle.checked;
+      saveState();
+      applyMainOutputDelayNode();
+      renderAdditionalOutputSpeakers();
+      toast(autoDelayEnabledToggle.checked ? "自動遅延補正を有効にしました" : "自動遅延補正を無効にしました");
+    });
   }
 
   async function autoMeasureSpeakerDelay(targetEntry = null) {
