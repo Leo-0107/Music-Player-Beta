@@ -2147,18 +2147,31 @@
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
     saveState();
-    if (audioCtx && finalMixGainNode && speakerBusNode && limiterNode) {
+
+    // 音声グラフの実際の構成に合わせ、L/R合成後のメイン出力経路だけを切り替える。
+    // finalMixGainNode -> speakerBusNode は追加スピーカーを含む共通経路なので変更しない。
+    if (audioCtx && channelMerger && outputSplitter && analyser && limiterNode) {
       try {
-        try { finalMixGainNode.disconnect(limiterNode); } catch (e) {}
-        try { finalMixGainNode.disconnect(speakerBusNode); } catch (e) {}
+        try { channelMerger.disconnect(limiterNode); } catch (e) {}
+        try { channelMerger.disconnect(outputSplitter); } catch (e) {}
+        try { channelMerger.disconnect(analyser); } catch (e) {}
+        try { limiterNode.disconnect(outputSplitter); } catch (e) {}
+        try { limiterNode.disconnect(analyser); } catch (e) {}
+        // 旧経路が残っていた場合も、共通スピーカーバスへの誤接続を解消する。
         try { limiterNode.disconnect(speakerBusNode); } catch (e) {}
+        try { finalMixGainNode?.disconnect(limiterNode); } catch (e) {}
+
         if (state.clippingProtection) {
-          finalMixGainNode.connect(limiterNode);
-          limiterNode.connect(speakerBusNode);
+          channelMerger.connect(limiterNode);
+          limiterNode.connect(outputSplitter);
+          limiterNode.connect(analyser);
         } else {
-          finalMixGainNode.connect(speakerBusNode);
+          channelMerger.connect(outputSplitter);
+          channelMerger.connect(analyser);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Music Player clipping protection routing failed:", e);
+      }
     }
     if (el.btnClippingProtection) {
       el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
