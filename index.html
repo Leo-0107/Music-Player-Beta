@@ -521,7 +521,7 @@
               <button class="btn small" id="btnFav">☆</button>
               <button class="btn small" id="btnMainShuffle">🔀 シャッフル</button>
               <button class="btn small" id="btnMainRepeat">🔁 リピート</button>
-              <button class="btn small" id="btnAddToPlaylist" type="button">➕ リスト追加</button>
+              <button class="btn small" id="btnAddToPlaylist" type="button">＋ リスト追加</button>
             </div>
 
             <!-- 音量バー: 0%〜200%、100%（1.0）が中央に来る設定 -->
@@ -597,13 +597,14 @@
             <button class="btn small" id="youtubeFavBtn" type="button">☆ お気に入り</button>
             <button class="btn small" id="youtubeShuffleBtn" type="button">🔀 シャッフル</button>
             <button class="btn small" id="youtubeRepeatBtn" type="button">🔁 リピート</button>
-            <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>➕ リスト追加</button>
+            <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>＋ リスト追加</button>
           </div>
           <div id="youtubeStatus" class="settingsHelpText" aria-live="polite">YouTube動画はこのタブ内で再生されます。</div>
         </div>
         <div class="sectionTitle">登録した動画</div>
-        <button class="btn danger small" id="btnResetYoutubeItems" type="button" style="width:100%; margin:8px 0;">YouTube登録動画を一括リセット</button>
+        
         <div id="youtubeVideoList" class="songList"></div>
+        <button class="btn danger small" id="btnResetYoutubeItems" type="button" style="width:100%; margin:12px 0 0;">YouTube登録動画を一括リセット</button>
       </div>
 
       <div id="playlistElements" style="display:none; flex-direction:column; gap:16px;">
@@ -802,7 +803,7 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const APP_VERSION = "v7.4.27";
-  const BUILD_REVISION = 29;
+  const BUILD_REVISION = 30;
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
