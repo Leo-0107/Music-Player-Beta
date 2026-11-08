@@ -244,6 +244,13 @@ body.theme-light select option {
   color: var(--accent);
   font-weight: 600;
 }
+.networkStatus {
+  cursor: default;
+  font-size: .78rem;
+  padding: 7px 10px;
+}
+.networkStatus.isOnline { color: var(--accent); }
+.networkStatus.isOffline { color: var(--danger); }
 
 .mainContent {
   padding: 20px;
@@ -419,6 +426,18 @@ input[type="range"] {
 .songMain { min-width: 0; flex: 1; }
 .songName { font-size: .96rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .songArtist { color: var(--muted); font-size: .82rem; margin-top: 2px; }
+.songSourceTag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255,255,255,.07);
+  color: var(--muted) !important;
+  font-size: .68rem;
+  font-weight: 500;
+  letter-spacing: .025em;
+  vertical-align: 1px;
+}
 .songMeta { margin-top: 2px; color: var(--muted); font-size: .78rem; }
 .songRight {
   display: flex;
@@ -1680,6 +1699,22 @@ body.theme-light #waveModeBtns .btn.active {
   flex-direction: column;
   gap: 12px;
 }
+.settingsTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.settingsTitleRow .sectionTitle {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.settingsTitleRow #settingsSearch {
+  width: min(48%, 240px);
+  min-width: 0;
+  margin-left: auto;
+}
 .settingsDescription {
   color: var(--muted);
   font-size: .84rem;
@@ -1781,12 +1816,19 @@ body.output-device-modal-open .sidebar {
   font-size: 1.35rem;
   line-height: 1;
 }
+.settingsDataTools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
 .settingsTools {
   margin-top: 2px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
+  min-width: 0;
 }
 .settingsToolRow {
   display: grid;
@@ -1799,9 +1841,19 @@ body.output-device-modal-open .sidebar {
 }
 @media (max-width: 700px) {
   .settingsGrid { grid-template-columns: 1fr; }
+  .settingsDataTools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+  }
+  .settingsTools { padding: 10px; }
+  .settingsTools .sectionTitle { font-size: .9rem; }
 }
 @media (max-width: 420px) {
   .settingsToolRow { grid-template-columns: 1fr; }
+  .settingsTitleRow { gap: 7px; }
+  .settingsTitleRow #settingsSearch { width: 55%; font-size: .82rem; }
 }
 
 
@@ -2121,13 +2173,17 @@ body.output-device-modal-open .sidebar {
 }
 .songNowIndicator {
   display: none;
-  flex: 0 0 4px;
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
   width: 4px;
-  align-self: stretch;
-  min-height: 42px;
+  min-height: 0;
+  flex: none;
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 0 10px rgba(29,185,84,.35);
+  pointer-events: none;
 }
 .song.active .songNowIndicator {
   display: block;
@@ -2847,3 +2903,65 @@ body:not(.theme-light) .pill:hover {
   font: inherit;
 }
 .mpErrorNotice button:active { background: #505257; }
+
+
+/* YouTube追加方法・狭い画面での操作ボタン */
+.youtubeAddHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.youtubeInputModes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.youtubeInputModes .btn.active {
+  background: rgba(29,185,84,.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.youtubeInputMode {
+  display: grid;
+  gap: 8px;
+}
+.youtubeInputMode[hidden] { display: none !important; }
+.youtubeInputRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.youtubeInputRow input {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+}
+#youtubeSearchResults:empty { display: none; }
+#youtubeSearchStatus:empty { display: none; }
+#youtubeElements .youtubeTransportControls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  justify-content: initial;
+  flex-wrap: nowrap;
+  gap: clamp(3px, 1vw, 8px);
+  width: 100%;
+}
+#youtubeElements .youtubeTransportControls .btn {
+  width: 100%;
+  min-width: 0;
+  padding-left: clamp(2px, .8vw, 8px);
+  padding-right: clamp(2px, .8vw, 8px);
+  font-size: clamp(.58rem, 2.6vw, .85rem);
+  white-space: nowrap;
+  overflow: hidden;
+}
+@media (max-width: 520px) {
+  .youtubeAddHeader { align-items: flex-start; }
+  .youtubeInputModes { width: 100%; }
+  .youtubeInputModes .btn { flex: 1 1 0; min-width: 0; }
+  .youtubeInputRow .btn { flex: 0 0 auto; }
+}
