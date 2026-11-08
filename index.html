@@ -802,7 +802,7 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const APP_VERSION = "v7.4.27";
-  const BUILD_REVISION = 26;
+  const BUILD_REVISION = 28;
   const notice = document.getElementById("mpErrorNotice");
   const codeNode = document.getElementById("mpErrorCode");
   const summaryNode = document.getElementById("mpErrorSummary");
@@ -827,7 +827,7 @@
 
   function render(entry) {
     if (!notice || !entry) return;
-    codeNode.textContent = entry.code;
+    codeNode.textContent = entry.code + " ／ 変更確認番号: " + entry.revision;
     summaryNode.textContent =
       "機能: " + entry.category + " ／ 段階: " + entry.stage +
       " ／ " + entry.message +
