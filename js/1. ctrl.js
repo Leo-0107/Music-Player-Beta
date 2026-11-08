@@ -1,7 +1,7 @@
 // ctrl.js
 (() => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.error('Service Worker registration failed:', err));
+    navigator.serviceWorker.register('./sw.js').catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
   }
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
@@ -127,6 +127,7 @@ ${parts.join('\n')}})();`;
       script.onerror = () => {
         cleanup();
         console.error('Music Player JS execution failed');
+        window.__musicPlayerReportError?.('BOOT', 'combined-script-execution', new Error('結合JavaScriptの実行に失敗しました'));
         document.body.classList.remove('app-loading');
         document.getElementById('appLoadingScreen')?.remove();
       };
@@ -135,6 +136,7 @@ ${parts.join('\n')}})();`;
     })
     .catch(err => {
       console.error('Music Player JS load error:', err);
+      window.__musicPlayerReportError?.('BOOT', 'script-load', err);
       document.body.classList.remove('app-loading');
       document.getElementById('appLoadingScreen')?.remove();
     });
