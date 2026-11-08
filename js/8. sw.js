@@ -54,6 +54,11 @@ self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET") return;
 
+  // 外部API・YouTubeなどのレスポンスやAPIキー付きURLはアプリキャッシュへ保存しない。
+  // このService Workerは同一オリジンのアプリ資産と画面だけを扱う。
+  const requestUrl = new URL(request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
