@@ -1662,6 +1662,27 @@
     document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(menu => { menu.hidden = true; });
   });
 
+  function getSongSourceLabel(song) {
+    const name = String(song?.name || "");
+    if (song?.mediaType === "youtube" || name.startsWith("yt:")) return "YOUTUBE";
+    const extension = name.match(/\.([a-z0-9]{2,5})$/i)?.[1];
+    if (extension) return extension.toUpperCase();
+    const mime = String(song?.mimeType || "").toLowerCase().split(";")[0];
+    const mimeLabels = {
+      "audio/mpeg": "MP3",
+      "audio/mp4": "M4A",
+      "audio/aac": "AAC",
+      "audio/wav": "WAV",
+      "audio/x-wav": "WAV",
+      "audio/flac": "FLAC",
+      "audio/ogg": "OGG",
+      "audio/webm": "WEBM",
+      "video/webm": "WEBM",
+      "video/mp4": "MP4"
+    };
+    return mimeLabels[mime] || (song?.mediaType === "video" ? "VIDEO" : "AUDIO");
+  }
+
   function renderSongList(){
     const vis = getVisibleSongs();
     if (!el.list) return;
@@ -1674,7 +1695,7 @@
         <div class="songNowIndicator" aria-hidden="true"></div>
         <div class="songMain">
           <div class="songName">${escapeHTML(song.title)}</div>
-          <div class="songArtist">${escapeHTML(song.artist)}</div>
+          <div class="songArtist">${escapeHTML(song.artist)}<span class="songSourceTag">${escapeHTML(getSongSourceLabel(song))}</span></div>
           <div class="songMeta"><span>再生数 ${state.playCounts[song.name] || 0}回</span><span class="songDuration" data-duration-for="${escapeHTML(song.name)}">${formatTrackDuration(song.duration)}</span></div>
         </div>
         <div class="songRight">
@@ -2024,6 +2045,7 @@
     resetHomeCycle();
     saveState();
     renderSongList();
+    if (el.pillFavs) el.pillFavs.textContent = `${state.favorites.length}☆`;
     if(state.currentSong?.name === name) {
       if (el.btnFav) {
         el.btnFav.textContent = state.favorites.includes(name) ? "★" : "☆";
