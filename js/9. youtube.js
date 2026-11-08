@@ -962,7 +962,7 @@
       const uriList = transfer.getData("text/uri-list");
       const plainText = transfer.getData("text/plain");
       const droppedUrl = String(uriList || plainText || "")
-        .split(/\\r?\\n/)
+        .split(/\r?\n/)
         .map(line => line.trim())
         .find(line => line && !line.startsWith("#"));
       if (!droppedUrl) return;
