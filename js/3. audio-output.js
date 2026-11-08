@@ -1674,6 +1674,7 @@
       const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
 
       const list = [
+        ...(defaultPhysical ? [defaultPhysical] : []),
         ...physicalOutputs.filter(device => !defaultPhysical || !areSameOutputDevice(defaultDevice, device)),
         { deviceId: "", label: "既定のスピーカー" }
       ];
@@ -2073,6 +2074,8 @@
     });
   }
 
+  let lastSystemDefaultOutputDeviceId = null;
+
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       if (document.visibilityState !== "visible") {
@@ -2086,8 +2089,36 @@
         device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
       );
       knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
-      // OSの既定出力が変わっても、サイトで個別指定したメイン出力・追加出力は変更しない。
-      // mainOutputDeviceId が空の場合だけ、ブラウザの既定出力へ自然に追従する。
+
+      const defaultDevice = outputs.find(device => device.deviceId === "default");
+      const defaultPhysical = defaultDevice
+        ? physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device))
+        : null;
+      const nextDefaultId = defaultPhysical?.deviceId || "";
+
+      // OS側の既定出力が実際に変わった場合だけ、新しい機器へメイン出力を切り替える。
+      // 切替成功後は追加出力をすべて解除し、新しい既定出力1台だけから再生する。
+      if (
+        lastSystemDefaultOutputDeviceId !== null &&
+        nextDefaultId !== lastSystemDefaultOutputDeviceId
+      ) {
+        const switched = await setMainOutputDevice(nextDefaultId);
+        if (switched) {
+          for (const runtime of additionalOutputRuntimes.values()) {
+            try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
+            try { runtime.audio.pause(); } catch (e) {}
+            try { runtime.audio.srcObject = null; } catch (e) {}
+            try { runtime.audio.remove(); } catch (e) {}
+          }
+          additionalOutputRuntimes.clear();
+          state.outputRoutes = [];
+          saveState();
+          applyPairedSpeakerRouting();
+          await syncAdditionalOutputRuntimes();
+          renderAdditionalOutputSpeakers();
+        }
+      }
+      lastSystemDefaultOutputDeviceId = nextDefaultId;
       pendingOutputDeviceRefresh = false;
 
       await updateOutputDeviceName();
@@ -2101,11 +2132,15 @@
   }
 
   enumerateAudioOutputs().then(outputs => {
-    knownPhysicalOutputDeviceIds = new Set(
-      outputs
-        .filter(device => device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default")
-        .map(device => device.deviceId)
+    const physicalOutputs = outputs.filter(device =>
+      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
     );
+    knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
+    const defaultDevice = outputs.find(device => device.deviceId === "default");
+    const defaultPhysical = defaultDevice
+      ? physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device))
+      : null;
+    lastSystemDefaultOutputDeviceId = defaultPhysical?.deviceId || "";
   }).catch(error => {
     console.warn("Music Player output device discovery failed:", error);
   });
