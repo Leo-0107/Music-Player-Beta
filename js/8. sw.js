@@ -12,7 +12,8 @@ const APP_SHELL = [
   "./js/6. library.js",
   "./js/7. ui.js",
   "./js/8. sw.js",
-  "./js/9. youtube.js"
+  "./js/9. youtube.js",
+  "./js/pitch-worklet.js"
 ];
 
 self.addEventListener("install", event => {

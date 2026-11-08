@@ -497,6 +497,7 @@ let mainOutputUsesNativeDestination = false;
       const pitchBypassGainNode = audioCtx.createGain();
       const pitchProcessedGainNode = audioCtx.createGain();
       const pitchRouteNode = audioCtx.createGain();
+      audioCtx._musicPlayerPitchRoute = pitchRouteNode;
       audioCtx._musicPlayerPitchBypassGain = pitchBypassGainNode;
       audioCtx._musicPlayerPitchProcessedGain = pitchProcessedGainNode;
       pitchBypassGainNode.gain.value = 1;
@@ -629,6 +630,9 @@ let mainOutputUsesNativeDestination = false;
       applyMainOutputDelayNode();
 
       audioGraphReady = true;
+      upgradePitchShifterToAudioWorklet(audioCtx).catch(error => {
+        console.warn("Music Player AudioWorklet pitch upgrade unavailable; keeping ScriptProcessor fallback:", error);
+      });
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
@@ -646,6 +650,79 @@ let mainOutputUsesNativeDestination = false;
     if(audioCtx && audioCtx.state === "suspended"){
       try { await audioCtx.resume(); } catch{}
     }
+  }
+
+  async function upgradePitchShifterToAudioWorklet(ctx) {
+    if (!ctx || !ctx.audioWorklet || typeof AudioWorkletNode !== "function") return false;
+    if (ctx._musicPlayerPitchWorkletReady) return true;
+    if (ctx._musicPlayerPitchWorkletUpgradePromise) return ctx._musicPlayerPitchWorkletUpgradePromise;
+
+    ctx._musicPlayerPitchWorkletUpgradePromise = (async () => {
+      const sourceNode = ctx._musicPlayerPitchSource;
+      const oldShifter = ctx._musicPlayerPitchShifter;
+      const oldGain = ctx._musicPlayerPitchProcessedGain;
+      const routeNode = ctx._musicPlayerPitchRoute;
+      if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
+
+      const moduleUrl = new URL("js/pitch-worklet.js", document.baseURI).href;
+      await ctx.audioWorklet.addModule(moduleUrl);
+      if (audioCtx !== ctx || !audioGraphReady) return false;
+
+      const workletNode = new AudioWorkletNode(ctx, "music-player-pitch-shifter", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        channelCount: 2,
+        channelCountMode: "explicit",
+        channelInterpretation: "speakers"
+      });
+      let pitchValue = Math.max(0.5, Math.min(2, Number(state.pitchSemitones) ? Math.pow(2, Number(state.pitchSemitones) / 12) : 1));
+      Object.defineProperty(workletNode, "pitch", {
+        configurable: false,
+        enumerable: true,
+        get: () => pitchValue,
+        set: value => {
+          const next = Math.max(0.5, Math.min(2, Number(value) || 1));
+          pitchValue = next;
+          workletNode.port.postMessage({ type: "pitch", value: next });
+        }
+      });
+      workletNode.pitch = pitchValue;
+
+      const nextGain = ctx.createGain();
+      nextGain.gain.value = 0;
+      workletNode.connect(nextGain);
+      nextGain.connect(routeNode);
+
+      if (Math.abs(pitchValue - 1) >= 0.0001) {
+        sourceNode.connect(workletNode);
+      }
+
+      const now = ctx.currentTime;
+      const oldValue = Math.max(0, Number(oldGain.gain.value) || 0);
+      oldGain.gain.cancelScheduledValues(now);
+      oldGain.gain.setValueAtTime(oldValue, now);
+      oldGain.gain.linearRampToValueAtTime(0, now + 0.045);
+      nextGain.gain.setValueAtTime(0, now);
+      nextGain.gain.linearRampToValueAtTime(1, now + 0.045);
+
+      ctx._musicPlayerPitchShifter = workletNode;
+      ctx._musicPlayerPitchProcessedGain = nextGain;
+      ctx._musicPlayerPitchWorkletReady = true;
+
+      setTimeout(() => {
+        try { sourceNode.disconnect(oldShifter); } catch (e) {}
+        try { oldShifter.disconnect(oldGain); } catch (e) {}
+        try { oldGain.disconnect(routeNode); } catch (e) {}
+        try { oldShifter.disconnect(); } catch (e) {}
+        try { oldGain.disconnect(); } catch (e) {}
+      }, 80);
+      return true;
+    })().finally(() => {
+      ctx._musicPlayerPitchWorkletUpgradePromise = null;
+    });
+
+    return ctx._musicPlayerPitchWorkletUpgradePromise;
   }
 
   function updatePitchShiftNode(){
