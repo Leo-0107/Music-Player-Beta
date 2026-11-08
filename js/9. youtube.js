@@ -8,26 +8,36 @@
 
   function pruneYoutubeMetadata(items, now = Date.now()) {
     const retained = [];
-    for (const item of items) {
+    for (const original of items) {
+      let item = original;
+      if (item.userTitle && !item.customTitle) {
+        item = {
+          ...item,
+          customTitle: item.title,
+          title: "YouTube動画",
+          author: "YouTube",
+          metadataSource: "placeholder"
+        };
+        delete item.userTitle;
+      }
       const timestamp = Number(item.apiDataFetchedAt || item.addedAt || 0);
-      if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
-      if (now - timestamp <= YOUTUBE_DATA_MAX_AGE_MS) {
+      const isFresh = Number.isFinite(timestamp) && timestamp > 0 &&
+        now - timestamp <= YOUTUBE_DATA_MAX_AGE_MS;
+      if (isFresh) {
         retained.push(item);
-      } else if (item.userTitle) {
-        // ユーザーが入力した名前はYouTube APIデータではないため保持し、
-        // 期限切れの作者情報だけを汎用表示へ戻す。
+      } else if (item.customTitle) {
         retained.push({
           ...item,
+          title: "YouTube動画",
           author: "YouTube",
           apiDataFetchedAt: null,
           addedAt: now,
-          metadataSource: "user-title"
+          metadataSource: "placeholder"
         });
       }
     }
     return retained;
   }
-
   function readYoutubeLibraryItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_LIBRARY_STORAGE_KEY) || "[]");
@@ -485,14 +495,14 @@
   function renameYoutubeItem(item) {
     if (!item || !youtubeItems.has(item.id)) return;
     showInSitePrompt(
-      "YouTube動画の名前を変更",
-      "新しい動画名を入力してください。",
-      item.title || "YouTube動画",
+      "YouTube動画の表示名を変更",
+      "このアプリ内で使う別名を入力してください。YouTubeの公式タイトルは変更せず表示します。",
+      item.customTitle || item.title || "YouTube動画",
       value => {
         const title = String(value || "").trim();
-        if (!title || title === item.title) return;
-        item.title = title;
-        item.userTitle = true;
+        if (!title || title === item.customTitle) return;
+        item.customTitle = title;
+        delete item.userTitle;
         youtubeItems.set(item.id, item);
         saveYoutubeItems();
         const song = ensureYoutubeSong(item);
@@ -601,13 +611,15 @@
             <button class="songMenuBtn" type="button" aria-label="動画の操作" aria-expanded="false">︙</button>
             <div class="songMenuPopup" hidden>
               <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
-              <button class="songMenuItem renameYoutubeBtn" type="button">名前変更</button>
+              <button class="songMenuItem renameYoutubeBtn" type="button">表示名を変更</button>
               <button class="songMenuItem deleteYoutubeBtn" type="button">🗑 削除</button>
             </div>
           </div>
         </div>`;
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
-      row.querySelector(".songArtist").textContent = item.author || "YouTube";
+      row.querySelector(".songArtist").textContent = item.customTitle
+        ? "表示名: " + item.customTitle + " ・ " + (item.author || "YouTube")
+        : (item.author || "YouTube");
       const menuWrap = row.querySelector(".songMenuWrap");
       const menuBtn = row.querySelector(".songMenuBtn");
       const menu = row.querySelector(".songMenuPopup");
