@@ -911,7 +911,7 @@
       el.miniPlay.classList.toggle("playing", playing);
     }
     const button = document.getElementById("youtubePlayPauseBtn");
-    if (button) button.textContent = playing ? "⏸ 一時停止" : "▶️ 再生";
+    if (button) button.textContent = playing ? "❚❚ 一時停止" : "▶ 再生";
     updateYoutubePlaybackControls();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
   };
