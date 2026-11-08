@@ -802,10 +802,10 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const APP_VERSION = "v7.4.27";
-  const BUILD_REVISION = 28;
-  const notice = document.getElementById("mpErrorNotice");
-  const codeNode = document.getElementById("mpErrorCode");
-  const summaryNode = document.getElementById("mpErrorSummary");
+  const BUILD_REVISION = 29;
+  let notice = document.getElementById("mpErrorNotice");
+  let codeNode = document.getElementById("mpErrorCode");
+  let summaryNode = document.getElementById("mpErrorSummary");
   let entries = [];
   let sequence = 0;
 
@@ -825,14 +825,87 @@
       .slice(0, 3000);
   }
 
+  function ensureNotice() {
+    if (!notice || !notice.isConnected) {
+      notice = document.createElement("div");
+      notice.id = "mpErrorNotice";
+      notice.setAttribute("role", "alert");
+      notice.setAttribute("aria-live", "assertive");
+      notice.setAttribute("aria-atomic", "true");
+      (document.body || document.documentElement).appendChild(notice);
+      codeNode = null;
+      summaryNode = null;
+    }
+    if (!codeNode || !notice.contains(codeNode)) {
+      codeNode = document.createElement("div");
+      codeNode.id = "mpErrorCode";
+      codeNode.className = "mpErrorCode";
+      notice.appendChild(codeNode);
+    }
+    if (!summaryNode || !notice.contains(summaryNode)) {
+      summaryNode = document.createElement("div");
+      summaryNode.id = "mpErrorSummary";
+      summaryNode.className = "mpErrorSummary";
+      notice.appendChild(summaryNode);
+    }
+    return notice;
+  }
+
+  function applyPriorityStyles(panel) {
+    const declarations = [
+      ["position", "fixed"], ["z-index", "2147483647"],
+      ["left", "16px"], ["bottom", "16px"],
+      ["width", "min(440px, calc(100vw - 32px))"],
+      ["max-height", "min(52vh, 360px)"], ["overflow", "auto"],
+      ["box-sizing", "border-box"], ["padding", "14px"],
+      ["color", "#f5f5f5"], ["background", "#202124"],
+      ["border", "1px solid #d69a36"], ["border-radius", "12px"],
+      ["box-shadow", "0 8px 28px rgba(0,0,0,.48)"],
+      ["font-size", "13px"], ["line-height", "1.55"],
+      ["display", "block"], ["visibility", "visible"],
+      ["opacity", "1"], ["pointer-events", "auto"]
+    ];
+    declarations.forEach(([property, value]) => {
+      try { panel.style.setProperty(property, value, "important"); } catch {}
+    });
+    try {
+      panel.hidden = false;
+      panel.removeAttribute("hidden");
+      panel.setAttribute("role", "alert");
+      panel.setAttribute("aria-live", "assertive");
+      panel.setAttribute("aria-atomic", "true");
+    } catch {}
+  }
+
+  function emergencyDisplay(entry) {
+    try {
+      const panel = ensureNotice();
+      const code = entry
+        ? entry.code + " ／ 変更確認番号: " + entry.revision
+        : "MP-DIAG-FAILED ／ 変更確認番号: " + BUILD_REVISION;
+      const detail = entry
+        ? "機能: " + entry.category + " ／ 段階: " + entry.stage + " ／ " + entry.message
+        : "診断表示の通常処理に失敗しました。簡易表示へ切り替えました。";
+      panel.textContent = code + "\n" + detail;
+      applyPriorityStyles(panel);
+    } catch {}
+  }
+
   function render(entry) {
-    if (!notice || !entry) return;
-    codeNode.textContent = entry.code + " ／ 変更確認番号: " + entry.revision;
-    summaryNode.textContent =
-      "機能: " + entry.category + " ／ 段階: " + entry.stage +
-      " ／ " + entry.message +
-      (entry.file ? " ／ " + entry.file + (entry.line ? ":" + entry.line : "") : "");
-    notice.hidden = false;
+    if (!entry) return false;
+    try {
+      const panel = ensureNotice();
+      codeNode.textContent = entry.code + " ／ 変更確認番号: " + entry.revision;
+      summaryNode.textContent =
+        "機能: " + entry.category + " ／ 段階: " + entry.stage +
+        " ／ " + entry.message +
+        (entry.file ? " ／ " + entry.file + (entry.line ? ":" + entry.line : "") : "");
+      applyPriorityStyles(panel);
+      return true;
+    } catch {
+      emergencyDisplay(entry);
+      return false;
+    }
   }
 
   function report(category, stage, error, extra) {
@@ -866,7 +939,8 @@
       render(record);
       return code;
     } catch (reportingError) {
-      console.error("Music Player diagnostic reporter failed:", reportingError);
+      emergencyDisplay(null);
+      try { console.warn("Music Player diagnostic reporter failed:", reportingError); } catch {}
       return "MP-DIAG-FAILED";
     }
   }
@@ -874,23 +948,31 @@
   window.__musicPlayerReportError = report;
 
   window.addEventListener("error", event => {
-    if (event.target && event.target !== window) {
-      if (event.target.tagName === "SCRIPT" && !String(event.target.src || "").startsWith("blob:")) {
-        report("BOOT", "script-resource", new Error("JavaScriptファイルの読み込みに失敗しました"), {
-          file: event.target.src || ""
-        });
+    try {
+      if (event.target && event.target !== window) {
+        if (event.target.tagName === "SCRIPT" && !String(event.target.src || "").startsWith("blob:")) {
+          report("BOOT", "script-resource", new Error("JavaScriptファイルの読み込みに失敗しました"), {
+            file: event.target.src || ""
+          });
+        }
+        return;
       }
-      return;
+      report("JS", "uncaught", event.error || new Error(event.message || "Uncaught JavaScript error"), {
+        file: event.filename || "",
+        line: event.lineno || 0,
+        column: event.colno || 0
+      });
+    } catch {
+      emergencyDisplay(null);
     }
-    report("JS", "uncaught", event.error || new Error(event.message || "Uncaught JavaScript error"), {
-      file: event.filename || "",
-      line: event.lineno || 0,
-      column: event.colno || 0
-    });
   }, true);
 
   window.addEventListener("unhandledrejection", event => {
-    report("PROMISE", "unhandled-rejection", event.reason || "Unhandled promise rejection");
+    try {
+      report("PROMISE", "unhandled-rejection", event.reason || "Unhandled promise rejection");
+    } catch {
+      emergencyDisplay(null);
+    }
   });
 
   function getDiagnosticText() {
@@ -904,7 +986,7 @@
       ""
     ];
     recent.forEach(entry => {
-      lines.push("[" + entry.time + "] " + entry.code);
+      lines.push("[" + entry.time + "] " + entry.code + " ／ 変更確認番号: " + entry.revision);
       lines.push("機能: " + entry.category + " / 段階: " + entry.stage);
       lines.push("内容: " + entry.message);
       if (entry.file) lines.push("場所: " + entry.file + ":" + entry.line + ":" + entry.column);
@@ -940,15 +1022,17 @@
   }
 
   document.getElementById("mpErrorCopy")?.addEventListener("click", copyDiagnostics);
-  document.getElementById("mpErrorClose")?.addEventListener("click", () => { notice.hidden = true; });
+  document.getElementById("mpErrorClose")?.addEventListener("click", () => {
+    try { if (notice) notice.hidden = true; } catch {}
+  });
   document.getElementById("mpErrorClear")?.addEventListener("click", () => {
     entries = [];
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
-    if (notice) notice.hidden = true;
+    try { if (notice) notice.hidden = true; } catch {}
   });
 
   if (entries.length) render(entries[entries.length - 1]);
-})();
+})();;
 </script>
 
 <script src="js/1. ctrl.js?v=7.4.27"></script>
