@@ -39,7 +39,7 @@ function matchCachedRequest(request) {
   const url = new URL(request.url);
   const isVersionedAppAsset =
     url.origin === self.location.origin &&
-    /\\.(?:css|js)$/.test(url.pathname);
+    /\.(?:css|js)$/.test(url.pathname);
 
   return caches.open(CACHE_NAME).then(cache =>
     cache.match(request).then(exactMatch => {
