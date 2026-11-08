@@ -701,6 +701,10 @@
     currentYoutubeItem = null;
     const youtubeButton = document.getElementById("youtubePlayPauseBtn");
     if (youtubeButton) youtubeButton.textContent = "▶ 再生";
+    if (song) {
+      const homeTab = document.querySelector('.navTab[data-target="home"]');
+      if (homeTab && !homeTab.classList.contains("active")) homeTab.click();
+    }
     return originalPlaySong(song, pushHistory, options);
   };
 

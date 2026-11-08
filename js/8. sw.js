@@ -1,4 +1,5 @@
-const CACHE_NAME = "music-player-app-v7.4.19";
+const CACHE_NAME = "music-player-app-v7.4.20";
+const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
   "./sw.js",
   "./index.html",
@@ -19,7 +20,19 @@ const APP_SHELL = [
 self.addEventListener("install", event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
+      .then(async cache => {
+        await cache.addAll(APP_SHELL);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        try {
+          const response = await fetch(JSZIP_URL, { mode: "cors", signal: controller.signal });
+          if (response.ok) await cache.put(JSZIP_URL, response);
+        } catch {
+          // CDNが使えない場合でも、アプリ本体のService Workerインストールは継続する。
+        } finally {
+          clearTimeout(timer);
+        }
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -58,6 +71,20 @@ self.addEventListener("fetch", event => {
   // 外部API・YouTubeなどのレスポンスやAPIキー付きURLはアプリキャッシュへ保存しない。
   // このService Workerは同一オリジンのアプリ資産と画面だけを扱う。
   const requestUrl = new URL(request.url);
+  if (requestUrl.href === JSZIP_URL) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(request)))
+    );
+    return;
+  }
   if (requestUrl.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
