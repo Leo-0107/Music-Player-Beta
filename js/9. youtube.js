@@ -936,6 +936,40 @@
   document.getElementById("youtubeUrlInput")?.addEventListener("keydown", event => {
     if (event.key === "Enter") addYoutubeUrl(event.currentTarget.value);
   });
+
+  // 外部ページやアドレス欄からURLをドラッグ＆ドロップして入力できるようにする。
+  const youtubeUrlInput = document.getElementById("youtubeUrlInput");
+  if (youtubeUrlInput) {
+    const clearYoutubeUrlDropState = () => youtubeUrlInput.classList.remove("youtubeUrlDropActive");
+    youtubeUrlInput.addEventListener("dragenter", event => {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      youtubeUrlInput.classList.add("youtubeUrlDropActive");
+    });
+    youtubeUrlInput.addEventListener("dragover", event => {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      youtubeUrlInput.classList.add("youtubeUrlDropActive");
+    });
+    youtubeUrlInput.addEventListener("dragleave", clearYoutubeUrlDropState);
+    youtubeUrlInput.addEventListener("dragend", clearYoutubeUrlDropState);
+    youtubeUrlInput.addEventListener("drop", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearYoutubeUrlDropState();
+      const transfer = event.dataTransfer;
+      if (!transfer) return;
+      const uriList = transfer.getData("text/uri-list");
+      const plainText = transfer.getData("text/plain");
+      const droppedUrl = String(uriList || plainText || "")
+        .split(/\\r?\\n/)
+        .map(line => line.trim())
+        .find(line => line && !line.startsWith("#"));
+      if (!droppedUrl) return;
+      youtubeUrlInput.value = droppedUrl;
+      youtubeUrlInput.focus();
+    });
+  }
   document.getElementById("youtubePlayPauseBtn")?.addEventListener("click", () => playPause());
   document.getElementById("youtubePrev")?.addEventListener("click", () => prevTrack());
   document.getElementById("youtubeNext")?.addEventListener("click", () => nextTrack(false));
