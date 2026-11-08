@@ -10,6 +10,19 @@
     });
   }
 
+  const networkStatusElement = document.getElementById("networkStatus");
+  function updateNetworkStatus() {
+    if (!networkStatusElement) return;
+    const online = navigator.onLine !== false;
+    networkStatusElement.textContent = online ? "オンライン" : "オフライン";
+    networkStatusElement.classList.toggle("isOnline", online);
+    networkStatusElement.classList.toggle("isOffline", !online);
+    networkStatusElement.title = online ? "ネットワーク接続あり" : "ネットワーク接続なし";
+  }
+  updateNetworkStatus();
+  window.addEventListener("online", updateNetworkStatus);
+  window.addEventListener("offline", updateNetworkStatus);
+
   function renderAll(){
     renderSongList();
     renderQueue();
