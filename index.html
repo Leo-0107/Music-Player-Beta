@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.25</title>
+<title>Music Player v7.4.26</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.25">
+<link rel="stylesheet" href="style.css?v=7.4.26">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -766,13 +766,180 @@
   </section>
 </div>
 
-<script src="js/1. ctrl.js?v=7.4.25"></script>
+
+<div id="mpErrorNotice" class="mpErrorNotice" role="alert" aria-live="assertive" hidden>
+  <div class="mpErrorNoticeHead">
+    <strong>アプリのエラーを検出しました</strong>
+    <button type="button" id="mpErrorClose" aria-label="エラー表示を閉じる">閉じる</button>
+  </div>
+  <div id="mpErrorCode" class="mpErrorCode"></div>
+  <div id="mpErrorSummary" class="mpErrorSummary"></div>
+  <div class="mpErrorActions">
+    <button type="button" id="mpErrorCopy">診断情報をコピー</button>
+    <button type="button" id="mpErrorClear">記録を消去</button>
+  </div>
+</div>
+<script>
+(() => {
+  const STORAGE_KEY = "mp_diagnostics_v1";
+  const APP_VERSION = "v7.4.26";
+  const BUILD_REVISION = 26;
+  const notice = document.getElementById("mpErrorNotice");
+  const codeNode = document.getElementById("mpErrorCode");
+  const summaryNode = document.getElementById("mpErrorSummary");
+  let entries = [];
+  let sequence = 0;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) entries = saved.slice(-10);
+  } catch {}
+
+  function sanitize(value) {
+    return String(value == null ? "" : value)
+      .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[API_KEY_REDACTED]")
+      .replace(/([?&](?:key|token|access_token|api_key)=)[^&\s]+/gi, "$1[REDACTED]")
+      .replace(/https?:\/\/[^\s)]+/g, value => {
+        try { const url = new URL(value); return url.origin + url.pathname; }
+        catch { return "[URL]"; }
+      })
+      .slice(0, 3000);
+  }
+
+  function render(entry) {
+    if (!notice || !entry) return;
+    codeNode.textContent = entry.code;
+    summaryNode.textContent =
+      "機能: " + entry.category + " ／ 段階: " + entry.stage +
+      " ／ " + entry.message +
+      (entry.file ? " ／ " + entry.file + (entry.line ? ":" + entry.line : "") : "");
+    notice.hidden = false;
+  }
+
+  function report(category, stage, error, extra) {
+    try {
+      const now = new Date();
+      sequence += 1;
+      const stamp = now.getFullYear() +
+        String(now.getMonth()+1).padStart(2,"0") +
+        String(now.getDate()).padStart(2,"0") + "-" +
+        String(now.getHours()).padStart(2,"0") +
+        String(now.getMinutes()).padStart(2,"0") +
+        String(now.getSeconds()).padStart(2,"0");
+      const code = "MP-" + category + "-" + stamp + "-" + String(sequence).padStart(2,"0");
+      const reason = error && error.message ? error.message : String(error || "詳細不明のエラー");
+      const record = {
+        code,
+        category: sanitize(category),
+        stage: sanitize(stage),
+        message: sanitize(reason),
+        file: sanitize(extra && extra.file ? extra.file : ""),
+        line: Number(extra && extra.line) || 0,
+        column: Number(extra && extra.column) || 0,
+        stack: sanitize(error && error.stack ? error.stack : ""),
+        time: now.toISOString(),
+        version: APP_VERSION,
+        revision: BUILD_REVISION
+      };
+      entries.push(record);
+      entries = entries.slice(-10);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch {}
+      render(record);
+      return code;
+    } catch (reportingError) {
+      console.error("Music Player diagnostic reporter failed:", reportingError);
+      return "MP-DIAG-FAILED";
+    }
+  }
+
+  window.__musicPlayerReportError = report;
+
+  window.addEventListener("error", event => {
+    if (event.target && event.target !== window) {
+      if (event.target.tagName === "SCRIPT" && !String(event.target.src || "").startsWith("blob:")) {
+        report("BOOT", "script-resource", new Error("JavaScriptファイルの読み込みに失敗しました"), {
+          file: event.target.src || ""
+        });
+      }
+      return;
+    }
+    report("JS", "uncaught", event.error || new Error(event.message || "Uncaught JavaScript error"), {
+      file: event.filename || "",
+      line: event.lineno || 0,
+      column: event.colno || 0
+    });
+  }, true);
+
+  window.addEventListener("unhandledrejection", event => {
+    report("PROMISE", "unhandled-rejection", event.reason || "Unhandled promise rejection");
+  });
+
+  function getDiagnosticText() {
+    const recent = entries.slice(-5);
+    const lines = [
+      "Music Player 診断情報",
+      "Version: " + APP_VERSION,
+      "BUILD_REVISION: " + BUILD_REVISION,
+      "Browser: " + sanitize(navigator.userAgent),
+      "Page: " + location.pathname,
+      ""
+    ];
+    recent.forEach(entry => {
+      lines.push("[" + entry.time + "] " + entry.code);
+      lines.push("機能: " + entry.category + " / 段階: " + entry.stage);
+      lines.push("内容: " + entry.message);
+      if (entry.file) lines.push("場所: " + entry.file + ":" + entry.line + ":" + entry.column);
+      if (entry.stack) lines.push("Stack: " + entry.stack);
+      lines.push("");
+    });
+    return lines.join("\n");
+  }
+
+  async function copyDiagnostics() {
+    const value = getDiagnosticText();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        throw new Error("Clipboard API unavailable");
+      }
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = value;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      try { document.execCommand("copy"); } catch {}
+      field.remove();
+    }
+    const button = document.getElementById("mpErrorCopy");
+    if (button) {
+      button.textContent = "コピーしました";
+      setTimeout(() => { button.textContent = "診断情報をコピー"; }, 1800);
+    }
+  }
+
+  document.getElementById("mpErrorCopy")?.addEventListener("click", copyDiagnostics);
+  document.getElementById("mpErrorClose")?.addEventListener("click", () => { notice.hidden = true; });
+  document.getElementById("mpErrorClear")?.addEventListener("click", () => {
+    entries = [];
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    if (notice) notice.hidden = true;
+  });
+
+  if (entries.length) render(entries[entries.length - 1]);
+})();
+</script>
+
+<script src="js/1. ctrl.js?v=7.4.26"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
     const screen = document.getElementById("appLoadingScreen");
     if (!screen) return;
     console.error("Music Player startup recovery: loading screen timeout");
+    window.__musicPlayerReportError?.("BOOT", "startup-timeout", new Error("起動処理が20秒以内に完了しませんでした"));
     const fill = document.getElementById("appLoadingProgressFill");
     const percent = document.getElementById("appLoadingPercent");
     const text = document.getElementById("appLoadingText");
