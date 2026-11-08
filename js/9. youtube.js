@@ -357,8 +357,10 @@
     if (results) results.textContent = "検索しています...";
     setYoutubeSearchStatus("YouTubeを検索しています...");
     try {
-      const params = new URLSearchParams({ part: "snippet", type: "video", maxResults: "10", q: query, key: apiKey });
-      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString());
+      const params = new URLSearchParams({ part: "snippet", type: "video", maxResults: "10", q: query });
+      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString(), {
+        headers: { "X-Goog-Api-Key": apiKey }
+      });
       const data = await response.json();
       if (!response.ok) {
         const reason = data.error?.errors?.[0]?.reason || "";
