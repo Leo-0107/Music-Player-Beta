@@ -11,11 +11,22 @@
         let coverBlob = null;
 
         if (buf.byteLength > 10 && view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33) {
+          const majorVersion = view.getUint8(3);
           let offset = 10;
           const size = (view.getUint8(6) << 21) | (view.getUint8(7) << 14) | (view.getUint8(8) << 7) | view.getUint8(9);
           while (offset < size + 10 && offset + 10 <= buf.byteLength) {
             const frameID = String.fromCharCode(view.getUint8(offset), view.getUint8(offset+1), view.getUint8(offset+2), view.getUint8(offset+3));
-            const frameSize = view.getUint32(offset + 4);
+            let frameSize;
+            if (majorVersion === 4) {
+              const b0 = view.getUint8(offset + 4);
+              const b1 = view.getUint8(offset + 5);
+              const b2 = view.getUint8(offset + 6);
+              const b3 = view.getUint8(offset + 7);
+              if ((b0 | b1 | b2 | b3) & 0x80) break;
+              frameSize = (b0 << 21) | (b1 << 14) | (b2 << 7) | b3;
+            } else {
+              frameSize = view.getUint32(offset + 4);
+            }
             if (frameSize <= 0 || offset + 10 + frameSize > buf.byteLength) break;
             const frameData = new Uint8Array(buf, offset + 10, frameSize);
             
