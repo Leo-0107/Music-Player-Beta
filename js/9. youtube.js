@@ -241,6 +241,11 @@
               if (button && currentYoutubeItem) button.textContent = event.data === YT.PlayerState.PLAYING ? "❚❚ 一時停止" : "▶ 再生";
               updatePlayPauseUI();
             },
+            onAutoplayBlocked: () => {
+              if (status) status.textContent = "ブラウザが自動再生をブロックしました。プレイヤーの再生ボタンを押してください。";
+              setPlaybackIntent(false);
+              updatePlayPauseUI();
+            },
             onError: () => {
               if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。";
               setPlaybackIntent(false);
