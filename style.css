@@ -2855,7 +2855,7 @@ body:not(.theme-light) .pill:hover {
 /* エラー診断パネル */
 .mpErrorNotice {
   position: fixed;
-  z-index: 100000;
+  z-index: 2147483647 !important;
   left: 16px;
   bottom: 16px;
   width: min(440px, calc(100vw - 32px));
