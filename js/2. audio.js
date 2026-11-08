@@ -1283,22 +1283,26 @@ let mainOutputUsesNativeDestination = false;
   }
 
   async function clearAllTracksFromDB() {
-    if (!db) return;
-    await new Promise(resolve => {
+    if (!db) return false;
+    return await new Promise(resolve => {
       try {
         const tx = db.transaction("tracks", "readwrite");
         tx.objectStore("tracks").clear();
-        tx.oncomplete = resolve;
-        tx.onerror = resolve;
-        tx.onabort = resolve;
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+        tx.onabort = () => resolve(false);
       } catch (e) {
-        resolve();
+        resolve(false);
       }
     });
   }
 
   async function resetAllFiles() {
-    await clearAllTracksFromDB();
+    const cleared = await clearAllTracksFromDB();
+    if (!cleared) {
+      toast("保存データを消去できなかったため、リセットを中止しました。");
+      return;
+    }
     revokeAllObjectURLs();
     setPlaybackIntent(false);
     audio.pause();
