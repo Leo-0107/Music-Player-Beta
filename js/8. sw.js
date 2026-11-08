@@ -35,6 +35,21 @@ self.addEventListener("activate", event => {
   );
 });
 
+function matchCachedRequest(request) {
+  const url = new URL(request.url);
+  const isVersionedAppAsset =
+    url.origin === self.location.origin &&
+    /\\.(?:css|js)$/.test(url.pathname);
+
+  return caches.open(CACHE_NAME).then(cache =>
+    cache.match(request).then(exactMatch => {
+      if (exactMatch || !isVersionedAppAsset) return exactMatch;
+      // APP_SHELL stores local assets without the HTML version query string.
+      return cache.match(request, { ignoreSearch: true });
+    })
+  );
+}
+
 self.addEventListener("fetch", event => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -63,6 +78,6 @@ self.addEventListener("fetch", event => {
         }
         return response;
       })
-      .catch(() => caches.match(request))
+      .catch(() => matchCachedRequest(request))
   );
 });
