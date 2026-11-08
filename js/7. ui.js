@@ -1901,6 +1901,7 @@
     settingsCategoryHome.hidden = true;
     settingsCategoryView.hidden = false;
     settingsCategoryTitle.textContent = category.title;
+    if (el.settingsSearch) el.settingsSearch.value = "";
 
     settingsCategoryCards.innerHTML = "";
     category.items.forEach(([secId, icon, title, description]) => {
@@ -1945,6 +1946,7 @@
       }
       if (settingsCategoryView) settingsCategoryView.hidden = true;
       if (settingsCategoryHome) settingsCategoryHome.hidden = false;
+      if (el.settingsSearch) el.settingsSearch.value = "";
       if (settingsCategoryTitle) {
         settingsCategoryTitle.textContent = "";
         settingsCategoryTitle.hidden = false;
