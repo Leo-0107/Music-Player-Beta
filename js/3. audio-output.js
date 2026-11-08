@@ -2085,26 +2085,9 @@
       const physicalOutputs = outputs.filter(device =>
         device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
       );
-      const currentPhysicalIds = new Set(physicalOutputs.map(device => device.deviceId));
-      const defaultDevice = outputs.find(device => device.deviceId === "default");
-      const defaultPhysical = physicalOutputs.find(device =>
-        defaultDevice && areSameOutputDevice(defaultDevice, device)
-      );
-      const systemDefaultId = defaultPhysical?.deviceId || "";
-      const currentMainId = state.mainOutputDeviceId || "";
-
-      // 接続された機器ではなく、OS / ブラウザが既定として選んだ機器だけをメイン出力にする。
-      // 既定出力が変わった場合は、登録済みの追加出力を無効化して設定自体は残す。
-      if (defaultDevice && systemDefaultId !== currentMainId) {
-        state.outputRoutes.forEach(route => { route.enabled = false; });
-        if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
-          state.speakerSettings = {};
-        }
-        state.speakerSettings.mainEnabled = true;
-        await setMainOutputDevice(systemDefaultId);
-      }
-
-      knownPhysicalOutputDeviceIds = currentPhysicalIds;
+      knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
+      // OSの既定出力が変わっても、サイトで個別指定したメイン出力・追加出力は変更しない。
+      // mainOutputDeviceId が空の場合だけ、ブラウザの既定出力へ自然に追従する。
       pendingOutputDeviceRefresh = false;
 
       await updateOutputDeviceName();
@@ -2117,42 +2100,14 @@
     });
   }
 
-  enumerateAudioOutputs().then(async outputs => {
+  enumerateAudioOutputs().then(outputs => {
     knownPhysicalOutputDeviceIds = new Set(
       outputs
         .filter(device => device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default")
         .map(device => device.deviceId)
     );
-
-    const defaultDevice = outputs.find(device => device.deviceId === "default");
-    if (!defaultDevice) return;
-    const physicalOutputs = outputs.filter(device =>
-      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
-    );
-    const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
-    const systemDefaultId = defaultPhysical?.deviceId || "";
-    const currentMainId = state.mainOutputDeviceId || "";
-
-    if (systemDefaultId !== currentMainId) {
-      state.outputRoutes.forEach(route => { route.enabled = false; });
-      if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
-        state.speakerSettings = {};
-      }
-      state.speakerSettings.mainEnabled = true;
-
-      if (audioGraphReady) {
-        await setMainOutputDevice(systemDefaultId);
-      } else {
-        state.mainOutputDeviceId = systemDefaultId;
-        state.speakerSettings.mainOutputLabel = defaultPhysical?.label || "既定のスピーカー";
-        state.speakerSettings.mainOutputGroupId = defaultPhysical?.groupId || "";
-        saveState();
-      }
-      await updateOutputDeviceName();
-      renderAdditionalOutputSpeakers();
-    }
   }).catch(error => {
-    console.warn("Music Player default output detection failed:", error);
+    console.warn("Music Player output device discovery failed:", error);
   });
 
   updateOutputDeviceName();
