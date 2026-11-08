@@ -322,7 +322,7 @@
   async function fetchYoutubeVideoTitle(item) {
     if (!item?.id || (youtubeItems.get(item.id) !== item && youtubeLibraryItems.get(item.id) !== item)) return;
     const fallbackTitle = "YouTube動画 " + item.id;
-    const isPlaceholder = () => item.title === fallbackTitle || item.title === "動画情報を取得中...";
+    const isPlaceholder = () => item.title === fallbackTitle || item.title === "動画情報を取得中..." || item.title === "YouTube動画";
     try {
       const url = "https://www.youtube.com/watch?v=" + encodeURIComponent(item.id);
       const response = await fetch("https://www.youtube.com/oembed?url=" + encodeURIComponent(url) + "&format=json");
@@ -330,19 +330,15 @@
       const data = await response.json();
       const title = String(data.title || "").trim();
       const author = String(data.author_name || "").trim();
-      let changed = false;
       // 手動で変更した動画名は保持し、未取得の作者名だけを補完する。
-      if (title && isPlaceholder()) { item.title = title; changed = true; }
-      if (author && item.author !== author) { item.author = author; changed = true; }
+      if (title && isPlaceholder()) item.title = title;
+      if (author && item.author !== author) item.author = author;
       if (youtubeItems.get(item.id) !== item && youtubeLibraryItems.get(item.id) !== item) return;
       item.apiDataFetchedAt = Date.now();
       item.addedAt = item.addedAt || item.apiDataFetchedAt;
       item.metadataSource = "oembed";
       if (youtubeItems.get(item.id) === item) youtubeItems.set(item.id, item);
       if (youtubeLibraryItems.get(item.id) === item) youtubeLibraryItems.set(item.id, item);
-      if (!changed && item.metadataSource === "oembed") {
-        // oEmbedで再取得した時刻も更新し、古いキャッシュを残さない。
-      }
       saveYoutubeItems();
       const song = ensureYoutubeSong(item);
       if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
