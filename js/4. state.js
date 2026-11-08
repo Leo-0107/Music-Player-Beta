@@ -1,15 +1,3 @@
-    if (!byteArray || !byteArray.length) return "";
-    const encoding = byteArray[0];
-    const data = byteArray.subarray(1);
-    try {
-      if (encoding === 1 || encoding === 2) {
-        return new TextDecoder("utf-16").decode(data).replace(/\0/g, '').trim();
-      } else {
-        return new TextDecoder("utf-8").decode(data).replace(/\0/g, '').trim();
-      }
-    } catch {
-      return "";
-    }
   }
 
   function parseID3(file) {
