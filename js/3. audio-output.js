@@ -2086,42 +2086,22 @@
         device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
       );
       const currentPhysicalIds = new Set(physicalOutputs.map(device => device.deviceId));
-      const newlyConnected = physicalOutputs.filter(device =>
-        !knownPhysicalOutputDeviceIds.has(device.deviceId)
+      const defaultDevice = outputs.find(device => device.deviceId === "default");
+      const defaultPhysical = physicalOutputs.find(device =>
+        defaultDevice && areSameOutputDevice(defaultDevice, device)
       );
-      // 現在接続されている物理出力だけをメイン候補にする。
-      // devicechange は接続・切断のたびに発火するため、新たに現れた機器を
-      // 「直近に接続されたスピーカー」として優先する。
-      const externalNewDevice = newlyConnected.find(device =>
-        currentPhysicalIds.has(device.deviceId) &&
-        getOutputDevicePriority(device) === 0
-      ) || newlyConnected.find(device =>
-        currentPhysicalIds.has(device.deviceId)
-      );
+      const systemDefaultId = defaultPhysical?.deviceId || "";
+      const currentMainId = state.mainOutputDeviceId || "";
 
-      // Bluetooth・有線などの新しい物理スピーカーが接続されたら、
-      // その接続中の機器だけをメインにし、他の出力をすべて停止する。
-      if (externalNewDevice) {
+      // 接続された機器ではなく、OS / ブラウザが既定として選んだ機器だけをメイン出力にする。
+      // 既定出力が変わった場合は、登録済みの追加出力を無効化して設定自体は残す。
+      if (defaultDevice && systemDefaultId !== currentMainId) {
         state.outputRoutes.forEach(route => { route.enabled = false; });
         if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
           state.speakerSettings = {};
         }
         state.speakerSettings.mainEnabled = true;
-        await setMainOutputDevice(externalNewDevice.deviceId);
-      } else {
-        const defaultDevice = outputs.find(device => device.deviceId === "default");
-        const defaultPhysical = outputs.find(device =>
-          device.deviceId &&
-          device.deviceId !== "default" &&
-          defaultDevice &&
-          areSameOutputDevice(defaultDevice, device)
-        );
-        const currentMainId = state.mainOutputDeviceId || "";
-
-        if (defaultPhysical && defaultPhysical.deviceId !== currentMainId) {
-          await setMainOutputDevice(defaultPhysical.deviceId);
-        }
-        if (defaultPhysical) lastSystemDefaultOutputDeviceId = defaultPhysical.deviceId;
+        await setMainOutputDevice(systemDefaultId);
       }
 
       knownPhysicalOutputDeviceIds = currentPhysicalIds;
