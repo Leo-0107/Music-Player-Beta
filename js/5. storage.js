@@ -298,3 +298,30 @@
   }
 
   function decodeID3String(byteArray) {
+    if (!byteArray || !byteArray.length) return "";
+    const encoding = byteArray[0];
+    const data = byteArray.subarray(1);
+    try {
+      let decoder;
+      switch (encoding) {
+        case 0:
+          decoder = new TextDecoder("iso-8859-1");
+          break;
+        case 1:
+          // UTF-16 with BOM; TextDecoder detects byte order from the BOM.
+          decoder = new TextDecoder("utf-16");
+          break;
+        case 2:
+          // ID3 encoding 2 is explicitly UTF-16 big-endian and has no BOM.
+          decoder = new TextDecoder("utf-16be");
+          break;
+        case 3:
+          decoder = new TextDecoder("utf-8");
+          break;
+        default:
+          return "";
+      }
+      return decoder.decode(data).replace(/\0/g, "").trim();
+    } catch {
+      return "";
+    }
