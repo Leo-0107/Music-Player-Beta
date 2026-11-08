@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.22</title>
+<title>Music Player v7.4.23</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css?v=7.4.22">
 <style id="responsive-song-list-fix">
@@ -516,10 +516,11 @@
               <button class="btn small" id="btnForward10">+10秒</button>
             </div>
 
-            <div class="controls" style="justify-content:center;">
+            <div class="controls" style="justify-content:center; flex-wrap:wrap;">
               <button class="btn small" id="btnFav">☆</button>
-              <button class="btn small" id="btnMainShuffle">シャッフル</button>
-              <button class="btn small" id="btnMainRepeat">リピート</button>
+              <button class="btn small" id="btnMainShuffle">🔀 シャッフル</button>
+              <button class="btn small" id="btnMainRepeat">🔁 リピート</button>
+              <button class="btn small" id="btnAddToPlaylist" type="button">➕ リスト追加</button>
             </div>
 
             <!-- 音量バー: 0%〜200%、100%（1.0）が中央に来る設定 -->
@@ -561,10 +562,25 @@
         <div class="sectionCard" style="display:grid;gap:10px;">
           <div id="youtubeCurrentTitle" style="font-weight:700;">動画を選択してください</div>
           <div id="youtubePlayer" style="width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;"></div>
-          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            <button class="btn small" id="youtubePlayPauseBtn" type="button">▶ 再生</button>
-            <button class="btn small" id="youtubeStopBtn" type="button">■ 停止</button>
-            <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>プレイリストに追加</button>
+          <div class="seekbarContainer">
+            <input type="range" id="youtubeProgress" value="0" min="0" max="100" step="0.1" aria-label="YouTube動画の再生位置" disabled>
+          </div>
+          <div class="timeLine">
+            <span id="youtubeTimeNow">0:00</span>
+            <span id="youtubeTimeAll">0:00</span>
+          </div>
+          <div class="controls" style="justify-content:center; flex-wrap:wrap;">
+            <button class="btn small" id="youtubeRewind10" type="button">⏪ 10秒</button>
+            <button class="btn small" id="youtubePrev" type="button">⏮ 前の曲</button>
+            <button class="btn btnPlayMain" id="youtubePlayPauseBtn" type="button">▶️ 再生</button>
+            <button class="btn small" id="youtubeNext" type="button">⏭ 次の曲</button>
+            <button class="btn small" id="youtubeForward10" type="button">10秒 ⏩</button>
+          </div>
+          <div class="controls" style="justify-content:center; flex-wrap:wrap;">
+            <button class="btn small" id="youtubeFavBtn" type="button">☆ お気に入り</button>
+            <button class="btn small" id="youtubeShuffleBtn" type="button">🔀 シャッフル</button>
+            <button class="btn small" id="youtubeRepeatBtn" type="button">🔁 リピート</button>
+            <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>➕ リスト追加</button>
           </div>
           <div id="youtubeStatus" class="settingsHelpText" aria-live="polite">YouTube動画はこのタブ内で再生されます。</div>
         </div>
