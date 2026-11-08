@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 23;
+  const BUILD_REVISION = 24;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -28,7 +28,7 @@
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
   let disconnectedOutputDeviceIds = new Set();
-  let lastSystemDefaultOutputDeviceId = "";
+  // OS既定出力IDは js/3. audio-output.js 側で一元管理する。
   let knownPhysicalOutputDeviceIds = new Set();
   let pendingOutputDeviceRefresh = false;
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
