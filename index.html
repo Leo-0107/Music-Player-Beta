@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.26</title>
+<title>Music Player v7.4.27</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.26">
+<link rel="stylesheet" href="style.css?v=7.4.27">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -486,6 +486,7 @@
         </div>
       </div>
       <div class="headerRight">
+        <span class="pill networkStatus" id="networkStatus" aria-live="polite">接続確認中</span>
         <span class="pill" id="pillSongs">0曲</span>
         <span class="pill" id="pillFavs">0☆</span>
         <button class="btn small ghost" id="btnShortcutHelp">?</button>
@@ -551,13 +552,29 @@
 
       <div id="youtubeElements" style="display:none; flex-direction:column; gap:16px;">
         <div class="sectionTitle">YouTube</div>
-        <div class="sectionCard" style="display:grid;gap:10px;">
-          <label for="youtubeUrlInput">YouTube動画のURL</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input id="youtubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:180px;">
-            <button class="btn small" id="youtubeAddUrlBtn" type="button">URLを追加</button>
+        <div class="sectionCard youtubeAddCard">
+          <div class="youtubeAddHeader">
+            <strong>YouTube動画の追加</strong>
+            <div class="youtubeInputModes" role="group" aria-label="動画の追加方法">
+              <button class="btn small active" id="youtubeUrlModeBtn" type="button" aria-pressed="true">URL</button>
+              <button class="btn small" id="youtubeKeywordModeBtn" type="button" aria-pressed="false">キーワード検索</button>
+            </div>
           </div>
-          <div class="settingsHelpText">動画URLを登録して、公式プレイヤーで再生できます。</div>
+          <div id="youtubeUrlMode" class="youtubeInputMode">
+            <div class="youtubeInputRow">
+              <input id="youtubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." aria-label="YouTube動画のURL">
+              <button class="btn small" id="youtubeAddUrlBtn" type="button">追加</button>
+            </div>
+            <div class="settingsHelpText">動画URLを登録して、公式プレイヤーで再生できます。</div>
+          </div>
+          <div id="youtubeKeywordMode" class="youtubeInputMode" hidden>
+            <div class="youtubeInputRow">
+              <input id="youtubeSearchInput" type="search" placeholder="動画名・アーティスト名など" aria-label="YouTube動画をキーワード検索">
+              <button class="btn small" id="youtubeSearchBtn" type="button">検索</button>
+            </div>
+            <div id="youtubeSearchStatus" class="settingsHelpText" aria-live="polite"></div>
+            <div id="youtubeSearchResults" class="songList"></div>
+          </div>
         </div>
         <div class="sectionCard" style="display:grid;gap:10px;">
           <div id="youtubeCurrentTitle" style="font-weight:700;">動画を選択してください</div>
@@ -569,12 +586,12 @@
             <span id="youtubeTimeNow">0:00</span>
             <span id="youtubeTimeAll">0:00</span>
           </div>
-          <div class="controls" style="justify-content:center; flex-wrap:wrap;">
-            <button class="btn small" id="youtubeRewind10" type="button">⏪ 10秒</button>
-            <button class="btn small" id="youtubePrev" type="button">⏮ 前の曲</button>
-            <button class="btn btnPlayMain" id="youtubePlayPauseBtn" type="button">▶️ 再生</button>
-            <button class="btn small" id="youtubeNext" type="button">⏭ 次の曲</button>
-            <button class="btn small" id="youtubeForward10" type="button">10秒 ⏩</button>
+          <div class="controls youtubeTransportControls">
+            <button class="btn small" id="youtubeRewind10" type="button">-10秒</button>
+            <button class="btn small" id="youtubePrev" type="button">◀◀</button>
+            <button class="btn btnPlayMain" id="youtubePlayPauseBtn" type="button">▶ 再生</button>
+            <button class="btn small" id="youtubeNext" type="button">▶▶</button>
+            <button class="btn small" id="youtubeForward10" type="button">+10秒</button>
           </div>
           <div class="controls" style="justify-content:center; flex-wrap:wrap;">
             <button class="btn small" id="youtubeFavBtn" type="button">☆ お気に入り</button>
@@ -596,8 +613,10 @@
 
       <div id="settingsTabContainer" style="display:none;">
   <div class="settingsHome">
-    <div class="sectionTitle">設定</div>
-    <div class="settingsDescription">カテゴリを選択して、目的の設定へ進んでください。</div>
+    <div class="settingsTitleRow">
+      <div class="sectionTitle">設定</div>
+      <input type="search" id="settingsSearch" placeholder="設定項目を検索..." aria-label="設定項目を検索">
+    </div>
 
     <div id="settingsCategoryHome" class="settingsCategoryHome">
       <button class="settingsCategoryCard" data-settings-category="playback">
@@ -630,22 +649,22 @@
     <div id="settingsCategoryView" class="settingsCategoryView" hidden>
       <button class="settingsBackButton" id="btnSettingsCategoryBack" type="button">← 設定</button>
       <div class="settingsCategoryTitle" id="settingsCategoryTitle"></div>
-      <input type="search" id="settingsSearch" placeholder="このカテゴリ内を検索..." aria-label="設定項目を検索">
       <div class="settingsGrid" id="settingsCategoryCards"></div>
     </div>
 
-    <div class="settingsTools">
-      <div class="sectionTitle">音楽データ</div>
-      <div class="settingsToolRow">
-        <button class="btn" id="btnSettingsAddMusic">音楽 / ZIP / フォルダを追加</button>
-        <button class="btn danger" id="btnSettingsResetFiles">全ファイルリセット</button>
+    <div class="settingsDataTools">
+      <div class="settingsTools">
+        <div class="sectionTitle">音楽データ</div>
+        <div class="settingsToolRow">
+          <button class="btn" id="btnSettingsAddMusic">音楽 / ZIP / フォルダを追加</button>
+          <button class="btn danger" id="btnSettingsResetFiles">全ファイルリセット</button>
+        </div>
       </div>
-    </div>
-
-    <div class="settingsTools">
-      <div class="sectionTitle">設定データ</div>
-      <div class="settingsToolRow">
-        <button class="btn danger" id="btnSettingsResetSettings">すべての設定をリセット</button>
+      <div class="settingsTools">
+        <div class="sectionTitle">設定データ</div>
+        <div class="settingsToolRow">
+          <button class="btn danger" id="btnSettingsResetSettings">すべての設定をリセット</button>
+        </div>
       </div>
     </div>
   </div>
@@ -932,7 +951,7 @@
 })();
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.26"></script>
+<script src="js/1. ctrl.js?v=7.4.27"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
