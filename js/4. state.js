@@ -85,6 +85,13 @@
           let frameData = new Uint8Array(buf, offset + 10, frameSize);
           offset += 10 + frameSize;
 
+          // Unsynchronisationはフレームヘッダー直後から適用されるため、
+          // グループ識別子やData Length Indicatorを取り除く前に元へ戻す。
+          if ((majorVersion === 3 && (tagFlags & 0x80)) ||
+              (majorVersion === 4 && ((tagFlags & 0x80) || (formatFlags & 0x02)))) {
+            frameData = deUnsynchronize(frameData);
+          }
+
           // 圧縮・暗号化フレームは復号できないため安全にスキップする。
           if (majorVersion === 3) {
             if (formatFlags & 0xC0) continue;
@@ -102,12 +109,6 @@
               if (frameData.length < 4) continue;
               frameData = frameData.subarray(4);
             }
-          }
-
-          // v2.3はタグ単位、v2.4はタグ単位またはフレーム単位のUnsynchronisationに対応。
-          if ((majorVersion === 3 && (tagFlags & 0x80)) ||
-              (majorVersion === 4 && ((tagFlags & 0x80) || (formatFlags & 0x02)))) {
-            frameData = deUnsynchronize(frameData);
           }
 
           try {
