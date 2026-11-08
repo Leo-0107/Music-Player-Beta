@@ -100,7 +100,7 @@
     const name = "yt:" + item.id;
     let song = state.playlist.find(x => x.name === name);
     if (!song) {
-      song = { name, title: item.title || "YouTube動画", artist: item.author || "YouTube", duration: null, mediaType: "youtube", youtubeId: item.id, url: "" };
+      song = { name, title: item.title || "YouTube動画", artist: item.author || "YouTube", duration: Number(item.duration) > 0 ? Number(item.duration) : null, mediaType: "youtube", youtubeId: item.id, url: "" };
       state.playlist.push(song);
     } else {
       song.title = item.title || song.title;
@@ -108,6 +108,7 @@
       song.mediaType = "youtube";
       song.youtubeId = item.id;
       song.url = "";
+      if (Number(item.duration) > 0) song.duration = Number(item.duration);
     }
     return song;
   }
@@ -210,6 +211,65 @@
 
   let youtubeStatsTimer = null;
   let youtubeStatsLastTime = null;
+  let youtubeIsSlidingRange = false;
+
+  function formatYoutubeControlTime(seconds) {
+    const value = Math.max(0, Math.floor(Number(seconds) || 0));
+    return Math.floor(value / 60) + ":" + String(value % 60).padStart(2, "0");
+  }
+
+  function updateYoutubePlaybackControls() {
+    const progress = document.getElementById("youtubeProgress");
+    const timeNow = document.getElementById("youtubeTimeNow");
+    const timeAll = document.getElementById("youtubeTimeAll");
+    const item = currentYoutubeItem;
+    const playerVideoId = youtubePlayer?.getVideoData?.()?.video_id || "";
+    const playerMatchesItem = !!item && (!playerVideoId || playerVideoId === item.id);
+    const current = playerMatchesItem ? Number(youtubePlayer?.getCurrentTime?.()) || 0 : 0;
+    const duration = playerMatchesItem ? Number(youtubePlayer?.getDuration?.()) || 0 : 0;
+
+    if (item && duration > 0) {
+      const song = ensureYoutubeSong(item);
+      const storedDuration = Number(song.duration) || 0;
+      const itemDuration = Number(item.duration) || 0;
+      if (Math.abs(storedDuration - duration) > 0.5 || Math.abs(itemDuration - duration) > 0.5) {
+        song.duration = duration;
+        item.duration = duration;
+        if (youtubeItems.has(item.id)) youtubeItems.set(item.id, item);
+        youtubeLibraryItems.set(item.id, { ...item });
+        saveYoutubeItems();
+      }
+      if (typeof updateRenderedTrackDuration === "function") updateRenderedTrackDuration(song.name, duration);
+    }
+
+    if (timeNow) timeNow.textContent = formatYoutubeControlTime(current);
+    if (timeAll) timeAll.textContent = duration > 0 ? formatYoutubeControlTime(duration) : "0:00";
+    if (progress) {
+      progress.disabled = !(duration > 0);
+      if (!youtubeIsSlidingRange) progress.value = duration > 0 ? String(Math.min(100, current / duration * 100)) : "0";
+    }
+
+    const songName = state.currentSong?.name || "";
+    const favorite = document.getElementById("youtubeFavBtn");
+    if (favorite) {
+      const isFavorite = !!songName && state.favorites.includes(songName);
+      favorite.textContent = isFavorite ? "⭐ お気に入り" : "☆ お気に入り";
+      favorite.classList.toggle("active", isFavorite);
+    }
+    document.getElementById("youtubeShuffleBtn")?.classList.toggle("active", !!state.shuffle);
+    document.getElementById("youtubeRepeatBtn")?.classList.toggle("active", !!state.repeat);
+    const addButton = document.getElementById("youtubeAddPlaylistBtn");
+    if (addButton) addButton.disabled = !isYoutubeSong(state.currentSong);
+  }
+
+  function seekYoutubeBy(offset) {
+    if (!isYoutubeSong(state.currentSong) || !youtubePlayer?.seekTo) return;
+    const duration = Number(youtubePlayer.getDuration?.()) || 0;
+    const current = Number(youtubePlayer.getCurrentTime?.()) || 0;
+    if (duration <= 0) return;
+    youtubePlayer.seekTo(Math.max(0, Math.min(duration, current + offset)), true);
+    updateYoutubePlaybackControls();
+  }
 
   function stopYoutubePlaybackStats() {
     if (youtubeStatsTimer !== null) {
@@ -232,6 +292,7 @@
       const delta = currentTime - youtubeStatsLastTime;
       youtubeStatsLastTime = currentTime;
       if (delta > 0 && delta <= 2) recordPlaybackTime(delta);
+      updateYoutubePlaybackControls();
     }, 1000);
   }
 
@@ -259,6 +320,12 @@
     const addButton = document.getElementById("youtubeAddPlaylistBtn");
     if (title) title.textContent = item.title || "YouTube動画";
     if (addButton) addButton.disabled = false;
+    const progress = document.getElementById("youtubeProgress");
+    if (progress) { progress.value = "0"; progress.disabled = true; }
+    const timeNow = document.getElementById("youtubeTimeNow");
+    const timeAll = document.getElementById("youtubeTimeAll");
+    if (timeNow) timeNow.textContent = "0:00";
+    if (timeAll) timeAll.textContent = Number(item.duration) > 0 ? formatYoutubeControlTime(item.duration) : "0:00";
     updatePlayPauseUI();
     // YouTubeの再生開始まではAudio側の再生復帰フラグを立てない。
     setPlaybackIntent(false);
@@ -297,9 +364,8 @@
                 setPlaybackIntent(false);
                 nextTrack(true);
               }
-              const button = document.getElementById("youtubePlayPauseBtn");
-              if (button && currentYoutubeItem) button.textContent = event.data === YT.PlayerState.PLAYING ? "❚❚ 一時停止" : "▶ 再生";
               updatePlayPauseUI();
+              updateYoutubePlaybackControls();
             },
             onAutoplayBlocked: () => {
               if (status) status.textContent = "ブラウザが自動再生をブロックしました。プレイヤーの再生ボタンを押してください。";
@@ -750,7 +816,11 @@
 
   const originalUpdatePlayPauseUI = updatePlayPauseUI;
   updatePlayPauseUI = function() {
-    if (!currentYoutubeItem || !window.YT?.PlayerState) return originalUpdatePlayPauseUI();
+    if (!currentYoutubeItem || !window.YT?.PlayerState) {
+      originalUpdatePlayPauseUI();
+      updateYoutubePlaybackControls();
+      return;
+    }
     let playing = false;
     try {
       playing = !!youtubePlayer && youtubePlayer.getPlayerState?.() === YT.PlayerState.PLAYING;
@@ -764,7 +834,8 @@
       el.miniPlay.classList.toggle("playing", playing);
     }
     const button = document.getElementById("youtubePlayPauseBtn");
-    if (button) button.textContent = playing ? "❚❚ 一時停止" : "▶ 再生";
+    if (button) button.textContent = playing ? "⏸ 一時停止" : "▶️ 再生";
+    updateYoutubePlaybackControls();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
   };
 
@@ -789,20 +860,51 @@
     if (event.key === "Enter") addYoutubeUrl(event.currentTarget.value);
   });
   document.getElementById("youtubePlayPauseBtn")?.addEventListener("click", () => playPause());
-  document.getElementById("youtubeStopBtn")?.addEventListener("click", () => {
-    if (!isYoutubeSong(state.currentSong)) return;
-    // API読み込み中の停止も有効にし、停止後に遅れて再生が始まらないようにする。
-    youtubeRequestSerial++;
-    pendingPlayId = null;
-    stopYoutubePlaybackStats();
-    try { youtubePlayer?.stopVideo(); } catch {}
-    setPlaybackIntent(false);
-    updatePlayPauseUI();
+  document.getElementById("youtubePrev")?.addEventListener("click", () => prevTrack());
+  document.getElementById("youtubeNext")?.addEventListener("click", () => nextTrack(false));
+  document.getElementById("youtubeRewind10")?.addEventListener("click", () => seekYoutubeBy(-10));
+  document.getElementById("youtubeForward10")?.addEventListener("click", () => seekYoutubeBy(10));
+  const youtubeProgress = document.getElementById("youtubeProgress");
+  youtubeProgress?.addEventListener("pointerdown", () => { youtubeIsSlidingRange = true; });
+  youtubeProgress?.addEventListener("pointerup", () => { youtubeIsSlidingRange = false; });
+  youtubeProgress?.addEventListener("pointercancel", () => { youtubeIsSlidingRange = false; });
+  youtubeProgress?.addEventListener("input", () => {
+    const duration = Number(youtubePlayer?.getDuration?.()) || 0;
+    if (duration > 0 && youtubePlayer?.seekTo && isYoutubeSong(state.currentSong)) {
+      youtubePlayer.seekTo(duration * Number(youtubeProgress.value) / 100, true);
+      updateYoutubePlaybackControls();
+    }
+  });
+  document.getElementById("youtubeFavBtn")?.addEventListener("click", () => {
+    if (!state.currentSong) return;
+    toggleFav(state.currentSong.name);
+    updateYoutubePlaybackControls();
+  });
+  document.getElementById("youtubeShuffleBtn")?.addEventListener("click", () => {
+    state.shuffle = !state.shuffle;
+    resetHomeCycle();
+    saveState();
+    el.btnMainShuffle?.classList.toggle("active", state.shuffle);
+    updateYoutubePlaybackControls();
+    renderQueue();
+    toast("シャッフル: " + (state.shuffle ? "ON" : "OFF"));
+  });
+  document.getElementById("youtubeRepeatBtn")?.addEventListener("click", () => {
+    state.repeat = !state.repeat;
+    saveState();
+    el.btnMainRepeat?.classList.toggle("active", state.repeat);
+    updateYoutubePlaybackControls();
+    toast("リピート: " + (state.repeat ? "ON" : "OFF"));
   });
   document.getElementById("youtubeAddPlaylistBtn")?.addEventListener("click", () => {
-    if (currentYoutubeItem) addSongToPlaylist("yt:" + currentYoutubeItem.id);
+    if (isYoutubeSong(state.currentSong)) addSongToPlaylist(state.currentSong.name);
+  });
+  document.getElementById("btnAddToPlaylist")?.addEventListener("click", () => {
+    if (!state.currentSong) { toast("先に曲を再生してください"); return; }
+    addSongToPlaylist(state.currentSong.name);
   });
 
   initializeYoutubeSearch();
   restoreYoutubeSongs();
+  updateYoutubePlaybackControls();
 })();
