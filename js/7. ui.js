@@ -1538,7 +1538,7 @@
       }
     }
 
-    if (!isPlaying && !["2d", "a2", "a8"].includes(state.waveMode)) {
+    if (!["2d", "a2", "a8"].includes(state.waveMode)) {
       ctx.save();
       ctx.fillStyle = "rgba(255,255,255,0.72)";
       ctx.font = "10px sans-serif";

@@ -525,6 +525,7 @@
     state.playlist = state.playlist.filter(item => item.name !== song.name);
     state.playlistOrder = state.playlistOrder.filter(name => name !== song.name);
     saveState();
+    renderAll();
     
     await reloadPlaylistFromDB();
     toast("曲を削除しました");
