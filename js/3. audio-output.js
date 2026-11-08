@@ -2117,13 +2117,43 @@
     });
   }
 
-  enumerateAudioOutputs().then(outputs => {
+  enumerateAudioOutputs().then(async outputs => {
     knownPhysicalOutputDeviceIds = new Set(
       outputs
         .filter(device => device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default")
         .map(device => device.deviceId)
     );
-  }).catch(() => {});
+
+    const defaultDevice = outputs.find(device => device.deviceId === "default");
+    if (!defaultDevice) return;
+    const physicalOutputs = outputs.filter(device =>
+      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
+    );
+    const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
+    const systemDefaultId = defaultPhysical?.deviceId || "";
+    const currentMainId = state.mainOutputDeviceId || "";
+
+    if (systemDefaultId !== currentMainId) {
+      state.outputRoutes.forEach(route => { route.enabled = false; });
+      if (!state.speakerSettings || typeof state.speakerSettings !== "object") {
+        state.speakerSettings = {};
+      }
+      state.speakerSettings.mainEnabled = true;
+
+      if (audioGraphReady) {
+        await setMainOutputDevice(systemDefaultId);
+      } else {
+        state.mainOutputDeviceId = systemDefaultId;
+        state.speakerSettings.mainOutputLabel = defaultPhysical?.label || "既定のスピーカー";
+        state.speakerSettings.mainOutputGroupId = defaultPhysical?.groupId || "";
+        saveState();
+      }
+      await updateOutputDeviceName();
+      renderAdditionalOutputSpeakers();
+    }
+  }).catch(error => {
+    console.warn("Music Player default output detection failed:", error);
+  });
 
   updateOutputDeviceName();
   renderAdditionalOutputSpeakers();
