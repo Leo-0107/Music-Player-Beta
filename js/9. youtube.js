@@ -212,10 +212,54 @@
   let youtubeStatsTimer = null;
   let youtubeStatsLastTime = null;
   let youtubeIsSlidingRange = false;
+  let youtubeLiveTiming = {
+    videoId: "",
+    lastDuration: null,
+    lastSampleAt: 0,
+    increasingSamples: 0,
+    stableSamples: 0,
+    isLive: false
+  };
 
   function formatYoutubeControlTime(seconds) {
     const value = Math.max(0, Math.floor(Number(seconds) || 0));
     return Math.floor(value / 60) + ":" + String(value % 60).padStart(2, "0");
+  }
+
+  function detectYoutubeLiveStream(item, duration) {
+    const videoId = item?.id || "";
+    if (youtubeLiveTiming.videoId !== videoId) {
+      youtubeLiveTiming = {
+        videoId,
+        lastDuration: null,
+        lastSampleAt: 0,
+        increasingSamples: 0,
+        stableSamples: 0,
+        isLive: false
+      };
+    }
+
+    const now = Date.now();
+    if (duration > 0) {
+      if (youtubeLiveTiming.lastDuration !== null) {
+        const elapsed = Math.max(0, (now - youtubeLiveTiming.lastSampleAt) / 1000);
+        const delta = duration - youtubeLiveTiming.lastDuration;
+        if (elapsed >= 0.5 && delta >= Math.max(0.5, elapsed * 0.5)) {
+          youtubeLiveTiming.increasingSamples += 1;
+          youtubeLiveTiming.stableSamples = 0;
+          if (youtubeLiveTiming.increasingSamples >= 2) youtubeLiveTiming.isLive = true;
+        } else if (elapsed >= 0.5 && Math.abs(delta) <= 0.5) {
+          youtubeLiveTiming.stableSamples += 1;
+          youtubeLiveTiming.increasingSamples = 0;
+        } else if (delta < -0.5) {
+          youtubeLiveTiming.stableSamples = 0;
+          youtubeLiveTiming.increasingSamples = 0;
+        }
+      }
+      youtubeLiveTiming.lastDuration = duration;
+      youtubeLiveTiming.lastSampleAt = now;
+    }
+    return youtubeLiveTiming.isLive;
   }
 
   function updateYoutubePlaybackControls() {
@@ -227,8 +271,10 @@
     const playerMatchesItem = !!item && (!playerVideoId || playerVideoId === item.id);
     const current = playerMatchesItem ? Number(youtubePlayer?.getCurrentTime?.()) || 0 : 0;
     const duration = playerMatchesItem ? Number(youtubePlayer?.getDuration?.()) || 0 : 0;
+    const isLive = playerMatchesItem && detectYoutubeLiveStream(item, duration);
+    const liveOffset = isLive ? Math.max(0, duration - current) : 0;
 
-    if (item && duration > 0) {
+    if (item && duration > 0 && !isLive && youtubeLiveTiming.stableSamples >= 2) {
       const song = ensureYoutubeSong(item);
       const storedDuration = Number(song.duration) || 0;
       const itemDuration = Number(item.duration) || 0;
@@ -242,11 +288,15 @@
       if (typeof updateRenderedTrackDuration === "function") updateRenderedTrackDuration(song.name, duration);
     }
 
-    if (timeNow) timeNow.textContent = formatYoutubeControlTime(current);
-    if (timeAll) timeAll.textContent = duration > 0 ? formatYoutubeControlTime(duration) : "0:00";
+    if (timeNow) {
+      timeNow.textContent = isLive
+        ? (liveOffset > 0.5 ? "-" + formatYoutubeControlTime(liveOffset) : "0:00")
+        : formatYoutubeControlTime(current);
+    }
+    if (timeAll) timeAll.textContent = isLive ? "-:--" : (duration > 0 ? formatYoutubeControlTime(duration) : "0:00");
     if (progress) {
-      progress.disabled = !(duration > 0);
-      if (!youtubeIsSlidingRange) progress.value = duration > 0 ? String(Math.min(100, current / duration * 100)) : "0";
+      progress.disabled = isLive || !(duration > 0);
+      if (!youtubeIsSlidingRange) progress.value = !isLive && duration > 0 ? String(Math.min(100, current / duration * 100)) : "0";
     }
 
     const songName = state.currentSong?.name || "";
@@ -372,7 +422,9 @@
               setPlaybackIntent(false);
               updatePlayPauseUI();
             },
-            onError: () => {
+            onError: event => {
+              const playerError = new Error("YouTube Player API error: " + Number(event?.data || 0));
+              window.__musicPlayerReportError?.("YOUTUBE", "iframe-player", playerError);
               if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。";
               setPlaybackIntent(false);
               updatePlayPauseUI();
@@ -389,7 +441,8 @@
       if (status) status.textContent = "YouTube公式プレイヤーで再生します。";
     } catch (error) {
       if (requestId !== youtubeRequestSerial) return;
-      if (status) status.textContent = error.message || "YouTubeプレイヤーを読み込めませんでした。";
+      window.__musicPlayerReportError?.("YOUTUBE", "player-load", error);
+      if (status) status.textContent = error.message || "YouTubeプレイヤーを読み込めませんでした。"
       setPlaybackIntent(false);
       updatePlayPauseUI();
     }
