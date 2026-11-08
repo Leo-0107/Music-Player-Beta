@@ -4,10 +4,39 @@
   const YT_STORAGE_KEY = "mp_youtube_v1";
   const YT_LIBRARY_STORAGE_KEY = "mp_youtube_library_v1";
   const YT_API_KEY_STORAGE = "mp_youtube_api_key_v1";
+  const YOUTUBE_DATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+  function pruneYoutubeMetadata(items, now = Date.now()) {
+    const retained = [];
+    for (const item of items) {
+      const timestamp = Number(item.apiDataFetchedAt || item.addedAt || 0);
+      if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+      if (now - timestamp <= YOUTUBE_DATA_MAX_AGE_MS) {
+        retained.push(item);
+      } else if (item.userTitle) {
+        // ユーザーが入力した名前はYouTube APIデータではないため保持し、
+        // 期限切れの作者情報だけを汎用表示へ戻す。
+        retained.push({
+          ...item,
+          author: "YouTube",
+          apiDataFetchedAt: null,
+          addedAt: now,
+          metadataSource: "user-title"
+        });
+      }
+    }
+    return retained;
+  }
+
   function readYoutubeLibraryItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_LIBRARY_STORAGE_KEY) || "[]");
-      return Array.isArray(raw) ? raw.filter(x => x && /^[\w-]{11}$/.test(x.id)) : [];
+      const valid = Array.isArray(raw) ? raw.filter(x => x && /^[\w-]{11}$/.test(x.id)) : [];
+      const retained = pruneYoutubeMetadata(valid);
+      if (JSON.stringify(valid) !== JSON.stringify(retained)) {
+        try { localStorage.setItem(YT_LIBRARY_STORAGE_KEY, JSON.stringify(retained)); } catch {}
+      }
+      return retained;
     } catch { return []; }
   }
   const youtubeLibraryItems = new Map(readYoutubeLibraryItems().map(item => [item.id, item]));
@@ -21,7 +50,12 @@
   function readYoutubeItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_STORAGE_KEY) || "[]");
-      return Array.isArray(raw) ? raw.filter(x => x && /^[\w-]{11}$/.test(x.id)) : [];
+      const valid = Array.isArray(raw) ? raw.filter(x => x && /^[\w-]{11}$/.test(x.id)) : [];
+      const retained = pruneYoutubeMetadata(valid);
+      if (JSON.stringify(valid) !== JSON.stringify(retained)) {
+        try { localStorage.setItem(YT_STORAGE_KEY, JSON.stringify(retained)); } catch {}
+      }
+      return retained;
     } catch { return []; }
   }
 
@@ -86,6 +120,20 @@
     youtubeLibraryItems.forEach(item => {
       if (retainedYoutubeNames.has("yt:" + item.id)) ensureYoutubeSong(item);
     });
+    // 期限切れメタデータを削除しても、ユーザーが保存したプレイリスト参照は残す。
+    retainedYoutubeNames.forEach(name => {
+      const id = String(name).slice(3);
+      if (!/^[\w-]{11}$/.test(id) || youtubeLibraryItems.has(id)) return;
+      const placeholder = {
+        id,
+        title: "YouTube動画",
+        author: "YouTube",
+        addedAt: Date.now(),
+        metadataSource: "placeholder"
+      };
+      youtubeLibraryItems.set(id, placeholder);
+      ensureYoutubeSong(placeholder);
+    });
     saveYoutubeLibraryItems();
     renderYoutubeList();
   }
@@ -99,7 +147,9 @@
   function getYoutubeItemForSong(song) {
     if (!isYoutubeSong(song)) return null;
     const id = song.youtubeId || String(song.name).slice(3);
-    return youtubeItems.get(id) || youtubeLibraryItems.get(id) || { id, title: song.title || "YouTube動画" };
+    const item = youtubeItems.get(id) || youtubeLibraryItems.get(id) || { id, title: song.title || "YouTube動画" };
+    if (item.metadataSource === "placeholder") fetchYoutubeVideoTitle(item);
+    return item;
   }
 
   window.getYoutubePlaylistSongs = function() {
@@ -270,7 +320,7 @@
   }
 
   async function fetchYoutubeVideoTitle(item) {
-    if (!item?.id || youtubeItems.get(item.id) !== item) return;
+    if (!item?.id || (youtubeItems.get(item.id) !== item && youtubeLibraryItems.get(item.id) !== item)) return;
     const fallbackTitle = "YouTube動画 " + item.id;
     const isPlaceholder = () => item.title === fallbackTitle || item.title === "動画情報を取得中...";
     try {
@@ -284,8 +334,15 @@
       // 手動で変更した動画名は保持し、未取得の作者名だけを補完する。
       if (title && isPlaceholder()) { item.title = title; changed = true; }
       if (author && item.author !== author) { item.author = author; changed = true; }
-      if (!changed || youtubeItems.get(item.id) !== item) return;
-      youtubeItems.set(item.id, item);
+      if (youtubeItems.get(item.id) !== item && youtubeLibraryItems.get(item.id) !== item) return;
+      item.apiDataFetchedAt = Date.now();
+      item.addedAt = item.addedAt || item.apiDataFetchedAt;
+      item.metadataSource = "oembed";
+      if (youtubeItems.get(item.id) === item) youtubeItems.set(item.id, item);
+      if (youtubeLibraryItems.get(item.id) === item) youtubeLibraryItems.set(item.id, item);
+      if (!changed && item.metadataSource === "oembed") {
+        // oEmbedで再取得した時刻も更新し、古いキャッシュを残さない。
+      }
       saveYoutubeItems();
       const song = ensureYoutubeSong(item);
       if (state.currentSong?.name === song.name) updateNowPlayingUI(song);
@@ -315,7 +372,15 @@
       const id = video.id?.videoId;
       const snippet = video.snippet || {};
       if (!id || !/^[\w-]{11}$/.test(id)) return;
-      const item = { id, title: String(snippet.title || "YouTube動画"), author: String(snippet.channelTitle || "YouTube"), addedAt: Date.now() };
+      const fetchedAt = Date.now();
+      const item = {
+        id,
+        title: String(snippet.title || "YouTube動画"),
+        author: String(snippet.channelTitle || "YouTube"),
+        addedAt: fetchedAt,
+        apiDataFetchedAt: fetchedAt,
+        metadataSource: "youtube-data-api"
+      };
       const row = document.createElement("div");
       row.className = "song";
       row.style.alignItems = "center";
@@ -431,6 +496,7 @@
         const title = String(value || "").trim();
         if (!title || title === item.title) return;
         item.title = title;
+        item.userTitle = true;
         youtubeItems.set(item.id, item);
         saveYoutubeItems();
         const song = ensureYoutubeSong(item);
