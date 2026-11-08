@@ -2965,3 +2965,71 @@ body:not(.theme-light) .pill:hover {
   .youtubeInputModes .btn { flex: 1 1 0; min-width: 0; }
   .youtubeInputRow .btn { flex: 0 0 auto; }
 }
+
+
+/* YouTube追加欄：切替ボタンと入力欄の重なりを防ぎ、コンパクトに配置 */
+.youtubeAddCard {
+  min-width: 0;
+  box-sizing: border-box;
+}
+.youtubeAddHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.youtubeAddHeader > strong {
+  min-width: 0;
+}
+.youtubeInputModes {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 3px;
+  max-width: 100%;
+  padding: 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel2);
+}
+.youtubeInputModes .btn {
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: .72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.youtubeInputMode {
+  min-width: 0;
+  margin-top: 10px;
+}
+.youtubeInputRow {
+  width: 100%;
+  box-sizing: border-box;
+}
+#youtubeUrlInput.youtubeUrlDropActive {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(29,185,84,.2);
+  background: var(--panel);
+}
+#btnResetYoutubeItems {
+  display: block;
+  box-sizing: border-box;
+}
+@media (max-width: 520px) {
+  .youtubeAddHeader {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: 8px;
+  }
+  .youtubeInputModes {
+    justify-self: start;
+  }
+  .youtubeInputMode {
+    margin-top: 10px;
+  }
+}
