@@ -14,59 +14,131 @@
         let artist = "不明なアーティスト";
         let coverBlob = null;
 
-        if (buf.byteLength >= 10) {
-          const view = new DataView(buf);
-          if (view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33) {
-            const majorVersion = view.getUint8(3);
-            let offset = 10;
-            const size = (view.getUint8(6) << 21) | (view.getUint8(7) << 14) | (view.getUint8(8) << 7) | view.getUint8(9);
-            while (offset < size + 10 && offset + 10 <= buf.byteLength) {
-              const frameID = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3));
-              let frameSize;
-              if (majorVersion === 4) {
-                const b0 = view.getUint8(offset + 4);
-                const b1 = view.getUint8(offset + 5);
-                const b2 = view.getUint8(offset + 6);
-                const b3 = view.getUint8(offset + 7);
-                if ((b0 | b1 | b2 | b3) & 0x80) break;
-                frameSize = (b0 << 21) | (b1 << 14) | (b2 << 7) | b3;
-              } else {
-                frameSize = view.getUint32(offset + 4);
-              }
-              if (frameSize <= 0 || offset + 10 + frameSize > buf.byteLength) break;
-              const frameData = new Uint8Array(buf, offset + 10, frameSize);
+        if (buf.byteLength < 10) return { title, artist, coverBlob };
+        const view = new DataView(buf);
+        if (view.getUint8(0) !== 0x49 || view.getUint8(1) !== 0x44 || view.getUint8(2) !== 0x33) {
+          return { title, artist, coverBlob };
+        }
 
-              try {
-                if (frameID === "TIT2") {
-                  title = decodeID3String(frameData) || title;
-                } else if (frameID === "TPE1") {
-                  artist = decodeID3String(frameData) || artist;
-                } else if (frameID === "APIC") {
-                  const encoding = frameData[0];
-                  let p = 1;
-                  while (p < frameData.length && frameData[p] !== 0) p++;
-                  const mime = new TextDecoder("ascii").decode(frameData.subarray(1, p)) || "image/jpeg";
-                  let imgStart = p + 2;
-                  if (encoding === 1 || encoding === 2) {
-                    while (imgStart < frameData.length - 1) {
-                      if (frameData[imgStart] === 0 && frameData[imgStart + 1] === 0) {
-                        imgStart += 2;
-                        break;
-                      }
-                      imgStart += 2;
-                    }
-                  } else {
-                    while (imgStart < frameData.length && frameData[imgStart] !== 0) imgStart++;
-                    imgStart += 1;
-                  }
-                  if (imgStart < frameData.length) {
-                    coverBlob = new Blob([frameData.subarray(imgStart)], { type: mime });
-                  }
-                }
-              } catch {}
-              offset += 10 + frameSize;
+        const majorVersion = view.getUint8(3);
+        if (majorVersion !== 3 && majorVersion !== 4) return { title, artist, coverBlob };
+        const tagFlags = view.getUint8(5);
+        const tagSizeBytes = [view.getUint8(6), view.getUint8(7), view.getUint8(8), view.getUint8(9)];
+        if (tagSizeBytes.some(byte => byte & 0x80)) return { title, artist, coverBlob };
+        const tagSize = (tagSizeBytes[0] << 21) | (tagSizeBytes[1] << 14) | (tagSizeBytes[2] << 7) | tagSizeBytes[3];
+        const tagEnd = Math.min(buf.byteLength, 10 + tagSize);
+        let offset = 10;
+
+        const readSyncsafe = position => {
+          if (position + 4 > tagEnd) return null;
+          const bytes = [view.getUint8(position), view.getUint8(position + 1), view.getUint8(position + 2), view.getUint8(position + 3)];
+          if (bytes.some(byte => byte & 0x80)) return null;
+          return (bytes[0] << 21) | (bytes[1] << 14) | (bytes[2] << 7) | bytes[3];
+        };
+
+        // ID3v2.3の拡張ヘッダーサイズは自身の4バイトを含まず、
+        // ID3v2.4では4バイトを含む。どちらも境界を検証してから読み飛ばす。
+        if (tagFlags & 0x40) {
+          if (majorVersion === 3) {
+            if (offset + 4 > tagEnd) return { title, artist, coverBlob };
+            const extendedSize = view.getUint32(offset, false);
+            const totalExtendedSize = 4 + extendedSize;
+            if (extendedSize < 6 || offset + totalExtendedSize > tagEnd) return { title, artist, coverBlob };
+            offset += totalExtendedSize;
+          } else {
+            const extendedSize = readSyncsafe(offset);
+            if (extendedSize === null || extendedSize < 6 || offset + extendedSize > tagEnd) return { title, artist, coverBlob };
+            offset += extendedSize;
+          }
+        }
+
+        const deUnsynchronize = data => {
+          const output = new Uint8Array(data.length);
+          let write = 0;
+          for (let i = 0; i < data.length; i++) {
+            const value = data[i];
+            output[write++] = value;
+            if (value === 0xFF && data[i + 1] === 0x00 &&
+                (i + 2 >= data.length || data[i + 2] === 0x00 || data[i + 2] >= 0xE0)) {
+              i++;
             }
           }
+          return output.subarray(0, write);
+        };
+
+        while (offset + 10 <= tagEnd) {
+          const idBytes = [view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3)];
+          if (idBytes.every(byte => byte === 0)) break;
+          const frameID = String.fromCharCode(...idBytes);
+          if (!/^[A-Z0-9]{4}$/.test(frameID)) break;
+
+          let frameSize;
+          if (majorVersion === 4) {
+            frameSize = readSyncsafe(offset + 4);
+            if (frameSize === null) break;
+          } else {
+            frameSize = view.getUint32(offset + 4, false);
+          }
+          if (frameSize <= 0 || offset + 10 + frameSize > tagEnd) break;
+
+          const formatFlags = view.getUint8(offset + 9);
+          let frameData = new Uint8Array(buf, offset + 10, frameSize);
+          offset += 10 + frameSize;
+
+          // 圧縮・暗号化フレームは復号できないため安全にスキップする。
+          if (majorVersion === 3) {
+            if (formatFlags & 0xC0) continue;
+            if (formatFlags & 0x20) {
+              if (!frameData.length) continue;
+              frameData = frameData.subarray(1);
+            }
+          } else {
+            if (formatFlags & 0x0C) continue;
+            if (formatFlags & 0x40) {
+              if (!frameData.length) continue;
+              frameData = frameData.subarray(1);
+            }
+            if (formatFlags & 0x01) {
+              if (frameData.length < 4) continue;
+              frameData = frameData.subarray(4);
+            }
+          }
+
+          // v2.3はタグ単位、v2.4はタグ単位またはフレーム単位のUnsynchronisationに対応。
+          if ((majorVersion === 3 && (tagFlags & 0x80)) ||
+              (majorVersion === 4 && ((tagFlags & 0x80) || (formatFlags & 0x02)))) {
+            frameData = deUnsynchronize(frameData);
+          }
+
+          try {
+            if (frameID === "TIT2") {
+              title = decodeID3String(frameData) || title;
+            } else if (frameID === "TPE1") {
+              artist = decodeID3String(frameData) || artist;
+            } else if (frameID === "APIC") {
+              const encoding = frameData[0];
+              let p = 1;
+              while (p < frameData.length && frameData[p] !== 0) p++;
+              if (p >= frameData.length) continue;
+              const mime = new TextDecoder("ascii").decode(frameData.subarray(1, p)) || "image/jpeg";
+              let imgStart = p + 2;
+              if (encoding === 1 || encoding === 2) {
+                while (imgStart < frameData.length - 1) {
+                  if (frameData[imgStart] === 0 && frameData[imgStart + 1] === 0) {
+                    imgStart += 2;
+                    break;
+                  }
+                  imgStart += 2;
+                }
+              } else {
+                while (imgStart < frameData.length && frameData[imgStart] !== 0) imgStart++;
+                imgStart += 1;
+              }
+              if (imgStart < frameData.length) {
+                coverBlob = new Blob([frameData.subarray(imgStart)], { type: mime });
+              }
+            }
+          } catch {}
         }
         return { title, artist, coverBlob };
       };
@@ -94,7 +166,8 @@
 
         const tagSize = (sizeBytes[0] << 21) | (sizeBytes[1] << 14) | (sizeBytes[2] << 7) | sizeBytes[3];
         const availableSize = Number.isFinite(file.size) ? file.size : 10 + tagSize;
-        const readLength = Math.min(availableSize, 10 + tagSize);
+        const hasFooter = view.getUint8(3) === 4 && !!(view.getUint8(5) & 0x10);
+        const readLength = Math.min(availableSize, 10 + tagSize + (hasFooter ? 10 : 0));
         if (readLength <= header.byteLength) {
           resolve(parseBuffer(header));
           return;
