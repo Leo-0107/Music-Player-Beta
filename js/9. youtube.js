@@ -546,7 +546,7 @@
     const apiKey = getYoutubeApiKey();
     const results = document.getElementById("youtubeSearchResults");
     if (!query) { setYoutubeSearchStatus("検索キーワードを入力してください。"); return; }
-    if (!apiKey) { setYoutubeSearchStatus("先に「検索APIの設定」からAPIキーを保存してください。"); return; }
+    if (!apiKey) { setYoutubeSearchStatus("APIが登録されていません"); return; }
     const button = document.getElementById("youtubeSearchBtn");
     if (button) button.disabled = true;
     if (results) results.textContent = "検索しています...";
@@ -573,6 +573,25 @@
 
   function initializeYoutubeSearch() {
     const keyInput = document.getElementById("youtubeApiKeyInput");
+    const urlModeButton = document.getElementById("youtubeUrlModeBtn");
+    const keywordModeButton = document.getElementById("youtubeKeywordModeBtn");
+    const urlModePanel = document.getElementById("youtubeUrlMode");
+    const keywordModePanel = document.getElementById("youtubeKeywordMode");
+    const setInputMode = mode => {
+      const isUrlMode = mode === "url";
+      if (urlModePanel) urlModePanel.hidden = !isUrlMode;
+      if (keywordModePanel) keywordModePanel.hidden = isUrlMode;
+      urlModeButton?.classList.toggle("active", isUrlMode);
+      keywordModeButton?.classList.toggle("active", !isUrlMode);
+      urlModeButton?.setAttribute("aria-pressed", String(isUrlMode));
+      keywordModeButton?.setAttribute("aria-pressed", String(!isUrlMode));
+      if (!isUrlMode) {
+        setYoutubeSearchStatus(getYoutubeApiKey() ? "" : "APIが登録されていません");
+      }
+    };
+    urlModeButton?.addEventListener("click", () => setInputMode("url"));
+    keywordModeButton?.addEventListener("click", () => setInputMode("keyword"));
+    setInputMode("url");
     if (keyInput) keyInput.value = getYoutubeApiKey();
     document.getElementById("youtubeSaveApiKeyBtn")?.addEventListener("click", () => {
       const value = String(keyInput?.value || "").trim();
@@ -736,9 +755,14 @@
           </div>
         </div>`;
       row.querySelector(".songName").textContent = item.title || "YouTube動画";
-      row.querySelector(".songArtist").textContent = item.customTitle
+      const artistElement = row.querySelector(".songArtist");
+      artistElement.textContent = item.customTitle
         ? "表示名: " + item.customTitle + " ・ " + (item.author || "YouTube")
         : (item.author || "YouTube");
+      const sourceTag = document.createElement("span");
+      sourceTag.className = "songSourceTag";
+      sourceTag.textContent = getSongSourceLabel(song);
+      artistElement.append(" ", sourceTag);
       const menuWrap = row.querySelector(".songMenuWrap");
       const menuBtn = row.querySelector(".songMenuBtn");
       const menu = row.querySelector(".songMenuPopup");
