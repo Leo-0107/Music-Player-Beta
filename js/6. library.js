@@ -113,16 +113,92 @@
     }
   }
 
+  function extractVideoThumbnail(blob) {
+    return new Promise(resolve => {
+      if (!blob) return resolve(null);
+      let settled = false;
+      const video = document.createElement("video");
+      const objectUrl = URL.createObjectURL(blob);
+      const finish = result => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        video.removeAttribute("src");
+        try { video.load(); } catch {}
+        URL.revokeObjectURL(objectUrl);
+        resolve(result || null);
+      };
+      const timer = setTimeout(() => finish(null), 5000);
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.addEventListener("loadeddata", () => {
+        try {
+          if (!video.videoWidth || !video.videoHeight) return finish(null);
+          const scale = Math.min(1, 512 / video.videoWidth, 512 / video.videoHeight);
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) return finish(null);
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(imageBlob => finish(imageBlob), "image/jpeg", 0.82);
+        } catch {
+          finish(null);
+        }
+      }, { once: true });
+      video.addEventListener("error", () => finish(null), { once: true });
+      video.src = objectUrl;
+      video.load();
+    });
+  }
+
+  async function refreshMissingVideoCovers(tracks) {
+    const missing = (tracks || []).filter(track =>
+      track && !track.coverBlob && isVideoMediaFile(track.name, track.mimeType)
+    );
+    for (let i = 0; i < missing.length; i += 2) {
+      await Promise.all(missing.slice(i, i + 2).map(async track => {
+        const coverBlob = await extractVideoThumbnail(track.blob);
+        if (!coverBlob) return;
+        const saved = await saveTrackToDB({ ...track, coverBlob });
+        if (!saved) return;
+        const urls = activeObjectURLMap.get(track.name);
+        if (!urls) return;
+        if (urls.coverUrl) URL.revokeObjectURL(urls.coverUrl);
+        urls.coverUrl = URL.createObjectURL(coverBlob);
+        const song = state.playlist.find(item => item.name === track.name);
+        if (song) song.coverUrl = urls.coverUrl;
+        if (state.currentSong?.name === track.name) {
+          state.currentSong.coverUrl = urls.coverUrl;
+          updateArtwork(state.currentSong);
+          updateNowPlayingUI(state.currentSong);
+        }
+      }));
+    }
+  }
+
   function isVideoMediaFile(name = "", mimeType = "") {
     return String(mimeType || "").toLowerCase().startsWith("video/") ||
       /\.(mp4|webm)$/i.test(String(name || ""));
   }
 
   function getMediaInfo(file) {
-    const video = isVideoMediaFile(file?.name, file?.type);
+    const name = String(file?.name || "").toLowerCase();
+    const video = isVideoMediaFile(name, file?.type);
+    const extensionMime = video
+      ? (name.endsWith(".webm") ? "video/webm" : "video/mp4")
+      : name.endsWith(".m4a") ? "audio/mp4"
+      : name.endsWith(".wav") ? "audio/wav"
+      : name.endsWith(".ogg") ? "audio/ogg"
+      : name.endsWith(".flac") ? "audio/flac"
+      : name.endsWith(".aac") ? "audio/aac"
+      : name.endsWith(".mp3") ? "audio/mpeg"
+      : "";
+    const declaredMime = String(file?.type || "").toLowerCase();
     return {
       mediaType: video ? "video" : "audio",
-      mimeType: file?.type || (video ? "video/mp4" : "audio/mpeg")
+      mimeType: extensionMime || (declaredMime && declaredMime !== "application/octet-stream" ? declaredMime : "application/octet-stream")
     };
   }
 
@@ -246,6 +322,11 @@
 
     if(!incoming.length){updateProgress(100,"追加できる音楽ファイルがありません");closeProgress();return;}
     const existingTracks=await loadTracksFromDB();
+    if (!Array.isArray(existingTracks)) {
+      toast("保存データを確認できなかったため、曲の追加を中止しました。");
+      closeProgress();
+      return;
+    }
     const usedNames=new Set(existingTracks.map(t=>t.name));
     const conflicts=[];
     incoming.forEach((item,index)=>{if(usedNames.has(item.storageName))conflicts.push({name:item.storageName,index});});
@@ -253,6 +334,8 @@
     if(chosen===null&&conflicts.length){toast("追加をキャンセルしました");closeProgress();return;}
     const conflictIndex=new Map(conflicts.map((x,i)=>[x.index,i]));
     const zipPlaylistTracks = new Map();
+    let savedCount = 0;
+    let failedSaveCount = 0;
     for(let index=0;index<incoming.length;index++){
       const item=incoming[index];
       const conflictNo=conflictIndex.get(index);
@@ -261,7 +344,14 @@
       if(usedNames.has(saveName))saveName=makeUniqueTrackName(saveName,usedNames);
       const f=item.file, mediaInfo=getMediaInfo(f);
       const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
-      await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
+      const saved = await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
+      if (!saved) {
+        failedSaveCount++;
+        updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
+        await yieldToUI();
+        continue;
+      }
+      savedCount++;
       usedNames.add(saveName);
       if (item.zipName) {
         const playlistName = item.zipName.replace(/\.[^/.]+$/,"").trim() || "ZIPプレイリスト";
@@ -271,16 +361,30 @@
       updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
       await yieldToUI();
     }
-    for (const [playlistName, trackNames] of zipPlaylistTracks) {
-      if (!trackNames.length) continue;
-      const existing = Array.isArray(state.playlists[playlistName]) ? state.playlists[playlistName] : [];
-      const merged = [...existing];
-      for (const name of trackNames) if (!merged.includes(name)) merged.push(name);
-      state.playlists[playlistName] = merged;
+    if (savedCount > 0) {
+      for (const [playlistName, trackNames] of zipPlaylistTracks) {
+        if (!trackNames.length) continue;
+        const existing = Array.isArray(state.playlists[playlistName]) ? state.playlists[playlistName] : [];
+        const merged = [...existing];
+        for (const name of trackNames) if (!merged.includes(name)) merged.push(name);
+        state.playlists[playlistName] = merged;
+      }
+      saveState();
+      const reloaded = await reloadPlaylistFromDB();
+      if (zipPlaylistTracks.size) renderPlaylists();
+      if (!reloaded) toast("曲は保存されましたが、一覧の更新に失敗しました。ページを再読み込みしてください。");
     }
-    saveState(); await reloadPlaylistFromDB();
-    if (zipPlaylistTracks.size) renderPlaylists();
-    toast(zipPlaylistTracks.size ? "読み込み完了！ZIPごとのプレイリストも作成しました" : "読み込み完了！");
+    if (failedSaveCount > 0) {
+      toast(savedCount > 0
+        ? `${savedCount}曲を追加しました。保存できなかった曲が${failedSaveCount}曲あります。`
+        : `${failedSaveCount}曲を保存できませんでした。`);
+    } else if (savedCount === 0) {
+      toast("追加する曲が選択されていません");
+    } else if (zipPlaylistTracks.size) {
+      toast("読み込み完了！ZIPごとのプレイリストも作成しました");
+    } else {
+      toast("読み込み完了！");
+    }
     closeProgress();
   }
   const folderDirectoryInput = document.getElementById("folderDirectory");
@@ -339,8 +443,12 @@
 
   // --- アクティブURLの保護型リロード ---
   async function reloadPlaylistFromDB() {
-    cleanUpObjectURLs();
     const tracks = await loadTracksFromDB();
+    if (!Array.isArray(tracks)) {
+      toast("保存データを読み込めませんでした。現在の曲一覧は維持します。");
+      return false;
+    }
+    cleanUpObjectURLs();
     const loadedSongs = tracks.map(t => {
       let songUrls = activeObjectURLMap.get(t.name);
       if (!songUrls) {
@@ -377,11 +485,16 @@
     saveState();
     renderAll();
     void refreshMissingSongDurations(loadedSongs);
+    void refreshMissingVideoCovers(tracks);
+    return true;
   }
 
   async function deleteSingleTrack(song) {
     if(!song) return;
     showInSiteConfirm(`「${song.title}」を削除しますか？`, "この曲を保存データから削除します。プレイリストからも外れます。", async () => {
+
+    const deleted = await deleteTrackFromDB(song.name);
+    if (!deleted) return;
 
     const urls = activeObjectURLMap.get(song.name);
     if (urls) {
@@ -390,8 +503,6 @@
       activeObjectURLMap.delete(song.name);
     }
 
-    await deleteTrackFromDB(song.name);
-    
     if (state.currentSong?.name === song.name) {
       setPlaybackIntent(false);
       audio.pause();
@@ -411,6 +522,9 @@
     Object.keys(state.playlists).forEach(name => {
       state.playlists[name] = (state.playlists[name] || []).filter(trackName => trackName !== song.name);
     });
+    state.playlist = state.playlist.filter(item => item.name !== song.name);
+    state.playlistOrder = state.playlistOrder.filter(name => name !== song.name);
+    saveState();
     
     await reloadPlaylistFromDB();
     toast("曲を削除しました");

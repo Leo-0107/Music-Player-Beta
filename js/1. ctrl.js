@@ -17,8 +17,66 @@
 
   const LOAD_TIMEOUT_MS = 5000;
   const LOAD_RETRY_COUNT = 1;
+  const startupFileProgress = new Map(files.map(file => [file, 0]));
+  let startupDisplayedProgress = 0;
+  let startupTargetProgress = 0;
+  let startupProgressTimer = null;
+
+  function updateStartupProgress(percent, message) {
+    startupTargetProgress = Math.max(startupTargetProgress, Math.min(100, Math.round(percent)));
+    const fill = document.getElementById("appLoadingProgressFill");
+    const percentText = document.getElementById("appLoadingPercent");
+    const messageText = document.getElementById("appLoadingText");
+    if (messageText && message) messageText.textContent = message;
+    const step = () => {
+      if (startupDisplayedProgress < startupTargetProgress) {
+        startupDisplayedProgress = Math.min(startupTargetProgress, startupDisplayedProgress + 1);
+        if (fill) fill.style.width = startupDisplayedProgress + "%";
+        if (percentText) percentText.textContent = startupDisplayedProgress + "%";
+      }
+      if (startupDisplayedProgress < startupTargetProgress) {
+        startupProgressTimer = setTimeout(() => { startupProgressTimer = null; step(); }, 12);
+      } else startupProgressTimer = null;
+    };
+    if (fill) fill.style.width = startupDisplayedProgress + "%";
+    if (percentText) percentText.textContent = startupDisplayedProgress + "%";
+    if (startupProgressTimer === null) step();
+  }
+
+  function updateScriptFetchProgress() {
+    const total = Array.from(startupFileProgress.values()).reduce((sum, value) => sum + value, 0);
+    updateStartupProgress(Math.floor((total / files.length) * 20), "JavaScriptを読み込んでいます...");
+  }
+
+  window.__musicPlayerUpdateStartupProgress = updateStartupProgress;
+  updateStartupProgress(0, "JavaScriptを読み込んでいます...");
+
+  async function readScriptResponse(response, file) {
+    const contentLength = Number(response.headers.get("content-length"));
+    if (!response.body?.getReader || !Number.isFinite(contentLength) || contentLength <= 0) {
+      const text = await response.text();
+      startupFileProgress.set(file, 1);
+      updateScriptFetchProgress();
+      return text;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      chunks.push(result.value);
+      received += result.value.byteLength;
+      startupFileProgress.set(file, Math.min(0.999, received / contentLength));
+      updateScriptFetchProgress();
+    }
+    startupFileProgress.set(file, 1);
+    updateScriptFetchProgress();
+    return new Blob(chunks).text();
+  }
 
   function loadScriptPart(file, attempt = 0) {
+    startupFileProgress.set(file, 0);
     const url = new URL(file, base).href;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS);
@@ -26,7 +84,7 @@
     return fetch(url, { cache: 'no-cache', signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error(`Failed to load ${file}: ${response.status}`);
-        return response.text();
+        return readScriptResponse(response, file);
       })
       .catch(error => {
         if (attempt < LOAD_RETRY_COUNT) {
@@ -39,7 +97,11 @@
         return caches.match(url).then(cached => {
           if (!cached) throw error;
           console.warn(`Music Player JS cache fallback: ${file}`);
-          return cached.text();
+          return cached.text().then(text => {
+            startupFileProgress.set(file, 1);
+            updateScriptFetchProgress();
+            return text;
+          });
         });
       })
       .finally(() => clearTimeout(timer));
@@ -47,6 +109,7 @@
 
   Promise.all(files.map(file => loadScriptPart(file)))
     .then(parts => {
+      updateStartupProgress(20, "操作画面を準備しています...");
       const original = `(() => {
 ${parts.join('\n')}})();`;
       const blob = new Blob([original], { type: 'text/javascript' });

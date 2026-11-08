@@ -526,6 +526,12 @@
         };
         drawStaticMeter(0, "L");
         drawStaticMeter(width - meterW, "R");
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.72)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText("L", 8, Math.max(12, height * 0.28));
+        ctx.fillText("R", 8, Math.min(height - 8, height * 0.76));
       }
       return;
     }
@@ -1531,6 +1537,18 @@
         }
       }
     }
+
+    if (!isPlaying && !["2d", "a2", "a8"].includes(state.waveMode)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,0.72)";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "left";
+      ctx.shadowColor = "rgba(0,0,0,0.85)";
+      ctx.shadowBlur = 3;
+      ctx.fillText("L", 8, Math.max(12, height * 0.28));
+      ctx.fillText("R", 8, Math.min(height - 8, height * 0.76));
+      ctx.restore();
+    }
   }
 
   function startWaveAnimation(force = false) {
@@ -2125,12 +2143,16 @@
     }
   });
 
-  let appLoadingDisplayedProgress = 0;
-  let appLoadingTargetProgress = 0;
+  let appLoadingDisplayedProgress = Math.max(0, Number(document.getElementById("appLoadingPercent")?.textContent?.replace("%", "")) || 0);
+  let appLoadingTargetProgress = appLoadingDisplayedProgress;
   let appLoadingProgressTimer = null;
 
   function updateAppLoadingProgress(percent, message) {
-    appLoadingTargetProgress = Math.max(0, Math.min(100, Math.round(percent)));
+    if (typeof window.__musicPlayerUpdateStartupProgress === "function") {
+      window.__musicPlayerUpdateStartupProgress(percent, message);
+      return;
+    }
+    appLoadingTargetProgress = Math.max(appLoadingDisplayedProgress, Math.min(100, Math.round(percent)));
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
@@ -2164,10 +2186,18 @@
 
   function revealAppAfterHomeReady() {
     updateAppLoadingProgress(100, "ホーム画面を表示します...");
-    requestAnimationFrame(() => {
+    const finishWhenProgressIsReady = () => {
+      const screen = document.getElementById("appLoadingScreen");
+      if (!screen) return;
+      const shown = Number(document.getElementById("appLoadingPercent")?.textContent?.replace("%", "")) || 0;
+      if (shown < 100) {
+        requestAnimationFrame(finishWhenProgressIsReady);
+        return;
+      }
       document.body.classList.remove("app-loading");
-      document.getElementById("appLoadingScreen")?.remove();
-    });
+      screen.remove();
+    };
+    requestAnimationFrame(finishWhenProgressIsReady);
   }
 
   (async () => {

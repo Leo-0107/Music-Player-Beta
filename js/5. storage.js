@@ -312,31 +312,33 @@
 
   function deleteTrackFromDB(name) {
     return new Promise(resolve => {
-      if (!db) return resolve();
+      if (!db) return resolve(false);
       try {
         const tx = db.transaction("tracks", "readwrite");
         tx.objectStore("tracks").delete(name);
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = () => resolve(true);
         tx.onerror = () => {
           toast("トラックの削除に失敗しました");
-          resolve();
+          resolve(false);
         };
+        tx.onabort = () => resolve(false);
       } catch {
-        resolve();
+        resolve(false);
       }
     });
   }
 
   function loadTracksFromDB() {
     return new Promise(resolve => {
-      if (!db) return resolve([]);
+      if (!db) return resolve(null);
       try {
         const tx = db.transaction("tracks", "readonly");
         const req = tx.objectStore("tracks").getAll();
         req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+        req.onerror = () => resolve(null);
+        tx.onabort = () => resolve(null);
       } catch {
-        resolve([]);
+        resolve(null);
       }
     });
   }
