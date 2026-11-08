@@ -234,6 +234,7 @@
         if (navigator.storage?.persist) {
           try { await navigator.storage.persist(); } catch {}
         }
+        await updateStorageUsageStatus();
 
         return true;
       } catch {
@@ -248,6 +249,38 @@
     return false;
   }
 
+  async function updateStorageUsageStatus() {
+    const status = document.getElementById("storageUsageStatus");
+    if (!status) return;
+    if (!navigator.storage?.estimate) {
+      status.textContent = "保存領域の使用量はこのブラウザでは取得できません。";
+      return;
+    }
+
+    try {
+      const [estimate, persisted] = await Promise.all([
+        navigator.storage.estimate(),
+        navigator.storage.persisted ? navigator.storage.persisted().catch(() => null) : Promise.resolve(null)
+      ]);
+      const usage = Number(estimate?.usage);
+      const quota = Number(estimate?.quota);
+      const toMB = value => (value / (1024 * 1024)).toFixed(1);
+      const usageText = Number.isFinite(usage) ? toMB(usage) + " MB" : "--";
+      const quotaText = Number.isFinite(quota) ? toMB(quota) + " MB" : "--";
+      const percent = Number.isFinite(usage) && Number.isFinite(quota) && quota > 0
+        ? "（" + Math.min(100, Math.round(usage / quota * 100)) + "%使用）"
+        : "";
+      const persistenceText = persisted === true
+        ? "永続化: 許可済み"
+        : persisted === false
+          ? "永続化: 未許可"
+          : "永続化: 状態不明";
+      status.textContent = "保存領域: " + usageText + " / " + quotaText + percent + " ・ " + persistenceText;
+    } catch {
+      status.textContent = "保存領域の情報を取得できませんでした。";
+    }
+  }
+
   function saveTrackToDB(trackData) {
     return new Promise(resolve => {
       if (!db) return resolve(false);
@@ -256,10 +289,21 @@
         tx.objectStore("tracks").put(trackData);
         tx.oncomplete = () => resolve(true);
         tx.onerror = () => {
-          toast("トラックの保存中にエラーが発生しました");
+          const error = tx.error;
+          toast(error?.name === "QuotaExceededError"
+            ? "保存容量が不足しています。不要な曲を削除するか、保存領域を確認してください。"
+            : "トラックの保存中にエラーが発生しました");
+          updateStorageUsageStatus();
           resolve(false);
         };
-        tx.onabort = () => resolve(false);
+        tx.onabort = () => {
+          const error = tx.error;
+          if (error?.name === "QuotaExceededError") {
+            toast("保存容量が不足しています。不要な曲を削除するか、保存領域を確認してください。");
+            updateStorageUsageStatus();
+          }
+          resolve(false);
+        };
       } catch (e) {
         resolve(false);
       }
