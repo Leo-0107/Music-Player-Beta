@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.4.27</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.27-r33">
+<link rel="stylesheet" href="style.css?v=7.4.27-r34">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -803,12 +803,77 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const APP_VERSION = "v7.4.27";
-  const BUILD_REVISION = 33;
+  const BUILD_REVISION = 34;
+  const BUILD_COMMIT_ID = "PENDING_BUILD_COMMIT";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
   let entries = [];
   let sequence = 0;
+  let updateNoticeShown = false;
+
+  function showUpdateNotice() {
+    if (updateNoticeShown) return;
+    updateNoticeShown = true;
+    let toast = document.getElementById("mpUpdateNotice");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "mpUpdateNotice";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      toast.style.cssText = [
+        "position:fixed",
+        "right:16px",
+        "bottom:16px",
+        "z-index:2147483646",
+        "max-width:min(360px,calc(100vw - 32px))",
+        "padding:12px 16px",
+        "border:1px solid #43b58b",
+        "border-radius:12px",
+        "background:#202a27",
+        "color:#f5fff9",
+        "box-shadow:0 6px 24px rgba(0,0,0,.28)",
+        "font-size:14px",
+        "line-height:1.5",
+        "opacity:0",
+        "transform:translateY(8px)",
+        "transition:opacity .2s ease,transform .2s ease",
+        "pointer-events:none"
+      ].join(";");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = "アプリが更新されました（BUILD_REVISION " + BUILD_REVISION + "）";
+    requestAnimationFrame(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateY(0)";
+    });
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(8px)";
+      setTimeout(() => toast.remove(), 250);
+    }, 5000);
+  }
+
+  try {
+    const previousBuildId = localStorage.getItem("mp_last_loaded_build_id_v1");
+    if (previousBuildId && previousBuildId !== BUILD_COMMIT_ID) showUpdateNotice();
+    localStorage.setItem("mp_last_loaded_build_id_v1", BUILD_COMMIT_ID);
+  } catch {}
+
+  if ("serviceWorker" in navigator) {
+    const initialController = navigator.serviceWorker.controller;
+    const initialControllerUrl = initialController ? initialController.scriptURL : "";
+    let controllerChangeHandled = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!initialController || controllerChangeHandled) return;
+      const nextController = navigator.serviceWorker.controller;
+      const nextControllerUrl = nextController ? nextController.scriptURL : "";
+      if (nextControllerUrl && nextControllerUrl !== initialControllerUrl) {
+        controllerChangeHandled = true;
+        showUpdateNotice();
+      }
+    });
+  }
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -982,6 +1047,7 @@
       "Music Player 診断情報",
       "Version: " + APP_VERSION,
       "BUILD_REVISION: " + BUILD_REVISION,
+      "Build commit: " + BUILD_COMMIT_ID,
       "Browser: " + sanitize(navigator.userAgent),
       "Page: " + location.pathname,
       ""
@@ -1036,7 +1102,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.27-r33"></script>
+<script src="js/1. ctrl.js?v=7.4.27-r34"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
