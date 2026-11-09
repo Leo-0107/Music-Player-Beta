@@ -549,6 +549,20 @@
     return device?.label || fallback;
   }
 
+  // default出力と物理出力が同じ機器かを、deviceIdまたはgroupIdで判定する。
+  // labelは同名の別機器を誤認する可能性があるため比較に使わない。
+  function areSameOutputDevice(a, b) {
+    if (!a || !b) return false;
+
+    const aId = String(a.deviceId || "");
+    const bId = String(b.deviceId || "");
+    if (aId && bId && aId === bId) return true;
+
+    const aGroupId = String(a.groupId || "");
+    const bGroupId = String(b.groupId || "");
+    return !!aGroupId && !!bGroupId && aGroupId === bGroupId;
+  }
+
   let recentlyGrantedOutputDevice = null;
   let recentlyGrantedOutputDeviceUntil = 0;
 
