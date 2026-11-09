@@ -470,7 +470,7 @@ input[type="range"] {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  background: var(--bg);
+  background: var(--bottom-nav-bg, var(--bg));
   border-top: 1px solid var(--line);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
