@@ -3033,3 +3033,40 @@ body:not(.theme-light) .pill:hover {
     margin-top: 10px;
   }
 }
+
+
+/* ホワイトテーマ：波形背景とポインター操作の色を明るい面に合わせる */
+body.theme-light .waveWrap {
+  background: #eef1f5;
+  box-shadow: inset 0 0 18px rgba(31, 41, 55, .08);
+}
+
+body.theme-light .btn:hover:not(.active):not(.danger):not(#btnSettingsAddMusic),
+body.theme-light .menuItem:hover,
+body.theme-light .navTab:hover,
+body.theme-light .gradOption:hover,
+body.theme-light .plSelectItem:hover,
+body.theme-light button[role="button"]:hover,
+body.theme-light .songMenuBtn:hover,
+body.theme-light .songMenuItem:hover,
+body.theme-light .pill:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel3));
+  color: var(--text);
+}
+
+body.theme-light .settingsCard:hover {
+  filter: none;
+  background: var(--panel2);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+
+body.theme-light .settingsCategoryCard:hover {
+  background: var(--panel2);
+}
+
+body.theme-light .btn.danger:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--danger) 13%, #fff);
+  color: var(--danger);
+}
