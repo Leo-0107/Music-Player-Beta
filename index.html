@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.33</title>
+<title>Music Player v7.4.34</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.33-r41">
+<link rel="stylesheet" href="style.css?v=7.4.34-r42">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -626,15 +626,7 @@
             <div class="settingsHelpText">動画URLを登録して、公式プレイヤーで再生できます。</div>
           </div>
           <div id="youtubeKeywordMode" class="youtubeInputMode" hidden>
-            <div class="field">
-              <label for="youtubeApiKeyInput">YouTube Data API v3 のAPIキー</label>
-              <div class="youtubeInputRow">
-                <input id="youtubeApiKeyInput" type="password" placeholder="APIキーを入力" aria-label="YouTube Data API v3のAPIキー" autocomplete="off" spellcheck="false">
-                <button class="btn small" id="youtubeSaveApiKeyBtn" type="button">保存</button>
-                <button class="btn small ghost" id="youtubeClearApiKeyBtn" type="button">削除</button>
-              </div>
-              <div class="settingsHelpText">Google Cloud ConsoleでYouTube Data API v3を有効にし、APIキーを作成して入力してください。キーはこのブラウザ内に保存されます。共有端末では使用後に削除してください。</div>
-            </div>
+            <div class="settingsHelpText">APIキー不要で検索できます。検索は公開検索サービスを経由するため、接続状況によって利用できない場合があります。動画再生にはYouTube公式プレイヤーを使用します。</div>
             <div class="youtubeInputRow">
               <input id="youtubeSearchInput" type="search" placeholder="動画名・アーティスト名など" aria-label="YouTube動画をキーワード検索">
               <button class="btn small" id="youtubeSearchBtn" type="button">検索</button>
@@ -869,9 +861,9 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.33";
-  const BUILD_REVISION = 41;
-  const BUILD_COMMIT_ID = "3114197e8669e5fb8a53288c76e57dd19eb92eb1";
+  const APP_VERSION = "v7.4.34";
+  const BUILD_REVISION = 42;
+  const BUILD_COMMIT_ID = "PENDING_BUILD_COMMIT_ID";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1177,7 +1169,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.33-r41"></script>
+<script src="js/1. ctrl.js?v=7.4.34-r42"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
