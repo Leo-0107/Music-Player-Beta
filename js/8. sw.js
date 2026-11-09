@@ -89,7 +89,7 @@ self.addEventListener("fetch", event => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request, { cache: "no-store" }))
         .then(response => {
           if (response.ok) {
             const copy = response.clone();
