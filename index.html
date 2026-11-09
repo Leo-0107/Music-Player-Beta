@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.4.28</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.28-r36">
+<link rel="stylesheet" href="style.css?v=7.4.29-r37">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -245,16 +245,16 @@
           <div class="settingsHelpText">波形を選ぶと、再生音に合わせて動く表示が切り替わります。各項目の説明を参考に選んでください。</div>
           <button class="btn small ghost" id="btnWaveViewReset" type="button">3D波形の視点を初期位置に戻す</button>
           <div class="waveOptionList" id="waveModeSettingsBtns">
-            <button class="btn small waveOption" data-wave="3d" type="button"><span class="waveOptionName">3D波形</span><span class="waveOptionDescription">奥行きのある波形を立体表示</span></button>
+            <button class="btn small waveOption" data-wave="3d" type="button"><span class="waveOptionName">3Dサウンド地形</span><span class="waveOptionDescription">周波数の変化を奥行きのある地形として表示</span></button>
             <button class="btn small waveOption" data-wave="2d" type="button"><span class="waveOptionName">2D波形</span><span class="waveOptionDescription">音の波形を平面上に表示</span></button>
-            <button class="btn small waveOption" data-wave="a1" type="button"><span class="waveOptionName">滑らかな波形</span><span class="waveOptionDescription">中央線を基準に音の変化を表示</span></button>
-            <button class="btn small waveOption" data-wave="a2" type="button"><span class="waveOptionName">周波数バー</span><span class="waveOptionDescription">周波数ごとの強さを縦棒で表示</span></button>
-            <button class="btn small waveOption" data-wave="a3" type="button"><span class="waveOptionName">左右対称バー</span><span class="waveOptionDescription">左右チャンネルを中央から左右へ表示</span></button>
-            <button class="btn small waveOption" data-wave="a4" type="button"><span class="waveOptionName">反応バー</span><span class="waveOptionDescription">音の変化に反応するカラーバー</span></button>
-            <button class="btn small waveOption" data-wave="a5" type="button"><span class="waveOptionName">音量ライン</span><span class="waveOptionDescription">音量の変化を線として流して表示</span></button>
-            <button class="btn small waveOption" data-wave="a6" type="button"><span class="waveOptionName">3重リング</span><span class="waveOptionDescription">低音・中音・高音に反応するリング</span></button>
-            <button class="btn small waveOption" data-wave="a7" type="button"><span class="waveOptionName">水面の波紋</span><span class="waveOptionDescription">真上から見た水面のような波が流れる</span></button>
-            <button class="btn small waveOption" data-wave="a8" type="button"><span class="waveOptionName">L/R心電図風</span><span class="waveOptionDescription">左右チャンネルの音量履歴を上下に表示</span></button>
+            <button class="btn small waveOption" data-wave="a1" type="button"><span class="waveOptionName">ネオン・リボン</span><span class="waveOptionDescription">時間波形を重ねた光のリボンで表示</span></button>
+            <button class="btn small waveOption" data-wave="a2" type="button"><span class="waveOptionName">スペクトラム・タワー</span><span class="waveOptionDescription">周波数ごとの強さを立体的な柱で表示</span></button>
+            <button class="btn small waveOption" data-wave="a3" type="button"><span class="waveOptionName">ステレオ・デュアルウェーブ</span><span class="waveOptionDescription">左右の音声を上下に分けて独立表示</span></button>
+            <button class="btn small waveOption" data-wave="a4" type="button"><span class="waveOptionName">スペクトログラム・ウォーターフォール</span><span class="waveOptionDescription">周波数の履歴を色の流れとして表示</span></button>
+            <button class="btn small waveOption" data-wave="a5" type="button"><span class="waveOptionName">ラジアル・スパイラル</span><span class="waveOptionDescription">音域に応じて広がる回転する螺旋</span></button>
+            <button class="btn small waveOption" data-wave="a6" type="button"><span class="waveOptionName">パルス・コア</span><span class="waveOptionDescription">中心の光球と周囲の周波数スパイクが脈動</span></button>
+            <button class="btn small waveOption" data-wave="a7" type="button"><span class="waveOptionName">ショックウェーブ・フィールド</span><span class="waveOptionDescription">低音の立ち上がりで衝撃波が広がる</span></button>
+            <button class="btn small waveOption" data-wave="a8" type="button"><span class="waveOptionName">ステレオ・リサージュ</span><span class="waveOptionDescription">左右の音声をXY軌跡として重ねて表示</span></button>
             <div class="field waveParticleField">
               <label>粒子数（選択中の表示モード）: <span id="waveParticleCountText">0</span></label>
               <div class="settingsHelpText">選択中の波形モードで使う粒子数を調整します。粒子に対応していないモードでは変化しません。値を増やすと描画負荷が高くなる場合があります。</div>
@@ -802,9 +802,9 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.28";
-  const BUILD_REVISION = 36;
-  const BUILD_COMMIT_ID = "6c7b1d38023dd37a25fbdf104cd336428eaec0f2";
+  const APP_VERSION = "v7.4.29";
+  const BUILD_REVISION = 37;
+  const BUILD_COMMIT_ID = "a9dbd4d7f1f7da67cfa54c56a565941ad6c5c7bd";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1102,7 +1102,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.28-r36"></script>
+<script src="js/1. ctrl.js?v=7.4.29-r37"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
