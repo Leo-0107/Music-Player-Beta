@@ -474,7 +474,251 @@
   if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(state.waveParticleCount);
 
   // --- 描画ループ & 連続無音判定 ---
-  function drawWave() {
+    function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now) {
+    const cache = drawWave._freshViz || (drawWave._freshViz = { history: [], terrain: [], lastHistory: 0, lastTerrain: 0, shocks: [], lastBass: 0 });
+    const t = now * 0.001, cx = width * 0.5, cy = height * 0.52, side = Math.min(width, height);
+    if (analyser && waveTimeData) {
+      if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
+      else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.12;
+    }
+    if (waveLeftOutputAnalyser && waveLeftOutputData) {
+      if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+      else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.88;
+    }
+    if (waveRightOutputAnalyser && waveRightOutputData) {
+      if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
+      else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.88;
+    }
+    if (leftLevelAnalyser && leftLevelData) {
+      if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+      else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.12;
+    }
+    if (rightLevelAnalyser && rightLevelData) {
+      if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+      else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.12;
+    }
+    const lf = waveLeftOutputData && waveLeftOutputData.length ? waveLeftOutputData : analyserData;
+    const rf = waveRightOutputData && waveRightOutputData.length ? waveRightOutputData : lf;
+    const band = (arr, a, b) => {
+      if (!arr || !arr.length) return 0;
+      const lo = Math.max(0, Math.min(arr.length - 1, Math.floor(a * arr.length)));
+      const hi = Math.max(lo + 1, Math.min(arr.length, Math.ceil(b * arr.length)));
+      let sum = 0;
+      for (let i = lo; i < hi; i++) sum += (arr[i] || 0) / 255;
+      return sum / Math.max(1, hi - lo);
+    };
+    const spec = (i, n) => Math.min(1, (band(lf, i / n, (i + 1) / n) + band(rf, i / n, (i + 1) / n)) * 0.95);
+    const sample = (arr, p) => arr && arr.length ? ((arr[Math.max(0, Math.min(arr.length - 1, Math.floor(p * (arr.length - 1))))] || 128) - 128) / 128 : 0;
+    const energy = (a, b) => {
+      let sum = 0;
+      for (let i = 0; i < 10; i++) sum += spec(Math.floor(a + (b - a) * i / 10), 64);
+      return sum / 10;
+    };
+    const bass = energy(0, 10), mid = energy(10, 34), treble = energy(34, 64), all = (bass + mid + treble) / 3;
+    const historyCount = lowPerformance ? 18 : 30;
+    if (isPlaying && now - cache.lastHistory > (lowPerformance ? 120 : 72)) {
+      const row = new Float32Array(lowPerformance ? 32 : 48);
+      for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
+      cache.history.unshift(row);
+      if (cache.history.length > historyCount) cache.history.length = historyCount;
+      cache.lastHistory = now;
+    }
+    if (isPlaying && now - cache.lastTerrain > (lowPerformance ? 150 : 90)) {
+      const row = new Float32Array(lowPerformance ? 20 : 30);
+      for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
+      cache.terrain.unshift(row);
+      if (cache.terrain.length > (lowPerformance ? 14 : 22)) cache.terrain.length = lowPerformance ? 14 : 22;
+      cache.lastTerrain = now;
+    }
+    const bg = ctx.createLinearGradient(0, 0, width, height);
+    bg.addColorStop(0, "#050a16"); bg.addColorStop(0.5, "#090d1b"); bg.addColorStop(1, "#10091b");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+    const grid = (sx, sy, alpha) => {
+      ctx.save(); ctx.strokeStyle = "rgba(112,170,210," + alpha + ")"; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = 0; x <= width; x += sx) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+      for (let y = 0; y <= height; y += sy) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+      ctx.stroke(); ctx.restore();
+    };
+    const waveLine = (arr, y0, amp, hue, phase, thick) => {
+      if (!arr || !arr.length) return;
+      ctx.beginPath();
+      const n = lowPerformance ? 80 : 140;
+      for (let i = 0; i < n; i++) {
+        const p = i / (n - 1), y = y0 - (sample(arr, p) * 0.82 + Math.sin(p * 25 + t * 1.6 + phase) * 0.05) * amp;
+        if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
+      }
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.strokeStyle = "hsla(" + hue + ",100%,70%,0.22)"; ctx.lineWidth = thick * 4;
+      ctx.shadowBlur = lowPerformance ? 0 : 10; ctx.shadowColor = "hsla(" + hue + ",100%,60%,0.5)"; ctx.stroke();
+      ctx.shadowBlur = 0; ctx.strokeStyle = "hsla(" + hue + ",95%,82%,0.96)"; ctx.lineWidth = thick; ctx.stroke();
+    };
+
+    switch (state.waveMode) {
+      case "a1": {
+        grid(Math.max(28, width / 16), Math.max(18, height / 7), 0.07);
+        const amp = height * (0.3 + all * 0.16);
+        waveLine(waveTimeData, cy, amp, 188, 0, 2.2);
+        waveLine(waveTimeData, cy - height * 0.12, amp * 0.6, 278, 2, 1.2);
+        waveLine(waveTimeData, cy + height * 0.12, amp * 0.6, 32, 4, 1.2);
+        break;
+      }
+      case "a2": {
+        grid(Math.max(34, width / 12), Math.max(24, height / 5), 0.04);
+        const n = lowPerformance ? 28 : 44, base = height * 0.88, gap = width / n * 0.22, bw = width / n - gap;
+        for (let i = 0; i < n; i++) {
+          const v = spec(i, n), h = Math.max(2, v * height * 0.72), x = i * width / n + gap / 2, y = base - h, d = Math.max(2, bw * 0.22), hue = 178 + i / n * 120;
+          ctx.fillStyle = "hsla(" + hue + ",90%,56%,0.95)"; ctx.fillRect(x, y, bw, h);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + d, y - d); ctx.lineTo(x + bw + d, y - d); ctx.lineTo(x + bw, y); ctx.closePath();
+          ctx.fillStyle = "hsla(" + hue + ",100%,78%,0.9)"; ctx.fill();
+          ctx.beginPath(); ctx.moveTo(x + bw, y); ctx.lineTo(x + bw + d, y - d); ctx.lineTo(x + bw + d, base - d); ctx.lineTo(x + bw, base); ctx.closePath();
+          ctx.fillStyle = "hsla(" + hue + ",88%,30%,0.94)"; ctx.fill();
+        }
+        break;
+      }
+      case "a3": {
+        grid(Math.max(30, width / 14), Math.max(22, height / 6), 0.04);
+        waveLine(leftLevelData, height * 0.29, height * 0.22, 188, 0.5, 2);
+        waveLine(rightLevelData, height * 0.72, height * 0.22, 285, 2.4, 2);
+        ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
+        ctx.fillStyle = "rgba(180,235,255,0.82)"; ctx.fillText("LEFT", 9, 14);
+        ctx.fillStyle = "rgba(205,170,255,0.86)"; ctx.fillText("RIGHT", 9, height - 7);
+        break;
+      }
+      case "a4": {
+        const rows = cache.history, rowH = height / historyCount;
+        for (let r = rows.length - 1; r >= 0; r--) {
+          const row = rows[r], y = (rows.length - 1 - r) * rowH;
+          for (let i = 0; i < row.length; i++) {
+            const v = row[i], hue = 190 + i / row.length * 145 - v * 35;
+            const h = Math.max(1, rowH * (0.24 + v * 0.9));
+            ctx.fillStyle = "hsla(" + hue + ",92%," + (34 + v * 40) + "%," + (0.28 + v * 0.72) + ")";
+            ctx.fillRect(i * width / row.length, y + (rowH - h) / 2, width / row.length + 0.6, h);
+          }
+        }
+        break;
+      }
+      case "a5": {
+        ctx.save(); ctx.translate(cx, cy);
+        const layers = lowPerformance ? 3 : 5, n = lowPerformance ? 90 : 150;
+        for (let l = 0; l < layers; l++) {
+          ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const p = i / (n - 1), v = spec(Math.floor(p * 63), 64);
+            const a = p * Math.PI * 5.5 + t * (0.28 + l * 0.08) + l * 1.3;
+            const r = side * (0.08 + p * 0.3 + v * 0.11) + l * 2;
+            const x = Math.cos(a) * r, y = Math.sin(a) * r * 0.72;
+            if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          const hue = 178 + l * 35;
+          ctx.strokeStyle = "hsla(" + hue + ",100%,72%,0.8)"; ctx.lineWidth = l ? 1.2 : 2.2;
+          ctx.shadowBlur = lowPerformance ? 0 : 8; ctx.shadowColor = "hsla(" + hue + ",100%,60%,0.4)"; ctx.stroke();
+        }
+        ctx.restore();
+        break;
+      }
+      case "a6": {
+        const r = side * (0.12 + bass * 0.12), pulse = 1 + bass * 0.24 + Math.sin(t * 2.2) * 0.025;
+        ctx.save(); ctx.translate(cx, cy);
+        const orb = ctx.createRadialGradient(-r * 0.25, -r * 0.3, 1, 0, 0, r * 1.4);
+        orb.addColorStop(0, "rgba(255,255,255,0.98)"); orb.addColorStop(0.2, "rgba(105,225,255,0.9)");
+        orb.addColorStop(0.55, "rgba(50,115,255,0.35)"); orb.addColorStop(1, "rgba(35,20,100,0)");
+        ctx.fillStyle = orb; ctx.beginPath(); ctx.arc(0, 0, r * 1.45 * pulse, 0, Math.PI * 2); ctx.fill();
+        for (let j = 0; j < 4; j++) {
+          const rr = r * (1.2 + j * 0.38) * pulse;
+          ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * (0.56 + j * 0.08), t * (j % 2 ? -0.16 : 0.12), 0, Math.PI * 2);
+          ctx.strokeStyle = "hsla(" + (180 + j * 34) + ",100%,72%," + (0.72 - j * 0.12) + ")";
+          ctx.lineWidth = j ? 1.2 : 2.4; ctx.shadowBlur = lowPerformance ? 0 : 9; ctx.stroke();
+        }
+        const n = lowPerformance ? 48 : 88;
+        for (let i = 0; i < n; i++) {
+          const p = i / n, v = spec(i, n), a = p * Math.PI * 2 + t * 0.18, ri = r * 1.75, ro = ri + v * side * 0.18;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a) * ri, Math.sin(a) * ri); ctx.lineTo(Math.cos(a) * ro, Math.sin(a) * ro);
+          ctx.strokeStyle = "hsla(" + (185 + p * 115) + ",95%,70%,0.9)"; ctx.lineWidth = 1.5 + v * 1.4; ctx.stroke();
+        }
+        ctx.restore();
+        break;
+      }
+      case "a7": {
+        const pulse = Math.min(1, bass * 1.7 + all * 0.55);
+        if (isPlaying && bass > 0.38 && bass - cache.lastBass > 0.075) cache.shocks.push({ r: 0, life: 1, strength: bass });
+        cache.lastBass = bass;
+        for (let i = cache.shocks.length - 1; i >= 0; i--) {
+          const s = cache.shocks[i]; s.r += dt * side * (0.48 + s.strength * 0.6); s.life -= dt * 0.48;
+          if (s.life <= 0) cache.shocks.splice(i, 1);
+        }
+        ctx.save(); ctx.translate(cx, cy);
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath(); ctx.arc(0, 0, side * (0.12 + i * 0.11) + pulse * side * 0.04, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(90,185,255," + (0.12 + pulse * 0.12) + ")"; ctx.lineWidth = 1; ctx.stroke();
+        }
+        cache.shocks.forEach((s, i) => {
+          ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2);
+          ctx.strokeStyle = "hsla(" + (185 + i * 25) + ",100%,72%," + Math.max(0, s.life * 0.82) + ")";
+          ctx.lineWidth = 1.5 + s.life * 2.5; ctx.shadowBlur = lowPerformance ? 0 : 10; ctx.stroke();
+        });
+        const particles = Math.min(lowPerformance ? 260 : 900, Math.max(0, Number(state.waveParticleCount) || 0));
+        for (let i = 0; i < particles; i++) {
+          const a = i * 2.399963 + t * (0.12 + (i % 7) * 0.015);
+          const rr = side * (0.08 + ((i * 37) % 101) / 130), v = spec(i % 64, 64);
+          ctx.fillStyle = "hsla(" + (180 + i % 90) + ",95%,72%," + (0.25 + v * 0.7) + ")";
+          ctx.fillRect(Math.cos(a) * (rr + v * side * 0.07), Math.sin(a) * (rr + v * side * 0.07), 1.4 + v * 1.6, 1.4 + v * 1.6);
+        }
+        ctx.restore();
+        break;
+      }
+      case "a8": {
+        const n = lowPerformance ? 64 : 112, scale = side * 0.34;
+        ctx.save(); ctx.translate(cx, cy); ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const p = i / (n - 1), x = sample(leftLevelData, p) * scale, y = -sample(rightLevelData, p) * scale;
+          if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "rgba(255,110,210,0.24)"; ctx.lineWidth = 7; ctx.shadowBlur = lowPerformance ? 0 : 14; ctx.stroke();
+        ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(190,245,255,0.96)"; ctx.lineWidth = 1.8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, scale * 0.08, 0, Math.PI * 2); ctx.fillStyle = "white"; ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = "rgba(190,225,255,0.72)"; ctx.font = "10px sans-serif"; ctx.textAlign = "left"; ctx.fillText("L × R STEREO", 9, 15);
+        break;
+      }
+      case "3d":
+      default: {
+        const rows = cache.terrain, cols = lowPerformance ? 20 : 30, depthRows = lowPerformance ? 14 : 22, vertices = [];
+        for (let r = 0; r < depthRows; r++) {
+          const row = rows[Math.min(rows.length - 1, Math.floor(r * Math.max(1, rows.length - 1) / Math.max(1, depthRows - 1)))] || null;
+          const line = [];
+          for (let c = 0; c < cols; c++) {
+            const v = row ? row[Math.min(row.length - 1, Math.floor(c * (row.length - 1) / Math.max(1, cols - 1)))] : 0;
+            const x = (c / (cols - 1) - 0.5) * width * 0.82, z = (r / (depthRows - 1) - 0.5) * height * 0.72;
+            line.push(applyWaveView({ x: cx + x, y: v * height * 0.34, depth: z, fitScale: 1 }, width, height));
+          }
+          vertices.push(line);
+        }
+        ctx.save(); ctx.lineWidth = lowPerformance ? 0.8 : 1.05;
+        for (let r = 0; r < vertices.length; r++) {
+          ctx.beginPath();
+          for (let c = 0; c < cols; c++) { const p = vertices[r][c]; if (!c) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
+          const row = rows[Math.min(rows.length - 1, r)];
+          const e = row ? row.reduce((sum, v) => sum + v, 0) / row.length : 0;
+          ctx.strokeStyle = "hsla(" + (185 + e * 95) + ",100%," + (54 + e * 24) + "%," + (0.22 + r / vertices.length * 0.55) + ")"; ctx.stroke();
+        }
+        for (let c = 0; c < cols; c += lowPerformance ? 2 : 1) {
+          ctx.beginPath();
+          for (let r = 0; r < vertices.length; r++) { const p = vertices[r][c]; if (!r) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
+          ctx.strokeStyle = "rgba(115,205,245,0.32)"; ctx.lineWidth = 0.8; ctx.stroke();
+        }
+        ctx.restore();
+        ctx.fillStyle = "rgba(210,240,255,0.74)"; ctx.font = "10px sans-serif"; ctx.textAlign = "left"; ctx.fillText("FREQUENCY →", 9, height - 8);
+        ctx.textAlign = "right"; ctx.fillText("TIME →", width - 9, height - 8);
+        break;
+      }
+    }
+    if (state.waveMode !== "a3" && state.waveMode !== "a8") {
+      ctx.save(); ctx.font = "9px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "rgba(180,220,245,0.58)";
+      ctx.fillText("L", 8, Math.max(12, height * 0.24)); ctx.fillText("R", 8, Math.min(height - 8, height * 0.78)); ctx.restore();
+    }
+  }
+
+function drawWave() {
     const pageVisible = document.visibilityState === "visible";
     const isPlaying = !audio.paused && pageVisible;
     if (!pageVisible) {
@@ -582,17 +826,6 @@
         silenceTimer = 0;
       }
 
-      // 波形表示:
-      // 2d = 現在のスペクトラム表示
-      // a1  = 時間波形（中央基準）
-      // a2  = L/Rを上下に分けた時間波形
-      // a3  = 中央から左右へ広がる対称スペクトラム
-      // a4  = 各帯域の変化量を強調するスペクトラム
-      // 3d  = 現在の3Dスペクトラム表示
-      // a5  = 音の空間
-      // a6  = 音域連動背景
-      // a7  = 粒子ビジュアライザー
-      // a8  = 曲変更トランジション
       if (state.waveMode === "2d") {
         const meterW = Math.min(18, Math.max(12, width * 0.022));
         const meterGap = 8;
@@ -658,1015 +891,10 @@
         };
         drawLevelMeter(0, leftDisplayLevel, "L");
         drawLevelMeter(width - meterW, rightDisplayLevel, "R");
-      } else if (state.waveMode === "a1") {
-
-        if (analyser && waveTimeData) {
-          if (!waveTimeTargetData || waveTimeTargetData.length !== waveTimeData.length) {
-            waveTimeTargetData = new Uint8Array(waveTimeData.length);
-            waveTimeTargetData.fill(128);
-          }
-          if (isPlaying) {
-            analyser.getByteTimeDomainData(waveTimeTargetData);
-            for (let i = 0; i < waveTimeData.length; i++) {
-              waveTimeData[i] += (waveTimeTargetData[i] - waveTimeData[i]) * 0.18;
-            }
-          } else {
-            for (let i = 0; i < waveTimeData.length; i++) {
-              waveTimeData[i] += (128 - waveTimeData[i]) * WAVE_TIME_SMOOTHING;
-            }
-          }
-
-          const centerY = height * 0.5;
-          const amplitudeScale = height * 0.40;
-          const visualGain = 1.75;
-
-          // 薄い目盛りで振幅の位置を把握しやすくする。
-          ctx.save();
-          ctx.strokeStyle = "rgba(150,190,210,0.075)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let i = 1; i < 4; i++) {
-            const y = (height / 4) * i;
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-          }
-          for (let i = 1; i < 12; i++) {
-            const x = (width / 12) * i;
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-          }
-          ctx.stroke();
-
-          // 波形の内側を淡く塗り、輪郭と振幅を見分けやすくする。
-          const waveFill = ctx.createLinearGradient(0, centerY - amplitudeScale, 0, centerY + amplitudeScale);
-          waveFill.addColorStop(0, "rgba(80,220,255,0.22)");
-          waveFill.addColorStop(0.5, "rgba(70,170,220,0.035)");
-          waveFill.addColorStop(1, "rgba(120,120,255,0.18)");
-          ctx.beginPath();
-          ctx.moveTo(0, centerY);
-          for (let i = 0; i < waveTimeData.length; i++) {
-            const x = (i / Math.max(1, waveTimeData.length - 1)) * width;
-            const sample = (waveTimeData[i] - 128) / 128;
-            const value = Math.max(-1, Math.min(1, sample * visualGain));
-            ctx.lineTo(x, centerY - value * amplitudeScale);
-          }
-          ctx.lineTo(width, centerY);
-          ctx.closePath();
-          ctx.fillStyle = waveFill;
-          ctx.fill();
-
-          // 外側の光と芯の線を重ねて、細い画面でも輪郭を残す。
-          ctx.beginPath();
-          for (let i = 0; i < waveTimeData.length; i++) {
-            const x = (i / Math.max(1, waveTimeData.length - 1)) * width;
-            const sample = (waveTimeData[i] - 128) / 128;
-            const value = Math.max(-1, Math.min(1, sample * visualGain));
-            const y = centerY - value * amplitudeScale;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.lineJoin = "round";
-          ctx.lineCap = "round";
-          ctx.strokeStyle = "rgba(75,205,255,0.32)";
-          ctx.lineWidth = 5;
-          ctx.shadowBlur = lowPerformance ? 0 : 9;
-          ctx.shadowColor = "rgba(70,190,255,0.42)";
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = "rgba(205,250,255,0.96)";
-          ctx.lineWidth = 1.7;
-          ctx.stroke();
-
-          ctx.strokeStyle = "rgba(255,255,255,0.22)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(0, centerY);
-          ctx.lineTo(width, centerY);
-          ctx.stroke();
-          ctx.restore();
-        }
-      } else if (state.waveMode === "a2") {
-
-        const bars = Math.min(56, dataLen, waveLeftOutputAnalyser?.frequencyBinCount || 56);
-        const gap = Math.max(2, Math.min(4, width / Math.max(1, bars) * 0.16));
-        const waveLeft = width * 0.035;
-        const waveWidth = width * 0.93;
-        const barWidth = Math.max(1, waveWidth / Math.max(1, bars) - gap);
-        const baseY = height * 0.88;
-        const maxBarHeight = height * 0.68;
-
-        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
-          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-
-          if (!waveLeftOutputAnalyser._a2Smooth || waveLeftOutputAnalyser._a2Smooth.length !== bars) {
-            waveLeftOutputAnalyser._a2Smooth = new Float32Array(bars);
-            drawWave._a2Peaks = new Float32Array(bars);
-          }
-          const smooth = waveLeftOutputAnalyser._a2Smooth;
-          const peaks = drawWave._a2Peaks || (drawWave._a2Peaks = new Float32Array(bars));
-
-          for (let i = 0; i < bars; i++) {
-            const startBin = Math.floor(Math.pow(i / bars, 1.38) * waveLeftOutputData.length);
-            const endBin = Math.min(
-              waveLeftOutputData.length,
-              Math.max(startBin + 1, Math.floor(Math.pow((i + 1) / bars, 1.38) * waveLeftOutputData.length))
-            );
-            let level = 0;
-            for (let k = startBin; k < endBin; k++) {
-              const left = (waveLeftOutputData[k] || 0) / 255;
-              const right = (waveRightOutputData[k] || 0) / 255;
-              level = Math.max(level, (left + right) * 0.5);
-            }
-
-            const target = isPlaying ? Math.min(1, level * 1.75) : 0;
-            smooth[i] += (target - smooth[i]) * (isPlaying ? 0.24 : 0.13);
-            peaks[i] = Math.max(smooth[i], (peaks[i] || 0) - dt * 0.48);
-
-            const barHeight = Math.max(1.5, smooth[i] * maxBarHeight);
-            const x = waveLeft + i * (waveWidth / bars);
-            const hue = 178 + (i / Math.max(1, bars - 1)) * 112;
-            const gradient = ctx.createLinearGradient(0, baseY - barHeight, 0, baseY);
-            gradient.addColorStop(0, "hsla(" + hue + ",95%,76%,0.98)");
-            gradient.addColorStop(0.48, "hsla(" + hue + ",88%,57%,0.88)");
-            gradient.addColorStop(1, "hsla(" + (hue + 20) + ",82%,38%,0.72)");
-
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.roundRect(x, baseY - barHeight, barWidth, barHeight, Math.min(5, barWidth * 0.45));
-            ctx.fill();
-
-            const peakY = baseY - peaks[i] * maxBarHeight;
-            ctx.fillStyle = "rgba(225,250,255,0.72)";
-            ctx.fillRect(x, peakY - 1, barWidth, 1.5);
-          }
-        }
-
-        // 底辺と控えめな目盛りを追加。
-        ctx.save();
-        ctx.strokeStyle = "rgba(180,220,235,0.15)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(waveLeft, baseY);
-        ctx.lineTo(waveLeft + waveWidth, baseY);
-        for (let i = 1; i < 5; i++) {
-          const x = waveLeft + (waveWidth / 5) * i;
-          ctx.moveTo(x, baseY + 3);
-          ctx.lineTo(x, baseY + 8);
-        }
-        ctx.stroke();
-        ctx.fillStyle = "rgba(220,240,250,0.72)";
-        ctx.font = "10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText("L / R", waveLeft, Math.max(12, baseY - maxBarHeight - 7));
-        ctx.restore();
-      } else if (state.waveMode === "a3") {
-
-        // 左右チャンネルを中央線の上下へ分け、周波数帯ごとの違いを表示する。
-        const bars = Math.min(36, waveLeftOutputAnalyser?.frequencyBinCount || 36);
-        const centerY = height * 0.5;
-        const sideWidth = width * 0.92;
-        const leftX = width * 0.04;
-        const gap = Math.max(1.5, sideWidth / bars * 0.12);
-        const barWidth = Math.max(1, sideWidth / bars - gap);
-        const maxBarHeight = height * 0.34;
-
-        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && waveLeftOutputData && waveRightOutputData) {
-          waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-          waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-
-          if (!waveLeftOutputAnalyser._a3Smooth || waveLeftOutputAnalyser._a3Smooth.length !== bars) {
-            waveLeftOutputAnalyser._a3Smooth = new Float32Array(bars);
-            waveRightOutputAnalyser._a3Smooth = new Float32Array(bars);
-          }
-          const leftSmooth = waveLeftOutputAnalyser._a3Smooth;
-          const rightSmooth = waveRightOutputAnalyser._a3Smooth;
-
-          for (let i = 0; i < bars; i++) {
-            const startBin = Math.floor(Math.pow(i / bars, 1.35) * waveLeftOutputData.length);
-            const endBin = Math.min(
-              waveLeftOutputData.length,
-              Math.max(startBin + 1, Math.floor(Math.pow((i + 1) / bars, 1.35) * waveLeftOutputData.length))
-            );
-            let leftLevel = 0;
-            let rightLevel = 0;
-            for (let k = startBin; k < endBin; k++) {
-              leftLevel = Math.max(leftLevel, (waveLeftOutputData[k] || 0) / 255);
-              rightLevel = Math.max(rightLevel, (waveRightOutputData[k] || 0) / 255);
-            }
-
-            const smoothing = isPlaying ? 0.25 : 0.14;
-            const leftTarget = isPlaying ? Math.min(1, leftLevel * 1.55) : 0;
-            const rightTarget = isPlaying ? Math.min(1, rightLevel * 1.55) : 0;
-            leftSmooth[i] += (leftTarget - leftSmooth[i]) * smoothing;
-            rightSmooth[i] += (rightTarget - rightSmooth[i]) * smoothing;
-
-            const x = leftX + i * (sideWidth / bars);
-            const leftHeight = Math.max(1, leftSmooth[i] * maxBarHeight);
-            const rightHeight = Math.max(1, rightSmooth[i] * maxBarHeight);
-
-            const leftGradient = ctx.createLinearGradient(0, centerY - leftHeight, 0, centerY);
-            leftGradient.addColorStop(0, "rgba(105,235,255,0.96)");
-            leftGradient.addColorStop(1, "rgba(40,150,220,0.55)");
-            ctx.fillStyle = leftGradient;
-            ctx.beginPath();
-            ctx.roundRect(x, centerY - leftHeight, barWidth, leftHeight, Math.min(4, barWidth * 0.4));
-            ctx.fill();
-
-            const rightGradient = ctx.createLinearGradient(0, centerY, 0, centerY + rightHeight);
-            rightGradient.addColorStop(0, "rgba(180,145,255,0.78)");
-            rightGradient.addColorStop(1, "rgba(105,105,245,0.96)");
-            ctx.fillStyle = rightGradient;
-            ctx.beginPath();
-            ctx.roundRect(x, centerY, barWidth, rightHeight, Math.min(4, barWidth * 0.4));
-            ctx.fill();
-          }
-        }
-
-        ctx.save();
-        ctx.strokeStyle = "rgba(255,255,255,0.23)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        ctx.lineTo(width, centerY);
-        for (let i = 1; i < 5; i++) {
-          const x = (width / 5) * i;
-          ctx.moveTo(x, centerY - 3);
-          ctx.lineTo(x, centerY + 3);
-        }
-        ctx.stroke();
-        ctx.restore();
-      } else if (state.waveMode === "a4") {
-
-        const bars = Math.min(72, dataLen);
-        const step = dataLen / bars;
-        const waveLeft = width * 0.045;
-        const waveWidth = width * 0.91;
-        const gap = Math.max(1.5, Math.min(3, waveWidth / bars * 0.14));
-        const barWidth = Math.max(1, waveWidth / bars - gap);
-        const baseY = height * 0.90;
-        const maxBarHeight = height * 0.76;
-
-        if (!waveBandBaseline || waveBandBaseline.length !== bars) {
-          waveBandBaseline = new Float32Array(bars);
-        }
-        if (!drawWave._a4Peaks || drawWave._a4Peaks.length !== bars) {
-          drawWave._a4Peaks = new Float32Array(bars);
-        }
-
-        for (let i = 0; i < bars; i++) {
-          const begin = Math.floor(i * step);
-          const finish = Math.max(begin + 1, Math.floor((i + 1) * step));
-          let level = 0;
-          for (let j = begin; j < finish && j < dataLen; j++) {
-            level = Math.max(level, waveSmoothData[j] || 0);
-          }
-
-          const previous = waveBandBaseline[i];
-          waveBandBaseline[i] += (level - waveBandBaseline[i]) * (isPlaying ? 0.022 : 0.09);
-          const change = Math.abs(level - previous);
-          const target = Math.min(1, Math.sqrt(change) * 3.0);
-          const displayLevel = drawWave._a4Peaks[i] =
-            Math.max(target, (drawWave._a4Peaks[i] || 0) - dt * 0.72);
-
-          const barHeight = Math.max(1.5, displayLevel * maxBarHeight);
-          const x = waveLeft + i * (waveWidth / bars);
-          const hue = 185 + (i / Math.max(1, bars - 1)) * 100;
-          const gradient = ctx.createLinearGradient(0, baseY - barHeight, 0, baseY);
-          gradient.addColorStop(0, "hsla(" + hue + ",100%,78%,0.95)");
-          gradient.addColorStop(1, "hsla(" + (hue + 18) + ",85%,43%,0.72)");
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.roundRect(x, baseY - barHeight, barWidth, barHeight, Math.min(4, barWidth * 0.45));
-          ctx.fill();
-        }
-
-        // 変化の基準線と、弱い音でも見失いにくい下地。
-        ctx.save();
-        ctx.fillStyle = "rgba(100,190,220,0.07)";
-        ctx.fillRect(waveLeft, baseY, waveWidth, 2);
-        ctx.strokeStyle = "rgba(255,255,255,0.15)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(waveLeft, baseY);
-        ctx.lineTo(waveLeft + waveWidth, baseY);
-        ctx.stroke();
-        ctx.restore();
-      } else if (state.waveMode === "a5") {
-
-        // 左右の出力レベルをまとめ、直近の音量変化を連続したラインとして流す。
-        const pointCount = Math.max(96, Math.min(200, Math.floor(width / 4)));
-        const centerY = height * 0.76;
-        const amplitudeScale = height * 0.58;
-
-        if (!drawWave._waveA5History || drawWave._waveA5History.length !== pointCount) {
-          drawWave._waveA5History = new Float32Array(pointCount);
-        }
-        const history = drawWave._waveA5History;
-
-        let level = 0;
-        if (isPlaying && leftLevelAnalyser && rightLevelAnalyser && leftLevelData && rightLevelData) {
-          leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-          rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-          let leftSum = 0;
-          let rightSum = 0;
-          for (let i = 0; i < leftLevelData.length; i++) {
-            const sample = (leftLevelData[i] - 128) / 128;
-            leftSum += sample * sample;
-          }
-          for (let i = 0; i < rightLevelData.length; i++) {
-            const sample = (rightLevelData[i] - 128) / 128;
-            rightSum += sample * sample;
-          }
-          const leftRms = Math.sqrt(leftSum / Math.max(1, leftLevelData.length));
-          const rightRms = Math.sqrt(rightSum / Math.max(1, rightLevelData.length));
-          level = Math.min(1, ((leftRms + rightRms) * 0.5) * 2.35);
-        }
-
-        history.copyWithin(0, 1);
-        const incoming = isPlaying ? Math.min(1, level) : 0;
-        history[history.length - 1] += (incoming - history[history.length - 1]) * (isPlaying ? 0.34 : 0.16);
-
-        // 目盛りと下側の薄い面で、音量の推移を読み取りやすくする。
-        ctx.save();
-        ctx.strokeStyle = "rgba(150,200,220,0.075)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 1; i < 5; i++) {
-          const y = (height / 5) * i;
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
-        }
-        ctx.stroke();
-
-        const area = ctx.createLinearGradient(0, centerY - amplitudeScale, 0, centerY);
-        area.addColorStop(0, "rgba(80,220,255,0.28)");
-        area.addColorStop(1, "rgba(80,150,240,0.015)");
-        ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        for (let i = 0; i < history.length; i++) {
-          const x = (i / Math.max(1, history.length - 1)) * width;
-          const y = centerY - history[i] * amplitudeScale;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(width, centerY);
-        ctx.closePath();
-        ctx.fillStyle = area;
-        ctx.fill();
-
-        ctx.beginPath();
-        for (let i = 0; i < history.length; i++) {
-          const x = (i / Math.max(1, history.length - 1)) * width;
-          const y = centerY - history[i] * amplitudeScale;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "rgba(110,225,255,0.28)";
-        ctx.lineWidth = 5;
-        ctx.shadowBlur = lowPerformance ? 0 : 10;
-        ctx.shadowColor = "rgba(65,190,255,0.4)";
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(215,250,255,0.95)";
-        ctx.lineWidth = 1.8;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.stroke();
-
-        ctx.strokeStyle = "rgba(255,255,255,0.17)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        ctx.lineTo(width, centerY);
-        ctx.stroke();
-
-        ctx.fillStyle = "rgba(220,245,255,0.75)";
-        ctx.font = "10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText("音量", 8, Math.max(12, centerY - amplitudeScale - 7));
-        ctx.restore();
-      } else if (state.waveMode === "a6") {
-
-        // 低・中・高域をそれぞれ異なる軌道へ割り当て、音の質感を立体的なリングで表現。
-        const bandEnergy = (from, to) => {
-          let sum = 0;
-          let count = 0;
-          const start = Math.floor(dataLen * from);
-          const end = Math.max(start + 1, Math.floor(dataLen * to));
-          for (let i = start; i < end && i < dataLen; i++) {
-            sum += waveSmoothData[i] || 0;
-            count++;
-          }
-          return count ? sum / count : 0;
-        };
-        const enhance = value => Math.min(1, Math.pow(Math.max(0, value), 0.64) * 1.12);
-        const low = enhance(bandEnergy(0.01, 0.10));
-        const mid = enhance(bandEnergy(0.10, 0.42));
-        const high = enhance(bandEnergy(0.42, 0.92));
-        const total = Math.min(1, low * 1.55 + mid * 1.28 + high);
-        const cx = width * 0.5;
-        const cy = height * 0.51;
-        const baseRadius = Math.min(width, height) * 0.115;
-
-        const background = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.7);
-        background.addColorStop(0, "hsla(190,90%,55%," + (0.045 + total * 0.10) + ")");
-        background.addColorStop(0.55, "hsla(245,80%,55%," + (0.025 + mid * 0.07) + ")");
-        background.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = background;
-        ctx.fillRect(0, 0, width, height);
-
-        const rings = [
-          { energy: low, hue: 34, radius: baseRadius * (1.25 + low * 2.7), wobble: height * 0.095, speed: 0.72, tilt: 0.34 },
-          { energy: mid, hue: 184, radius: baseRadius * (2.05 + mid * 2.8), wobble: height * 0.082, speed: -0.48, tilt: -0.24 },
-          { energy: high, hue: 278, radius: baseRadius * (2.8 + high * 2.45), wobble: height * 0.07, speed: 0.88, tilt: 0.17 }
-        ];
-        const points = lowPerformance ? 56 : 112;
-
-        ctx.save();
-        ctx.globalCompositeOperation = "lighter";
-        rings.forEach((ring, ringIndex) => {
-          const phase = now * 0.001 * ring.speed;
-          const pulse = 0.5 + 0.5 * Math.sin(now * (0.0011 + ringIndex * 0.00035) + ringIndex * 1.6);
-          const strength = Math.min(1, ring.energy * 1.5);
-          ctx.beginPath();
-          for (let i = 0; i <= points; i++) {
-            const angle = (i / points) * Math.PI * 2;
-            const detail = Math.sin(angle * (3 + ringIndex) + phase * 2.1) * ring.wobble * (0.25 + ring.energy * 1.45);
-            const bassPulse = ring.energy * Math.sin(angle * 2 - phase) * Math.min(width, height) * 0.035;
-            const rx = ring.radius + detail + bassPulse;
-            const ry = ring.radius * (0.48 + ring.energy * 0.20) + detail * 0.42;
-            const x = cx + Math.cos(angle + phase) * rx;
-            const y = cy + Math.sin(angle + phase * 0.68) * ry + Math.sin(angle * 2 + phase) * ring.tilt * ring.energy * 12;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.closePath();
-          ctx.strokeStyle = "hsla(" + ring.hue + ",92%,72%," + (0.24 + strength * 0.42 + pulse * 0.12) + ")";
-          ctx.lineWidth = 1.1 + strength * 2.0;
-          ctx.shadowBlur = lowPerformance ? 0 : 8 + strength * 10;
-          ctx.shadowColor = "hsla(" + ring.hue + ",95%,65%,0.48)";
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-        });
-
-        const coreRadius = baseRadius * (0.55 + total * 1.5);
-        const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius);
-        core.addColorStop(0, "rgba(220,250,255," + (0.20 + total * 0.30) + ")");
-        core.addColorStop(0.55, "hsla(195,95%,66%," + (0.10 + total * 0.18) + ")");
-        core.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = core;
-        ctx.beginPath();
-        ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        const dots = lowPerformance ? 8 : 16;
-        for (let i = 0; i < dots; i++) {
-          const angle = (i / dots) * Math.PI * 2 + now * 0.00038 * (i % 2 ? -1 : 1);
-          const orbit = baseRadius * (3.4 + low * 2.2 + high * 0.8);
-          const ripple = Math.sin(angle * 3 + now * 0.0018) * high * 10;
-          const x = cx + Math.cos(angle) * (orbit + ripple);
-          const y = cy + Math.sin(angle) * (orbit * 0.52 + ripple * 0.32);
-          const size = 0.9 + high * 1.9 + mid * 1.1;
-          ctx.fillStyle = "hsla(" + (190 + i * 8) + ",95%,76%," + (0.25 + total * 0.48) + ")";
-          ctx.beginPath();
-          ctx.arc(x, y, size, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      } else if (state.waveMode === "a7") {
-
-        // 水面を横切る波紋を重ね、低音・中音・高音で揺れ方を変える。
-        const bandEnergy = (from, to) => {
-          let sum = 0;
-          let count = 0;
-          const start = Math.floor(dataLen * from);
-          const end = Math.max(start + 1, Math.floor(dataLen * to));
-          for (let i = start; i < end && i < dataLen; i++) {
-            sum += waveSmoothData[i] || 0;
-            count++;
-          }
-          return count ? sum / count : 0;
-        };
-        const low = bandEnergy(0.01, 0.10);
-        const mid = bandEnergy(0.10, 0.42);
-        const high = bandEnergy(0.42, 0.92);
-        const total = Math.min(1, low * 1.55 + mid * 1.15 + high * 0.9);
-
-        if (isPlaying) {
-          drawWave._wave7Flow = (drawWave._wave7Flow || 0) + dt * (26 + total * 44);
-        }
-        const flow = drawWave._wave7Flow || 0;
-        const surface = ctx.createLinearGradient(0, 0, width, height);
-        surface.addColorStop(0, "rgba(5,20,32,0.28)");
-        surface.addColorStop(0.48, "rgba(8,36,48,0.18)");
-        surface.addColorStop(1, "rgba(18,15,42,0.30)");
-        ctx.fillStyle = surface;
-        ctx.fillRect(0, 0, width, height);
-
-        const rows = lowPerformance ? 12 : Math.max(18, Math.min(28, Math.floor(height / 16)));
-        const points = lowPerformance ? 40 : 76;
-        const spacing = height / rows;
-        for (let row = -1; row <= rows + 1; row++) {
-          const yBase = ((row * spacing + flow) % (height + spacing * 2)) - spacing;
-          const amplitude = height * (0.006 + total * 0.047);
-          const frequency = 1.25 + low * 2.1 + high * 1.5;
-          const phase = row * 0.64 + flow * 0.014;
-          ctx.beginPath();
-          for (let p = 0; p <= points; p++) {
-            const nx = p / points;
-            const x = nx * width;
-            const wave =
-              Math.sin(nx * Math.PI * 2 * frequency + phase) * amplitude +
-              Math.sin(nx * Math.PI * 2 * (frequency * 2.15) - phase * 0.72) * amplitude * (0.18 + high * 0.25);
-            const y = yBase + wave;
-            if (p === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          const alpha = 0.075 + total * 0.27;
-          ctx.strokeStyle = "hsla(" + (185 + high * 48) + ",85%," + (55 + mid * 15) + "%," + alpha + ")";
-          ctx.lineWidth = 0.7 + total * 1.25;
-          ctx.stroke();
-        }
-
-        // 音量に合わせて中央から広がる円形の波紋。
-        const rippleCount = lowPerformance ? 2 : 4;
-        for (let i = 0; i < rippleCount; i++) {
-          const radius = (Math.min(width, height) * (0.12 + i * 0.10) + (flow * (0.22 + i * 0.04)) % (Math.min(width, height) * 0.14));
-          ctx.beginPath();
-          ctx.ellipse(width * 0.5, height * 0.5, radius * (1.25 + mid * 0.18), radius * (0.42 + low * 0.18), 0, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(115,215,235," + (0.06 + total * 0.14) + ")";
-          ctx.lineWidth = 1 + total * 0.8;
-          ctx.stroke();
-        }
-      } else if (state.waveMode === "a8") {
-
-        // L/Rそれぞれの音量履歴を、現在から過去へ流れる2本のトレースとして表示。
-        if (!drawWave._wave8History) {
-          drawWave._wave8History = [];
-          drawWave._wave8SampleElapsed = 0;
-          drawWave._wave8LastTime = -1;
-        }
-        const history = drawWave._wave8History;
-        const sampleInterval = 0.025;
-        drawWave._wave8SampleElapsed = (drawWave._wave8SampleElapsed || 0) + dt;
-
-        if (waveLeftOutputAnalyser && waveRightOutputAnalyser && isPlaying) {
-          if (!waveLeftOutputAnalyser._wave8TimeData) {
-            waveLeftOutputAnalyser._wave8TimeData = new Uint8Array(waveLeftOutputAnalyser.fftSize);
-            waveRightOutputAnalyser._wave8TimeData = new Uint8Array(waveRightOutputAnalyser.fftSize);
-          }
-          waveLeftOutputAnalyser.getByteTimeDomainData(waveLeftOutputAnalyser._wave8TimeData);
-          waveRightOutputAnalyser.getByteTimeDomainData(waveRightOutputAnalyser._wave8TimeData);
-
-          if (drawWave._wave8SampleElapsed >= sampleInterval) {
-            drawWave._wave8SampleElapsed %= sampleInterval;
-            const rms = data => {
-              let sum = 0;
-              for (let i = 0; i < data.length; i++) {
-                const value = (data[i] - 128) / 128;
-                sum += value * value;
-              }
-              return Math.min(1, Math.sqrt(sum / Math.max(1, data.length)) * 2.4);
-            };
-            history.unshift({
-              left: rms(waveLeftOutputAnalyser._wave8TimeData),
-              right: rms(waveRightOutputAnalyser._wave8TimeData)
-            });
-            const maxHistory = Math.max(80, Math.ceil(4.5 / sampleInterval));
-            if (history.length > maxHistory) history.length = maxHistory;
-          }
-        } else {
-          drawWave._wave8SampleElapsed = 0;
-        }
-
-        const count = history.length;
-        const topBase = height * 0.27;
-        const bottomBase = height * 0.75;
-        const amplitude = height * 0.19;
-
-        ctx.save();
-        ctx.strokeStyle = "rgba(255,255,255,0.09)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 1; i < 5; i++) {
-          const x = (width / 5) * i;
-          ctx.moveTo(x, 8);
-          ctx.lineTo(x, height - 8);
-        }
-        ctx.moveTo(0, topBase);
-        ctx.lineTo(width, topBase);
-        ctx.moveTo(0, bottomBase);
-        ctx.lineTo(width, bottomBase);
-        ctx.stroke();
-
-        const drawTrace = (key, baseY, direction, color, fillColor) => {
-          if (count < 2) return;
-          const area = ctx.createLinearGradient(0, baseY - amplitude, 0, baseY + amplitude);
-          area.addColorStop(0, fillColor);
-          area.addColorStop(1, "rgba(0,0,0,0)");
-          ctx.beginPath();
-          ctx.moveTo(0, baseY);
-          for (let i = 0; i < count; i++) {
-            const age = i / Math.max(1, count - 1);
-            const x = age * width;
-            const level = history[i][key] || 0;
-            const y = baseY + direction * level * amplitude;
-            ctx.lineTo(x, y);
-          }
-          ctx.lineTo(width, baseY);
-          ctx.closePath();
-          ctx.fillStyle = area;
-          ctx.fill();
-
-          ctx.beginPath();
-          for (let i = 0; i < count; i++) {
-            const age = i / Math.max(1, count - 1);
-            const x = age * width;
-            const level = history[i][key] || 0;
-            const y = baseY + direction * level * amplitude;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 4;
-          ctx.shadowBlur = lowPerformance ? 0 : 8;
-          ctx.shadowColor = color;
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = "rgba(240,250,255,0.88)";
-          ctx.lineWidth = 1.25;
-          ctx.stroke();
-        };
-
-        drawTrace("right", topBase, -1, "rgba(255,145,170,0.9)", "rgba(255,110,150,0.22)");
-        drawTrace("left", bottomBase, 1, "rgba(90,205,255,0.92)", "rgba(70,170,255,0.20)");
-
-        ctx.fillStyle = "rgba(240,248,255,0.76)";
-        ctx.font = "10px sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText("R", 8, Math.max(12, topBase - amplitude - 7));
-        ctx.fillText("L", 8, Math.min(height - 6, bottomBase + amplitude + 14));
-        ctx.textAlign = "right";
-        ctx.fillText("現在", Math.min(width - 8, width * 0.04 + 32), height - 8);
-        ctx.fillText("過去", width - 8, height - 8);
-        ctx.restore();
       } else {
-        // 3D波形：時間を奥行きではなく固定された横方向へ流し、音量だけを高さとして持ち上げる。
-        // 「現在 → 過去」の時間方向は常に左から右。カメラの動きや音量で時間軸そのものは変化しない。
-        const SAMPLE_INTERVAL = 0.04;
-        const HISTORY_SECONDS = 6.0;
-        const BANDS_3D = 64;
-
-        if (!drawWave._wave3DHistory || drawWave._wave3DMode !== state.waveMode) {
-          drawWave._wave3DHistory = [];
-          drawWave._wave3DSampleElapsed = 0;
-          drawWave._wave3DLastAudioTime = -1;
-          drawWave._wave3DLastSampleTime = -1;
-          drawWave._wave3DPauseFade = 1;
-          drawWave._wave3DTrackKey = null;
-          drawWave._wave3DMode = state.waveMode;
-        }
-
-        if (isPlaying && analyserData?.length) {
-          const audioTime = Number(audio.currentTime) || 0;
-          const trackKey = state.currentSong?.name || audio.src || "";
-          const previousTrackKey = drawWave._wave3DTrackKey;
-          const trackChanged = previousTrackKey !== null && previousTrackKey !== trackKey;
-          drawWave._wave3DTrackKey = trackKey;
-
-          if (trackChanged) {
-            // 曲変更では履歴を消さず、そのまま次の波形を後ろへつなぐ。
-            drawWave._wave3DSampleElapsed = 0;
-            drawWave._wave3DLastAudioTime = audioTime;
-            drawWave._wave3DLastSampleTime = -1;
-          } else if (
-            drawWave._wave3DLastAudioTime >= 0 &&
-            (audioTime < drawWave._wave3DLastAudioTime ||
-             Math.abs(audioTime - drawWave._wave3DLastAudioTime) > 0.4)
-          ) {
-            // 同じ曲のシークなど、時間が不連続になった場合だけ履歴をリセットする。
-            drawWave._wave3DHistory = [];
-            drawWave._wave3DSampleElapsed = 0;
-            drawWave._wave3DLastSampleTime = -1;
-          }
-
-          if (
-            drawWave._wave3DLastSampleTime < 0 ||
-            audioTime - drawWave._wave3DLastSampleTime >= SAMPLE_INTERVAL
-          ) {
-            const bands = new Float32Array(BANDS_3D);
-            const maxBin = analyserData.length - 1;
-
-            for (let b = 0; b < BANDS_3D; b++) {
-              const lo = Math.floor(Math.pow(b / BANDS_3D, 1.42) * maxBin);
-              const hi = Math.max(
-                lo + 1,
-                Math.floor(Math.pow((b + 1) / BANDS_3D, 1.42) * maxBin)
-              );
-
-              let sum = 0;
-              let count = 0;
-              for (let k = lo; k <= hi && k <= maxBin; k++) {
-                const value = (analyserData[k] || 0) / 255;
-                sum += value * value;
-                count++;
-              }
-
-              bands[b] = count
-                ? Math.min(1, Math.sqrt(sum / count) * 2.15)
-                : 0;
-            }
-
-            drawWave._wave3DHistory.unshift({ time: audioTime, bands });
-            drawWave._wave3DLastSampleTime = audioTime;
-
-            while (
-              drawWave._wave3DHistory.length > 1 &&
-              audioTime - drawWave._wave3DHistory[drawWave._wave3DHistory.length - 1].time > HISTORY_SECONDS
-            ) {
-              drawWave._wave3DHistory.pop();
-            }
-            if (drawWave._wave3DHistory.length > 256) {
-              drawWave._wave3DHistory.length = 256;
-            }
-          }
-
-          drawWave._wave3DLastAudioTime = audioTime;
-        } else {
-          drawWave._wave3DSampleElapsed = 0;
-          drawWave._wave3DLastSampleTime = -1;
-        }
-
-        const currentAudioTime = Number(audio.currentTime) || 0;
-        const hasHistory = drawWave._wave3DHistory.length > 0;
-        const pauseFade = isPlaying
-          ? 1
-          : hasHistory
-            ? Math.max(0, (drawWave._wave3DPauseFade ?? 1) - dt * 1.8)
-            : 1;
-
-        if (!isPlaying && hasHistory) drawWave._wave3DPauseFade = pauseFade;
-
-        // 再生していないときも3D表示そのものは残す。
-        // 実音声を解析できない状態では、中央に緩やかな基準波形を表示する。
-        const staticBands = (() => {
-          const bands = new Float32Array(BANDS_3D);
-          for (let b = 0; b < BANDS_3D; b++) {
-            const x = b / Math.max(1, BANDS_3D - 1);
-            bands[b] = 0.055
-              + 0.025 * Math.sin(x * Math.PI * 2.4)
-              + 0.018 * Math.sin(x * Math.PI * 5.8 + 0.7);
-          }
-          return bands;
-        })();
-
-        // 現在の解析値を補間して、先頭だけが段差状にならないようにする。
-        const liveBands = isPlaying && waveSmoothData?.length
-          ? (() => {
-              const bands = new Float32Array(BANDS_3D);
-              const maxBin = waveSmoothData.length - 1;
-              for (let b = 0; b < BANDS_3D; b++) {
-                const lo = Math.floor(Math.pow(b / BANDS_3D, 1.42) * maxBin);
-                const hi = Math.max(
-                  lo + 1,
-                  Math.floor(Math.pow((b + 1) / BANDS_3D, 1.42) * maxBin)
-                );
-                let level = 0;
-                for (let k = lo; k <= hi && k <= maxBin; k++) {
-                  level = Math.max(level, waveSmoothData[k] || 0);
-                }
-                bands[b] = Math.min(1, level * 2.15);
-              }
-              return bands;
-            })()
-          : null;
-
-        const rows = hasHistory
-          ? drawWave._wave3DHistory
-          : [{ time: currentAudioTime, bands: staticBands }];
-        const displayBands = liveBands || staticBands;
-
-        const timeLeft = width * 0.06;
-        const timeRight = width * 0.94;
-        const baseY = height * 0.82;
-        const maxHeight = height * 0.66;
-        const freqDepth = width * 0.48;
-        const floorDepth = height * 0.18;
-
-        // 視点操作そのものは変更せず、投影後の全体だけを画面内へ収める。
-        // ワイド画面では奥行きの回転による横/縦方向の広がりが大きくなるため、
-        // 理論上の最大範囲から縮小率を決め、波の山を描画時に上限クリップしない。
-        const cameraElevation = 0.62;
-        const halfTimeSpan = (timeRight - timeLeft) * 0.5;
-        const halfFreqDepth = freqDepth * 0.5;
-        const horizontalExtent = Math.hypot(halfTimeSpan, halfFreqDepth);
-        const verticalExtent = maxHeight * Math.cos(cameraElevation) + halfFreqDepth * Math.sin(cameraElevation);
-        const waveFitScale = Math.min(
-          1,
-          (width * 0.46) / Math.max(1, horizontalExtent),
-          (height * 0.44) / Math.max(1, verticalExtent)
-        );
-
-        // 奥行き方向の床グリッド。波形そのものとは独立した固定の基準面。
-        const project3DPoint = (age, freqRatio, amplitude) => {
-          const timeX = timeLeft + age * (timeRight - timeLeft);
-          const depth = (freqRatio - 0.5) * freqDepth;
-          const heightValue = Math.max(0, Math.min(1, amplitude)) * maxHeight;
-
-          return applyWaveView({
-            x: timeX,
-            y: heightValue,
-            depth,
-            age,
-            fitScale: waveFitScale
-          }, width, height);
-        };
-
-        if (rows.length) {
-          // 床の奥行きを先に描画して、メッシュが空間内に浮いているように見せる。
-          ctx.save();
-          ctx.globalAlpha = 0.34 * pauseFade;
-          ctx.lineWidth = 1;
-
-          for (let g = 0; g <= 8; g++) {
-            const ratio = g / 8;
-            const p1 = project3DPoint(0, ratio, 0);
-            const p2 = project3DPoint(1, ratio, 0);
-            ctx.strokeStyle = g === 4
-              ? "rgba(255,255,255,0.16)"
-              : "rgba(255,255,255,0.055)";
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y + floorDepth);
-            ctx.lineTo(p2.x, p2.y + floorDepth);
-            ctx.stroke();
-          }
-
-          for (let t = 0; t <= 10; t++) {
-            const age = t / 10;
-            const p1 = project3DPoint(age, 0, 0);
-            const p2 = project3DPoint(age, 1, 0);
-            ctx.strokeStyle = t === 0
-              ? "rgba(255,255,255,0.18)"
-              : "rgba(255,255,255,0.045)";
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y + floorDepth);
-            ctx.lineTo(p2.x, p2.y + floorDepth);
-            ctx.stroke();
-          }
-
-          ctx.restore();
-
-          // 各時間断面を面として塗り、線だけでは出ない立体感を作る。
-          // 現在に近いほど明るく、過去へ行くほど透明になる。
-          ctx.save();
-          for (let t = rows.length - 1; t > 0; t--) {
-            const row = rows[t];
-            const nextRow = rows[t - 1];
-            const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
-            const nextAge = Math.min(1, Math.max(0, (currentAudioTime - nextRow.time) / HISTORY_SECONDS));
-            const fade = (0.10 + 0.58 * (1 - age)) * pauseFade;
-
-            for (let b = 0; b < BANDS_3D - 1; b++) {
-              const freqRatio = b / (BANDS_3D - 1);
-              const nextFreqRatio = (b + 1) / (BANDS_3D - 1);
-
-              const p00 = project3DPoint(age, freqRatio, row.bands[b]);
-              const p10 = project3DPoint(age, nextFreqRatio, row.bands[b + 1]);
-              const p01 = project3DPoint(nextAge, freqRatio, nextRow.bands[b]);
-              const p11 = project3DPoint(nextAge, nextFreqRatio, nextRow.bands[b + 1]);
-
-              const energy = Math.max(
-                row.bands[b] || 0,
-                row.bands[b + 1] || 0,
-                nextRow.bands[b] || 0,
-                nextRow.bands[b + 1] || 0
-              );
-              const hue = 178 + freqRatio * 118;
-              const lightness = 43 + energy * 20;
-
-              ctx.fillStyle = "hsla(" + hue.toFixed(1) + ", 88%, " + lightness.toFixed(1) + "%, " + (fade * (0.26 + energy * 0.42)).toFixed(3) + ")";
-              ctx.beginPath();
-              ctx.moveTo(p00.x, p00.y);
-              ctx.lineTo(p10.x, p10.y);
-              ctx.lineTo(p11.x, p11.y);
-              ctx.lineTo(p01.x, p01.y);
-              ctx.closePath();
-              ctx.fill();
-            }
-          }
-          ctx.restore();
-
-          // 時間方向のリボン。時間軸を固定したまま、音量による高さの変化だけを連続線で見せる。
-          ctx.save();
-          ctx.globalAlpha = pauseFade;
-          for (let b = 0; b < BANDS_3D; b += 2) {
-            ctx.beginPath();
-            for (let t = rows.length - 1; t >= 0; t--) {
-              const row = rows[t];
-              const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
-              const freqRatio = b / (BANDS_3D - 1);
-              const point = project3DPoint(age, freqRatio, row.bands[b]);
-              if (t === rows.length - 1) ctx.moveTo(point.x, point.y);
-              else ctx.lineTo(point.x, point.y);
-            }
-            const hue = 178 + (b / (BANDS_3D - 1)) * 118;
-            ctx.strokeStyle = "hsla(" + hue.toFixed(1) + ", 94%, 72%, 0.42)";
-            ctx.lineWidth = b % 8 === 0 ? 1.35 : 0.72;
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
-            ctx.stroke();
-          }
-          ctx.restore();
-
-          // 周波数方向の稜線。現在位置ほど太くして「波の壁」を強調する。
-          ctx.save();
-          ctx.globalAlpha = pauseFade;
-          for (let t = rows.length - 1; t >= 0; t--) {
-            const row = rows[t];
-            const age = Math.min(1, Math.max(0, (currentAudioTime - row.time) / HISTORY_SECONDS));
-            const fade = 0.12 + 0.88 * (1 - age);
-
-            ctx.beginPath();
-            for (let b = 0; b < BANDS_3D; b++) {
-              const freqRatio = b / (BANDS_3D - 1);
-              const point = project3DPoint(age, freqRatio, row.bands[b]);
-              if (b === 0) ctx.moveTo(point.x, point.y);
-              else ctx.lineTo(point.x, point.y);
-            }
-
-            const hue = 178 + (1 - age) * 118;
-            ctx.strokeStyle = "hsla(" + hue.toFixed(1) + ", 100%, 76%, " + (fade * 0.74).toFixed(3) + ")";
-            ctx.lineWidth = age < 0.08 ? 2.8 : 0.9;
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
-            ctx.stroke();
-          }
-          ctx.restore();
-
-          // 現在の断面だけは毎フレーム描画。音量が上がるほど、カメラから見て明確に上へ持ち上がる。
-          if (displayBands) {
-            ctx.save();
-            ctx.globalAlpha = pauseFade;
-            ctx.beginPath();
-            for (let b = 0; b < BANDS_3D; b++) {
-              const freqRatio = b / (BANDS_3D - 1);
-              const point = project3DPoint(0, freqRatio, displayBands[b]);
-              if (b === 0) ctx.moveTo(point.x, point.y);
-              else ctx.lineTo(point.x, point.y);
-            }
-            ctx.strokeStyle = "rgba(225,255,250,0.98)";
-            ctx.lineWidth = 2.8;
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
-            ctx.shadowBlur = lowPerformance ? 0 : 14;
-            ctx.shadowColor = "rgba(65, 235, 205, 0.42)";
-            ctx.stroke();
-            ctx.restore();
-          }
-
-          // 現在位置の固定マーカー。時間方向の基準が常に同じ位置で分かる。
-          const currentBase = project3DPoint(0, 0.5, 0);
-          ctx.save();
-          ctx.globalAlpha = 0.5 * pauseFade;
-          ctx.strokeStyle = "rgba(255,255,255,0.32)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(currentBase.x, currentBase.y + floorDepth);
-          ctx.lineTo(currentBase.x, currentBase.y - maxHeight * 0.72);
-          ctx.stroke();
-          ctx.restore();
-        }
-
-        if (!isPlaying) {
-          const restAlpha = 0.16 + 0.62 * (1 - pauseFade);
-          ctx.save();
-          ctx.globalAlpha = restAlpha;
-          ctx.strokeStyle = "rgba(170,220,255,0.82)";
-          ctx.lineWidth = 1.4;
-          ctx.beginPath();
-          ctx.moveTo(timeLeft, baseY);
-          ctx.lineTo(timeRight, baseY);
-          ctx.stroke();
-          ctx.restore();
-
-          if (pauseFade <= 0) {
-            waveDecayActive = false;
-          }
-        }
+        drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now);
       }
-    }
 
-    if (!["2d", "a2", "a8"].includes(state.waveMode)) {
-      ctx.save();
-      ctx.fillStyle = "rgba(255,255,255,0.72)";
-      ctx.font = "10px sans-serif";
-      ctx.textAlign = "left";
-      ctx.shadowColor = "rgba(0,0,0,0.85)";
-      ctx.shadowBlur = 3;
-      ctx.fillText("L", 8, Math.max(12, height * 0.28));
-      ctx.fillText("R", 8, Math.min(height - 8, height * 0.76));
-      ctx.restore();
-    }
   }
 
   function startWaveAnimation(force = false) {
