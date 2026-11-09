@@ -877,7 +877,7 @@ function drawWave() {
           const trackH = Math.max(1, trackBottom - trackTop);
           const fillH = trackH * Math.min(1, Math.max(0, level));
           const meterGradient = ctx.createLinearGradient(0, trackBottom, 0, trackTop);
-          meterGradient.addColorStop(0, "#1DB954");
+          meterGradient.addColorStop(0, "#35D977");
           meterGradient.addColorStop(0.58, "#d7df28");
           meterGradient.addColorStop(1, "#ff3b30");
           ctx.fillStyle = "rgba(255,255,255,.08)";
