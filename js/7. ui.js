@@ -894,7 +894,7 @@ function drawWave() {
       } else {
         drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now);
       }
-
+    }
   }
 
   function startWaveAnimation(force = false) {
