@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.30</title>
+<title>Music Player v7.4.31</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.30-r38">
+<link rel="stylesheet" href="style.css?v=7.4.31-r39">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -77,6 +77,64 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body class="app-loading">
+<script>
+(() => {
+  // 初回描画前に保存済みテーマを適用し、ローディング画面のテーマちらつきを防ぐ。
+  try {
+    const mode = localStorage.getItem("mp_thememode_v12") || "system";
+    let activeMode = mode;
+    if (activeMode === "system") {
+      activeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    if (activeMode === "light") {
+      document.body.classList.add("theme-light");
+    } else if (activeMode === "custom") {
+      let custom = {
+        c1: "#1d3557", l1: 100,
+        c2: "#121212", l2: 100,
+        text: "#ffffff", lText: 100,
+        dir: "180deg"
+      };
+      try {
+        const savedCustom = JSON.parse(localStorage.getItem("mp_custtheme_v12") || "null");
+        if (savedCustom && typeof savedCustom === "object") custom = { ...custom, ...savedCustom };
+      } catch {}
+
+      const adjust = (hex, percent) => {
+        let num = parseInt(String(hex || "").replace("#", ""), 16);
+        if (Number.isNaN(num)) return hex;
+        let r = num >> 16;
+        let g = (num >> 8) & 255;
+        let b = num & 255;
+        if (percent > 100) {
+          const p = (percent - 100) / 100;
+          r = Math.round(r + (255 - r) * p);
+          g = Math.round(g + (255 - g) * p);
+          b = Math.round(b + (255 - b) * p);
+        } else {
+          const p = percent / 100;
+          r = Math.round(r * p);
+          g = Math.round(g * p);
+          b = Math.round(b * p);
+        }
+        return `rgb(${Math.min(255, Math.max(0, r))}, ${Math.min(255, Math.max(0, g))}, ${Math.min(255, Math.max(0, b))})`;
+      };
+
+      const c1 = adjust(custom.c1 || "#1d3557", custom.l1 ?? 100);
+      const c2 = adjust(custom.c2 || "#121212", custom.l2 ?? 100);
+      const text = adjust(custom.text || "#ffffff", custom.lText ?? 100);
+      const muted = adjust(custom.text || "#ffffff", Math.round((custom.lText ?? 100) * 0.65));
+      document.body.style.background = `linear-gradient(${custom.dir || "180deg"}, ${c1} 0%, ${c2} 100%)`;
+      document.body.style.backgroundAttachment = "fixed";
+      document.body.style.color = text;
+      document.body.style.setProperty("--text", text);
+      document.body.style.setProperty("--muted", muted);
+      document.body.style.setProperty("--bottom-nav-bg", c2);
+    }
+  } catch {}
+})();
+</script>
 
 <div class="appLoadingScreen" id="appLoadingScreen" aria-live="polite">
   <div class="appLoadingInner">
@@ -802,8 +860,8 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.30";
-  const BUILD_REVISION = 38;
+  const APP_VERSION = "v7.4.31";
+  const BUILD_REVISION = 39;
   const BUILD_COMMIT_ID = "7fa30cae1a19b98bed8ca1ba120c735dad1c166a";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1109,7 +1167,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.30-r38"></script>
+<script src="js/1. ctrl.js?v=7.4.31-r39"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
