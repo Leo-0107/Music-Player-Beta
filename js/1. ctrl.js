@@ -1,18 +1,18 @@
 // ctrl.js
 (() => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
+    navigator.serviceWorker.register('./sw.js?v=7.4.27-r33', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
   }
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '5. storage.js',
-    '4. state.js',
-    '2. audio.js',
-    '3. audio-output.js',
-    '6. library.js',
-    '7. ui.js',
-    '9. youtube.js'
+    '5. storage.js?v=7.4.27-r33',
+    '4. state.js?v=7.4.27-r33',
+    '2. audio.js?v=7.4.27-r33',
+    '3. audio-output.js?v=7.4.27-r33',
+    '6. library.js?v=7.4.27-r33',
+    '7. ui.js?v=7.4.27-r33',
+    '9. youtube.js?v=7.4.27-r33'
   ];
 
   const LOAD_TIMEOUT_MS = 5000;
@@ -94,7 +94,7 @@
         }
 
         // 通信が一時的に止まった場合は、Service Workerのキャッシュを最後の復旧手段として使う。
-        return caches.match(url).then(cached => {
+        return caches.match(url, { ignoreSearch: true }).then(cached => {
           if (!cached) throw error;
           console.warn(`Music Player JS cache fallback: ${file}`);
           return cached.text().then(text => {
