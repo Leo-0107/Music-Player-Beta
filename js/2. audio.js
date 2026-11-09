@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 31;
+  const BUILD_REVISION = 32;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1036,6 +1036,9 @@ let mainOutputUsesNativeDestination = false;
       document.body.style.color = "";
       if(state.themeMode === "dark" && el.btnThemeDark) el.btnThemeDark.classList.add("active");
     }
+
+    // テーマ切替後も、ジャケット未設定時のキャンバス色を現在のテーマに合わせて再描画する。
+    if (typeof updateArtwork === "function") updateArtwork(state.currentSong);
   }
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -1251,9 +1254,10 @@ let mainOutputUsesNativeDestination = false;
         return;
       }
 
-      ctx.fillStyle = "rgba(35, 35, 40, 0.9)";
+      const isLightTheme = document.body.classList.contains("theme-light");
+      ctx.fillStyle = isLightTheme ? "#e9edf2" : "rgba(35, 35, 40, 0.9)";
       ctx.fillRect(0, 0, size, size);
-      ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
+      ctx.fillStyle = isLightTheme ? "rgba(72, 82, 94, 0.48)" : "rgba(200, 200, 200, 0.3)";
       ctx.font = `bold ${Math.round(size / 6.5)}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
