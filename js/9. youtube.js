@@ -3,8 +3,15 @@
 (() => {
   const YT_STORAGE_KEY = "mp_youtube_v1";
   const YT_LIBRARY_STORAGE_KEY = "mp_youtube_library_v1";
-  const YT_API_KEY_STORAGE = "mp_youtube_api_key_v1";
   const YOUTUBE_DATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  const YOUTUBE_SEARCH_INSTANCES = [
+    "https://invidious.f5.si",
+    "https://invidious.tiekoetter.com",
+    "https://invidious.nerdvpn.de",
+    "https://yt.chocolatemoo53.com",
+    "https://inv.nadeko.net"
+  ];
+  let youtubeSearchInstanceIndex = 0;
 
   function pruneYoutubeMetadata(items, now = Date.now()) {
     const retained = [];
@@ -479,10 +486,6 @@
     }
   }
 
-  function getYoutubeApiKey() {
-    try { return localStorage.getItem(YT_API_KEY_STORAGE) || ""; } catch { return ""; }
-  }
-
   function setYoutubeSearchStatus(message) {
     const status = document.getElementById("youtubeSearchStatus");
     if (status) status.textContent = message;
@@ -504,7 +507,7 @@
         author: String(snippet.channelTitle || "YouTube"),
         addedAt: fetchedAt,
         apiDataFetchedAt: fetchedAt,
-        metadataSource: "youtube-data-api"
+        metadataSource: "invidious"
       };
       const row = document.createElement("div");
       row.className = "song";
@@ -541,38 +544,70 @@
     });
   }
 
+  async function fetchYoutubeSearchItems(query) {
+    const params = new URLSearchParams({
+      q: query,
+      type: "video",
+      page: "1",
+      region: "JP",
+      hl: "ja"
+    });
+    let lastError = null;
+    for (let attempt = 0; attempt < YOUTUBE_SEARCH_INSTANCES.length; attempt++) {
+      const instanceIndex = (youtubeSearchInstanceIndex + attempt) % YOUTUBE_SEARCH_INSTANCES.length;
+      const baseUrl = YOUTUBE_SEARCH_INSTANCES[instanceIndex];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch(baseUrl + "/api/v1/search?" + params.toString(), {
+          headers: { "Accept": "application/json" },
+          cache: "no-store",
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error("検索結果の形式が正しくありません。");
+        youtubeSearchInstanceIndex = instanceIndex;
+        return data
+          .filter(video => video?.type === "video" && /^[\\w-]{11}$/.test(video.videoId || ""))
+          .slice(0, 10)
+          .map(video => ({
+            id: { videoId: video.videoId },
+            snippet: {
+              title: video.title || "YouTube動画",
+              channelTitle: video.author || "YouTube"
+            }
+          }));
+      } catch (error) {
+        lastError = error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    throw new Error("検索サービスに接続できませんでした。時間をおいて再度お試しください。");
+  }
+
   async function searchYoutubeVideos() {
     const query = String(document.getElementById("youtubeSearchInput")?.value || "").trim();
-    const apiKey = getYoutubeApiKey();
     const results = document.getElementById("youtubeSearchResults");
     if (!query) { setYoutubeSearchStatus("検索キーワードを入力してください。"); return; }
-    if (!apiKey) { setYoutubeSearchStatus("APIが登録されていません"); return; }
     const button = document.getElementById("youtubeSearchBtn");
     if (button) button.disabled = true;
     if (results) results.textContent = "検索しています...";
     setYoutubeSearchStatus("YouTubeを検索しています...");
     try {
-      const params = new URLSearchParams({ part: "snippet", type: "video", maxResults: "10", q: query });
-      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString(), {
-        headers: { "X-Goog-Api-Key": apiKey }
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        const reason = data.error?.errors?.[0]?.reason || "";
-        if (response.status === 403 && reason === "quotaExceeded") throw new Error("YouTube APIの検索上限に達しました。時間をおいて再度お試しください。");
-        if (response.status === 403) throw new Error("APIキーまたはYouTube Data API v3の設定を確認してください。");
-        throw new Error(data.error?.message || "検索に失敗しました。");
-      }
-      renderYoutubeSearchResults(Array.isArray(data.items) ? data.items : []);
-      setYoutubeSearchStatus((data.items?.length || 0) + "件の検索結果");
+      const items = await fetchYoutubeSearchItems(query);
+      renderYoutubeSearchResults(items);
+      setYoutubeSearchStatus(items.length + "件の検索結果");
     } catch (error) {
       if (results) results.textContent = "";
       setYoutubeSearchStatus(error.message || "検索に失敗しました。");
-    } finally { if (button) button.disabled = false; }
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   function initializeYoutubeSearch() {
-    const keyInput = document.getElementById("youtubeApiKeyInput");
     const urlModeButton = document.getElementById("youtubeUrlModeBtn");
     const keywordModeButton = document.getElementById("youtubeKeywordModeBtn");
     const urlModePanel = document.getElementById("youtubeUrlMode");
@@ -585,25 +620,11 @@
       keywordModeButton?.classList.toggle("active", !isUrlMode);
       urlModeButton?.setAttribute("aria-pressed", String(isUrlMode));
       keywordModeButton?.setAttribute("aria-pressed", String(!isUrlMode));
-      if (!isUrlMode) {
-        setYoutubeSearchStatus(getYoutubeApiKey() ? "" : "APIが登録されていません");
-      }
+      if (!isUrlMode) setYoutubeSearchStatus("");
     };
     urlModeButton?.addEventListener("click", () => setInputMode("url"));
     keywordModeButton?.addEventListener("click", () => setInputMode("keyword"));
     setInputMode("url");
-    if (keyInput) keyInput.value = getYoutubeApiKey();
-    document.getElementById("youtubeSaveApiKeyBtn")?.addEventListener("click", () => {
-      const value = String(keyInput?.value || "").trim();
-      if (!value) { setYoutubeSearchStatus("APIキーを入力してください。"); return; }
-      try { localStorage.setItem(YT_API_KEY_STORAGE, value); } catch { setYoutubeSearchStatus("APIキーを保存できませんでした。"); return; }
-      setYoutubeSearchStatus("APIキーを保存しました。キーワードを検索できます。");
-    });
-    document.getElementById("youtubeClearApiKeyBtn")?.addEventListener("click", () => {
-      try { localStorage.removeItem(YT_API_KEY_STORAGE); } catch {}
-      if (keyInput) keyInput.value = "";
-      setYoutubeSearchStatus("保存したAPIキーを削除しました。");
-    });
     document.getElementById("youtubeSearchBtn")?.addEventListener("click", searchYoutubeVideos);
     document.getElementById("youtubeSearchInput")?.addEventListener("keydown", event => { if (event.key === "Enter") searchYoutubeVideos(); });
   }
