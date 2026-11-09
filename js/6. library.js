@@ -2218,13 +2218,13 @@
     }));
 
     ctx.beginPath();
-    ctx.strokeStyle = "#1DB954";
+    ctx.strokeStyle = "#35D977";
     ctx.lineWidth = 2;
     points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
     ctx.stroke();
 
     points.forEach(pt => {
-      ctx.fillStyle = "#1DB954";
+      ctx.fillStyle = "#35D977";
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
       ctx.fill();
