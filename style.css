@@ -3070,3 +3070,16 @@ body.theme-light .btn.danger:hover {
   background: color-mix(in srgb, var(--danger) 13%, #fff);
   color: var(--danger);
 }
+
+
+/* ホワイトテーマ：メニュークイックカードとライブラリ追加ボタンも同じhover基準にそろえる */
+body.theme-light .menuQuickCategoryCard:hover,
+body.theme-light .menuQuickActionCard:hover {
+  background: var(--panel3);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  filter: none;
+}
+body.theme-light #btnSettingsAddMusic:hover {
+  background: var(--panel3);
+  filter: none;
+}
