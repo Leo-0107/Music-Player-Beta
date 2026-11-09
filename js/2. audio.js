@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 34;
+  const BUILD_REVISION = 35;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1000,6 +1000,7 @@ let mainOutputUsesNativeDestination = false;
 
     document.body.style.removeProperty("--text");
     document.body.style.removeProperty("--muted");
+    document.body.style.removeProperty("--bottom-nav-bg");
 
     let activeMode = state.themeMode;
     if(activeMode === "system"){
@@ -1031,6 +1032,7 @@ let mainOutputUsesNativeDestination = false;
       
       document.body.style.setProperty("--text", computedText);
       document.body.style.setProperty("--muted", computedMuted);
+      document.body.style.setProperty("--bottom-nav-bg", computedC2);
     } else {
       document.body.style.background = "";
       document.body.style.color = "";
