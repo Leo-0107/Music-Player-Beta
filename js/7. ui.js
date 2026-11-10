@@ -464,6 +464,62 @@
   let waveViewLastY = 0;
   let visualizerFrameTime = 16.67;
 
+  const visualizerPerformanceStats = {
+    windowStartedAt: 0,
+    frames: 0,
+    totalFrameDurationMs: 0,
+    maxFrameDurationMs: 0,
+    lastFrameDurationMs: 0,
+    lastCompletedWindow: null
+  };
+
+  function recordVisualizerFramePerformance(startedAt) {
+    const endedAt = performance.now();
+    const duration = Math.max(0, endedAt - startedAt);
+    const stats = visualizerPerformanceStats;
+    if (!stats.windowStartedAt) stats.windowStartedAt = startedAt;
+    stats.frames++;
+    stats.totalFrameDurationMs += duration;
+    stats.maxFrameDurationMs = Math.max(stats.maxFrameDurationMs, duration);
+    stats.lastFrameDurationMs = duration;
+    const elapsed = Math.max(1, endedAt - stats.windowStartedAt);
+    if (elapsed >= 5000) {
+      stats.lastCompletedWindow = {
+        durationMs: Math.round(elapsed),
+        frameCount: stats.frames,
+        fps: Math.round(stats.frames * 1000 / elapsed * 10) / 10,
+        avgFrameDurationMs: Math.round(stats.totalFrameDurationMs / stats.frames * 100) / 100,
+        maxFrameDurationMs: Math.round(stats.maxFrameDurationMs * 100) / 100
+      };
+      stats.windowStartedAt = endedAt;
+      stats.frames = 0;
+      stats.totalFrameDurationMs = 0;
+      stats.maxFrameDurationMs = 0;
+    }
+  }
+
+  window.__musicPlayerGetVisualizerPerformanceStats = function() {
+    const stats = visualizerPerformanceStats;
+    const elapsed = stats.windowStartedAt ? Math.max(1, performance.now() - stats.windowStartedAt) : 0;
+    const memory = performance.memory;
+    return {
+      source: "Canvas 2D drawWave",
+      visibilityState: document.visibilityState,
+      lowPerformanceMode: !!state.visualizerSettings?.lowPerformanceMode,
+      currentWindowMs: Math.round(elapsed),
+      currentFrameCount: stats.frames,
+      currentFps: stats.frames ? Math.round(stats.frames * 1000 / elapsed * 10) / 10 : null,
+      averageFrameDurationMs: stats.frames ? Math.round(stats.totalFrameDurationMs / stats.frames * 100) / 100 : null,
+      maxFrameDurationMs: Math.round(stats.maxFrameDurationMs * 100) / 100,
+      lastFrameDurationMs: Math.round(stats.lastFrameDurationMs * 100) / 100,
+      lastCompletedWindow: stats.lastCompletedWindow,
+      deviceMemoryGiB: Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null,
+      logicalProcessors: Number.isFinite(navigator.hardwareConcurrency) ? navigator.hardwareConcurrency : null,
+      jsHeapUsedMB: Number.isFinite(memory?.usedJSHeapSize) ? Math.round(memory.usedJSHeapSize / 1048576 * 10) / 10 : null,
+      jsHeapLimitMB: Number.isFinite(memory?.jsHeapSizeLimit) ? Math.round(memory.jsHeapSizeLimit / 1048576 * 10) / 10 : null
+    };
+  };
+
   // 3D波形は「時間 × 周波数」の1枚の面として扱い、カメラだけが面の中心を回る。
   // 高さ（俯角）は固定し、手動操作では水平方向の周回だけを変更する。
   function applyWaveView(point, width, height) {
@@ -1069,12 +1125,16 @@ function drawWave() {
     }
 
     if (!el.wave) return;
+    const frameStartedAt = performance.now();
     const canvas = el.wave;
     const ctx = canvas.getContext("2d");
     const dpr = lowPerformance ? 1 : Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const width = canvas.parentElement.clientWidth;
     const height = canvas.parentElement.clientHeight;
-    if (!width || !height) return;
+    if (!width || !height) {
+      recordVisualizerFramePerformance(frameStartedAt);
+      return;
+    }
 
     if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
       canvas.width = width * dpr;
@@ -1113,6 +1173,7 @@ function drawWave() {
         ctx.fillText("L", 8, Math.max(12, height * 0.28));
         ctx.fillText("R", 8, Math.min(height - 8, height * 0.76));
       }
+      recordVisualizerFramePerformance(frameStartedAt);
       return;
     }
 
@@ -1223,6 +1284,7 @@ function drawWave() {
         drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now);
       }
     }
+    recordVisualizerFramePerformance(frameStartedAt);
   }
 
   function startWaveAnimation(force = false) {
