@@ -2408,10 +2408,10 @@
     try {
       if (typeof audioCtx.getOutputTimestamp === "function") timestamp = audioCtx.getOutputTimestamp();
     } catch {}
-    const contextGapMs = timestamp && Number.isFinite(Number(timestamp.contextTime))
+    const contextGapMs = timestamp && Number.isFinite(Number(timestamp.contextTime)) && Number(timestamp.contextTime) >= 0
       ? (audioCtx.currentTime - Number(timestamp.contextTime)) * 1000
       : null;
-    const performanceAgeMs = timestamp && Number.isFinite(Number(timestamp.performanceTime))
+    const performanceAgeMs = timestamp && Number.isFinite(Number(timestamp.performanceTime)) && Number(timestamp.performanceTime) > 0
       ? performance.now() - Number(timestamp.performanceTime)
       : null;
     const estimatedTotalMs = baseLatency == null || outputLatency == null
