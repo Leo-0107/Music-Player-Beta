@@ -199,6 +199,7 @@
     let measurementOutputGain = 1;
     let originalMainVolume = null;
     let originalRouteConnections = new Map();
+    let routesSnapshotTaken = false;
     if (list) {
       list.innerHTML = "";
       status = document.createElement("div");
@@ -345,6 +346,7 @@
         route.deviceId,
         !!additionalOutputRuntimes.get(route.deviceId)?.connected
       ]));
+      routesSnapshotTaken = true;
       const measurements = [];
       const setOnlyTarget = async target => {
         if (outputBridgeAudio) outputBridgeAudio.volume = target.selected ? 1 : 0;
@@ -563,7 +565,7 @@
       try { captureMuteNode?.disconnect(); } catch {}
       try { measurementMicGainNode?.disconnect(); } catch {}
       if (outputBridgeAudio && Number.isFinite(originalMainVolume)) outputBridgeAudio.volume = originalMainVolume;
-      if (typeof speakerBusNode !== "undefined" && speakerBusNode) {
+      if (routesSnapshotTaken && typeof speakerBusNode !== "undefined" && speakerBusNode) {
         for (const route of state.outputRoutes) {
           const runtime = additionalOutputRuntimes.get(route.deviceId);
           if (!runtime) continue;
