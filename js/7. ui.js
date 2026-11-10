@@ -1531,7 +1531,7 @@ function drawWave() {
           appLoadingProgressTimer = setTimeout(() => {
             appLoadingProgressTimer = null;
             step();
-          }, 12);
+          }, 4);
         } else {
           appLoadingProgressTimer = null;
         }
