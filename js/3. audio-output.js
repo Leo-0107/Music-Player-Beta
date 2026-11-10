@@ -194,13 +194,18 @@
   async function autoMeasureSpeakerDelay(targetEntry = null) {
     const modal = document.getElementById("speakerDelayMeasurementModal");
     const list = document.getElementById("speakerDelayMeasurementList");
+    let status = null;
+    let measurementMicGain = 1;
+    let measurementOutputGain = 1;
+    let originalMainVolume = null;
+    let originalRouteConnections = new Map();
     if (list) {
       list.innerHTML = "";
-      const status = document.createElement("div");
+      status = document.createElement("div");
       status.className = "speakerMeasurementProgress";
       status.textContent = targetEntry
-        ? targetEntry.label + " を測定中…\nスピーカーから測定音を出し、マイクで到達音を検出しています。"
-        : "スピーカーを測定中…\nスピーカーから測定音を出し、マイクで到達音を検出しています。";
+        ? targetEntry.label + " を測定中…\n複数回の測定音をマイクで検出しています。"
+        : "スピーカーを測定中…\n複数回の測定音をマイクで検出しています。";
       status.style.whiteSpace = "pre-line";
       status.style.padding = "14px";
       status.style.textAlign = "center";
@@ -210,7 +215,6 @@
 
       const controls = document.createElement("div");
       controls.className = "speakerMeasurementControls";
-
       const makeMeasurementControl = (labelText, initial, aria, onInput) => {
         const wrap = document.createElement("label");
         wrap.className = "speakerMeasurementControl";
@@ -234,13 +238,10 @@
         wrap.append(title, value, slider);
         return wrap;
       };
-
-      let measurementMicGain = 1;
-      let measurementOutputGain = 1;
       controls.append(
         makeMeasurementControl("マイク入力", measurementMicGain, "測定用マイク入力レベル", n => {
           measurementMicGain = n;
-          if (window.__musicPlayerMeasurementMicGain) {
+          if (window.__musicPlayerMeasurementMicGain && audioCtx) {
             window.__musicPlayerMeasurementMicGain.gain.setTargetAtTime(n, audioCtx.currentTime, 0.03);
           }
         }),
@@ -250,6 +251,7 @@
       );
       list.appendChild(controls);
     }
+
     if (modal) modal.hidden = false;
     document.body.classList.add("output-device-modal-open");
     ensureGraph();
@@ -258,22 +260,74 @@
 
     let micStream = null;
     let measurementMicGainNode = null;
+    let captureNode = null;
+    let captureMuteNode = null;
+    const captureResolvers = new Map();
+    let captureRequestId = 0;
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const median = values => {
+      const sorted = values.slice().sort((a, b) => a - b);
+      if (!sorted.length) return 0;
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    };
+
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
       const micSource = audioCtx.createMediaStreamSource(micStream);
       measurementMicGainNode = audioCtx.createGain();
-      measurementMicGainNode.gain.value = 1;
+      measurementMicGainNode.gain.value = measurementMicGain;
       window.__musicPlayerMeasurementMicGain = measurementMicGainNode;
       micSource.connect(measurementMicGainNode);
+
       const micAnalyser = audioCtx.createAnalyser();
       micAnalyser.fftSize = 2048;
       micAnalyser.smoothingTimeConstant = 0;
       measurementMicGainNode.connect(micAnalyser);
       const micData = new Uint8Array(micAnalyser.fftSize);
 
-      const allEntries = getUnifiedSpeakerEntries().filter(entry => !entry.disconnected && (entry.selected || entry.route?.enabled !== false));
+      // マイク波形をAudioWorkletでサンプル精度で記録し、相関計算は測定後に行う。
+      if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
+        try {
+          if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
+            await audioCtx.audioWorklet.addModule(new URL("js/speaker-delay-worklet.js", document.baseURI).href);
+            audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
+          }
+          captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [1],
+            channelCount: 1,
+            channelCountMode: "explicit"
+          });
+          captureMuteNode = audioCtx.createGain();
+          captureMuteNode.gain.value = 0;
+          measurementMicGainNode.connect(captureNode);
+          captureNode.connect(captureMuteNode);
+          captureMuteNode.connect(audioCtx.destination);
+          captureNode.port.onmessage = event => {
+            const data = event.data || {};
+            if (data.type !== "capture") return;
+            const resolve = captureResolvers.get(data.id);
+            if (resolve) {
+              captureResolvers.delete(data.id);
+              resolve(data);
+            }
+          };
+        } catch (workletError) {
+          try { captureNode?.disconnect(); } catch {}
+          try { captureMuteNode?.disconnect(); } catch {}
+          captureNode = null;
+          captureMuteNode = null;
+          console.warn("Speaker delay AudioWorklet unavailable; using analyser fallback:", workletError);
+        }
+      }
+
+      const allEntries = getUnifiedSpeakerEntries().filter(entry =>
+        !entry.disconnected && (entry.selected || entry.route?.enabled !== false)
+      );
       if (!allEntries.length) throw new Error("no-speakers");
 
       let entries = allEntries;
@@ -282,111 +336,248 @@
         const target = allEntries.find(entry => !entry.selected && entry.deviceId === targetEntry.deviceId);
         entries = [mainEntry, target].filter(Boolean);
       } else if (targetEntry?.selected) {
-        entries = [targetEntry];
+        entries = [allEntries.find(entry => entry.selected) || targetEntry];
       }
+      if (!entries.length) throw new Error("no-target-speaker");
 
-      const originalMainVolume = outputBridgeAudio?.volume ?? 1;
-      const originalStates = state.outputRoutes.map(route => ({ route, enabled: route.enabled !== false }));
+      originalMainVolume = outputBridgeAudio?.volume;
+      originalRouteConnections = new Map(state.outputRoutes.map(route => [
+        route.deviceId,
+        !!additionalOutputRuntimes.get(route.deviceId)?.connected
+      ]));
       const measurements = [];
-
       const setOnlyTarget = async target => {
         if (outputBridgeAudio) outputBridgeAudio.volume = target.selected ? 1 : 0;
+        if (typeof speakerBusNode === "undefined" || !speakerBusNode) return;
         for (const item of state.outputRoutes) {
           const runtime = additionalOutputRuntimes.get(item.deviceId);
-          const active = !target.selected && item.deviceId === target.deviceId;
-          if (runtime) {
-            if (active && !runtime.connected) {
-              try { speakerBusNode.connect(runtime.splitter); runtime.connected = true; } catch {}
-            }
-            if (!active && runtime.connected) {
-              try { speakerBusNode.disconnect(runtime.splitter); runtime.connected = false; } catch {}
-            }
+          const active = !target.selected && item.deviceId === target.deviceId && item.enabled !== false;
+          if (!runtime) continue;
+          if (active && !runtime.connected) {
+            try { speakerBusNode.connect(runtime.splitter); runtime.connected = true; } catch {}
+          } else if (!active && runtime.connected) {
+            try { speakerBusNode.disconnect(runtime.splitter); runtime.connected = false; } catch {}
           }
         }
       };
 
-      for (const entry of entries) {
-        await setOnlyTarget(entry);
-        await new Promise(resolve => setTimeout(resolve, 180));
+      const createTemplate = sampleRate => {
+        const stride = 4;
+        const duration = 0.022;
+        const attack = 0.003;
+        const count = Math.floor(sampleRate * duration / stride);
+        const sin = new Float32Array(count);
+        const cos = new Float32Array(count);
+        let energy = 0;
+        for (let i = 0; i < count; i++) {
+          const time = i * stride / sampleRate;
+          const envelope = time < attack
+            ? 0.0001 * Math.pow(0.12 / 0.0001, time / attack)
+            : 0.12 * Math.pow(0.0001 / 0.12, (time - attack) / (duration - attack));
+          const phase = 2 * Math.PI * 1100 * time;
+          sin[i] = Math.sin(phase) * envelope;
+          cos[i] = Math.cos(phase) * envelope;
+          energy += envelope * envelope;
+        }
+        return { stride, sin, cos, energy };
+      };
 
+      const correlatePulse = (capture, pulseTime, template) => {
+        if (!capture?.data || !capture.sampleRate) return null;
+        const sampleRate = capture.sampleRate;
+        const expected = Math.round(pulseTime * sampleRate) - Number(capture.startFrame || 0);
+        if (expected < 0 || expected + template.sin.length * template.stride >= capture.data.length) return null;
+        const maxLag = Math.min(
+          Math.round(sampleRate * 0.9),
+          capture.data.length - expected - template.sin.length * template.stride - 1
+        );
+        let bestScore = 0;
+        let bestLag = -1;
+        for (let lag = 0; lag <= maxLag; lag += 8) {
+          let dotSin = 0;
+          let dotCos = 0;
+          let signalEnergy = 0;
+          for (let i = 0; i < template.sin.length; i++) {
+            const sample = capture.data[expected + lag + i * template.stride] || 0;
+            dotSin += sample * template.sin[i];
+            dotCos += sample * template.cos[i];
+            signalEnergy += sample * sample;
+          }
+          const score = Math.sqrt(dotSin * dotSin + dotCos * dotCos) /
+            Math.sqrt(Math.max(1e-12, template.energy * signalEnergy));
+          if (score > bestScore) {
+            bestScore = score;
+            bestLag = lag;
+          }
+        }
+        if (bestLag < 0 || bestScore < 0.14) return null;
+        return { delayMs: bestLag / sampleRate * 1000, confidence: Math.min(1, bestScore) };
+      };
+
+      const captureMicBuffer = async () => {
+        const id = ++captureRequestId;
+        const result = new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            captureResolvers.delete(id);
+            reject(new Error("mic-capture-timeout"));
+          }, 2000);
+          captureResolvers.set(id, data => {
+            clearTimeout(timer);
+            resolve(data);
+          });
+        });
+        captureNode.port.postMessage({ type: "capture", id });
+        return result;
+      };
+
+      const schedulePulse = (target, startAt) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        const startPerf = performance.now();
-        const now = audioCtx.currentTime;
         osc.type = "sine";
-        osc.frequency.setValueAtTime(1100, now);
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.12 * measurementOutputGain), now + 0.008);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+        osc.frequency.setValueAtTime(1100, startAt);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, 0.12 * measurementOutputGain), startAt + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.022);
         osc.connect(gain);
-
-        let target = entry.selected ? mainDelayNode : additionalOutputRuntimes.get(entry.deviceId)?.delayNode;
-        if (!target) {
-          try { osc.disconnect(); gain.disconnect(); } catch {}
-          continue;
-        }
         gain.connect(target);
-        osc.start(now);
-        osc.stop(now + 0.09);
+        osc.start(startAt);
+        osc.stop(startAt + 0.026);
+        osc.onended = () => {
+          try { osc.disconnect(); gain.disconnect(); } catch {}
+        };
+      };
 
-        let detected = null;
-        const deadline = performance.now() + 1500;
-        while (performance.now() < deadline) {
-          micAnalyser.getByteTimeDomainData(micData);
-          let peak = 0;
-          for (let i = 0; i < micData.length; i++) peak = Math.max(peak, Math.abs(micData[i] - 128));
-          if (peak > 18) {
-            detected = performance.now() - startPerf;
-            break;
+      const measureWithAnalyser = async (target, count) => {
+        const values = [];
+        for (let i = 0; i < count; i++) {
+          const startAt = audioCtx.currentTime + 0.12;
+          const startPerf = performance.now() + 120;
+          schedulePulse(target, startAt);
+          const deadline = startPerf + 900;
+          let detected = null;
+          while (performance.now() < deadline) {
+            micAnalyser.getByteTimeDomainData(micData);
+            let peak = 0;
+            for (let j = 0; j < micData.length; j++) {
+              peak = Math.max(peak, Math.abs(micData[j] - 128));
+            }
+            if (peak > 18) {
+              detected = performance.now() - startPerf;
+              break;
+            }
+            await new Promise(resolve => requestAnimationFrame(resolve));
           }
-          await new Promise(resolve => requestAnimationFrame(resolve));
+          if (detected != null && detected >= 0) values.push({ delayMs: detected, confidence: 0.5 });
+          await wait(120);
         }
-        try { osc.disconnect(); gain.disconnect(); } catch {}
-        if (detected != null) measurements.push({ entry, delayMs: detected });
+        return values;
+      };
+
+      for (const entry of entries) {
+        await setOnlyTarget(entry);
+        await wait(180);
+        const target = entry.selected
+          ? mainDelayNode
+          : additionalOutputRuntimes.get(entry.deviceId)?.delayNode;
+        if (!target) continue;
+
+        let detectedValues = [];
+        if (captureNode) {
+          const firstPulse = audioCtx.currentTime + 0.15;
+          const pulseTimes = [firstPulse, firstPulse + 1.1, firstPulse + 2.2];
+          const template = createTemplate(audioCtx.sampleRate);
+          pulseTimes.forEach(time => schedulePulse(target, time));
+          const captureWait = Math.max(0, (pulseTimes[2] + 1.0 - audioCtx.currentTime) * 1000);
+          await wait(captureWait);
+          const capture = await captureMicBuffer();
+          detectedValues = pulseTimes.map(time => correlatePulse(capture, time, template)).filter(Boolean);
+        } else {
+          detectedValues = await measureWithAnalyser(target, 3);
+        }
+
+        if (detectedValues.length < 2) throw new Error("low-confidence-measurement:" + entry.label);
+        const delays = detectedValues.map(item => item.delayMs);
+        const delayMs = median(delays);
+        const spreadMs = Math.max(...delays) - Math.min(...delays);
+        const confidence = median(detectedValues.map(item => item.confidence));
+        measurements.push({ entry, delayMs, spreadMs, confidence, samples: detectedValues.length });
       }
 
       if (!measurements.length) throw new Error("no-measurement");
+      if (measurements.some(item => item.spreadMs > 90 || item.confidence < 0.14)) {
+        throw new Error("unstable-measurement");
+      }
+
       const maxDelay = Math.max(...measurements.map(item => item.delayMs));
-      if (targetEntry && !targetEntry.selected) {
-        const targetMeasurement = measurements.find(item => item.entry.deviceId === targetEntry.deviceId);
-        if (targetMeasurement?.entry?.route) {
-          targetMeasurement.entry.route.delayMs = clampSpeakerDelay(maxDelay - targetMeasurement.delayMs);
-        }
+      const autoDelayEnabled = state.speakerSettings?.autoDelayEnabled !== false;
+      const currentDelayFor = item => {
+        const stored = item.entry.selected ? state.speakerSettings?.mainDelayMs : item.entry.route?.delayMs;
+        return autoDelayEnabled ? clampSpeakerDelay(stored) : 0;
+      };
+      if (targetEntry?.selected) {
+        state.speakerSettings.mainDelayMs = 0;
       } else {
         for (const item of measurements) {
-          const correction = clampSpeakerDelay(maxDelay - item.delayMs);
+          const nextDelay = currentDelayFor(item) + maxDelay - item.delayMs;
+          const correction = clampSpeakerDelay(nextDelay);
           if (item.entry.selected) state.speakerSettings.mainDelayMs = correction;
           else if (item.entry.route) item.entry.route.delayMs = correction;
         }
       }
+
       state.speakerSettings.lastMeasuredAt = Date.now();
-      state.speakerSettings.measurementMethod = "microphone";
+      state.speakerSettings.measurementMethod = captureNode ? "microphone-worklet-correlation" : "microphone-analyser-median";
+      state.speakerSettings.lastMeasurementConfidence = median(measurements.map(item => item.confidence));
+      state.speakerSettings.lastMeasurementSpreadMs = Math.max(...measurements.map(item => item.spreadMs));
       saveState();
       applyMainOutputDelayNode();
       renderAdditionalOutputSpeakers();
-      toast("マイクによる音響測定で遅延を補正しました");
+
+      if (status) {
+        status.textContent = "測定完了\n" + measurements.map(item =>
+          item.entry.label + ": " + item.delayMs.toFixed(1) + "ms / 信頼度 " +
+          Math.round(item.confidence * 100) + "% / ばらつき " + item.spreadMs.toFixed(1) + "ms"
+        ).join("\n");
+      }
+      toast("複数回のマイク測定（中央値）で遅延を補正しました");
     } catch (e) {
-      toast(e?.name === "NotAllowedError" ? "マイクの使用を許可してください" : "音響測定に失敗しました");
+      const reason = String(e?.message || "");
+      if (status) {
+        status.textContent = reason.startsWith("low-confidence") || reason === "unstable-measurement"
+          ? "測定値が安定しませんでした。マイク入力・スピーカー出力を調整して再測定してください。"
+          : "音響測定に失敗しました。マイクの許可と出力機器を確認してください。";
+      }
+      toast(e?.name === "NotAllowedError"
+        ? "マイクの使用を許可してください"
+        : reason.startsWith("low-confidence") || reason === "unstable-measurement"
+          ? "測定の信頼度が不足しています。再測定してください"
+          : "音響測定に失敗しました");
     } finally {
       if (modal) modal.hidden = true;
       document.body.classList.remove("output-device-modal-open");
       if (window.__musicPlayerMeasurementMicGain === measurementMicGainNode) {
         delete window.__musicPlayerMeasurementMicGain;
       }
-      try { measurementMicGainNode?.disconnect(); } catch (e) {}
-      if (outputBridgeAudio) outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+      try { captureNode?.port?.close(); } catch {}
+      try { captureNode?.disconnect(); } catch {}
+      try { captureMuteNode?.disconnect(); } catch {}
+      try { measurementMicGainNode?.disconnect(); } catch {}
+      if (outputBridgeAudio && Number.isFinite(originalMainVolume)) outputBridgeAudio.volume = originalMainVolume;
       if (typeof speakerBusNode !== "undefined" && speakerBusNode) {
         for (const route of state.outputRoutes) {
           const runtime = additionalOutputRuntimes.get(route.deviceId);
-          if (runtime && route.enabled !== false && !runtime.connected) {
+          if (!runtime) continue;
+          const wasConnected = originalRouteConnections.get(route.deviceId) === true;
+          if (wasConnected && !runtime.connected) {
             try { speakerBusNode.connect(runtime.splitter); runtime.connected = true; } catch {}
+          } else if (!wasConnected && runtime.connected) {
+            try { speakerBusNode.disconnect(runtime.splitter); runtime.connected = false; } catch {}
           }
         }
       }
       if (micStream) micStream.getTracks().forEach(track => track.stop());
     }
   }
-
   function openSpeakerDelayMeasurementModal() {
     const modal = document.getElementById("speakerDelayMeasurementModal");
     const list = document.getElementById("speakerDelayMeasurementList");
