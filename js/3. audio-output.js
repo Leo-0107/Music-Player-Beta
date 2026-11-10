@@ -2395,18 +2395,56 @@
     el.btnClippingProtection.classList.toggle("active", state.clippingProtection);
   }
 
+  function getOutputLatencyDiagnostics() {
+    if (!audioCtx) return { available: false };
+    const baseLatency = Number.isFinite(Number(audioCtx.baseLatency)) ? Number(audioCtx.baseLatency) : null;
+    const outputLatency = Number.isFinite(Number(audioCtx.outputLatency)) ? Number(audioCtx.outputLatency) : null;
+    const manualDelay = Number(mainDelayNode?.delayTime?.value) || 0;
+    let timestamp = null;
+    try {
+      if (typeof audioCtx.getOutputTimestamp === "function") timestamp = audioCtx.getOutputTimestamp();
+    } catch {}
+    const contextGapMs = timestamp && Number.isFinite(Number(timestamp.contextTime))
+      ? (audioCtx.currentTime - Number(timestamp.contextTime)) * 1000
+      : null;
+    const performanceAgeMs = timestamp && Number.isFinite(Number(timestamp.performanceTime))
+      ? performance.now() - Number(timestamp.performanceTime)
+      : null;
+    const estimatedTotalMs = baseLatency == null || outputLatency == null
+      ? null
+      : Math.max(0, (baseLatency + outputLatency + manualDelay) * 1000);
+    const diagnostics = {
+      available: true,
+      sampleRate: Number(audioCtx.sampleRate) || null,
+      baseLatencyMs: baseLatency == null ? null : Math.round(baseLatency * 1000 * 10) / 10,
+      outputLatencyMs: outputLatency == null ? null : Math.round(outputLatency * 1000 * 10) / 10,
+      manualDelayMs: Math.round(manualDelay * 1000 * 10) / 10,
+      estimatedTotalMs: estimatedTotalMs == null ? null : Math.round(estimatedTotalMs * 10) / 10,
+      outputTimestampAvailable: !!timestamp,
+      outputTimestampContextGapMs: contextGapMs == null ? null : Math.round(contextGapMs * 10) / 10,
+      outputTimestampPerformanceAgeMs: performanceAgeMs == null ? null : Math.round(performanceAgeMs * 10) / 10,
+      contextState: audioCtx.state
+    };
+    window.__musicPlayerOutputLatencyDiagnostics = diagnostics;
+    return diagnostics;
+  }
+  window.__musicPlayerGetOutputLatencyDiagnostics = getOutputLatencyDiagnostics;
+
   function updateMicMonitorLatencyUI() {
     if (!el.micMonitorLatencyText) return;
     if (!audioCtx) {
-      el.micMonitorLatencyText.textContent = "推定遅延: --";
+      el.micMonitorLatencyText.textContent = "出力遅延診断: AudioContext未初期化";
       return;
     }
-    const base = Number(audioCtx.baseLatency) || 0;
-    const output = Number(audioCtx.outputLatency) || 0;
-    const manual = Number(mainDelayNode?.delayTime?.value) || 0;
-    const estimatedMs = Math.max(0, Math.round((base + output + manual) * 1000));
+    const diagnostics = getOutputLatencyDiagnostics();
+    const estimated = diagnostics.estimatedTotalMs == null ? "--" : Math.round(diagnostics.estimatedTotalMs);
+    const base = diagnostics.baseLatencyMs == null ? "--" : diagnostics.baseLatencyMs;
+    const output = diagnostics.outputLatencyMs == null ? "--" : diagnostics.outputLatencyMs;
+    const sync = diagnostics.outputTimestampContextGapMs == null ? "--" : diagnostics.outputTimestampContextGapMs;
     el.micMonitorLatencyText.textContent =
-      state.micMonitor ? `推定遅延: 約${estimatedMs} ms` : "推定遅延: --";
+      (state.micMonitor ? "マイクモニター推定: 約" + estimated + " ms" : "マイクモニターOFF") +
+      " / 出力遅延: base " + base + " ms + output " + output + " ms" +
+      " / 手動補正 " + diagnostics.manualDelayMs + " ms / 出力同期差 " + sync + " ms";
   }
 
   function updateMicMonitorUI() {
