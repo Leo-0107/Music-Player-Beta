@@ -35,7 +35,7 @@
         if (percentText) percentText.textContent = startupDisplayedProgress + "%";
       }
       if (startupDisplayedProgress < startupTargetProgress) {
-        startupProgressTimer = setTimeout(() => { startupProgressTimer = null; step(); }, 12);
+        startupProgressTimer = setTimeout(() => { startupProgressTimer = null; step(); }, 4);
       } else startupProgressTimer = null;
     };
     if (fill) fill.style.width = startupDisplayedProgress + "%";
