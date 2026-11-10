@@ -475,248 +475,263 @@
 
   // --- 描画ループ & 連続無音判定 ---
     function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now) {
-    const cache = drawWave._freshViz || (drawWave._freshViz = { history: [], terrain: [], lastHistory: 0, lastTerrain: 0, shocks: [], lastBass: 0 });
-    const t = now * 0.001, cx = width * 0.5, cy = height * 0.52, side = Math.min(width, height);
-    if (analyser && waveTimeData) {
-      if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
-      else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.12;
-    }
-    if (waveLeftOutputAnalyser && waveLeftOutputData) {
-      if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-      else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.88;
-    }
-    if (waveRightOutputAnalyser && waveRightOutputData) {
-      if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-      else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.88;
-    }
-    if (leftLevelAnalyser && leftLevelData) {
-      if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-      else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.12;
-    }
-    if (rightLevelAnalyser && rightLevelData) {
-      if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-      else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.12;
-    }
-    const lf = waveLeftOutputData && waveLeftOutputData.length ? waveLeftOutputData : analyserData;
-    const rf = waveRightOutputData && waveRightOutputData.length ? waveRightOutputData : lf;
-    const band = (arr, a, b) => {
-      if (!arr || !arr.length) return 0;
-      const lo = Math.max(0, Math.min(arr.length - 1, Math.floor(a * arr.length)));
-      const hi = Math.max(lo + 1, Math.min(arr.length, Math.ceil(b * arr.length)));
-      let sum = 0;
-      for (let i = lo; i < hi; i++) sum += (arr[i] || 0) / 255;
-      return sum / Math.max(1, hi - lo);
-    };
-    const spec = (i, n) => Math.min(1, (band(lf, i / n, (i + 1) / n) + band(rf, i / n, (i + 1) / n)) * 0.95);
-    const sample = (arr, p) => arr && arr.length ? ((arr[Math.max(0, Math.min(arr.length - 1, Math.floor(p * (arr.length - 1))))] || 128) - 128) / 128 : 0;
-    const energy = (a, b) => {
-      let sum = 0;
-      for (let i = 0; i < 10; i++) sum += spec(Math.floor(a + (b - a) * i / 10), 64);
-      return sum / 10;
-    };
-    const bass = energy(0, 10), mid = energy(10, 34), treble = energy(34, 64), all = (bass + mid + treble) / 3;
-    const historyCount = lowPerformance ? 18 : 30;
-    if (isPlaying && now - cache.lastHistory > (lowPerformance ? 120 : 72)) {
-      const row = new Float32Array(lowPerformance ? 32 : 48);
-      for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
-      cache.history.unshift(row);
-      if (cache.history.length > historyCount) cache.history.length = historyCount;
-      cache.lastHistory = now;
-    }
-    if (isPlaying && now - cache.lastTerrain > (lowPerformance ? 150 : 90)) {
-      const row = new Float32Array(lowPerformance ? 20 : 30);
-      for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
-      cache.terrain.unshift(row);
-      if (cache.terrain.length > (lowPerformance ? 14 : 22)) cache.terrain.length = lowPerformance ? 14 : 22;
-      cache.lastTerrain = now;
-    }
-    const bg = ctx.createLinearGradient(0, 0, width, height);
-    bg.addColorStop(0, "#050a16"); bg.addColorStop(0.5, "#090d1b"); bg.addColorStop(1, "#10091b");
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
-    const grid = (sx, sy, alpha) => {
-      ctx.save(); ctx.strokeStyle = "rgba(112,170,210," + alpha + ")"; ctx.lineWidth = 1; ctx.beginPath();
-      for (let x = 0; x <= width; x += sx) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
-      for (let y = 0; y <= height; y += sy) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
-      ctx.stroke(); ctx.restore();
-    };
-    const waveLine = (arr, y0, amp, hue, phase, thick) => {
-      if (!arr || !arr.length) return;
-      ctx.beginPath();
-      const n = lowPerformance ? 80 : 140;
-      for (let i = 0; i < n; i++) {
-        const p = i / (n - 1), y = y0 - (sample(arr, p) * 0.82 + Math.sin(p * 25 + t * 1.6 + phase) * 0.05) * amp;
-        if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
+      const v = drawWave._visualizerV3 || (drawWave._visualizerV3 = { history: [], lastSample: 0, peaks: null, shocks: [], lastBass: 0 });
+      const t = now * 0.001, cx = width * 0.5, cy = height * 0.5, short = Math.min(width, height);
+      const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+      if (analyser && waveTimeData) {
+        if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
+        else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.16;
       }
-      ctx.lineJoin = "round"; ctx.lineCap = "round";
-      ctx.strokeStyle = "hsla(" + hue + ",100%,70%,0.22)"; ctx.lineWidth = thick * 4;
-      ctx.shadowBlur = lowPerformance ? 0 : 10; ctx.shadowColor = "hsla(" + hue + ",100%,60%,0.5)"; ctx.stroke();
-      ctx.shadowBlur = 0; ctx.strokeStyle = "hsla(" + hue + ",95%,82%,0.96)"; ctx.lineWidth = thick; ctx.stroke();
-    };
+      if (waveLeftOutputAnalyser && waveLeftOutputData) {
+        if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+        else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.86;
+      }
+      if (waveRightOutputAnalyser && waveRightOutputData) {
+        if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
+        else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.86;
+      }
+      if (leftLevelAnalyser && leftLevelData) {
+        if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+        else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.16;
+      }
+      if (rightLevelAnalyser && rightLevelData) {
+        if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+        else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.16;
+      }
 
-    switch (state.waveMode) {
-      case "a1": {
-        grid(Math.max(28, width / 16), Math.max(18, height / 7), 0.07);
-        const amp = height * (0.3 + all * 0.16);
-        waveLine(waveTimeData, cy, amp, 188, 0, 2.2);
-        waveLine(waveTimeData, cy - height * 0.12, amp * 0.6, 278, 2, 1.2);
-        waveLine(waveTimeData, cy + height * 0.12, amp * 0.6, 32, 4, 1.2);
-        break;
+      const lf = waveLeftOutputData && waveLeftOutputData.length ? waveLeftOutputData : analyserData;
+      const rf = waveRightOutputData && waveRightOutputData.length ? waveRightOutputData : lf;
+      const avg = (data, from, to) => {
+        if (!data || !data.length) return 0;
+        const lo = clamp(Math.floor(from * data.length), 0, data.length - 1);
+        const hi = clamp(Math.ceil(to * data.length), lo + 1, data.length);
+        let sum = 0;
+        for (let i = lo; i < hi; i++) sum += (data[i] || 0) / 255;
+        return sum / (hi - lo);
+      };
+      const spec = (i, n, channel) => {
+        const data = channel === "L" ? lf : channel === "R" ? rf : null;
+        if (data) return avg(data, i / n, (i + 1) / n);
+        return (avg(lf, i / n, (i + 1) / n) + avg(rf, i / n, (i + 1) / n)) * 0.5;
+      };
+      const sample = (data, p) => {
+        if (!data || !data.length) return 0;
+        return ((data[clamp(Math.floor(p * (data.length - 1)), 0, data.length - 1)] || 128) - 128) / 128;
+      };
+      const low = avg(lf, 0, 0.18) * 0.5 + avg(rf, 0, 0.18) * 0.5;
+      const middle = avg(lf, 0.18, 0.58) * 0.5 + avg(rf, 0.18, 0.58) * 0.5;
+      const high = avg(lf, 0.58, 1) * 0.5 + avg(rf, 0.58, 1) * 0.5;
+      const energy = (low + middle + high) / 3;
+      if (isPlaying && now - v.lastSample > (lowPerformance ? 130 : 68)) {
+        const row = new Float32Array(lowPerformance ? 32 : 56);
+        for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
+        v.history.unshift(row);
+        if (v.history.length > (lowPerformance ? 20 : 36)) v.history.length = lowPerformance ? 20 : 36;
+        v.lastSample = now;
       }
-      case "a2": {
-        grid(Math.max(34, width / 12), Math.max(24, height / 5), 0.04);
-        const n = lowPerformance ? 28 : 44, base = height * 0.88, gap = width / n * 0.22, bw = width / n - gap;
+
+      const bg = ctx.createLinearGradient(0, 0, width, height);
+      bg.addColorStop(0, "#050914"); bg.addColorStop(0.52, "#0a1221"); bg.addColorStop(1, "#110b1e");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+      const tag = text => {
+        ctx.save(); ctx.font = "600 9px system-ui,sans-serif"; ctx.textAlign = "left";
+        ctx.fillStyle = "rgba(205,228,248,.55)"; ctx.fillText(text, 10, 16); ctx.restore();
+      };
+      const trace = (data, center, amp, color, fill, widthPx) => {
+        if (!data || !data.length) return;
+        const n = lowPerformance ? 64 : 120;
+        ctx.beginPath();
         for (let i = 0; i < n; i++) {
-          const v = spec(i, n), h = Math.max(2, v * height * 0.72), x = i * width / n + gap / 2, y = base - h, d = Math.max(2, bw * 0.22), hue = 178 + i / n * 120;
-          ctx.fillStyle = "hsla(" + hue + ",90%,56%,0.95)"; ctx.fillRect(x, y, bw, h);
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + d, y - d); ctx.lineTo(x + bw + d, y - d); ctx.lineTo(x + bw, y); ctx.closePath();
-          ctx.fillStyle = "hsla(" + hue + ",100%,78%,0.9)"; ctx.fill();
-          ctx.beginPath(); ctx.moveTo(x + bw, y); ctx.lineTo(x + bw + d, y - d); ctx.lineTo(x + bw + d, base - d); ctx.lineTo(x + bw, base); ctx.closePath();
-          ctx.fillStyle = "hsla(" + hue + ",88%,30%,0.94)"; ctx.fill();
+          const p = i / (n - 1);
+          const y = center - sample(data, p) * amp;
+          if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
         }
-        break;
-      }
-      case "a3": {
-        grid(Math.max(30, width / 14), Math.max(22, height / 6), 0.04);
-        waveLine(leftLevelData, height * 0.29, height * 0.22, 188, 0.5, 2);
-        waveLine(rightLevelData, height * 0.72, height * 0.22, 285, 2.4, 2);
-        ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
-        ctx.fillStyle = "rgba(180,235,255,0.82)"; ctx.fillText("LEFT", 9, 14);
-        ctx.fillStyle = "rgba(205,170,255,0.86)"; ctx.fillText("RIGHT", 9, height - 7);
-        break;
-      }
-      case "a4": {
-        const rows = cache.history, rowH = height / historyCount;
-        for (let r = rows.length - 1; r >= 0; r--) {
-          const row = rows[r], y = (rows.length - 1 - r) * rowH;
-          for (let i = 0; i < row.length; i++) {
-            const v = row[i], hue = 190 + i / row.length * 145 - v * 35;
-            const h = Math.max(1, rowH * (0.24 + v * 0.9));
-            ctx.fillStyle = "hsla(" + hue + ",92%," + (34 + v * 40) + "%," + (0.28 + v * 0.72) + ")";
-            ctx.fillRect(i * width / row.length, y + (rowH - h) / 2, width / row.length + 0.6, h);
-          }
-        }
-        break;
-      }
-      case "a5": {
-        ctx.save(); ctx.translate(cx, cy);
-        const layers = lowPerformance ? 3 : 5, n = lowPerformance ? 90 : 150;
-        for (let l = 0; l < layers; l++) {
+        if (fill) {
+          ctx.lineTo(width, center); ctx.lineTo(0, center); ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
           ctx.beginPath();
           for (let i = 0; i < n; i++) {
-            const p = i / (n - 1), v = spec(Math.floor(p * 63), 64);
-            const a = p * Math.PI * 5.5 + t * (0.28 + l * 0.08) + l * 1.3;
-            const r = side * (0.08 + p * 0.3 + v * 0.11) + l * 2;
-            const x = Math.cos(a) * r, y = Math.sin(a) * r * 0.72;
+            const p = i / (n - 1), y = center - sample(data, p) * amp;
+            if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
+          }
+        }
+        ctx.strokeStyle = color; ctx.lineWidth = widthPx; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+      };
+
+      switch (state.waveMode) {
+        case "a1": {
+          const amp = height * (0.22 + energy * 0.2);
+          const layers = [{ y: -height * .14, s: .55, h: 190 }, { y: 0, s: 1, h: 278 }, { y: height * .14, s: .62, h: 35 }];
+          ctx.save(); ctx.globalCompositeOperation = "screen";
+          for (let l = 0; l < layers.length; l++) {
+            const q = layers[l], grad = ctx.createLinearGradient(0, 0, width, 0);
+            grad.addColorStop(0, "hsla(" + q.h + ",100%,65%,.08)");
+            grad.addColorStop(.5, "hsla(" + (q.h + 30) + ",100%,72%,.72)");
+            grad.addColorStop(1, "hsla(" + (q.h + 70) + ",100%,65%,.06)");
+            ctx.beginPath();
+            const n = lowPerformance ? 70 : 128;
+            for (let i = 0; i < n; i++) {
+              const p = i / (n - 1), ripple = Math.sin(p * 13 + t * 1.5 + l) * amp * .1;
+              const y = cy + q.y - sample(waveTimeData, p) * amp * q.s - ripple * (.5 + spec(Math.floor(p * 60), 60));
+              if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
+            }
+            ctx.strokeStyle = grad; ctx.lineWidth = (l === 1 ? 4 : 2) + energy * 2;
+            ctx.shadowBlur = lowPerformance ? 0 : 16; ctx.shadowColor = "hsla(" + q.h + ",100%,65%,.8)"; ctx.stroke();
+          }
+          ctx.restore(); tag("AURORA STREAM"); break;
+        }
+        case "a2": {
+          const n = lowPerformance ? 28 : 48, gap = Math.max(2, width / n * .17), bw = width / n - gap, base = height * .88;
+          if (!v.peaks || v.peaks.length !== n) v.peaks = new Float32Array(n);
+          for (let i = 0; i < n; i++) {
+            const value = spec(i, n);
+            v.peaks[i] = Math.max(value, v.peaks[i] - dt * .38);
+            const h = Math.max(2, value * height * .7), x = i * width / n + gap * .5, hue = 174 + i / n * 155;
+            const g = ctx.createLinearGradient(0, base - h, 0, base);
+            g.addColorStop(0, "hsla(" + hue + ",100%,82%,1)");
+            g.addColorStop(.5, "hsla(" + hue + ",95%,54%,.96)");
+            g.addColorStop(1, "hsla(" + (hue + 22) + ",90%,28%,.92)");
+            ctx.fillStyle = g; ctx.fillRect(x, base - h, bw, h);
+            ctx.fillStyle = "hsla(" + hue + ",100%,86%,.9)";
+            ctx.fillRect(x, base - v.peaks[i] * height * .7 - 2, bw, 2);
+          }
+          tag("CHROMA EQUALIZER"); break;
+        }
+        case "a3": {
+          const top = height * .28, bottom = height * .72, amp = height * .29;
+          ctx.strokeStyle = "rgba(205,225,245,.16)"; ctx.setLineDash([3, 6]);
+          [top, bottom].forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); });
+          ctx.setLineDash([]);
+          trace(leftLevelData, top, amp, "rgba(90,225,255,.98)", "rgba(30,190,255,.12)", 2);
+          trace(rightLevelData, bottom, amp, "rgba(220,145,255,.98)", "rgba(190,90,255,.12)", 2);
+          tag("LEFT CHANNEL"); ctx.save(); ctx.font = "600 9px system-ui,sans-serif"; ctx.fillStyle = "rgba(205,228,248,.55)"; ctx.fillText("RIGHT CHANNEL", 10, height - 8); ctx.restore();
+          break;
+        }
+        case "a4": {
+          const rows = v.history, rowH = height / Math.max(1, lowPerformance ? 20 : 36), cols = rows.length ? rows[0].length : 32;
+          for (let r = 0; r < rows.length; r++) {
+            const row = rows[r], y = height - (r + 1) * rowH;
+            for (let c = 0; c < row.length; c++) {
+              const x = c * width / cols, value = row[c], hue = 228 - value * 205 + c / cols * 22;
+              ctx.fillStyle = "hsla(" + hue + ",94%," + (12 + value * 54) + "%," + (.2 + value * .8) + ")";
+              ctx.fillRect(x, y, width / cols + .6, rowH + .5);
+            }
+          }
+          tag("SPECTRUM TIMELINE  •  NEWEST AT BOTTOM"); break;
+        }
+        case "a5": {
+          const count = lowPerformance ? 64 : 112, inner = short * .12;
+          ctx.save(); ctx.translate(cx, cy);
+          for (let ring = 0; ring < 4; ring++) {
+            ctx.beginPath(); ctx.arc(0, 0, inner + ring * short * .065, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(185,215,245," + (.1 + ring * .025) + ")"; ctx.lineWidth = 1; ctx.stroke();
+          }
+          for (let i = 0; i < count; i++) {
+            const p = i / count, value = spec(i, count), angle = p * Math.PI * 2 - Math.PI / 2;
+            const r1 = inner + short * .06, r2 = r1 + 4 + value * short * .3, hue = 180 + p * 160;
+            ctx.beginPath(); ctx.moveTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
+            ctx.lineTo(Math.cos(angle) * r2, Math.sin(angle) * r2);
+            ctx.strokeStyle = "hsla(" + hue + ",100%," + (56 + value * 25) + "%," + (.35 + value * .65) + ")";
+            ctx.lineWidth = 1 + value * 2.2; ctx.lineCap = "round"; ctx.stroke();
+          }
+          const core = ctx.createRadialGradient(0, 0, 1, 0, 0, inner * 1.25);
+          core.addColorStop(0, "rgba(255,255,255,.95)"); core.addColorStop(.3, "rgba(80,230,255,.72)"); core.addColorStop(1, "rgba(60,90,230,0)");
+          ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, inner * 1.25, 0, Math.PI * 2); ctx.fill();
+          ctx.restore(); tag("PRISM COMPASS"); break;
+        }
+        case "a6": {
+          const orbit = short * .22, coreR = short * (.055 + low * .04);
+          ctx.save(); ctx.translate(cx, cy);
+          const core = ctx.createRadialGradient(-coreR * .3, -coreR * .3, 1, 0, 0, coreR * 1.8);
+          core.addColorStop(0, "#fff"); core.addColorStop(.25, "rgba(115,245,255,.95)"); core.addColorStop(.65, "rgba(65,120,255,.5)"); core.addColorStop(1, "rgba(60,70,255,0)");
+          ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, coreR * 1.8, 0, Math.PI * 2); ctx.fill();
+          for (let k = 0; k < 3; k++) {
+            const rx = orbit + k * short * .06, ry = orbit * (.35 + k * .1), rot = t * (k % 2 ? -.2 : .16) + k * 1.1;
+            ctx.save(); ctx.rotate(rot);
+            ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = "hsla(" + (185 + k * 48) + ",100%,72%," + (.65 - k * .12) + ")"; ctx.lineWidth = 1.5 + middle; ctx.stroke();
+            const a = t * (1 + k * .25) + k * 2.1;
+            ctx.beginPath(); ctx.arc(Math.cos(a) * rx, Math.sin(a) * ry, 3 + high * 3, 0, Math.PI * 2);
+            ctx.fillStyle = "hsla(" + (190 + k * 48) + ",100%,82%,.98)"; ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore(); tag("ATOMIC RESONANCE"); break;
+        }
+        case "a7": {
+          if (isPlaying && low > .22 && low - v.lastBass > .055) v.shocks.push({ r: short * .035, life: 1, strength: low });
+          v.lastBass = low;
+          for (let i = v.shocks.length - 1; i >= 0; i--) {
+            const q = v.shocks[i]; q.r += dt * short * (.48 + q.strength * .5); q.life -= dt * .5;
+            if (q.life <= 0 || q.r > short * .9) v.shocks.splice(i, 1);
+          }
+          ctx.save(); ctx.translate(cx, cy);
+          for (let i = 0; i < v.shocks.length; i++) {
+            const q = v.shocks[i]; ctx.beginPath(); ctx.arc(0, 0, q.r, 0, Math.PI * 2);
+            ctx.strokeStyle = "hsla(" + (185 + q.strength * 70) + ",100%,72%," + q.life * .8 + ")";
+            ctx.lineWidth = 1 + q.life * 3; ctx.shadowBlur = lowPerformance ? 0 : 12; ctx.stroke();
+          }
+          const count = Math.min(Math.max(0, Number(state.waveParticleCount) || 0), lowPerformance ? 220 : 900);
+          for (let i = 0; i < count; i++) {
+            const seed = i * .61803398875, phase = (t * (.035 + i % 7 * .004) + seed) % 1;
+            const angle = seed * Math.PI * 2 + t * (.07 + i % 5 * .012);
+            const radius = short * (.05 + phase * .43) * (1 + low * .22);
+            const size = 1 + i % 3 * .5 + energy;
+            ctx.fillStyle = "hsla(" + (185 + i % 120) + ",100%,78%," + (.25 + phase * .6) + ")";
+            ctx.fillRect(Math.cos(angle) * radius, Math.sin(angle) * radius, size, size);
+          }
+          ctx.restore(); tag("STARDUST BURST"); break;
+        }
+        case "a8": {
+          const left = leftLevelData || waveTimeData, right = rightLevelData || waveTimeData;
+          ctx.strokeStyle = "rgba(190,220,245,.16)"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(cx, 12); ctx.lineTo(cx, height - 12); ctx.moveTo(12, cy); ctx.lineTo(width - 12, cy); ctx.stroke();
+          const n = lowPerformance ? 72 : 136, sx = width * .4, sy = height * .4;
+          ctx.save(); ctx.translate(cx, cy); ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const p = i / (n - 1), x = sample(left, p) * sx, y = -sample(right, p) * sy;
             if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           }
-          const hue = 178 + l * 35;
-          ctx.strokeStyle = "hsla(" + hue + ",100%,72%,0.8)"; ctx.lineWidth = l ? 1.2 : 2.2;
-          ctx.shadowBlur = lowPerformance ? 0 : 8; ctx.shadowColor = "hsla(" + hue + ",100%,60%,0.4)"; ctx.stroke();
+          ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.strokeStyle = "rgba(90,190,255,.2)";
+          ctx.lineWidth = 7; ctx.shadowBlur = lowPerformance ? 0 : 15; ctx.shadowColor = "rgba(90,190,255,.7)"; ctx.stroke();
+          ctx.shadowBlur = 0;
+          const g = ctx.createLinearGradient(-sx, sy, sx, -sy);
+          g.addColorStop(0, "#55e6d4"); g.addColorStop(.5, "#e0a2ff"); g.addColorStop(1, "#fff0a2");
+          ctx.strokeStyle = g; ctx.lineWidth = 1.8; ctx.stroke(); ctx.restore();
+          tag("STEREO PHASE  /  L × R"); break;
         }
-        ctx.restore();
-        break;
-      }
-      case "a6": {
-        const r = side * (0.12 + bass * 0.12), pulse = 1 + bass * 0.24 + Math.sin(t * 2.2) * 0.025;
-        ctx.save(); ctx.translate(cx, cy);
-        const orb = ctx.createRadialGradient(-r * 0.25, -r * 0.3, 1, 0, 0, r * 1.4);
-        orb.addColorStop(0, "rgba(255,255,255,0.98)"); orb.addColorStop(0.2, "rgba(105,225,255,0.9)");
-        orb.addColorStop(0.55, "rgba(50,115,255,0.35)"); orb.addColorStop(1, "rgba(35,20,100,0)");
-        ctx.fillStyle = orb; ctx.beginPath(); ctx.arc(0, 0, r * 1.45 * pulse, 0, Math.PI * 2); ctx.fill();
-        for (let j = 0; j < 4; j++) {
-          const rr = r * (1.2 + j * 0.38) * pulse;
-          ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * (0.56 + j * 0.08), t * (j % 2 ? -0.16 : 0.12), 0, Math.PI * 2);
-          ctx.strokeStyle = "hsla(" + (180 + j * 34) + ",100%,72%," + (0.72 - j * 0.12) + ")";
-          ctx.lineWidth = j ? 1.2 : 2.4; ctx.shadowBlur = lowPerformance ? 0 : 9; ctx.stroke();
-        }
-        const n = lowPerformance ? 48 : 88;
-        for (let i = 0; i < n; i++) {
-          const p = i / n, v = spec(i, n), a = p * Math.PI * 2 + t * 0.18, ri = r * 1.75, ro = ri + v * side * 0.18;
-          ctx.beginPath(); ctx.moveTo(Math.cos(a) * ri, Math.sin(a) * ri); ctx.lineTo(Math.cos(a) * ro, Math.sin(a) * ro);
-          ctx.strokeStyle = "hsla(" + (185 + p * 115) + ",95%,70%,0.9)"; ctx.lineWidth = 1.5 + v * 1.4; ctx.stroke();
-        }
-        ctx.restore();
-        break;
-      }
-      case "a7": {
-        const pulse = Math.min(1, bass * 1.7 + all * 0.55);
-        if (isPlaying && bass > 0.38 && bass - cache.lastBass > 0.075) cache.shocks.push({ r: 0, life: 1, strength: bass });
-        cache.lastBass = bass;
-        for (let i = cache.shocks.length - 1; i >= 0; i--) {
-          const s = cache.shocks[i]; s.r += dt * side * (0.48 + s.strength * 0.6); s.life -= dt * 0.48;
-          if (s.life <= 0) cache.shocks.splice(i, 1);
-        }
-        ctx.save(); ctx.translate(cx, cy);
-        for (let i = 0; i < 4; i++) {
-          ctx.beginPath(); ctx.arc(0, 0, side * (0.12 + i * 0.11) + pulse * side * 0.04, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(90,185,255," + (0.12 + pulse * 0.12) + ")"; ctx.lineWidth = 1; ctx.stroke();
-        }
-        cache.shocks.forEach((s, i) => {
-          ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2);
-          ctx.strokeStyle = "hsla(" + (185 + i * 25) + ",100%,72%," + Math.max(0, s.life * 0.82) + ")";
-          ctx.lineWidth = 1.5 + s.life * 2.5; ctx.shadowBlur = lowPerformance ? 0 : 10; ctx.stroke();
-        });
-        const particles = Math.min(lowPerformance ? 260 : 900, Math.max(0, Number(state.waveParticleCount) || 0));
-        for (let i = 0; i < particles; i++) {
-          const a = i * 2.399963 + t * (0.12 + (i % 7) * 0.015);
-          const rr = side * (0.08 + ((i * 37) % 101) / 130), v = spec(i % 64, 64);
-          ctx.fillStyle = "hsla(" + (180 + i % 90) + ",95%,72%," + (0.25 + v * 0.7) + ")";
-          ctx.fillRect(Math.cos(a) * (rr + v * side * 0.07), Math.sin(a) * (rr + v * side * 0.07), 1.4 + v * 1.6, 1.4 + v * 1.6);
-        }
-        ctx.restore();
-        break;
-      }
-      case "a8": {
-        const n = lowPerformance ? 64 : 112, scale = side * 0.34;
-        ctx.save(); ctx.translate(cx, cy); ctx.beginPath();
-        for (let i = 0; i < n; i++) {
-          const p = i / (n - 1), x = sample(leftLevelData, p) * scale, y = -sample(rightLevelData, p) * scale;
-          if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = "rgba(255,110,210,0.24)"; ctx.lineWidth = 7; ctx.shadowBlur = lowPerformance ? 0 : 14; ctx.stroke();
-        ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(190,245,255,0.96)"; ctx.lineWidth = 1.8; ctx.stroke();
-        ctx.beginPath(); ctx.arc(0, 0, scale * 0.08, 0, Math.PI * 2); ctx.fillStyle = "white"; ctx.fill();
-        ctx.restore();
-        ctx.fillStyle = "rgba(190,225,255,0.72)"; ctx.font = "10px sans-serif"; ctx.textAlign = "left"; ctx.fillText("L × R STEREO", 9, 15);
-        break;
-      }
-      case "3d":
-      default: {
-        const rows = cache.terrain, cols = lowPerformance ? 20 : 30, depthRows = lowPerformance ? 14 : 22, vertices = [];
-        for (let r = 0; r < depthRows; r++) {
-          const row = rows[Math.min(rows.length - 1, Math.floor(r * Math.max(1, rows.length - 1) / Math.max(1, depthRows - 1)))] || null;
-          const line = [];
-          for (let c = 0; c < cols; c++) {
-            const v = row ? row[Math.min(row.length - 1, Math.floor(c * (row.length - 1) / Math.max(1, cols - 1)))] : 0;
-            const x = (c / (cols - 1) - 0.5) * width * 0.82, z = (r / (depthRows - 1) - 0.5) * height * 0.72;
-            line.push(applyWaveView({ x: cx + x, y: v * height * 0.34, depth: z, fitScale: 1 }, width, height));
+        case "3d":
+        default: {
+          const rows = v.history, rowCount = lowPerformance ? 10 : 17, colCount = lowPerformance ? 18 : 30, points = [];
+          for (let r = 0; r < rowCount; r++) {
+            const ri = Math.min(rows.length - 1, Math.floor(r * Math.max(1, rows.length - 1) / Math.max(1, rowCount - 1)));
+            const row = rows[ri] || null, line = [];
+            for (let c = 0; c < colCount; c++) {
+              const value = row ? row[Math.min(row.length - 1, Math.floor(c * (row.length - 1) / Math.max(1, colCount - 1)))] : 0;
+              const x = (c / (colCount - 1) - .5) * width * .84;
+              const depth = (r / (rowCount - 1) - .5) * height * .68;
+              line.push(applyWaveView({ x: cx + x, y: value * height * .34, depth: depth, fitScale: 1 }, width, height));
+            }
+            points.push(line);
           }
-          vertices.push(line);
+          for (let r = rowCount - 2; r >= 0; r--) {
+            for (let c = 0; c < colCount - 1; c++) {
+              const p1 = points[r][c], p2 = points[r][c + 1], p3 = points[r + 1][c + 1], p4 = points[r + 1][c];
+              const value = rows.length && rows[r] ? rows[r][Math.min(rows[r].length - 1, c)] : 0;
+              const hue = 184 + value * 112;
+              ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath();
+              ctx.fillStyle = "hsla(" + hue + ",92%," + (18 + value * 34) + "%,.82)"; ctx.fill();
+              ctx.strokeStyle = "hsla(" + (hue + 10) + ",100%,75%,.5)"; ctx.lineWidth = lowPerformance ? .7 : .9; ctx.stroke();
+            }
+          }
+          for (let r = 0; r < rowCount; r += 2) {
+            ctx.beginPath();
+            for (let c = 0; c < colCount; c++) { const p = points[r][c]; if (!c) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
+            ctx.strokeStyle = "rgba(185,230,255,.48)"; ctx.lineWidth = .8; ctx.stroke();
+          }
+          tag("3D SPECTRUM TERRAIN"); break;
         }
-        ctx.save(); ctx.lineWidth = lowPerformance ? 0.8 : 1.05;
-        for (let r = 0; r < vertices.length; r++) {
-          ctx.beginPath();
-          for (let c = 0; c < cols; c++) { const p = vertices[r][c]; if (!c) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
-          const row = rows[Math.min(rows.length - 1, r)];
-          const e = row ? row.reduce((sum, v) => sum + v, 0) / row.length : 0;
-          ctx.strokeStyle = "hsla(" + (185 + e * 95) + ",100%," + (54 + e * 24) + "%," + (0.22 + r / vertices.length * 0.55) + ")"; ctx.stroke();
-        }
-        for (let c = 0; c < cols; c += lowPerformance ? 2 : 1) {
-          ctx.beginPath();
-          for (let r = 0; r < vertices.length; r++) { const p = vertices[r][c]; if (!r) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
-          ctx.strokeStyle = "rgba(115,205,245,0.32)"; ctx.lineWidth = 0.8; ctx.stroke();
-        }
-        ctx.restore();
-        ctx.fillStyle = "rgba(210,240,255,0.74)"; ctx.font = "10px sans-serif"; ctx.textAlign = "left"; ctx.fillText("FREQUENCY →", 9, height - 8);
-        ctx.textAlign = "right"; ctx.fillText("TIME →", width - 9, height - 8);
-        break;
       }
     }
-    if (state.waveMode !== "a3" && state.waveMode !== "a8") {
-      ctx.save(); ctx.font = "9px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "rgba(180,220,245,0.58)";
-      ctx.fillText("L", 8, Math.max(12, height * 0.24)); ctx.fillText("R", 8, Math.min(height - 8, height * 0.78)); ctx.restore();
-    }
-  }
 
 function drawWave() {
     const pageVisible = document.visibilityState === "visible";
