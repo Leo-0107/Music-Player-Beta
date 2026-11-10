@@ -288,6 +288,7 @@
       micAnalyser.smoothingTimeConstant = 0;
       measurementMicGainNode.connect(micAnalyser);
       const micData = new Uint8Array(micAnalyser.fftSize);
+      const micFrequencyData = new Uint8Array(micAnalyser.frequencyBinCount);
 
       // マイク波形をAudioWorkletでサンプル精度で記録し、相関計算は測定後に行う。
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
@@ -459,11 +460,21 @@
           let detected = null;
           while (performance.now() < deadline) {
             micAnalyser.getByteTimeDomainData(micData);
-            let peak = 0;
-            for (let j = 0; j < micData.length; j++) {
-              peak = Math.max(peak, Math.abs(micData[j] - 128));
+            micAnalyser.getByteFrequencyData(micFrequencyData);
+            const binHz = audioCtx.sampleRate / micAnalyser.fftSize;
+            const bandStart = Math.max(1, Math.floor(950 / binHz));
+            const bandEnd = Math.min(micFrequencyData.length - 1, Math.ceil(1250 / binHz));
+            let tonePeak = 0;
+            let sidePeak = 0;
+            for (let j = Math.max(1, bandStart - 10); j <= Math.min(micFrequencyData.length - 1, bandEnd + 10); j++) {
+              if (j >= bandStart && j <= bandEnd) tonePeak = Math.max(tonePeak, micFrequencyData[j]);
+              else sidePeak = Math.max(sidePeak, micFrequencyData[j]);
             }
-            if (peak > 18) {
+            let waveformPeak = 0;
+            for (let j = 0; j < micData.length; j++) {
+              waveformPeak = Math.max(waveformPeak, Math.abs(micData[j] - 128));
+            }
+            if (waveformPeak > 18 && tonePeak > 24 && tonePeak >= sidePeak * 1.08) {
               detected = performance.now() - startPerf;
               break;
             }
