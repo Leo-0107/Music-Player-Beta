@@ -1,2 +1,2 @@
-// Service Worker loader v7.4.45-r53
-importScripts("./js/8. sw.js?v=7.4.45-r53");
+// Service Worker loader v7.4.46-r54
+importScripts("./js/8. sw.js?v=7.4.46-r54");
