@@ -531,6 +531,7 @@
       state.speakerSettings.measurementMethod = captureNode ? "microphone-worklet-correlation" : "microphone-analyser-median";
       state.speakerSettings.lastMeasurementConfidence = median(measurements.map(item => item.confidence));
       state.speakerSettings.lastMeasurementSpreadMs = Math.max(...measurements.map(item => item.spreadMs));
+      state.speakerSettings.lastMeasurementSampleCount = measurements.reduce((sum, item) => sum + item.samples, 0);
       saveState();
       applyMainOutputDelayNode();
       renderAdditionalOutputSpeakers();
@@ -541,7 +542,8 @@
           Math.round(item.confidence * 100) + "% / ばらつき " + item.spreadMs.toFixed(1) + "ms"
         ).join("\n");
       }
-      toast("複数回のマイク測定（中央値）で遅延を補正しました");
+      const confidencePercent = Math.round(median(measurements.map(item => item.confidence)) * 100);
+      toast("複数回のマイク測定（中央値）で遅延を補正しました（信頼度 " + confidencePercent + "%）");
     } catch (e) {
       const reason = String(e?.message || "");
       if (status) {
