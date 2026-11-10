@@ -273,7 +273,7 @@
           } else if (Math.abs(delta) <= stableTolerance) {
             youtubeLiveTiming.stableSamples += 1;
             youtubeLiveTiming.increasingSamples = 0;
-            if (youtubeLiveTiming.stableSamples >= 3) youtubeLiveTiming.isLive = false;
+            // 一度ライブと確認できた配信は、一時的な時間値の停滞だけでは通常動画へ戻さない。
           } else {
             // シーク、再接続、メタデータ更新などの不連続な変化は判定材料から外す。
             youtubeLiveTiming.stableSamples = 0;
@@ -305,6 +305,7 @@
       visibilityState: document.visibilityState,
       liveDetection: {
         isLive: youtubeLiveTiming.isLive,
+        classification: youtubeLiveTiming.isLive ? "live" : youtubeLiveTiming.stableSamples >= 3 ? "on-demand" : "undetermined",
         increasingSamples: youtubeLiveTiming.increasingSamples,
         stableSamples: youtubeLiveTiming.stableSamples
       }
