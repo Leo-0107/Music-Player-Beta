@@ -31,6 +31,7 @@
   }
 
   audio.addEventListener("play", () => {
+    trackPlaybackEvent("play");
     updatePlayPauseUI();
     if (typeof startOutputBridge === "function") {
       startOutputBridge().catch(() => {});
@@ -49,6 +50,7 @@
   });
 
   audio.addEventListener("pause", () => {
+    trackPlaybackEvent("pause");
     recordPartialPlayIfNeeded?.();
     updatePlayPauseUI();
     if (typeof drawWave === "function" && drawWave._wave3DHistory) {
@@ -62,15 +64,90 @@
   });
 
   audio.addEventListener("playing", () => {
+    trackPlaybackEvent("playing");
     updatePlayPauseUI();
   });
 
   audio.addEventListener("waiting", () => {
+    trackPlaybackEvent("waiting");
     updatePlayPauseUI();
   });
 
   let lastStatsTime = 0;
+  const playbackStats = {
+    sessionStartedAt: Date.now(), playCount: 0, waitingCount: 0, stalledCount: 0,
+    bufferingTotalMs: 0, bufferingStartedAt: 0, timeUpdateCount: 0,
+    maxTimeUpdateGapMs: 0, longGapCount: 0, lastTimeUpdateAt: 0,
+    seekInProgress: false, errorCount: 0, lastErrorCode: 0,
+    lastEvent: "initialized", lastEventAt: Date.now(), recentEvents: []
+  };
+
+  function trackPlaybackEvent(name) {
+    const now = performance.now();
+    playbackStats.lastEvent = name;
+    playbackStats.lastEventAt = Date.now();
+    playbackStats.recentEvents.push({ event: name, at: Date.now() });
+    if (playbackStats.recentEvents.length > 16) playbackStats.recentEvents.shift();
+    if (name === "play") playbackStats.playCount++;
+    if (name === "waiting") playbackStats.waitingCount++;
+    if (name === "stalled") playbackStats.stalledCount++;
+    if (name === "error") {
+      playbackStats.errorCount++;
+      playbackStats.lastErrorCode = Number(audio.error?.code) || 0;
+    }
+    if (name === "seeking") playbackStats.seekInProgress = true;
+    if (name === "seeked") playbackStats.seekInProgress = false;
+    if (name === "waiting" || name === "stalled") {
+      if (!playbackStats.bufferingStartedAt) playbackStats.bufferingStartedAt = now;
+    } else if (name === "playing" || name === "canplay" || name === "canplaythrough" || name === "pause" || name === "ended") {
+      if (playbackStats.bufferingStartedAt) {
+        playbackStats.bufferingTotalMs += Math.max(0, now - playbackStats.bufferingStartedAt);
+        playbackStats.bufferingStartedAt = 0;
+      }
+    }
+  }
+
+  function getPlaybackStatsSnapshot() {
+    const bufferingNow = playbackStats.bufferingStartedAt
+      ? Math.max(0, performance.now() - playbackStats.bufferingStartedAt)
+      : 0;
+    return {
+      sessionStartedAt: new Date(playbackStats.sessionStartedAt).toISOString(),
+      playCount: playbackStats.playCount,
+      waitingCount: playbackStats.waitingCount,
+      stalledCount: playbackStats.stalledCount,
+      bufferingTotalMs: Math.round(playbackStats.bufferingTotalMs + bufferingNow),
+      timeUpdateCount: playbackStats.timeUpdateCount,
+      maxTimeUpdateGapMs: Math.round(playbackStats.maxTimeUpdateGapMs),
+      longGapCount: playbackStats.longGapCount,
+      errorCount: playbackStats.errorCount,
+      lastErrorCode: playbackStats.lastErrorCode,
+      currentTime: Number(audio.currentTime) || 0,
+      readyState: Number(audio.readyState) || 0,
+      networkState: Number(audio.networkState) || 0,
+      paused: !!audio.paused,
+      lastEvent: playbackStats.lastEvent,
+      recentEvents: playbackStats.recentEvents.slice(-10)
+    };
+  }
+  window.__musicPlayerGetPlaybackStats = getPlaybackStatsSnapshot;
+
+  audio.addEventListener("stalled", () => trackPlaybackEvent("stalled"));
+  audio.addEventListener("canplay", () => trackPlaybackEvent("canplay"));
+  audio.addEventListener("canplaythrough", () => trackPlaybackEvent("canplaythrough"));
+  audio.addEventListener("error", () => trackPlaybackEvent("error"));
+  audio.addEventListener("seeking", () => trackPlaybackEvent("seeking"));
+  audio.addEventListener("seeked", () => trackPlaybackEvent("seeked"));
+
   audio.addEventListener("timeupdate", () => {
+    const statsNow = performance.now();
+    if (playbackStats.lastTimeUpdateAt) {
+      const gap = statsNow - playbackStats.lastTimeUpdateAt;
+      playbackStats.maxTimeUpdateGapMs = Math.max(playbackStats.maxTimeUpdateGapMs, gap);
+      if (!audio.paused && !playbackStats.seekInProgress && gap > 1500) playbackStats.longGapCount++;
+    }
+    playbackStats.lastTimeUpdateAt = statsNow;
+    playbackStats.timeUpdateCount++;
     const dur = Number(audio.duration);
     const cur = Number(audio.currentTime) || 0;
     if (!audio.paused && state.currentSong && lastStatsTime > 0) {
@@ -104,6 +181,7 @@
   });
 
   audio.addEventListener("ended", () => {
+    trackPlaybackEvent("ended");
     recordPlaybackTime(Math.min(1.5, Math.max(0, (Number(audio.duration) || 0) - (Number(lastStatsTime) || 0))));
     lastStatsTime = 0;
     releaseWakeLock();
@@ -474,7 +552,37 @@
   if (el.waveParticleCountText) el.waveParticleCountText.textContent = String(state.waveParticleCount);
 
   // --- 描画ループ & 連続無音判定 ---
-    function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now) {
+    function updateWaveVisualizerAnalysis(isPlaying, now, lowPerformance) {
+    const analysis = drawWave._visualizerAnalysis || (drawWave._visualizerAnalysis = { lastUpdate: -Infinity });
+    const interval = lowPerformance ? 50 : 33;
+    if (now - analysis.lastUpdate < interval) return analysis;
+    analysis.lastUpdate = now;
+    if (analyser && waveTimeData) {
+      if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
+      else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.12;
+    }
+    if (waveLeftOutputAnalyser && waveLeftOutputData) {
+      if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
+      else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.9;
+    }
+    if (waveRightOutputAnalyser && waveRightOutputData) {
+      if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
+      else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.9;
+    }
+    if (leftLevelAnalyser && leftLevelData) {
+      if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
+      else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.12;
+    }
+    if (rightLevelAnalyser && rightLevelData) {
+      if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
+      else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.12;
+    }
+    analysis.sampledAt = now;
+    analysis.isPlaying = !!isPlaying;
+    return analysis;
+  }
+
+function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now) {
       const v = drawWave._visualizerV4 || (drawWave._visualizerV4 = {
         history: [], lastSample: 0, peaks: null, particles: [], lastBass: 0,
         phase: 0, trails: [], spectrogram: [], burst: 0
@@ -485,26 +593,7 @@
       const TAU = Math.PI * 2;
       const count = lowPerformance ? 36 : 72;
 
-      if (analyser && waveTimeData) {
-        if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
-        else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.12;
-      }
-      if (waveLeftOutputAnalyser && waveLeftOutputData) {
-        if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-        else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.9;
-      }
-      if (waveRightOutputAnalyser && waveRightOutputData) {
-        if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-        else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.9;
-      }
-      if (leftLevelAnalyser && leftLevelData) {
-        if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-        else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.12;
-      }
-      if (rightLevelAnalyser && rightLevelData) {
-        if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-        else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.12;
-      }
+      updateWaveVisualizerAnalysis(isPlaying, now, lowPerformance);
 
       const lf = waveLeftOutputData?.length ? waveLeftOutputData : analyserData;
       const rf = waveRightOutputData?.length ? waveRightOutputData : lf;
