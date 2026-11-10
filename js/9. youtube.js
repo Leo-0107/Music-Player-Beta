@@ -462,6 +462,15 @@
               }
               if (event.data === YT.PlayerState.ENDED && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
                 stopYoutubePlaybackStats();
+                // 同じ動画IDが後からアーカイブ再生されても、終了済みライブ判定を引き継がない。
+                youtubeLiveTiming = {
+                  videoId: currentYoutubeItem.id,
+                  lastDuration: Number(youtubePlayer?.getDuration?.()) || youtubeLiveTiming.lastDuration,
+                  lastSampleAt: Date.now(),
+                  increasingSamples: 0,
+                  stableSamples: 3,
+                  isLive: false
+                };
                 setPlaybackIntent(false);
                 nextTrack(true);
               }
@@ -613,7 +622,7 @@
         if (!Array.isArray(data)) throw new Error("検索結果の形式が正しくありません。");
         youtubeSearchInstanceIndex = instanceIndex;
         return data
-          .filter(video => video?.type === "video" && /^[\\w-]{11}$/.test(video.videoId || ""))
+          .filter(video => video?.type === "video" && /^[\w-]{11}$/.test(video.videoId || ""))
           .slice(0, 10)
           .map(video => ({
             id: { videoId: video.videoId },
