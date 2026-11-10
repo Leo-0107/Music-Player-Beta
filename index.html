@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.42</title>
+<title>Music Player v7.4.43</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.42-r50">
+<link rel="stylesheet" href="style.css?v=7.4.42-r51">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -861,9 +861,9 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.42";
-  const BUILD_REVISION = 50;
-  const BUILD_COMMIT_ID = "61e946e7e31bb90017a96df2d24751e229445a98";
+  const APP_VERSION = "v7.4.43";
+  const BUILD_REVISION = 51;
+  const BUILD_COMMIT_ID = "8736f502dc6318a6c781b5200885e501852a1d47";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1112,6 +1112,11 @@
       "Page: " + location.pathname,
       ""
     ];
+    const playbackStats = window.__musicPlayerGetPlaybackStats?.();
+    if (playbackStats) lines.push("PlaybackStats: " + JSON.stringify(playbackStats));
+    const outputLatencyDiagnostics = window.__musicPlayerGetOutputLatencyDiagnostics?.();
+    if (outputLatencyDiagnostics) lines.push("OutputLatency: " + JSON.stringify(outputLatencyDiagnostics));
+    lines.push("");
     recent.forEach(entry => {
       lines.push("[" + entry.time + "] " + entry.code + " ／ 変更確認番号: " + entry.revision);
       lines.push("機能: " + entry.category + " / 段階: " + entry.stage);
@@ -1169,7 +1174,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.42-r50"></script>
+<script src="js/1. ctrl.js?v=7.4.42-r51"></script>
 <script>
   // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
   setTimeout(() => {
