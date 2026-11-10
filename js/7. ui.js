@@ -1040,7 +1040,7 @@ function drawWave() {
       icon: "🖥️",
       title: "表示",
       items: [
-        ["waveSection", "〰️", "波形", "3D・2D・案1〜案8から表示方法を選択"],
+        ["waveSection", "〰️", "波形", "3D・2Dを含む全10種類の波形表示から選択"],
         ["visualizerDetailSection", "📈", "ビジュアライザー詳細", "モード別設定・FPS・描画負荷"],
         ["layoutSection", "▦", "ホームレイアウト", "デフォルト・案1〜案5から配置を選択"],
         ["themeSection", "🎨", "テーマ", "システム・ダーク・ライト・カスタムを選択"]
