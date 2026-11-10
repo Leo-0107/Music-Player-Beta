@@ -521,9 +521,9 @@
         return sum / Math.max(1, hi - lo);
       };
       // 0〜1を20Hz〜Nyquistの対数周波数へ変換し、低音域の情報を確保する。
-      const band = (p, channel) => {
+      const band = (p, channel, width = 1 / Math.max(1, count)) => {
         const p0 = clamp(p, 0, 1);
-        const p1 = clamp(p + 1 / Math.max(1, count), p0 + 0.0001, 1);
+        const p1 = clamp(p + width, p0 + 0.0001, 1);
         const ratio = nyquist / minFrequency;
         const fromHz = minFrequency * Math.pow(ratio, p0);
         const toHz = minFrequency * Math.pow(ratio, p1);
@@ -577,7 +577,7 @@
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         ctx.shadowBlur = glow ? blur : 0; ctx.shadowColor = color; ctx.stroke(); ctx.restore();
       };
-      const spectrumValue = (i, n, channel) => band(i / n, channel);
+      const spectrumValue = (i, n, channel) => band(i / n, channel, 1 / Math.max(1, n));
       const pushHistory = () => {
         if (!isPlaying || now - v.lastSample < (lowPerformance ? 110 : 48)) return;
         const bins = lowPerformance ? 48 : 96;
@@ -585,9 +585,9 @@
         const stereo = new Float32Array(bins * 2);
         for (let i = 0; i < bins; i++) {
           const p = i / bins;
-          row[i] = band(p);
-          stereo[i] = band(p, "L");
-          stereo[bins + i] = band(p, "R");
+          row[i] = band(p, undefined, 1 / bins);
+          stereo[i] = band(p, "L", 1 / bins);
+          stereo[bins + i] = band(p, "R", 1 / bins);
         }
         v.history.unshift(row);
         if (v.history.length > (lowPerformance ? 48 : 96)) v.history.length = lowPerformance ? 48 : 96;
@@ -824,7 +824,7 @@
           for(let side=0;side<2;side++){
             const x=side===0?width*.045:width*.955, direction=side===0?1:-1;
             for(let i=0;i<32;i++){
-              const val=band(i/32,side===0?"L":"R"), y=height*.18+i/31*height*.64;
+              const val=band(i/32,side===0?"L":"R",1/32), y=height*.18+i/31*height*.64;
               const len=4+val*13;
               ctx.strokeStyle="rgba(255,125,85,"+(.18+val*.55)+")";ctx.lineWidth=1.2;
               ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+direction*len,y);ctx.stroke();
