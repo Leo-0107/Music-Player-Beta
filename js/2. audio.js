@@ -582,7 +582,7 @@ let mainOutputUsesNativeDestination = false;
       }
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
-      analyser.connect(waveOutputSplitter);
+      outputSplitter.connect(waveOutputSplitter);
 
       waveOutputSplitter.connect(waveLeftOutputAnalyser, 0);
       waveOutputSplitter.connect(waveRightOutputAnalyser, 1);
