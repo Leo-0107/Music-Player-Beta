@@ -508,27 +508,38 @@
 
       const lf = waveLeftOutputData?.length ? waveLeftOutputData : analyserData;
       const rf = waveRightOutputData?.length ? waveRightOutputData : lf;
-      const freq = analyserData?.length ? analyserData : lf;
-      const avg = (data, from, to) => {
+      const sampleRate = audioCtx?.sampleRate || 44100;
+      const nyquist = sampleRate * 0.5;
+      const minFrequency = Math.min(20, nyquist * 0.01);
+      const avgHz = (data, fromHz, toHz) => {
         if (!data?.length) return 0;
-        const lo = clamp(Math.floor(from * data.length), 0, data.length - 1);
-        const hi = clamp(Math.ceil(to * data.length), lo + 1, data.length);
+        const binHz = sampleRate / (data.length * 2);
+        const lo = clamp(Math.floor(Math.max(0, fromHz) / binHz), 1, data.length - 1);
+        const hi = clamp(Math.ceil(Math.min(nyquist, toHz) / binHz), lo + 1, data.length);
         let sum = 0;
         for (let i = lo; i < hi; i++) sum += (Number(data[i]) || 0) / 255;
-        return sum / (hi - lo);
+        return sum / Math.max(1, hi - lo);
       };
+      // 0〜1を20Hz〜Nyquistの対数周波数へ変換し、低音域の情報を確保する。
       const band = (p, channel) => {
-        const data = channel === "L" ? lf : channel === "R" ? rf : freq;
-        return avg(data, p, Math.min(1, p + 1 / Math.max(1, count)));
+        const p0 = clamp(p, 0, 1);
+        const p1 = clamp(p + 1 / Math.max(1, count), p0 + 0.0001, 1);
+        const ratio = nyquist / minFrequency;
+        const fromHz = minFrequency * Math.pow(ratio, p0);
+        const toHz = minFrequency * Math.pow(ratio, p1);
+        if (channel === "L") return avgHz(lf, fromHz, toHz);
+        if (channel === "R") return avgHz(rf, fromHz, toHz);
+        return (avgHz(lf, fromHz, toHz) + avgHz(rf, fromHz, toHz)) * 0.5;
       };
+      const avgHzStereo = (fromHz, toHz) => (avgHz(lf, fromHz, toHz) + avgHz(rf, fromHz, toHz)) * 0.5;
       const sample = (data, p) => {
         if (!data?.length) return 0;
         const i = clamp(Math.floor(p * (data.length - 1)), 0, data.length - 1);
         return ((Number(data[i]) || 128) - 128) / 128;
       };
-      const low = (avg(lf, 0, .16) + avg(rf, 0, .16)) * .5;
-      const mid = (avg(lf, .16, .58) + avg(rf, .16, .58)) * .5;
-      const high = (avg(lf, .58, 1) + avg(rf, .58, 1)) * .5;
+      const low = avgHzStereo(20, 250);
+      const mid = avgHzStereo(250, 4000);
+      const high = avgHzStereo(4000, nyquist);
       const energy = clamp((low + mid + high) / 3, 0, 1);
       const glow = lowPerformance ? 0 : 1;
       const drawBackground = (top, bottom) => {
@@ -539,6 +550,26 @@
       const label = (s, color = "rgba(210,235,245,.34)") => {
         ctx.save(); ctx.font = "600 8px system-ui,sans-serif";
         ctx.textAlign = "left"; ctx.fillStyle = color; ctx.fillText(s, 10, 15); ctx.restore();
+      };
+      const smoothTrace = points => {
+        if (!points?.length) return;
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          const current = points[i], next = points[i + 1];
+          if (next) {
+            const midX = (current.x + next.x) * 0.5;
+            const midY = (current.y + next.y) * 0.5;
+            ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+          } else {
+            ctx.lineTo(current.x, current.y);
+          }
+        }
+      };
+      const fillRoundedRect = (x, y, w, h, radius) => {
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, radius);
+        else ctx.rect(x, y, w, h);
+        ctx.fill();
       };
       const glowLine = (path, color, lineWidth, blur = 12) => {
         ctx.save(); ctx.beginPath(); path();
@@ -551,14 +582,15 @@
         if (!isPlaying || now - v.lastSample < (lowPerformance ? 110 : 48)) return;
         const bins = lowPerformance ? 48 : 96;
         const row = new Float32Array(bins);
-        for (let i = 0; i < bins; i++) row[i] = avg(freq, i / bins, (i + 1) / bins);
-        v.history.unshift(row);
-        if (v.history.length > (lowPerformance ? 48 : 96)) v.history.length = lowPerformance ? 48 : 96;
         const stereo = new Float32Array(bins * 2);
         for (let i = 0; i < bins; i++) {
-          stereo[i] = avg(lf, i / bins, (i + 1) / bins);
-          stereo[bins + i] = avg(rf, i / bins, (i + 1) / bins);
+          const p = i / bins;
+          row[i] = band(p);
+          stereo[i] = band(p, "L");
+          stereo[bins + i] = band(p, "R");
         }
+        v.history.unshift(row);
+        if (v.history.length > (lowPerformance ? 48 : 96)) v.history.length = lowPerformance ? 48 : 96;
         v.spectrogram.unshift(stereo);
         if (v.spectrogram.length > (lowPerformance ? 52 : 110)) v.spectrogram.length = lowPerformance ? 52 : 110;
         v.lastSample = now;
@@ -654,7 +686,7 @@
               ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
               ctx.fillStyle="hsla("+hue+",100%,"+(58+val*22-seg*2)+"%,"+(.58+val*.4)+")";
               ctx.shadowBlur=glow?7+val*8:0;ctx.shadowColor="hsla("+hue+",100%,65%,.9)";
-              ctx.fillRect(-segmentWidth/2,-r-segmentLength,segmentWidth,segmentLength);
+              fillRoundedRect(-segmentWidth/2,-r-segmentLength,segmentWidth,segmentLength,segmentWidth*.48);
               ctx.restore();
             }
           }
@@ -745,13 +777,15 @@
             for(const lane of lanes){
               const offset=(layer-2)*height*.055;
               glowLine(()=>{
+                const points=[];
                 for(let i=0;i<count*2;i++){
                   const p=i/(count*2-1), x=p*width;
                   const s=sample(lane.data,p);
                   const harmonic=Math.sin(p*TAU*2.4+t*1.8+lane.phase)*(.06+mid*.1);
                   const y=cy+offset-(s*height*lane.amp*(1+layer*.055)+harmonic*height);
-                  if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+                  points.push({x,y});
                 }
+                smoothTrace(points);
               },lane.color,layer===2?2.4:1.1,layer===2?20:8);
             }
           }
@@ -825,7 +859,7 @@
               const light=78-seg*3.5;
               ctx.fillStyle="hsla("+hue+",100%,"+light+"%,.98)";
               ctx.shadowBlur=glow&&seg===active-1?9:0;ctx.shadowColor="hsla("+hue+",100%,70%,.8)";
-              ctx.fillRect(x,y,barW,segmentH);
+              fillRoundedRect(x,y,barW,segmentH,Math.min(barW,segmentH)*.22);
               ctx.fillStyle="hsla("+hue+",100%,75%,.12)";
               ctx.fillRect(x,baseY+(seg*(segmentH+segmentGap)),barW,segmentH*.55);
             }
@@ -850,12 +884,12 @@
               points.push({x,y:lane.y-s*height*(.09+energy*.12)*envelope});
             }
             ctx.beginPath();ctx.moveTo(points[0].x,lane.y);
-            for(const p of points)ctx.lineTo(p.x,p.y);
+            smoothTrace(points);
             ctx.lineTo(width,lane.y);ctx.closePath();
             const fill=ctx.createLinearGradient(0,lane.y-height*.2,0,lane.y+height*.2);
             fill.addColorStop(0,"rgba(255,220,50,.12)");fill.addColorStop(.5,"rgba(255,205,30,.62)");fill.addColorStop(1,"rgba(255,220,50,.12)");
             ctx.fillStyle=fill;ctx.fill();
-            glowLine(()=>{for(let i=0;i<points.length;i++){const p=points[i];if(!i)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}},lane.color,2.2,9);
+            glowLine(()=>smoothTrace(points),lane.color,2.2,9);
             ctx.fillStyle="rgba(255,220,75,.55)";ctx.font="600 9px system-ui";ctx.fillText(lane.name,8,lane.y-height*.12);
           }
           const centerX=width*.5, impulse=clamp(low*.85+mid*.25,0,1);
