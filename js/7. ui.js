@@ -761,8 +761,8 @@
             const seed=s*2.399963, phase=t*(.18+(s%7)*.025)+seed;
             ctx.beginPath();
             for(let j=0;j<steps;j++){
-              const p=j/(steps-1), a=phase+p*TAU*(2+(s%5)), wave=sample(freq,p);
-              const r=radius*(.08+p*.82)*(1+wave*.35+Math.sin(a*3+t)*.055);
+              const p=j/(steps-1), a=phase+p*TAU*(2+(s%5));
+              const r=radius*(.08+p*.82)*(1+spectrumValue(j,steps)*.35+Math.sin(a*3+t)*.055);
               const x=Math.cos(a)*r, y=Math.sin(a)*r*(.72+mid*.2);
               if(!j)ctx.moveTo(x,y);else ctx.lineTo(x,y);
             }
