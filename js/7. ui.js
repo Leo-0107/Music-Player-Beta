@@ -1503,9 +1503,9 @@ function drawWave() {
   let appLoadingTargetProgress = appLoadingDisplayedProgress;
   let appLoadingProgressTimer = null;
 
-  function updateAppLoadingProgress(percent, message) {
+  function updateAppLoadingProgress(percent, message, immediate = false) {
     if (typeof window.__musicPlayerUpdateStartupProgress === "function") {
-      window.__musicPlayerUpdateStartupProgress(percent, message);
+      window.__musicPlayerUpdateStartupProgress(percent, message, immediate);
       return;
     }
     appLoadingTargetProgress = Math.max(appLoadingDisplayedProgress, Math.min(100, Math.round(percent)));
@@ -1513,6 +1513,15 @@ function drawWave() {
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
     if (messageText && message) messageText.textContent = message;
+
+    if (immediate) {
+      if (appLoadingProgressTimer !== null) clearTimeout(appLoadingProgressTimer);
+      appLoadingProgressTimer = null;
+      appLoadingDisplayedProgress = appLoadingTargetProgress;
+      if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
+      if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
+      return;
+    }
 
     if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
     if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
@@ -1541,19 +1550,11 @@ function drawWave() {
   }
 
   function revealAppAfterHomeReady() {
-    updateAppLoadingProgress(100, "ホーム画面を表示します...");
-    const finishWhenProgressIsReady = () => {
-      const screen = document.getElementById("appLoadingScreen");
-      if (!screen) return;
-      const shown = Number(document.getElementById("appLoadingPercent")?.textContent?.replace("%", "")) || 0;
-      if (shown < 100) {
-        requestAnimationFrame(finishWhenProgressIsReady);
-        return;
-      }
-      document.body.classList.remove("app-loading");
-      screen.remove();
-    };
-    requestAnimationFrame(finishWhenProgressIsReady);
+    updateAppLoadingProgress(100, "ホーム画面を表示します...", true);
+    const screen = document.getElementById("appLoadingScreen");
+    if (!screen) return;
+    document.body.classList.remove("app-loading");
+    screen.remove();
   }
 
   (async () => {
