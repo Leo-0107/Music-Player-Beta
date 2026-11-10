@@ -246,8 +246,9 @@
 
   async function loadFiles(fileList){
     const files=Array.from(fileList||[]); if(!files.length)return;
-    const MAX_ZIP_BYTES = 512 * 1024 * 1024;
-    const MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024;
+    const MAX_ZIP_BYTES = 256 * 1024 * 1024;
+    const MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
+    const MAX_SINGLE_EXTRACTED_BYTES = 128 * 1024 * 1024;
     const MAX_MEDIA_FILES = 500;
     const progressEl = document.getElementById("fileLoadProgress");
     const progressFill = document.getElementById("fileLoadProgressFill");
@@ -298,9 +299,34 @@
       if(typeof JSZip==="undefined"){toast("Zipライブラリが見つかりません");continue;}
       try{
         updateProgress(Math.min(25, processedMediaFiles / Math.max(1, directMediaFiles.length) * 20 + 5), "ZIPを解析しています...");
-        const zip=await JSZip.loadAsync(zipFile);
+        let zip = await JSZip.loadAsync(zipFile);
         const entries=Object.keys(zip.files);
         const mediaEntries=entries.filter(filename=>!zip.files[filename].dir&&/\.(mp3|m4a|wav|ogg|opus|flac|aac|mp4|webm)$/i.test(filename));
+
+        // 展開前にZIP中央ディレクトリの非圧縮サイズを確認し、ZIP爆弾による大量展開を防ぐ。
+        let zipExpandedBytes = 0;
+        let preflightFailed = false;
+        for (const filename of mediaEntries) {
+          const entry = zip.files[filename];
+          const declaredSize = Number(entry?._data?.uncompressedSize);
+          if (!Number.isFinite(declaredSize) || declaredSize < 0 ||
+              declaredSize > MAX_SINGLE_EXTRACTED_BYTES) {
+            preflightFailed = true;
+            break;
+          }
+          zipExpandedBytes += declaredSize;
+          if (zipExpandedBytes > MAX_EXTRACTED_BYTES ||
+              extractedBytes + zipExpandedBytes > MAX_EXTRACTED_BYTES) {
+            preflightFailed = true;
+            break;
+          }
+        }
+        if (preflightFailed) {
+          toast("ZIP内の展開予定容量を安全に確認できないか、上限（合計256MB・1ファイル128MB）を超えています");
+          zip = null;
+          continue;
+        }
+
         for(let entryIndex=0; entryIndex<mediaEntries.length; entryIndex++){
           if(incoming.length >= MAX_MEDIA_FILES) {
             toast("追加できるファイル数の上限（500件）に達したため、残りのZIP内ファイルを停止しました");
@@ -308,12 +334,14 @@
           }
           const filename=mediaEntries[entryIndex];
           const entry=zip.files[filename];
+          const declaredSize = Number(entry?._data?.uncompressedSize);
           const blob=await entry.async("blob");
-          extractedBytes += blob.size;
-          if(extractedBytes > MAX_EXTRACTED_BYTES) {
-            toast("展開後の容量が1GBを超えるため、ZIP読み込みを停止しました");
+          if (blob.size !== declaredSize || blob.size > MAX_SINGLE_EXTRACTED_BYTES ||
+              extractedBytes + blob.size > MAX_EXTRACTED_BYTES) {
+            toast("ZIP展開サイズが事前確認と一致しないため、読み込みを停止しました");
             break;
           }
+          extractedBytes += blob.size;
           const cleanName=filename.split("/").pop();
           const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
           incoming.push({file:new File([blob],cleanName,{type:/\.opus$/i.test(cleanName)?mediaInfo.mimeType:(blob.type||mediaInfo.mimeType)}),storageName:cleanName,zipName:zipFile.name});
@@ -321,6 +349,7 @@
           updateProgress(percent, "ZIP内ファイルを読み込んでいます...");
           await yieldToUI();
         }
+        zip = null;
       }catch{toast("Zipファイルの解析エラーが発生しました");}
     }
 
