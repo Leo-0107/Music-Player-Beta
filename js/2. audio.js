@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 49;
+  const BUILD_REVISION = 50;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -448,10 +448,12 @@ let mainOutputUsesNativeDestination = false;
       waveRightOutputAnalyser = audioCtx.createAnalyser();
       leftLevelAnalyser.fftSize = 128;
       rightLevelAnalyser.fftSize = 128;
-      waveLeftOutputAnalyser.fftSize = 256;
-      waveRightOutputAnalyser.fftSize = 256;
-      waveLeftOutputAnalyser.smoothingTimeConstant = 0.55;
-      waveRightOutputAnalyser.smoothingTimeConstant = 0.55;
+      // 非2Dビジュアライザー専用。2D用analyserのFFTサイズは変更しない。
+      // 2048ポイントにして低音域の周波数分解能を高める。
+      waveLeftOutputAnalyser.fftSize = 2048;
+      waveRightOutputAnalyser.fftSize = 2048;
+      waveLeftOutputAnalyser.smoothingTimeConstant = 0.42;
+      waveRightOutputAnalyser.smoothingTimeConstant = 0.42;
       leftLevelData = new Uint8Array(leftLevelAnalyser.fftSize);
       rightLevelData = new Uint8Array(rightLevelAnalyser.fftSize);
       waveLeftOutputData = new Uint8Array(waveLeftOutputAnalyser.frequencyBinCount);
