@@ -554,8 +554,11 @@
         for (let i = 0; i < bins; i++) row[i] = avg(freq, i / bins, (i + 1) / bins);
         v.history.unshift(row);
         if (v.history.length > (lowPerformance ? 48 : 96)) v.history.length = lowPerformance ? 48 : 96;
-        const stereo = new Float32Array(bins);
-        for (let i = 0; i < bins; i++) stereo[i] = (spectrumValue(i, bins, "L") + spectrumValue(i, bins, "R")) * .5;
+        const stereo = new Float32Array(bins * 2);
+        for (let i = 0; i < bins; i++) {
+          stereo[i] = avg(lf, i / bins, (i + 1) / bins);
+          stereo[bins + i] = avg(rf, i / bins, (i + 1) / bins);
+        }
         v.spectrogram.unshift(stereo);
         if (v.spectrogram.length > (lowPerformance ? 52 : 110)) v.spectrogram.length = lowPerformance ? 52 : 110;
         v.lastSample = now;
@@ -690,7 +693,7 @@
 
         case "a4": {
           drawBackground("#080502","#100803");
-          const rows=v.spectrogram, rowCount=lowPerformance?44:88, cols=rows[0]?.length||48;
+          const rows=v.spectrogram, rowCount=lowPerformance?44:88, cols=rows[0]?rows[0].length/2:48;
           const gap=height*.035, paneH=(height-gap)*.5;
           const heat=(value)=> {
             const q=clamp(value*1.55,0,1);
@@ -706,7 +709,7 @@
               const row=rows[Math.min(rows.length-1,Math.floor(r/rowCount*Math.max(1,rows.length)))];
               if(!row)continue;
               for(let c=0;c<cols;c++){
-                const val=row[c]||0, rgb=heat(val), x=c*width/cols, y=top+paneH-(r+1)*paneH/rowCount;
+                const val=row[pane*cols+c]||0, rgb=heat(val), x=c*width/cols, y=top+paneH-(r+1)*paneH/rowCount;
                 const alpha=.12+val*.9;
                 ctx.fillStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+alpha+")";
                 ctx.fillRect(x,y,width/cols+.55,paneH/rowCount+.5);
