@@ -508,7 +508,7 @@
       lowPerformanceMode: !!state.visualizerSettings?.lowPerformanceMode,
       currentWindowMs: Math.round(elapsed),
       currentFrameCount: stats.frames,
-      currentFps: stats.frames ? Math.round(stats.frames * 1000 / elapsed * 10) / 10 : null,
+      currentFps: stats.frames && elapsed >= 1000 ? Math.round(stats.frames * 1000 / elapsed * 10) / 10 : null,
       averageFrameDurationMs: stats.frames ? Math.round(stats.totalFrameDurationMs / stats.frames * 100) / 100 : null,
       maxFrameDurationMs: Math.round(stats.maxFrameDurationMs * 100) / 100,
       lastFrameDurationMs: Math.round(stats.lastFrameDurationMs * 100) / 100,
