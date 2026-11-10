@@ -776,6 +776,11 @@ function drawWave() {
         const drawStaticMeter = (x, label) => {
           ctx.fillStyle = "rgba(255,255,255,.08)";
           ctx.fillRect(x, trackTop, meterW, trackH);
+          if (document.body.classList.contains("theme-light")) {
+            ctx.strokeStyle = "rgba(255,255,255,.52)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, trackTop + 0.5, Math.max(0, meterW - 1), Math.max(0, trackH - 1));
+          }
           ctx.fillStyle = "rgba(255,255,255,.72)";
           ctx.font = "9px sans-serif";
           ctx.textAlign = "center";
@@ -882,6 +887,11 @@ function drawWave() {
           meterGradient.addColorStop(1, "#ff3b30");
           ctx.fillStyle = "rgba(255,255,255,.08)";
           ctx.fillRect(x, trackTop, meterW, trackH);
+          if (document.body.classList.contains("theme-light")) {
+            ctx.strokeStyle = "rgba(255,255,255,.52)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, trackTop + 0.5, Math.max(0, meterW - 1), Math.max(0, trackH - 1));
+          }
           ctx.fillStyle = meterGradient;
           ctx.fillRect(x, trackBottom - fillH, meterW, fillH);
           ctx.fillStyle = "rgba(255,255,255,.72)";
