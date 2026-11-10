@@ -88,15 +88,25 @@
     playbackStats.lastEventAt = Date.now();
     playbackStats.recentEvents.push({ event: name, at: Date.now() });
     if (playbackStats.recentEvents.length > 16) playbackStats.recentEvents.shift();
-    if (name === "play") playbackStats.playCount++;
+    if (name === "play") {
+      playbackStats.playCount++;
+      playbackStats.lastTimeUpdateAt = 0;
+    }
     if (name === "waiting") playbackStats.waitingCount++;
     if (name === "stalled") playbackStats.stalledCount++;
     if (name === "error") {
       playbackStats.errorCount++;
       playbackStats.lastErrorCode = Number(audio.error?.code) || 0;
     }
-    if (name === "seeking") playbackStats.seekInProgress = true;
-    if (name === "seeked") playbackStats.seekInProgress = false;
+    if (name === "seeking") {
+      playbackStats.seekInProgress = true;
+      playbackStats.lastTimeUpdateAt = 0;
+    }
+    if (name === "seeked") {
+      playbackStats.seekInProgress = false;
+      playbackStats.lastTimeUpdateAt = 0;
+    }
+    if (name === "pause" || name === "ended") playbackStats.lastTimeUpdateAt = 0;
     if (name === "waiting" || name === "stalled") {
       if (!playbackStats.bufferingStartedAt) playbackStats.bufferingStartedAt = now;
     } else if (name === "playing" || name === "canplay" || name === "canplaythrough" || name === "pause" || name === "ended") {
@@ -141,10 +151,10 @@
 
   audio.addEventListener("timeupdate", () => {
     const statsNow = performance.now();
-    if (playbackStats.lastTimeUpdateAt) {
+    if (playbackStats.lastTimeUpdateAt && !playbackStats.seekInProgress) {
       const gap = statsNow - playbackStats.lastTimeUpdateAt;
       playbackStats.maxTimeUpdateGapMs = Math.max(playbackStats.maxTimeUpdateGapMs, gap);
-      if (!audio.paused && !playbackStats.seekInProgress && gap > 1500) playbackStats.longGapCount++;
+      if (!audio.paused && gap > 1500) playbackStats.longGapCount++;
     }
     playbackStats.lastTimeUpdateAt = statsNow;
     playbackStats.timeUpdateCount++;
