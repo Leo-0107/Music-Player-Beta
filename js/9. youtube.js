@@ -64,6 +64,32 @@
   let currentYoutubeItem = null;
   let pendingPlayId = null;
 
+  function isYoutubePlaybackContextActive() {
+    const youtubeTab = document.querySelector('.navTab[data-target="youtube"]');
+    return document.visibilityState === "visible" && !!youtubeTab?.classList.contains("active");
+  }
+
+  function pauseYoutubeForBackground(reason) {
+    if (!isYoutubeSong(state.currentSong)) return false;
+    const wasPending = !!pendingPlayId;
+    const wasPlaying = !!youtubePlayer &&
+      youtubePlayer.getPlayerState?.() === window.YT?.PlayerState?.PLAYING;
+    if (!wasPending && !wasPlaying) return false;
+
+    // 読み込み中の動画が、画面離脱後にonReadyで再生される競合も防ぐ。
+    youtubeRequestSerial++;
+    pendingPlayId = null;
+    try { youtubePlayer?.pauseVideo?.(); } catch {}
+    stopYoutubePlaybackStats();
+    setPlaybackIntent(false);
+    updatePlayPauseUI();
+    const status = document.getElementById("youtubeStatus");
+    if (status) status.textContent = reason === "tab"
+      ? "YouTube画面を離れたため、自動的に一時停止しました。"
+      : "アプリがバックグラウンドになったため、自動的に一時停止しました。";
+    return true;
+  }
+
   function readYoutubeItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_STORAGE_KEY) || "[]");
@@ -447,12 +473,21 @@
               youtubePlayerReady = true;
               const active = currentYoutubeItem;
               if (pendingPlayId && active && pendingPlayId === active.id && isYoutubeSong(state.currentSong)) {
+                if (!isYoutubePlaybackContextActive()) {
+                  pauseYoutubeForBackground(document.visibilityState === "visible" ? "tab" : "hidden");
+                  return;
+                }
                 event.target.loadVideoById(active.id);
                 pendingPlayId = null;
               }
             },
             onStateChange: event => {
               if (event.data === YT.PlayerState.PLAYING && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
+                if (!isYoutubePlaybackContextActive()) {
+                  pauseYoutubeForBackground(document.visibilityState === "visible" ? "tab" : "hidden");
+                  updatePlayPauseUI();
+                  return;
+                }
                 // YouTube再生も既存の再生回数・再生時間統計へ反映する。
                 setPlaybackIntent(true);
                 if (!hasCountedCurrentSong) recordPlayCount();
@@ -661,6 +696,17 @@
   }
 
   function initializeYoutubeSearch() {
+    // YouTube画面を離れた場合は停止し、戻っても自動再開しない。
+    document.querySelectorAll(".navTab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        if (tab.dataset.target !== "youtube") pauseYoutubeForBackground("tab");
+      });
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") pauseYoutubeForBackground("hidden");
+    });
+    window.addEventListener("pagehide", () => pauseYoutubeForBackground("hidden"));
+
     const urlModeButton = document.getElementById("youtubeUrlModeBtn");
     const keywordModeButton = document.getElementById("youtubeKeywordModeBtn");
     const urlModePanel = document.getElementById("youtubeUrlMode");
