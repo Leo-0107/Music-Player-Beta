@@ -269,6 +269,31 @@
     return youtubeLiveTiming.isLive;
   }
 
+  function getYoutubePlaybackStatsSnapshot() {
+    const playerState = Number(youtubePlayer?.getPlayerState?.());
+    let loadedFraction = null;
+    try {
+      const value = Number(youtubePlayer?.getVideoLoadedFraction?.());
+      if (Number.isFinite(value)) loadedFraction = Math.max(0, Math.min(1, value));
+    } catch {}
+    return {
+      source: "YouTube IFrame Player API",
+      active: !!currentYoutubeItem && isYoutubeSong(state.currentSong),
+      videoId: currentYoutubeItem?.id || null,
+      playerState: Number.isFinite(playerState) ? playerState : null,
+      currentTime: Number(youtubePlayer?.getCurrentTime?.()) || 0,
+      duration: Number(youtubePlayer?.getDuration?.()) || 0,
+      loadedFraction,
+      visibilityState: document.visibilityState,
+      liveDetection: {
+        isLive: youtubeLiveTiming.isLive,
+        increasingSamples: youtubeLiveTiming.increasingSamples,
+        stableSamples: youtubeLiveTiming.stableSamples
+      }
+    };
+  }
+  window.__musicPlayerGetYoutubePlaybackStats = getYoutubePlaybackStatsSnapshot;
+
   function updateYoutubePlaybackControls() {
     const progress = document.getElementById("youtubeProgress");
     const timeNow = document.getElementById("youtubeTimeNow");
