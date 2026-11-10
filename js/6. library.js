@@ -191,6 +191,7 @@
       : name.endsWith(".m4a") ? "audio/mp4"
       : name.endsWith(".wav") ? "audio/wav"
       : name.endsWith(".ogg") ? "audio/ogg"
+      : name.endsWith(".opus") ? "audio/ogg; codecs=opus"
       : name.endsWith(".flac") ? "audio/flac"
       : name.endsWith(".aac") ? "audio/aac"
       : name.endsWith(".mp3") ? "audio/mpeg"
@@ -268,7 +269,7 @@
       setTimeout(() => { progressEl.hidden = true; }, 500);
     };
 
-    const directMediaFiles=files.filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(f.name));
+    const directMediaFiles=files.filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|m4a|wav|ogg|opus|flac|aac|mp4|webm)$/i.test(f.name));
     const zipFiles=files.filter(f=>/\.zip$/i.test(f.name));
     const incoming=[];
     let extractedBytes = 0;
@@ -280,7 +281,10 @@
         toast("追加できるファイル数の上限（500件）に達しました");
         break;
       }
-      incoming.push({file:f,storageName:f.name});
+      const directFile = /\.opus$/i.test(f.name)
+        ? new File([f], f.name, { type: "audio/ogg; codecs=opus" })
+        : f;
+      incoming.push({file:directFile,storageName:f.name});
       processedMediaFiles++;
       updateProgress((processedMediaFiles / Math.max(1, directMediaFiles.length + zipFiles.length)) * 20, "ファイルを確認しています...");
       await yieldToUI();
@@ -296,7 +300,7 @@
         updateProgress(Math.min(25, processedMediaFiles / Math.max(1, directMediaFiles.length) * 20 + 5), "ZIPを解析しています...");
         const zip=await JSZip.loadAsync(zipFile);
         const entries=Object.keys(zip.files);
-        const mediaEntries=entries.filter(filename=>!zip.files[filename].dir&&/\.(mp3|m4a|wav|ogg|flac|aac|mp4|webm)$/i.test(filename));
+        const mediaEntries=entries.filter(filename=>!zip.files[filename].dir&&/\.(mp3|m4a|wav|ogg|opus|flac|aac|mp4|webm)$/i.test(filename));
         for(let entryIndex=0; entryIndex<mediaEntries.length; entryIndex++){
           if(incoming.length >= MAX_MEDIA_FILES) {
             toast("追加できるファイル数の上限（500件）に達したため、残りのZIP内ファイルを停止しました");
@@ -312,7 +316,7 @@
           }
           const cleanName=filename.split("/").pop();
           const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
-          incoming.push({file:new File([blob],cleanName,{type:blob.type||mediaInfo.mimeType}),storageName:cleanName,zipName:zipFile.name});
+          incoming.push({file:new File([blob],cleanName,{type:/\.opus$/i.test(cleanName)?mediaInfo.mimeType:(blob.type||mediaInfo.mimeType)}),storageName:cleanName,zipName:zipFile.name});
           const percent = 25 + ((entryIndex + 1) / Math.max(1, mediaEntries.length)) * 45;
           updateProgress(percent, "ZIP内ファイルを読み込んでいます...");
           await yieldToUI();
