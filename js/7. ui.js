@@ -78,6 +78,7 @@
     sessionStartedAt: Date.now(), playCount: 0, waitingCount: 0, stalledCount: 0,
     bufferingTotalMs: 0, bufferingStartedAt: 0, timeUpdateCount: 0,
     maxTimeUpdateGapMs: 0, longGapCount: 0, lastTimeUpdateAt: 0,
+    visibilityChangeResetCount: 0,
     seekInProgress: false, errorCount: 0, lastErrorCode: 0,
     lastEvent: "initialized", lastEventAt: Date.now(), recentEvents: []
   };
@@ -122,6 +123,10 @@
       ? Math.max(0, performance.now() - playbackStats.bufferingStartedAt)
       : 0;
     return {
+      source: "HTMLAudioElement",
+      contentType: state.currentSong?.mediaType === "youtube" ? "YouTube (別診断)" : "local media",
+      activeLocalPlayback: !audio.paused && state.currentSong?.mediaType !== "youtube",
+      visibilityState: document.visibilityState,
       sessionStartedAt: new Date(playbackStats.sessionStartedAt).toISOString(),
       playCount: playbackStats.playCount,
       waitingCount: playbackStats.waitingCount,
@@ -130,6 +135,7 @@
       timeUpdateCount: playbackStats.timeUpdateCount,
       maxTimeUpdateGapMs: Math.round(playbackStats.maxTimeUpdateGapMs),
       longGapCount: playbackStats.longGapCount,
+      visibilityChangeResetCount: playbackStats.visibilityChangeResetCount,
       errorCount: playbackStats.errorCount,
       lastErrorCode: playbackStats.lastErrorCode,
       currentTime: Number(audio.currentTime) || 0,
@@ -142,6 +148,13 @@
   }
   window.__musicPlayerGetPlaybackStats = getPlaybackStatsSnapshot;
 
+  document.addEventListener("visibilitychange", () => {
+    playbackStats.lastTimeUpdateAt = 0;
+    playbackStats.visibilityChangeResetCount++;
+    playbackStats.lastEvent = document.visibilityState === "hidden" ? "page-hidden" : "page-visible";
+    playbackStats.lastEventAt = Date.now();
+  });
+
   audio.addEventListener("stalled", () => trackPlaybackEvent("stalled"));
   audio.addEventListener("canplay", () => trackPlaybackEvent("canplay"));
   audio.addEventListener("canplaythrough", () => trackPlaybackEvent("canplaythrough"));
@@ -151,12 +164,14 @@
 
   audio.addEventListener("timeupdate", () => {
     const statsNow = performance.now();
-    if (playbackStats.lastTimeUpdateAt && !playbackStats.seekInProgress) {
+    if (playbackStats.lastTimeUpdateAt && !playbackStats.seekInProgress &&
+        document.visibilityState === "visible" && !audio.paused) {
       const gap = statsNow - playbackStats.lastTimeUpdateAt;
       playbackStats.maxTimeUpdateGapMs = Math.max(playbackStats.maxTimeUpdateGapMs, gap);
-      if (!audio.paused && gap > 1500) playbackStats.longGapCount++;
+      // timeupdateはブラウザが発火頻度を調整するため、表示中かつ再生中の長い間隔だけを参考値として記録する。
+      if (gap > 1500 && audio.readyState >= 3) playbackStats.longGapCount++;
     }
-    playbackStats.lastTimeUpdateAt = statsNow;
+    playbackStats.lastTimeUpdateAt = document.visibilityState === "visible" ? statsNow : 0;
     playbackStats.timeUpdateCount++;
     const dur = Number(audio.duration);
     const cur = Number(audio.currentTime) || 0;
