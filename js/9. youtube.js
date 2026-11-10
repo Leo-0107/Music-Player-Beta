@@ -251,16 +251,34 @@
       if (youtubeLiveTiming.lastDuration !== null) {
         const elapsed = Math.max(0, (now - youtubeLiveTiming.lastSampleAt) / 1000);
         const delta = duration - youtubeLiveTiming.lastDuration;
-        if (elapsed >= 0.5 && delta >= Math.max(0.5, elapsed * 0.5)) {
-          youtubeLiveTiming.increasingSamples += 1;
-          youtubeLiveTiming.stableSamples = 0;
-          if (youtubeLiveTiming.increasingSamples >= 2) youtubeLiveTiming.isLive = true;
-        } else if (elapsed >= 0.5 && Math.abs(delta) <= 0.5) {
-          youtubeLiveTiming.stableSamples += 1;
-          youtubeLiveTiming.increasingSamples = 0;
-        } else if (delta < -0.5) {
-          youtubeLiveTiming.stableSamples = 0;
-          youtubeLiveTiming.increasingSamples = 0;
+
+        // 非表示タブでのタイマー遅延をライブ判定の根拠にしない。再表示後に通常間隔で測定し直す。
+        if (document.visibilityState !== "visible") {
+          youtubeLiveTiming.lastDuration = duration;
+          youtubeLiveTiming.lastSampleAt = now;
+          return youtubeLiveTiming.isLive;
+        }
+
+        if (elapsed >= 0.75) {
+          // ライブ配信のgetDuration()は配信開始からの経過時間。時間経過と近い増加が
+          // 連続して観測された場合だけライブと判定し、単発の大きな値変化を除外する。
+          const minimumLiveIncrease = Math.max(0.5, elapsed * 0.65);
+          const maximumLiveIncrease = elapsed * 1.5 + 1.0;
+          const stableTolerance = Math.max(0.5, elapsed * 0.15);
+
+          if (delta >= minimumLiveIncrease && delta <= maximumLiveIncrease) {
+            youtubeLiveTiming.increasingSamples += 1;
+            youtubeLiveTiming.stableSamples = 0;
+            if (youtubeLiveTiming.increasingSamples >= 3) youtubeLiveTiming.isLive = true;
+          } else if (Math.abs(delta) <= stableTolerance) {
+            youtubeLiveTiming.stableSamples += 1;
+            youtubeLiveTiming.increasingSamples = 0;
+            if (youtubeLiveTiming.stableSamples >= 3) youtubeLiveTiming.isLive = false;
+          } else {
+            // シーク、再接続、メタデータ更新などの不連続な変化は判定材料から外す。
+            youtubeLiveTiming.stableSamples = 0;
+            youtubeLiveTiming.increasingSamples = 0;
+          }
         }
       }
       youtubeLiveTiming.lastDuration = duration;
