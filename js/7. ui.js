@@ -475,260 +475,386 @@
 
   // --- 描画ループ & 連続無音判定 ---
     function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance, now) {
-      const v = drawWave._visualizerV3 || (drawWave._visualizerV3 = { history: [], lastSample: 0, peaks: null, shocks: [], lastBass: 0 });
-      const t = now * 0.001, cx = width * 0.5, cy = height * 0.5, short = Math.min(width, height);
+      const v = drawWave._visualizerV4 || (drawWave._visualizerV4 = {
+        history: [], lastSample: 0, peaks: null, particles: [], lastBass: 0,
+        phase: 0, trails: [], spectrogram: [], burst: 0
+      });
+      const t = now * 0.001, cx = width * 0.5, cy = height * 0.5;
+      const short = Math.min(width, height);
       const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+      const TAU = Math.PI * 2;
+      const count = lowPerformance ? 36 : 72;
+
       if (analyser && waveTimeData) {
         if (isPlaying) analyser.getByteTimeDomainData(waveTimeData);
-        else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.16;
+        else for (let i = 0; i < waveTimeData.length; i++) waveTimeData[i] += (128 - waveTimeData[i]) * 0.12;
       }
       if (waveLeftOutputAnalyser && waveLeftOutputData) {
         if (isPlaying) waveLeftOutputAnalyser.getByteFrequencyData(waveLeftOutputData);
-        else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.86;
+        else for (let i = 0; i < waveLeftOutputData.length; i++) waveLeftOutputData[i] *= 0.9;
       }
       if (waveRightOutputAnalyser && waveRightOutputData) {
         if (isPlaying) waveRightOutputAnalyser.getByteFrequencyData(waveRightOutputData);
-        else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.86;
+        else for (let i = 0; i < waveRightOutputData.length; i++) waveRightOutputData[i] *= 0.9;
       }
       if (leftLevelAnalyser && leftLevelData) {
         if (isPlaying) leftLevelAnalyser.getByteTimeDomainData(leftLevelData);
-        else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.16;
+        else for (let i = 0; i < leftLevelData.length; i++) leftLevelData[i] += (128 - leftLevelData[i]) * 0.12;
       }
       if (rightLevelAnalyser && rightLevelData) {
         if (isPlaying) rightLevelAnalyser.getByteTimeDomainData(rightLevelData);
-        else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.16;
+        else for (let i = 0; i < rightLevelData.length; i++) rightLevelData[i] += (128 - rightLevelData[i]) * 0.12;
       }
 
-      const lf = waveLeftOutputData && waveLeftOutputData.length ? waveLeftOutputData : analyserData;
-      const rf = waveRightOutputData && waveRightOutputData.length ? waveRightOutputData : lf;
+      const lf = waveLeftOutputData?.length ? waveLeftOutputData : analyserData;
+      const rf = waveRightOutputData?.length ? waveRightOutputData : lf;
+      const freq = analyserData?.length ? analyserData : lf;
       const avg = (data, from, to) => {
-        if (!data || !data.length) return 0;
+        if (!data?.length) return 0;
         const lo = clamp(Math.floor(from * data.length), 0, data.length - 1);
         const hi = clamp(Math.ceil(to * data.length), lo + 1, data.length);
         let sum = 0;
-        for (let i = lo; i < hi; i++) sum += (data[i] || 0) / 255;
+        for (let i = lo; i < hi; i++) sum += (Number(data[i]) || 0) / 255;
         return sum / (hi - lo);
       };
-      const spec = (i, n, channel) => {
-        const data = channel === "L" ? lf : channel === "R" ? rf : null;
-        if (data) return avg(data, i / n, (i + 1) / n);
-        return (avg(lf, i / n, (i + 1) / n) + avg(rf, i / n, (i + 1) / n)) * 0.5;
+      const band = (p, channel) => {
+        const data = channel === "L" ? lf : channel === "R" ? rf : freq;
+        return avg(data, p, Math.min(1, p + 1 / Math.max(1, count)));
       };
       const sample = (data, p) => {
-        if (!data || !data.length) return 0;
-        return ((data[clamp(Math.floor(p * (data.length - 1)), 0, data.length - 1)] || 128) - 128) / 128;
+        if (!data?.length) return 0;
+        const i = clamp(Math.floor(p * (data.length - 1)), 0, data.length - 1);
+        return ((Number(data[i]) || 128) - 128) / 128;
       };
-      const low = avg(lf, 0, 0.18) * 0.5 + avg(rf, 0, 0.18) * 0.5;
-      const middle = avg(lf, 0.18, 0.58) * 0.5 + avg(rf, 0.18, 0.58) * 0.5;
-      const high = avg(lf, 0.58, 1) * 0.5 + avg(rf, 0.58, 1) * 0.5;
-      const energy = (low + middle + high) / 3;
-      if (isPlaying && now - v.lastSample > (lowPerformance ? 130 : 68)) {
-        const row = new Float32Array(lowPerformance ? 32 : 56);
-        for (let i = 0; i < row.length; i++) row[i] = spec(i, row.length);
+      const low = (avg(lf, 0, .16) + avg(rf, 0, .16)) * .5;
+      const mid = (avg(lf, .16, .58) + avg(rf, .16, .58)) * .5;
+      const high = (avg(lf, .58, 1) + avg(rf, .58, 1)) * .5;
+      const energy = clamp((low + mid + high) / 3, 0, 1);
+      const glow = lowPerformance ? 0 : 1;
+      const drawBackground = (top, bottom) => {
+        const g = ctx.createLinearGradient(0, 0, width, height);
+        g.addColorStop(0, top); g.addColorStop(1, bottom);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);
+      };
+      const label = (s, color = "rgba(210,235,245,.34)") => {
+        ctx.save(); ctx.font = "600 8px system-ui,sans-serif";
+        ctx.textAlign = "left"; ctx.fillStyle = color; ctx.fillText(s, 10, 15); ctx.restore();
+      };
+      const glowLine = (path, color, lineWidth, blur = 12) => {
+        ctx.save(); ctx.beginPath(); path();
+        ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
+        ctx.lineCap = "round"; ctx.lineJoin = "round";
+        ctx.shadowBlur = glow ? blur : 0; ctx.shadowColor = color; ctx.stroke(); ctx.restore();
+      };
+      const spectrumValue = (i, n, channel) => band(i / n, channel);
+      const pushHistory = () => {
+        if (!isPlaying || now - v.lastSample < (lowPerformance ? 110 : 48)) return;
+        const bins = lowPerformance ? 48 : 96;
+        const row = new Float32Array(bins);
+        for (let i = 0; i < bins; i++) row[i] = avg(freq, i / bins, (i + 1) / bins);
         v.history.unshift(row);
-        if (v.history.length > (lowPerformance ? 20 : 36)) v.history.length = lowPerformance ? 20 : 36;
+        if (v.history.length > (lowPerformance ? 48 : 96)) v.history.length = lowPerformance ? 48 : 96;
+        const stereo = new Float32Array(bins);
+        for (let i = 0; i < bins; i++) stereo[i] = (spectrumValue(i, bins, "L") + spectrumValue(i, bins, "R")) * .5;
+        v.spectrogram.unshift(stereo);
+        if (v.spectrogram.length > (lowPerformance ? 52 : 110)) v.spectrogram.length = lowPerformance ? 52 : 110;
         v.lastSample = now;
-      }
-
-      const bg = ctx.createLinearGradient(0, 0, width, height);
-      bg.addColorStop(0, "#050914"); bg.addColorStop(0.52, "#0a1221"); bg.addColorStop(1, "#110b1e");
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
-      const tag = text => {
-        ctx.save(); ctx.font = "600 9px system-ui,sans-serif"; ctx.textAlign = "left";
-        ctx.fillStyle = "rgba(205,228,248,.55)"; ctx.fillText(text, 10, 16); ctx.restore();
       };
-      const trace = (data, center, amp, color, fill, widthPx) => {
-        if (!data || !data.length) return;
-        const n = lowPerformance ? 64 : 120;
-        ctx.beginPath();
-        for (let i = 0; i < n; i++) {
-          const p = i / (n - 1);
-          const y = center - sample(data, p) * amp;
-          if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
-        }
-        if (fill) {
-          ctx.lineTo(width, center); ctx.lineTo(0, center); ctx.closePath();
-          ctx.fillStyle = fill; ctx.fill();
-          ctx.beginPath();
-          for (let i = 0; i < n; i++) {
-            const p = i / (n - 1), y = center - sample(data, p) * amp;
-            if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
-          }
-        }
-        ctx.strokeStyle = color; ctx.lineWidth = widthPx; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-      };
+      pushHistory();
 
       switch (state.waveMode) {
-        case "a1": {
-          const amp = height * (0.22 + energy * 0.2);
-          const layers = [{ y: -height * .14, s: .55, h: 190 }, { y: 0, s: 1, h: 278 }, { y: height * .14, s: .62, h: 35 }];
-          ctx.save(); ctx.globalCompositeOperation = "screen";
-          for (let l = 0; l < layers.length; l++) {
-            const q = layers[l], grad = ctx.createLinearGradient(0, 0, width, 0);
-            grad.addColorStop(0, "hsla(" + q.h + ",100%,65%,.08)");
-            grad.addColorStop(.5, "hsla(" + (q.h + 30) + ",100%,72%,.72)");
-            grad.addColorStop(1, "hsla(" + (q.h + 70) + ",100%,65%,.06)");
-            ctx.beginPath();
-            const n = lowPerformance ? 70 : 128;
-            for (let i = 0; i < n; i++) {
-              const p = i / (n - 1), ripple = Math.sin(p * 13 + t * 1.5 + l) * amp * .1;
-              const y = cy + q.y - sample(waveTimeData, p) * amp * q.s - ripple * (.5 + spec(Math.floor(p * 60), 60));
-              if (!i) ctx.moveTo(p * width, y); else ctx.lineTo(p * width, y);
-            }
-            ctx.strokeStyle = grad; ctx.lineWidth = (l === 1 ? 4 : 2) + energy * 2;
-            ctx.shadowBlur = lowPerformance ? 0 : 16; ctx.shadowColor = "hsla(" + q.h + ",100%,65%,.8)"; ctx.stroke();
-          }
-          ctx.restore(); tag("AURORA STREAM"); break;
-        }
-        case "a2": {
-          const n = lowPerformance ? 28 : 48, gap = Math.max(2, width / n * .17), bw = width / n - gap, base = height * .88;
-          if (!v.peaks || v.peaks.length !== n) v.peaks = new Float32Array(n);
-          for (let i = 0; i < n; i++) {
-            const value = spec(i, n);
-            v.peaks[i] = Math.max(value, v.peaks[i] - dt * .38);
-            const h = Math.max(2, value * height * .7), x = i * width / n + gap * .5, hue = 174 + i / n * 155;
-            const g = ctx.createLinearGradient(0, base - h, 0, base);
-            g.addColorStop(0, "hsla(" + hue + ",100%,82%,1)");
-            g.addColorStop(.5, "hsla(" + hue + ",95%,54%,.96)");
-            g.addColorStop(1, "hsla(" + (hue + 22) + ",90%,28%,.92)");
-            ctx.fillStyle = g; ctx.fillRect(x, base - h, bw, h);
-            ctx.fillStyle = "hsla(" + hue + ",100%,86%,.9)";
-            ctx.fillRect(x, base - v.peaks[i] * height * .7 - 2, bw, 2);
-          }
-          tag("CHROMA EQUALIZER"); break;
-        }
-        case "a3": {
-          const top = height * .28, bottom = height * .72, amp = height * .29;
-          ctx.strokeStyle = "rgba(205,225,245,.16)"; ctx.setLineDash([3, 6]);
-          [top, bottom].forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); });
-          ctx.setLineDash([]);
-          trace(leftLevelData, top, amp, "rgba(90,225,255,.98)", "rgba(30,190,255,.12)", 2);
-          trace(rightLevelData, bottom, amp, "rgba(220,145,255,.98)", "rgba(190,90,255,.12)", 2);
-          tag("LEFT CHANNEL"); ctx.save(); ctx.font = "600 9px system-ui,sans-serif"; ctx.fillStyle = "rgba(205,228,248,.55)"; ctx.fillText("RIGHT CHANNEL", 10, height - 8); ctx.restore();
-          break;
-        }
-        case "a4": {
-          const rows = v.history, rowH = height / Math.max(1, lowPerformance ? 20 : 36), cols = rows.length ? rows[0].length : 32;
-          for (let r = 0; r < rows.length; r++) {
-            const row = rows[r], y = height - (r + 1) * rowH;
-            for (let c = 0; c < row.length; c++) {
-              const x = c * width / cols, value = row[c], hue = 228 - value * 205 + c / cols * 22;
-              ctx.fillStyle = "hsla(" + hue + ",94%," + (12 + value * 54) + "%," + (.2 + value * .8) + ")";
-              ctx.fillRect(x, y, width / cols + .6, rowH + .5);
-            }
-          }
-          tag("SPECTRUM TIMELINE  •  NEWEST AT BOTTOM"); break;
-        }
-        case "a5": {
-          const count = lowPerformance ? 64 : 112, inner = short * .12;
-          ctx.save(); ctx.translate(cx, cy);
-          for (let ring = 0; ring < 4; ring++) {
-            ctx.beginPath(); ctx.arc(0, 0, inner + ring * short * .065, 0, Math.PI * 2);
-            ctx.strokeStyle = "rgba(185,215,245," + (.1 + ring * .025) + ")"; ctx.lineWidth = 1; ctx.stroke();
-          }
-          for (let i = 0; i < count; i++) {
-            const p = i / count, value = spec(i, count), angle = p * Math.PI * 2 - Math.PI / 2;
-            const r1 = inner + short * .06, r2 = r1 + 4 + value * short * .3, hue = 180 + p * 160;
-            ctx.beginPath(); ctx.moveTo(Math.cos(angle) * r1, Math.sin(angle) * r1);
-            ctx.lineTo(Math.cos(angle) * r2, Math.sin(angle) * r2);
-            ctx.strokeStyle = "hsla(" + hue + ",100%," + (56 + value * 25) + "%," + (.35 + value * .65) + ")";
-            ctx.lineWidth = 1 + value * 2.2; ctx.lineCap = "round"; ctx.stroke();
-          }
-          const core = ctx.createRadialGradient(0, 0, 1, 0, 0, inner * 1.25);
-          core.addColorStop(0, "rgba(255,255,255,.95)"); core.addColorStop(.3, "rgba(80,230,255,.72)"); core.addColorStop(1, "rgba(60,90,230,0)");
-          ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, inner * 1.25, 0, Math.PI * 2); ctx.fill();
-          ctx.restore(); tag("PRISM COMPASS"); break;
-        }
-        case "a6": {
-          const orbit = short * .22, coreR = short * (.055 + low * .04);
-          ctx.save(); ctx.translate(cx, cy);
-          const core = ctx.createRadialGradient(-coreR * .3, -coreR * .3, 1, 0, 0, coreR * 1.8);
-          core.addColorStop(0, "#fff"); core.addColorStop(.25, "rgba(115,245,255,.95)"); core.addColorStop(.65, "rgba(65,120,255,.5)"); core.addColorStop(1, "rgba(60,70,255,0)");
-          ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, coreR * 1.8, 0, Math.PI * 2); ctx.fill();
-          for (let k = 0; k < 3; k++) {
-            const rx = orbit + k * short * .06, ry = orbit * (.35 + k * .1), rot = t * (k % 2 ? -.2 : .16) + k * 1.1;
-            ctx.save(); ctx.rotate(rot);
-            ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-            ctx.strokeStyle = "hsla(" + (185 + k * 48) + ",100%,72%," + (.65 - k * .12) + ")"; ctx.lineWidth = 1.5 + middle; ctx.stroke();
-            const a = t * (1 + k * .25) + k * 2.1;
-            ctx.beginPath(); ctx.arc(Math.cos(a) * rx, Math.sin(a) * ry, 3 + high * 3, 0, Math.PI * 2);
-            ctx.fillStyle = "hsla(" + (190 + k * 48) + ",100%,82%,.98)"; ctx.fill();
-            ctx.restore();
-          }
-          ctx.restore(); tag("ATOMIC RESONANCE"); break;
-        }
-        case "a7": {
-          if (isPlaying && low > .22 && low - v.lastBass > .055) v.shocks.push({ r: short * .035, life: 1, strength: low });
-          v.lastBass = low;
-          for (let i = v.shocks.length - 1; i >= 0; i--) {
-            const q = v.shocks[i]; q.r += dt * short * (.48 + q.strength * .5); q.life -= dt * .5;
-            if (q.life <= 0 || q.r > short * .9) v.shocks.splice(i, 1);
-          }
-          ctx.save(); ctx.translate(cx, cy);
-          for (let i = 0; i < v.shocks.length; i++) {
-            const q = v.shocks[i]; ctx.beginPath(); ctx.arc(0, 0, q.r, 0, Math.PI * 2);
-            ctx.strokeStyle = "hsla(" + (185 + q.strength * 70) + ",100%,72%," + q.life * .8 + ")";
-            ctx.lineWidth = 1 + q.life * 3; ctx.shadowBlur = lowPerformance ? 0 : 12; ctx.stroke();
-          }
-          const count = Math.min(Math.max(0, Number(state.waveParticleCount) || 0), lowPerformance ? 220 : 900);
-          for (let i = 0; i < count; i++) {
-            const seed = i * .61803398875, phase = (t * (.035 + i % 7 * .004) + seed) % 1;
-            const angle = seed * Math.PI * 2 + t * (.07 + i % 5 * .012);
-            const radius = short * (.05 + phase * .43) * (1 + low * .22);
-            const size = 1 + i % 3 * .5 + energy;
-            ctx.fillStyle = "hsla(" + (185 + i % 120) + ",100%,78%," + (.25 + phase * .6) + ")";
-            ctx.fillRect(Math.cos(angle) * radius, Math.sin(angle) * radius, size, size);
-          }
-          ctx.restore(); tag("STARDUST BURST"); break;
-        }
-        case "a8": {
-          const left = leftLevelData || waveTimeData, right = rightLevelData || waveTimeData;
-          ctx.strokeStyle = "rgba(190,220,245,.16)"; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(cx, 12); ctx.lineTo(cx, height - 12); ctx.moveTo(12, cy); ctx.lineTo(width - 12, cy); ctx.stroke();
-          const n = lowPerformance ? 72 : 136, sx = width * .4, sy = height * .4;
-          ctx.save(); ctx.translate(cx, cy); ctx.beginPath();
-          for (let i = 0; i < n; i++) {
-            const p = i / (n - 1), x = sample(left, p) * sx, y = -sample(right, p) * sy;
-            if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          }
-          ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.strokeStyle = "rgba(90,190,255,.2)";
-          ctx.lineWidth = 7; ctx.shadowBlur = lowPerformance ? 0 : 15; ctx.shadowColor = "rgba(90,190,255,.7)"; ctx.stroke();
-          ctx.shadowBlur = 0;
-          const g = ctx.createLinearGradient(-sx, sy, sx, -sy);
-          g.addColorStop(0, "#55e6d4"); g.addColorStop(.5, "#e0a2ff"); g.addColorStop(1, "#fff0a2");
-          ctx.strokeStyle = g; ctx.lineWidth = 1.8; ctx.stroke(); ctx.restore();
-          tag("STEREO PHASE  /  L × R"); break;
-        }
-        case "3d":
-        default: {
-          const rows = v.history, rowCount = lowPerformance ? 10 : 17, colCount = lowPerformance ? 18 : 30, points = [];
+        case "3d": {
+          drawBackground("#02060c", "#03010a");
+          const rows = v.history, rowCount = lowPerformance ? 13 : 25, colCount = lowPerformance ? 24 : 48;
+          const points = [];
           for (let r = 0; r < rowCount; r++) {
-            const ri = Math.min(rows.length - 1, Math.floor(r * Math.max(1, rows.length - 1) / Math.max(1, rowCount - 1)));
-            const row = rows[ri] || null, line = [];
+            const ri = Math.min(rows.length - 1, Math.floor(r * Math.max(1, rows.length - 1) / (rowCount - 1)));
+            const row = rows[ri], line = [];
             for (let c = 0; c < colCount; c++) {
-              const value = row ? row[Math.min(row.length - 1, Math.floor(c * (row.length - 1) / Math.max(1, colCount - 1)))] : 0;
-              const x = (c / (colCount - 1) - .5) * width * .84;
-              const depth = (r / (rowCount - 1) - .5) * height * .68;
-              line.push(applyWaveView({ x: cx + x, y: value * height * .34, depth: depth, fitScale: 1 }, width, height));
+              const val = row ? row[Math.min(row.length - 1, Math.floor(c * (row.length - 1) / (colCount - 1)))] : 0;
+              const x = (c / (colCount - 1) - .5) * width * .88;
+              const depth = (r / (rowCount - 1) - .5) * height * .8;
+              const y = val * height * .46;
+              line.push(applyWaveView({x:cx + x,y,depth,fitScale:1},width,height));
             }
             points.push(line);
           }
           for (let r = rowCount - 2; r >= 0; r--) {
             for (let c = 0; c < colCount - 1; c++) {
-              const p1 = points[r][c], p2 = points[r][c + 1], p3 = points[r + 1][c + 1], p4 = points[r + 1][c];
-              const value = rows.length && rows[r] ? rows[r][Math.min(rows[r].length - 1, c)] : 0;
-              const hue = 184 + value * 112;
-              ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath();
-              ctx.fillStyle = "hsla(" + hue + ",92%," + (18 + value * 34) + "%,.82)"; ctx.fill();
-              ctx.strokeStyle = "hsla(" + (hue + 10) + ",100%,75%,.5)"; ctx.lineWidth = lowPerformance ? .7 : .9; ctx.stroke();
+              const a=points[r][c], b=points[r][c+1], d=points[r+1][c], e=points[r+1][c+1];
+              const val=rows[r]?.[Math.min(rows[r].length-1,Math.floor(c/(colCount-1)*rows[r].length))] || 0;
+              const hue=175 + val*145 + c/colCount*25;
+              ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(e.x,e.y); ctx.lineTo(d.x,d.y); ctx.closePath();
+              ctx.fillStyle="hsla("+hue+",100%,"+(12+val*23)+"%,.38)"; ctx.fill();
+              ctx.strokeStyle="hsla("+hue+",100%,"+(48+val*35)+"%,"+(.2+val*.62)+")";
+              ctx.lineWidth=lowPerformance?.65:1; ctx.stroke();
             }
           }
-          for (let r = 0; r < rowCount; r += 2) {
+          for(let r=0;r<rowCount;r++){
             ctx.beginPath();
-            for (let c = 0; c < colCount; c++) { const p = points[r][c]; if (!c) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
-            ctx.strokeStyle = "rgba(185,230,255,.48)"; ctx.lineWidth = .8; ctx.stroke();
+            for(let c=0;c<colCount;c++){const p=points[r][c]; if(!c)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+            ctx.strokeStyle="rgba(40,245,190,"+(.16+r/rowCount*.28)+")"; ctx.lineWidth=lowPerformance?.7:1; ctx.stroke();
           }
-          tag("3D SPECTRUM TERRAIN"); break;
+          for(let c=0;c<colCount;c+=2){
+            ctx.beginPath();
+            for(let r=0;r<rowCount;r++){const p=points[r][c];if(!r)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+            ctx.strokeStyle="rgba(60,130,255,.24)";ctx.lineWidth=.7;ctx.stroke();
+          }
+          label("3D SPECTROGRAM  /  TIME × FREQUENCY"); break;
+        }
+
+        case "a1": {
+          drawBackground("#020916","#02030b");
+          const baseY=height*.76, rings=lowPerformance?10:17, maxR=Math.min(width*.47,height*.65);
+          const floor=ctx.createLinearGradient(0,baseY-maxR,0,height);
+          floor.addColorStop(0,"rgba(5,18,45,0)");floor.addColorStop(1,"rgba(5,20,42,.72)");
+          ctx.fillStyle=floor;ctx.fillRect(0,baseY-maxR,width,height-baseY+maxR);
+          for(let r=rings;r>=1;r--){
+            const p=r/rings, radius=maxR*p, amp=(.8+energy*1.9)*(1-p*.35);
+            ctx.beginPath();ctx.ellipse(cx,baseY,radius,radius*.24,0,0,TAU);
+            const hue=178+p*115;
+            ctx.strokeStyle="hsla("+hue+",100%,"+(52+energy*20)+"%,"+(0.2+(1-p)*.62)+")";
+            ctx.lineWidth=1.1+energy*1.2;ctx.shadowBlur=glow?10:0;ctx.shadowColor="hsla("+hue+",100%,65%,.8)";ctx.stroke();ctx.shadowBlur=0;
+          }
+          const bars=lowPerformance?56:112;
+          for(let i=0;i<bars;i++){
+            const p=i/bars, val=spectrumValue(i,bars), x=(p-.5)*width*.84;
+            const h=val*height*(.24+energy*.24);
+            const grad=ctx.createLinearGradient(0,baseY-h,0,baseY);
+            grad.addColorStop(0,"rgba(120,255,255,.98)");grad.addColorStop(1,"rgba(150,70,255,.08)");
+            ctx.fillStyle=grad;ctx.fillRect(cx+x-1,baseY-h,Math.max(1,width/bars*.55),h);
+          }
+          const core=ctx.createRadialGradient(cx,baseY,1,cx,baseY,short*.12);
+          core.addColorStop(0,"#fff");core.addColorStop(.12,"#b8ffff");core.addColorStop(.38,"rgba(50,220,255,.75)");core.addColorStop(1,"rgba(50,80,255,0)");
+          ctx.fillStyle=core;ctx.beginPath();ctx.arc(cx,baseY,short*.12,0,TAU);ctx.fill();
+          label("RESONANCE RINGS  /  LOW TO HIGH"); break;
+        }
+
+        case "a2": {
+          drawBackground("#03040f","#07001b");
+          const inner=short*.19, rings=lowPerformance?2:3, bars=lowPerformance?72:144;
+          for(let ring=0;ring<rings;ring++){
+            const r0=inner+ring*short*.075, r1=r0+short*.052;
+            for(let i=0;i<bars;i++){
+              const val=spectrumValue(i,bars), angle=i/bars*TAU-Math.PI/2;
+              const pulse=val*(short*.07)+short*.012;
+              const r=r1+pulse;
+              const hue=(i/bars)*300+20;
+              ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
+              ctx.fillStyle="hsla("+hue+",100%,"+(54+val*24)+"%,"+(.5+val*.5)+")";
+              ctx.shadowBlur=glow?8+val*9:0;ctx.shadowColor="hsla("+hue+",100%,65%,.9)";
+              const w=Math.max(2,short*.008);
+              ctx.fillRect(-w/2,-r,w,Math.max(2,r-r0));ctx.restore();
+            }
+          }
+          const core=ctx.createRadialGradient(cx-short*.025,cy-short*.03,2,cx,cy,inner*.92);
+          core.addColorStop(0,"#1b36ff");core.addColorStop(.62,"#0626d6");core.addColorStop(1,"rgba(0,20,100,.8)");
+          ctx.fillStyle=core;ctx.beginPath();ctx.arc(cx,cy,inner*.88,0,TAU);ctx.fill();
+          ctx.strokeStyle="rgba(100,150,255,.2)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,inner*.9,0,TAU);ctx.stroke();
+          label("CHROMATIC RADIAL EQUALIZER"); break;
+        }
+
+        case "a3": {
+          drawBackground("#03141c","#020b17");
+          const radius=short*.24, points=lowPerformance?180:360;
+          ctx.save();ctx.translate(cx,cy);
+          for(let ring=0;ring<4;ring++){
+            ctx.beginPath();ctx.ellipse(0,0,radius*(.72+ring*.13),radius*(.9+ring*.12),t*(ring%2?-.025:.02),0,TAU);
+            ctx.strokeStyle="rgba(70,230,220,"+(0.2-ring*.035)+")";ctx.lineWidth=1;ctx.stroke();
+          }
+          const contour=[];
+          for(let i=0;i<points;i++){
+            const a=i/points*TAU, val=spectrumValue(i,points), wobble=1+val*.42+Math.sin(a*7+t*1.4)*.025;
+            contour.push({x:Math.cos(a)*radius*wobble,y:Math.sin(a)*radius*1.18*wobble,val,a});
+          }
+          ctx.beginPath();contour.forEach((p,i)=>{if(!i)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});ctx.closePath();
+          const orb=ctx.createRadialGradient(-radius*.28,-radius*.3,2,0,0,radius*1.5);
+          orb.addColorStop(0,"rgba(125,255,235,.28)");orb.addColorStop(.55,"rgba(25,170,165,.13)");orb.addColorStop(1,"rgba(0,40,65,.02)");
+          ctx.fillStyle=orb;ctx.fill();
+          ctx.strokeStyle="rgba(80,255,226,.8)";ctx.lineWidth=1.2;ctx.shadowBlur=glow?15:0;ctx.shadowColor="#42ffe0";ctx.stroke();ctx.shadowBlur=0;
+          const particles=lowPerformance?220:420;
+          for(let i=0;i<particles;i++){
+            const a=i*2.399963+t*(i%2?.08:-.06), seed=(Math.sin(i*127.1)*43758.5)%1;
+            const r=radius*(.08+Math.abs(seed)*.96), val=spectrumValue(i%count,count);
+            const x=Math.cos(a)*r*(.65+val*.5),y=Math.sin(a)*r*1.12;
+            const size=.5+(i%4)*.45+val*1.2;
+            ctx.fillStyle="hsla("+(165+(i%70))+",100%,"+(62+val*28)+"%,"+(.25+val*.65)+")";
+            ctx.fillRect(x,y,size,size);
+          }
+          for(let i=0;i<40;i++){
+            const a=i/40*TAU, r=radius*(1.38+(i%4)*.035);
+            ctx.strokeStyle="rgba(80,230,220,.42)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r);ctx.lineTo(Math.cos(a)*(r+5+(i%3)*3),Math.sin(a)*(r+5+(i%3)*3));ctx.stroke();
+          }
+          ctx.restore();label("PARTICLE FIELD  /  STEREO ENERGY");break;
+        }
+
+        case "a4": {
+          drawBackground("#080502","#100803");
+          const rows=v.spectrogram, rowCount=lowPerformance?44:88, cols=rows[0]?.length||48;
+          const gap=height*.035, paneH=(height-gap)*.5;
+          const heat=(value)=> {
+            const q=clamp(value*1.55,0,1);
+            if(q<.25)return [35+q*500,8+q*110,0];
+            if(q<.58)return [160+q*160,65+q*90,0];
+            if(q<.82)return [255,155+(q-.58)*360,10];
+            return [255,242+(q-.82)*70,110+(q-.82)*145];
+          };
+          for(let pane=0;pane<2;pane++){
+            const top=pane*(paneH+gap);
+            ctx.fillStyle="rgba(0,0,0,.42)";ctx.fillRect(0,top,width,paneH);
+            for(let r=0;r<rowCount;r++){
+              const row=rows[Math.min(rows.length-1,Math.floor(r/rowCount*Math.max(1,rows.length)))];
+              if(!row)continue;
+              for(let c=0;c<cols;c++){
+                const val=row[c]||0, rgb=heat(val), x=c*width/cols, y=top+paneH-(r+1)*paneH/rowCount;
+                const alpha=.12+val*.9;
+                ctx.fillStyle="rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+alpha+")";
+                ctx.fillRect(x,y,width/cols+.55,paneH/rowCount+.5);
+              }
+            }
+            ctx.strokeStyle="rgba(255,190,90,.16)";ctx.lineWidth=1;ctx.strokeRect(.5,top+.5,width-1,paneH-1);
+            ctx.fillStyle="rgba(255,210,150,.4)";ctx.font="8px system-ui";ctx.fillText(pane===0?"LEFT  /  SPECTRUM HISTORY":"RIGHT  /  SPECTRUM HISTORY",8,top+11);
+          }
+          label("DUAL SPECTROGRAM  /  AMBER INTENSITY");break;
+        }
+
+        case "a5": {
+          drawBackground("#020715","#02030c");
+          const lanes=[
+            {data:leftLevelData||waveTimeData,color:"#36dfff",amp:.34,phase:0},
+            {data:rightLevelData||waveTimeData,color:"#f052d2",amp:.25,phase:1.7}
+          ];
+          for(let layer=4;layer>=0;layer--){
+            for(const lane of lanes){
+              const offset=(layer-2)*height*.055;
+              glowLine(()=>{
+                for(let i=0;i<count*2;i++){
+                  const p=i/(count*2-1), x=p*width;
+                  const s=sample(lane.data,p);
+                  const harmonic=Math.sin(p*TAU*2.4+t*1.8+lane.phase)*(.06+mid*.1);
+                  const y=cy+offset-(s*height*lane.amp*(1+layer*.055)+harmonic*height);
+                  if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+                }
+              },lane.color,layer===2?2.4:1.1,layer===2?20:8);
+            }
+          }
+          for(let i=0;i<18;i++){
+            const x=(i/17)*width, val=spectrumValue(i,18);
+            ctx.strokeStyle="rgba(90,190,255,"+(.08+val*.18)+")";ctx.lineWidth=1;
+            ctx.beginPath();ctx.moveTo(x,cy-height*.43);ctx.lineTo(x,cy+height*.43);ctx.stroke();
+          }
+          label("NEON STEREO WAVE  /  L + R");break;
+        }
+
+        case "a6": {
+          drawBackground("#100607","#050208");
+          const radius=short*.29, strands=lowPerformance?38:76, steps=lowPerformance?28:52;
+          ctx.save();ctx.translate(cx,cy);
+          for(let ring=0;ring<5;ring++){
+            ctx.beginPath();ctx.ellipse(0,0,radius*(.78+ring*.1),radius*(.72+ring*.08),ring*.19,0,TAU);
+            ctx.strokeStyle="rgba(255,95,48,"+(0.08+energy*.08)+")";ctx.lineWidth=1;ctx.stroke();
+          }
+          for(let s=0;s<strands;s++){
+            const seed=s*2.399963, phase=t*(.18+(s%7)*.025)+seed;
+            ctx.beginPath();
+            for(let j=0;j<steps;j++){
+              const p=j/(steps-1), a=phase+p*TAU*(2+(s%5)), wave=sample(freq,p);
+              const r=radius*(.08+p*.82)*(1+wave*.35+Math.sin(a*3+t)*.055);
+              const x=Math.cos(a)*r, y=Math.sin(a)*r*(.72+mid*.2);
+              if(!j)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+            }
+            const hue=12+(s%24)*1.2;
+            ctx.strokeStyle="hsla("+hue+",100%,"+(52+(s%4)*7)+"%,"+(.12+energy*.24)+")";
+            ctx.lineWidth=.7+(s%4)*.35;ctx.shadowBlur=glow?8:0;ctx.shadowColor="#ff6b31";ctx.stroke();
+          }
+          const core=ctx.createRadialGradient(0,0,2,0,0,radius*.75);
+          core.addColorStop(0,"rgba(255,230,180,.95)");core.addColorStop(.12,"rgba(255,130,65,.72)");core.addColorStop(.55,"rgba(200,45,25,.16)");core.addColorStop(1,"rgba(90,10,20,0)");
+          ctx.fillStyle=core;ctx.beginPath();ctx.arc(0,0,radius*.75,0,TAU);ctx.fill();
+          ctx.restore();
+          ctx.strokeStyle="rgba(255,120,90,.22)";ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(width*.08,cy);ctx.lineTo(width*.92,cy);ctx.moveTo(cx,height*.1);ctx.lineTo(cx,height*.9);ctx.stroke();
+          label("EMBER ORBIT  /  FREQUENCY PARTICLES");break;
+        }
+
+        case "a7": {
+          drawBackground("#04101b","#020610");
+          const n=lowPerformance?24:42, baseY=height*.78, baseW=width*.76, depth=height*.55;
+          ctx.save();
+          const floor=ctx.createLinearGradient(0,baseY,0,height);
+          floor.addColorStop(0,"rgba(10,65,90,.2)");floor.addColorStop(1,"rgba(0,5,15,0)");
+          ctx.fillStyle=floor;ctx.fillRect(0,baseY,width,height-baseY);
+          for(let k=0;k<7;k++){
+            const y=baseY+(k/6)*height*.2;
+            ctx.strokeStyle="rgba(55,210,220,"+(0.22-k*.025)+")";ctx.lineWidth=1;
+            ctx.beginPath();ctx.moveTo(width*.06,y);ctx.lineTo(width*.94,y);ctx.stroke();
+          }
+          for(let i=0;i<=12;i++){
+            const x=width*.12+i/12*width*.76;
+            ctx.strokeStyle="rgba(45,185,210,.22)";ctx.beginPath();ctx.moveTo(cx+(x-cx)*.35,baseY-depth*.8);ctx.lineTo(x,height);ctx.stroke();
+          }
+          for(let i=0;i<n;i++){
+            const val=spectrumValue(i,n), p=i/(n-1), x=width*.12+p*baseW;
+            const barW=baseW/n*.62, h=height*(.05+val*.5);
+            const perspective=.55+p*.45, top=baseY-h*perspective;
+            const hue=185+p*170;
+            const g=ctx.createLinearGradient(x,top,x,baseY);
+            g.addColorStop(0,"hsla("+hue+",100%,80%,1)");
+            g.addColorStop(.5,"hsla("+hue+",100%,55%,.98)");
+            g.addColorStop(1,"hsla("+hue+",100%,25%,.78)");
+            ctx.fillStyle=g;ctx.shadowBlur=glow?10:0;ctx.shadowColor="hsla("+hue+",100%,65%,.7)";
+            ctx.fillRect(x,top,barW,h*perspective);ctx.shadowBlur=0;
+            ctx.fillStyle="hsla("+hue+",100%,70%,.12)";ctx.fillRect(x,baseY,barW,height*.15);
+          }
+          ctx.restore();label("PERSPECTIVE SPECTRUM  /  RGB BARS");break;
+        }
+
+        case "a8": {
+          drawBackground("#080d1c","#030817");
+          const lanes=[
+            {data:leftLevelData||waveTimeData,y:height*.29,color:"#ffd52a",name:"L"},
+            {data:rightLevelData||waveTimeData,y:height*.73,color:"#ffd52a",name:"R"}
+          ];
+          for(const lane of lanes){
+            ctx.fillStyle="rgba(255,255,255,.025)";ctx.fillRect(0,lane.y-height*.18,width,height*.36);
+            ctx.strokeStyle="rgba(150,180,210,.12)";ctx.lineWidth=1;
+            ctx.beginPath();ctx.moveTo(0,lane.y);ctx.lineTo(width,lane.y);ctx.stroke();
+            glowLine(()=>{
+              for(let i=0;i<count*2;i++){
+                const p=i/(count*2-1), x=p*width, s=sample(lane.data,p);
+                const envelope=.25+Math.abs(s)*.75;
+                const y=lane.y-s*height*(.09+energy*.12)*envelope;
+                if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+              }
+            },lane.color,1.35,7);
+            ctx.fillStyle="rgba(255,220,75,.55)";ctx.font="600 9px system-ui";ctx.fillText(lane.name,8,lane.y-height*.12);
+          }
+          const centerX=width*.5, impulse=clamp(low*.85+mid*.25,0,1);
+          const spikeW=Math.max(12,width*.065);
+          const green=ctx.createLinearGradient(centerX-spikeW,0,centerX+spikeW,0);
+          green.addColorStop(0,"rgba(255,215,35,0)");green.addColorStop(.5,"rgba(120,255,45,.8)");green.addColorStop(1,"rgba(255,215,35,0)");
+          ctx.fillStyle=green;ctx.fillRect(centerX-spikeW,height*.1,spikeW*2,height*.8);
+          for(const lane of lanes){
+            const s=sample(lane.data,.5);
+            ctx.beginPath();ctx.moveTo(centerX-spikeW,lane.y);ctx.lineTo(centerX,lane.y-s*height*.13);ctx.lineTo(centerX+spikeW,lane.y);
+            ctx.strokeStyle="rgba(100,255,70,.9)";ctx.lineWidth=2;ctx.stroke();
+          }
+          label("DUAL CHANNEL OSCILLOSCOPE");break;
+        }
+
+        default: {
+          drawBackground("#02060c","#03010a");
+          const rows=v.history, rowCount=lowPerformance?13:25, colCount=lowPerformance?24:48;
+          for(let r=0;r<rowCount;r++){
+            const row=rows[Math.min(rows.length-1,Math.floor(r/rowCount*Math.max(1,rows.length)))];
+            if(!row)continue;
+            ctx.beginPath();
+            for(let c=0;c<colCount;c++){
+              const x=c/(colCount-1)*width, y=height*.85-row[c/(colCount-1)* (row.length-1)|0]*height*.5-r*height*.012;
+              if(!c)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+            }
+            ctx.strokeStyle="rgba(50,240,190,.4)";ctx.lineWidth=1;ctx.stroke();
+          }
+          break;
         }
       }
     }
