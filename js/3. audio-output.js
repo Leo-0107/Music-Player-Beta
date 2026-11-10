@@ -136,11 +136,11 @@
         try { analyser.disconnect(mainDelayNode); } catch (e) {}
         try { mainDelayNode.disconnect(mainOutputTarget); } catch (e) {}
         try { analyser.disconnect(mainOutputTarget); } catch (e) {}
+        // 測定音を遅延ノードへ直接入力できるよう、遅延ノードの出力先は常時接続する。
+        // 通常音声は0msなら直結、遅延ありならDelayNode経由の片方だけを通す。
+        mainDelayNode.connect(mainOutputTarget);
         if (delayMs <= 0) analyser.connect(mainOutputTarget);
-        else {
-          analyser.connect(mainDelayNode);
-          mainDelayNode.connect(mainOutputTarget);
-        }
+        else analyser.connect(mainDelayNode);
       }
     }
     for (const route of state.outputRoutes) {
@@ -151,11 +151,10 @@
         try { runtime.merger.disconnect(runtime.delayNode); } catch (e) {}
         try { runtime.delayNode.disconnect(runtime.destination); } catch (e) {}
         try { runtime.merger.disconnect(runtime.destination); } catch (e) {}
+        // 0ms時も測定音をDelayNodeへ直接入力できるよう出力先は常時接続する。
+        runtime.delayNode.connect(runtime.destination);
         if (delayMs <= 0) runtime.merger.connect(runtime.destination);
-        else {
-          runtime.merger.connect(runtime.delayNode);
-          runtime.delayNode.connect(runtime.destination);
-        }
+        else runtime.merger.connect(runtime.delayNode);
       }
     }
   }
@@ -198,6 +197,7 @@
     let measurementMicGain = 1;
     let measurementOutputGain = 1;
     let originalMainVolume = null;
+    let originalMainDirectGain = null;
     let originalRouteConnections = new Map();
     let routesSnapshotTaken = false;
     if (list) {
@@ -255,9 +255,6 @@
 
     if (modal) modal.hidden = false;
     document.body.classList.add("output-device-modal-open");
-    ensureGraph();
-    if (!audioCtx) return;
-    if (audioCtx.state === "suspended") await audioCtx.resume();
 
     let micStream = null;
     let measurementMicGainNode = null;
@@ -274,6 +271,10 @@
     };
 
     try {
+      ensureGraph();
+      if (!audioCtx) throw new Error("audio-context-unavailable");
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
@@ -343,6 +344,7 @@
       if (!entries.length) throw new Error("no-target-speaker");
 
       originalMainVolume = outputBridgeAudio?.volume;
+      originalMainDirectGain = mainOutputDirectGainNode?.gain?.value;
       originalRouteConnections = new Map(state.outputRoutes.map(route => [
         route.deviceId,
         !!additionalOutputRuntimes.get(route.deviceId)?.connected
@@ -351,6 +353,11 @@
       const measurements = [];
       const setOnlyTarget = async target => {
         if (outputBridgeAudio) outputBridgeAudio.volume = target.selected ? 1 : 0;
+        if (mainOutputDirectGainNode?.gain && Number.isFinite(originalMainDirectGain)) {
+          const now = audioCtx.currentTime;
+          mainOutputDirectGainNode.gain.cancelScheduledValues(now);
+          mainOutputDirectGainNode.gain.setTargetAtTime(target.selected ? originalMainDirectGain : 0, now, 0.015);
+        }
         if (typeof speakerBusNode === "undefined" || !speakerBusNode) return;
         for (const item of state.outputRoutes) {
           const runtime = additionalOutputRuntimes.get(item.deviceId);
@@ -578,6 +585,11 @@
       try { captureMuteNode?.disconnect(); } catch {}
       try { measurementMicGainNode?.disconnect(); } catch {}
       if (outputBridgeAudio && Number.isFinite(originalMainVolume)) outputBridgeAudio.volume = originalMainVolume;
+      if (mainOutputDirectGainNode?.gain && Number.isFinite(originalMainDirectGain) && audioCtx) {
+        const now = audioCtx.currentTime;
+        mainOutputDirectGainNode.gain.cancelScheduledValues(now);
+        mainOutputDirectGainNode.gain.setValueAtTime(originalMainDirectGain, now);
+      }
       if (routesSnapshotTaken && typeof speakerBusNode !== "undefined" && speakerBusNode) {
         for (const route of state.outputRoutes) {
           const runtime = additionalOutputRuntimes.get(route.deviceId);
