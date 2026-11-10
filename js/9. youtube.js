@@ -72,9 +72,11 @@
   function pauseYoutubeForBackground(reason) {
     if (!isYoutubeSong(state.currentSong)) return false;
     const wasPending = !!pendingPlayId;
-    const wasPlaying = !!youtubePlayer &&
-      youtubePlayer.getPlayerState?.() === window.YT?.PlayerState?.PLAYING;
-    if (!wasPending && !wasPlaying) return false;
+    const playerState = Number(youtubePlayer?.getPlayerState?.());
+    const playerStates = window.YT?.PlayerState || {};
+    const playerIsActive = Number.isFinite(playerState) &&
+      playerState !== playerStates.PAUSED && playerState !== playerStates.ENDED;
+    if (!wasPending && !playerIsActive) return false;
 
     // 読み込み中の動画が、画面離脱後にonReadyで再生される競合も防ぐ。
     youtubeRequestSerial++;
