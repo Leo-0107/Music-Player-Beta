@@ -1114,6 +1114,8 @@
     ];
     const playbackStats = window.__musicPlayerGetPlaybackStats?.();
     if (playbackStats) lines.push("PlaybackStats: " + JSON.stringify(playbackStats));
+    const youtubePlaybackStats = window.__musicPlayerGetYoutubePlaybackStats?.();
+    if (youtubePlaybackStats) lines.push("YouTubePlayback: " + JSON.stringify(youtubePlaybackStats));
     const outputLatencyDiagnostics = window.__musicPlayerGetOutputLatencyDiagnostics?.();
     if (outputLatencyDiagnostics) lines.push("OutputLatency: " + JSON.stringify(outputLatencyDiagnostics));
     lines.push("");
