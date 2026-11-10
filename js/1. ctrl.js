@@ -1,18 +1,18 @@
 // ctrl.js
 (() => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js?v=7.4.36-r44', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
+    navigator.serviceWorker.register('./sw.js?v=7.4.37-r45', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
   }
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '5. storage.js?v=7.4.36-r44',
-    '4. state.js?v=7.4.36-r44',
-    '2. audio.js?v=7.4.36-r44',
-    '3. audio-output.js?v=7.4.36-r44',
-    '6. library.js?v=7.4.36-r44',
-    '7. ui.js?v=7.4.36-r44',
-    '9. youtube.js?v=7.4.36-r44'
+    '5. storage.js?v=7.4.37-r45',
+    '4. state.js?v=7.4.37-r45',
+    '2. audio.js?v=7.4.37-r45',
+    '3. audio-output.js?v=7.4.37-r45',
+    '6. library.js?v=7.4.37-r45',
+    '7. ui.js?v=7.4.37-r45',
+    '9. youtube.js?v=7.4.37-r45'
   ];
 
   const LOAD_TIMEOUT_MS = 5000;
@@ -22,12 +22,20 @@
   let startupTargetProgress = 0;
   let startupProgressTimer = null;
 
-  function updateStartupProgress(percent, message) {
+  function updateStartupProgress(percent, message, immediate = false) {
     startupTargetProgress = Math.max(startupTargetProgress, Math.min(100, Math.round(percent)));
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
     if (messageText && message) messageText.textContent = message;
+    if (immediate) {
+      if (startupProgressTimer !== null) clearTimeout(startupProgressTimer);
+      startupProgressTimer = null;
+      startupDisplayedProgress = startupTargetProgress;
+      if (fill) fill.style.width = startupDisplayedProgress + "%";
+      if (percentText) percentText.textContent = startupDisplayedProgress + "%";
+      return;
+    }
     const step = () => {
       if (startupDisplayedProgress < startupTargetProgress) {
         startupDisplayedProgress = Math.min(startupTargetProgress, startupDisplayedProgress + 1);
