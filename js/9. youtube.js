@@ -92,6 +92,31 @@
     return true;
   }
 
+  let backgroundYoutubeAdvanceHandled = false;
+
+  function advanceYoutubeForBackground(reason) {
+    if (!isYoutubeSong(state.currentSong) || backgroundYoutubeAdvanceHandled) return false;
+    const wasPending = !!pendingPlayId;
+    const playerState = Number(youtubePlayer?.getPlayerState?.());
+    const playerStates = window.YT?.PlayerState || {};
+    const playerIsActive = Number.isFinite(playerState) &&
+      playerState !== playerStates.PAUSED && playerState !== playerStates.ENDED;
+    if (!wasPending && !playerIsActive) return false;
+    backgroundYoutubeAdvanceHandled = true;
+    youtubeRequestSerial++;
+    pendingPlayId = null;
+    try { youtubePlayer?.pauseVideo?.(); } catch {}
+    stopYoutubePlaybackStats();
+    const previousSong = state.currentSong;
+    nextTrack(true);
+    if (state.currentSong === previousSong) {
+      setPlaybackIntent(false);
+      updatePlayPauseUI();
+      const status = document.getElementById("youtubeStatus");
+      if (status) status.textContent = "バックグラウンドへ移動しました。次に再生する曲がありません。";
+    }
+    return true;
+  }
   function readYoutubeItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_STORAGE_KEY) || "[]");
@@ -476,7 +501,7 @@
               const active = currentYoutubeItem;
               if (pendingPlayId && active && pendingPlayId === active.id && isYoutubeSong(state.currentSong)) {
                 if (!isYoutubePlaybackContextActive()) {
-                  pauseYoutubeForBackground(document.visibilityState === "visible" ? "tab" : "hidden");
+                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground("hidden");
                   return;
                 }
                 event.target.loadVideoById(active.id);
@@ -486,7 +511,7 @@
             onStateChange: event => {
               if (event.data === YT.PlayerState.PLAYING && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
                 if (!isYoutubePlaybackContextActive()) {
-                  pauseYoutubeForBackground(document.visibilityState === "visible" ? "tab" : "hidden");
+                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground("hidden");
                   updatePlayPauseUI();
                   return;
                 }
@@ -705,9 +730,13 @@
       });
     });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState !== "visible") pauseYoutubeForBackground("hidden");
+      if (document.visibilityState !== "visible") {
+        advanceYoutubeForBackground("hidden");
+      } else {
+        backgroundYoutubeAdvanceHandled = false;
+      }
     });
-    window.addEventListener("pagehide", () => pauseYoutubeForBackground("hidden"));
+    window.addEventListener("pagehide", () => advanceYoutubeForBackground("hidden"));
 
     const urlModeButton = document.getElementById("youtubeUrlModeBtn");
     const keywordModeButton = document.getElementById("youtubeKeywordModeBtn");
