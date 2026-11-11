@@ -94,7 +94,7 @@
 
   let backgroundYoutubeAdvanceHandled = false;
 
-  function advanceYoutubeForBackground(reason) {
+  function advanceYoutubeForBackground() {
     if (!isYoutubeSong(state.currentSong) || backgroundYoutubeAdvanceHandled) return false;
     const wasPending = !!pendingPlayId;
     const playerState = Number(youtubePlayer?.getPlayerState?.());
@@ -102,21 +102,44 @@
     const playerIsActive = Number.isFinite(playerState) &&
       playerState !== playerStates.PAUSED && playerState !== playerStates.ENDED;
     if (!wasPending && !playerIsActive) return false;
+
+    // visibilitychangeとpagehideが続けて発生しても、次曲送りは一度だけにする。
     backgroundYoutubeAdvanceHandled = true;
     youtubeRequestSerial++;
     pendingPlayId = null;
     try { youtubePlayer?.pauseVideo?.(); } catch {}
     stopYoutubePlaybackStats();
-    const previousSong = state.currentSong;
-    nextTrack(true);
-    if (state.currentSong === previousSong) {
+
+    // キュー／プレイリストの順序を保ちつつ、バックグラウンドではYouTube以外の曲を探す。
+    const maxAttempts = Math.max(1, state.playlist.length + state.queue.length + 1);
+    let advancedToLocalSong = false;
+    for (let i = 0; i < maxAttempts; i++) {
+      const previousSong = state.currentSong;
+      nextTrack(true);
+      if (state.currentSong === previousSong) break;
+      if (!isYoutubeSong(state.currentSong)) {
+        advancedToLocalSong = true;
+        break;
+      }
+      // キューやプレイリスト内に続けてYouTubeがある場合は読み込み要求を無効化して次へ進む。
+      youtubeRequestSerial++;
+      pendingPlayId = null;
+      try { youtubePlayer?.pauseVideo?.(); } catch {}
+      stopYoutubePlaybackStats();
+    }
+
+    if (!advancedToLocalSong) {
+      youtubeRequestSerial++;
+      pendingPlayId = null;
+      try { youtubePlayer?.pauseVideo?.(); } catch {}
       setPlaybackIntent(false);
       updatePlayPauseUI();
       const status = document.getElementById("youtubeStatus");
-      if (status) status.textContent = "バックグラウンドへ移動しました。次に再生する曲がありません。";
+      if (status) status.textContent = "バックグラウンドへ移動しました。次に再生できる通常の曲がありません。";
     }
     return true;
   }
+
   function readYoutubeItems() {
     try {
       const raw = JSON.parse(localStorage.getItem(YT_STORAGE_KEY) || "[]");
@@ -501,7 +524,7 @@
               const active = currentYoutubeItem;
               if (pendingPlayId && active && pendingPlayId === active.id && isYoutubeSong(state.currentSong)) {
                 if (!isYoutubePlaybackContextActive()) {
-                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground("hidden");
+                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground();
                   return;
                 }
                 event.target.loadVideoById(active.id);
@@ -511,7 +534,7 @@
             onStateChange: event => {
               if (event.data === YT.PlayerState.PLAYING && currentYoutubeItem && isYoutubeSong(state.currentSong)) {
                 if (!isYoutubePlaybackContextActive()) {
-                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground("hidden");
+                  document.visibilityState === "visible" ? pauseYoutubeForBackground("tab") : advanceYoutubeForBackground();
                   updatePlayPauseUI();
                   return;
                 }
@@ -731,12 +754,12 @@
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
-        advanceYoutubeForBackground("hidden");
+        advanceYoutubeForBackground();
       } else {
         backgroundYoutubeAdvanceHandled = false;
       }
     });
-    window.addEventListener("pagehide", () => advanceYoutubeForBackground("hidden"));
+    window.addEventListener("pagehide", () => advanceYoutubeForBackground());
 
     const urlModeButton = document.getElementById("youtubeUrlModeBtn");
     const keywordModeButton = document.getElementById("youtubeKeywordModeBtn");
