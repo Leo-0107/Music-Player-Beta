@@ -32,10 +32,12 @@
   let knownPhysicalOutputDeviceIds = new Set();
   let pendingOutputDeviceRefresh = false;
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
+  let backgroundAudioShouldContinue = false;
   let backgroundPlaybackRecovery = false;
 
   function setPlaybackIntent(playing) {
     playbackIntent = !!playing;
+    if (!playbackIntent) backgroundAudioShouldContinue = false;
     try {
       localStorage.setItem(STORAGE.lastPlayback, playbackIntent ? "playing" : "paused");
     } catch (e) {}
@@ -81,13 +83,15 @@
   }
 
   audio.addEventListener("play", () => {
+    backgroundAudioShouldContinue = false;
     setPlaybackIntent(true);
   });
 
   audio.addEventListener("pause", () => {
     // ユーザー操作ではなくバックグラウンド移行で一時停止された場合は、
     // タイマーを挟まず直ちに復帰を試みる。
-    if (playbackIntent && document.visibilityState === "hidden" && !backgroundPlaybackRecovery) {
+    if ((playbackIntent || backgroundAudioShouldContinue) && document.visibilityState === "hidden" && !backgroundPlaybackRecovery) {
+      if (backgroundAudioShouldContinue && !playbackIntent) setPlaybackIntent(true);
       recoverBackgroundPlayback().catch(() => {});
     }
   });
@@ -112,7 +116,11 @@
     });
     if (document.visibilityState === "hidden") {
       savePlaybackMemory?.(true);
-      if (playbackIntent) {
+      const currentIsYoutube = state.currentSong?.mediaType === "youtube" || String(state.currentSong?.name || "").startsWith("yt:");
+      // hiddenへ移る直前に実際に鳴っていた通常曲を記録し、OS側のpauseにも備える。
+      backgroundAudioShouldContinue = !currentIsYoutube && !audio.paused;
+      if (backgroundAudioShouldContinue && !playbackIntent) setPlaybackIntent(true);
+      if (playbackIntent || backgroundAudioShouldContinue) {
         recoverBackgroundPlayback().catch(() => {});
       }
     } else if (document.visibilityState === "visible" && pendingOutputDeviceRefresh) {
@@ -120,11 +128,12 @@
       setTimeout(() => {
         navigator.mediaDevices?.dispatchEvent?.(new Event("devicechange"));
       }, 0);
-    } else if (playbackIntent) {
+    } else if (playbackIntent || backgroundAudioShouldContinue) {
+      if (backgroundAudioShouldContinue && !playbackIntent) setPlaybackIntent(true);
       recoverBackgroundPlayback().catch(() => {});
     }
 
-    if (document.visibilityState === "visible" && playbackIntent) {
+    if (document.visibilityState === "visible" && (playbackIntent || backgroundAudioShouldContinue)) {
       recoverBackgroundPlayback().catch(() => {});
     }
 
@@ -135,7 +144,8 @@
   });
 
   window.addEventListener("pageshow", () => {
-    if (playbackIntent) {
+    if (backgroundAudioShouldContinue && !playbackIntent) setPlaybackIntent(true);
+    if (playbackIntent || backgroundAudioShouldContinue) {
       recoverBackgroundPlayback().catch(() => {});
     }
   });
