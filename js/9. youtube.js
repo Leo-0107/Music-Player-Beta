@@ -569,7 +569,8 @@
             },
             onError: event => {
               const errorCode = Number(event?.data || 0);
-              const playerError = new Error("YouTube Player API error: " + errorCode);
+              const failedVideoId = String(currentYoutubeItem?.id || "unknown");
+              const playerError = new Error("YouTube Player API error: " + errorCode + " (videoId: " + failedVideoId + ")");
               window.__musicPlayerReportError?.("YOUTUBE", "iframe-player", playerError);
               const errorMessages = {
                 2: "動画IDまたは再生パラメーターが正しくありません。",
