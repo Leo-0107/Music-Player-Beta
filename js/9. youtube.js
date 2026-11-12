@@ -568,9 +568,23 @@
               updatePlayPauseUI();
             },
             onError: event => {
-              const playerError = new Error("YouTube Player API error: " + Number(event?.data || 0));
+              const errorCode = Number(event?.data || 0);
+              const playerError = new Error("YouTube Player API error: " + errorCode);
               window.__musicPlayerReportError?.("YOUTUBE", "iframe-player", playerError);
-              if (status) status.textContent = "この動画は再生できないか、埋め込みが許可されていません。";
+              const errorMessages = {
+                2: "動画IDまたは再生パラメーターが正しくありません。",
+                5: "動画をHTML5プレーヤーで再生できませんでした。",
+                100: "動画が見つかりません。削除済み、または非公開の可能性があります。",
+                101: "動画の所有者が外部サイトでの埋め込み再生を許可していません。",
+                150: "動画の所有者が外部サイトでの埋め込み再生を許可していません。",
+                153: "YouTubeへのリクエストに必要な識別情報が不足しています。"
+              };
+              const knownMessage = errorMessages[errorCode];
+              if (status) {
+                status.textContent = knownMessage
+                  ? knownMessage + " (エラー " + errorCode + ")"
+                  : "YouTubeから未分類の再生エラーが返されました (エラー " + errorCode + ")。原因は特定できません。YouTube側の制限や一時的な問題の可能性があります。";
+              }
               setPlaybackIntent(false);
               updatePlayPauseUI();
             }
