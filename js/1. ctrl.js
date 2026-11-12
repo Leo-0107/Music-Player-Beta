@@ -1,54 +1,37 @@
 // ctrl.js
 (() => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js?v=7.4.47-r55', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
+    navigator.serviceWorker.register('./sw.js?v=7.4.48-r56', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
   }
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '5. storage.js?v=7.4.47-r55',
-    '4. state.js?v=7.4.47-r55',
-    '2. audio.js?v=7.4.47-r55',
-    '3. audio-output.js?v=7.4.47-r55',
-    '6. library.js?v=7.4.47-r55',
-    '7. ui.js?v=7.4.47-r55',
-    '9. youtube.js?v=7.4.47-r55'
+    '5. storage.js?v=7.4.48-r56',
+    '4. state.js?v=7.4.48-r56',
+    '2. audio.js?v=7.4.48-r56',
+    '3. audio-output.js?v=7.4.48-r56',
+    '6. library.js?v=7.4.48-r56',
+    '7. ui.js?v=7.4.48-r56',
+    '9. youtube.js?v=7.4.48-r56'
   ];
 
-  const LOAD_TIMEOUT_MS = 5000;
+  const LOAD_TIMEOUT_MS = 20000;
   const LOAD_RETRY_COUNT = 1;
   const startupFileProgress = new Map(files.map(file => [file, 0]));
   let startupDisplayedProgress = 0;
   let startupTargetProgress = 0;
-  let startupProgressTimer = null;
+  let startupScriptsLoaded = false;
 
+  // 実際の取得進捗を直接表示し、背景タブでのタイマー間引きに依存しない。
   function updateStartupProgress(percent, message, immediate = false) {
-    startupTargetProgress = Math.max(startupTargetProgress, Math.min(100, Math.round(percent)));
+    startupTargetProgress = Math.max(0, Math.min(100, Math.round(percent)));
+    startupDisplayedProgress = startupTargetProgress;
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
     if (messageText && message) messageText.textContent = message;
-    if (immediate) {
-      if (startupProgressTimer !== null) clearTimeout(startupProgressTimer);
-      startupProgressTimer = null;
-      startupDisplayedProgress = startupTargetProgress;
-      if (fill) fill.style.width = startupDisplayedProgress + "%";
-      if (percentText) percentText.textContent = startupDisplayedProgress + "%";
-      return;
-    }
-    const step = () => {
-      if (startupDisplayedProgress < startupTargetProgress) {
-        startupDisplayedProgress = Math.min(startupTargetProgress, startupDisplayedProgress + 1);
-        if (fill) fill.style.width = startupDisplayedProgress + "%";
-        if (percentText) percentText.textContent = startupDisplayedProgress + "%";
-      }
-      if (startupDisplayedProgress < startupTargetProgress) {
-        startupProgressTimer = setTimeout(() => { startupProgressTimer = null; step(); }, 4);
-      } else startupProgressTimer = null;
-    };
     if (fill) fill.style.width = startupDisplayedProgress + "%";
     if (percentText) percentText.textContent = startupDisplayedProgress + "%";
-    if (startupProgressTimer === null) step();
   }
 
   function updateScriptFetchProgress() {
@@ -85,6 +68,7 @@
 
   function loadScriptPart(file, attempt = 0) {
     startupFileProgress.set(file, 0);
+    updateScriptFetchProgress();
     const url = new URL(file, base).href;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS);
@@ -94,29 +78,48 @@
         if (!response.ok) throw new Error(`Failed to load ${file}: ${response.status}`);
         return readScriptResponse(response, file);
       })
-      .catch(error => {
+      .catch(async error => {
+        clearTimeout(timer);
         if (attempt < LOAD_RETRY_COUNT) {
           console.warn(`Music Player JS retry: ${file} (${attempt + 1}/${LOAD_RETRY_COUNT})`, error);
-          return new Promise(resolve => setTimeout(resolve, 300))
-            .then(() => loadScriptPart(file, attempt + 1));
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return loadScriptPart(file, attempt + 1);
         }
-
-        // 通信が一時的に止まった場合は、Service Workerのキャッシュを最後の復旧手段として使う。
-        return caches.match(url, { ignoreSearch: true }).then(cached => {
-          if (!cached) throw error;
-          console.warn(`Music Player JS cache fallback: ${file}`);
-          return cached.text().then(text => {
-            startupFileProgress.set(file, 1);
-            updateScriptFetchProgress();
-            return text;
-          });
-        });
+        const cached = await caches.match(url, { ignoreSearch: true });
+        if (!cached) throw error;
+        console.warn(`Music Player JS cache fallback: ${file}`);
+        const text = await cached.text();
+        startupFileProgress.set(file, 1);
+        updateScriptFetchProgress();
+        return text;
       })
       .finally(() => clearTimeout(timer));
   }
 
-  Promise.all(files.map(file => loadScriptPart(file)))
+  async function loadScriptPartsWithLimitedConcurrency() {
+    const parts = new Array(files.length);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < files.length) {
+        const index = nextIndex++;
+        parts[index] = await loadScriptPart(files[index]);
+      }
+    };
+    // 同時取得数を3本に抑え、低メモリ端末での一時バッファ負荷を軽減する。
+    await Promise.all(Array.from({ length: Math.min(3, files.length) }, () => worker()));
+    return parts;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !startupScriptsLoaded) updateScriptFetchProgress();
+  });
+  window.addEventListener("pageshow", () => {
+    if (!startupScriptsLoaded) updateScriptFetchProgress();
+  });
+
+  loadScriptPartsWithLimitedConcurrency()
     .then(parts => {
+      startupScriptsLoaded = true;
       updateStartupProgress(20, "操作画面を準備しています...");
       const original = `(() => {
 ${parts.join('\n')}})();`;
