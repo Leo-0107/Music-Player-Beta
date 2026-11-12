@@ -1881,52 +1881,39 @@ function drawWave() {
 
   let appLoadingDisplayedProgress = Math.max(0, Number(document.getElementById("appLoadingPercent")?.textContent?.replace("%", "")) || 0);
   let appLoadingTargetProgress = appLoadingDisplayedProgress;
-  let appLoadingProgressTimer = null;
 
+  // 4msタイマーによる補間を廃止し、初期化段階の進捗を即時反映する。
   function updateAppLoadingProgress(percent, message, immediate = false) {
     if (typeof window.__musicPlayerUpdateStartupProgress === "function") {
       window.__musicPlayerUpdateStartupProgress(percent, message, immediate);
       return;
     }
-    appLoadingTargetProgress = Math.max(appLoadingDisplayedProgress, Math.min(100, Math.round(percent)));
+    appLoadingTargetProgress = Math.max(0, Math.min(100, Math.round(percent)));
+    appLoadingDisplayedProgress = appLoadingTargetProgress;
     const fill = document.getElementById("appLoadingProgressFill");
     const percentText = document.getElementById("appLoadingPercent");
     const messageText = document.getElementById("appLoadingText");
     if (messageText && message) messageText.textContent = message;
-
-    if (immediate) {
-      if (appLoadingProgressTimer !== null) clearTimeout(appLoadingProgressTimer);
-      appLoadingProgressTimer = null;
-      appLoadingDisplayedProgress = appLoadingTargetProgress;
-      if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
-      if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
-      return;
-    }
-
     if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
     if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
+  }
 
-    if (appLoadingProgressTimer === null) {
-      const step = () => {
-        if (appLoadingDisplayedProgress < appLoadingTargetProgress) {
-          appLoadingDisplayedProgress = Math.min(
-            appLoadingTargetProgress,
-            appLoadingDisplayedProgress + 1
-          );
-          if (fill) fill.style.width = appLoadingDisplayedProgress + "%";
-          if (percentText) percentText.textContent = appLoadingDisplayedProgress + "%";
-        }
-        if (appLoadingDisplayedProgress < appLoadingTargetProgress) {
-          appLoadingProgressTimer = setTimeout(() => {
-            appLoadingProgressTimer = null;
-            step();
-          }, 4);
-        } else {
-          appLoadingProgressTimer = null;
-        }
+  function waitForStartupPaint() {
+    if (document.visibilityState !== "visible") return Promise.resolve();
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        resolve();
       };
-      step();
-    }
+      const onVisibilityChange = () => {
+        if (document.visibilityState !== "visible") finish();
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      requestAnimationFrame(() => requestAnimationFrame(finish));
+    });
   }
 
   function revealAppAfterHomeReady() {
@@ -1958,18 +1945,19 @@ function drawWave() {
 
       updateAppLoadingProgress(65, "波形と操作画面を準備しています...");
       requestWaveStaticFrame();
+      await waitForStartupPaint();
 
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      updateAppLoadingProgress(90, "ホーム画面の表示準備が完了しました");
-
-      revealAppAfterHomeReady();
-      homeRevealed = true;
-
-      await new Promise(resolve => requestAnimationFrame(resolve));
+      updateAppLoadingProgress(82, "保存データベースを確認しています...");
       await initDB();
+      updateAppLoadingProgress(92, "プレイリストと再生状態を復元しています...");
       await reloadPlaylistFromDB();
       restoreLastPlaybackMemory();
       renderEqualizer();
+
+      updateAppLoadingProgress(98, "ホーム画面の表示を仕上げています...");
+      await waitForStartupPaint();
+      revealAppAfterHomeReady();
+      homeRevealed = true;
     } catch (error) {
       console.error("Music Player startup initialization failed:", error);
       updateAppLoadingProgress(100, "ホーム画面を表示します...");
