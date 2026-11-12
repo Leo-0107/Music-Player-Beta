@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.47</title>
+<title>Music Player v7.4.48</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.47-r55">
+<link rel="stylesheet" href="style.css?v=7.4.48-r56">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -861,9 +861,9 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.47";
-  const BUILD_REVISION = 55;
-  const BUILD_COMMIT_ID = "0d51c5cf5fd68e00b92c4655aef2c75756c43927";
+  const APP_VERSION = "v7.4.48";
+  const BUILD_REVISION = 56;
+  const BUILD_COMMIT_ID = "f7f5a8425fc3f4156e6167e138e178b000558d02";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1178,23 +1178,52 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.47-r55"></script>
+<script src="js/1. ctrl.js?v=7.4.48-r56"></script>
 <script>
-  // 起動最終保護: 初期化が停止してもロード画面を永久表示しない。
-  setTimeout(() => {
-    const screen = document.getElementById("appLoadingScreen");
-    if (!screen) return;
-    console.error("Music Player startup recovery: loading screen timeout");
-    window.__musicPlayerReportError?.("BOOT", "startup-timeout", new Error("起動処理が20秒以内に完了しませんでした"));
-    const fill = document.getElementById("appLoadingProgressFill");
-    const percent = document.getElementById("appLoadingPercent");
-    const text = document.getElementById("appLoadingText");
-    if (fill) fill.style.width = "100%";
-    if (percent) percent.textContent = "100%";
-    if (text) text.textContent = "ホーム画面を表示します...";
-    document.body.classList.remove("app-loading");
-    screen.remove();
-  }, 20000);
+  // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
+  (() => {
+    const RECOVERY_TIMEOUT_MS = 90000;
+    let remainingMs = RECOVERY_TIMEOUT_MS;
+    let timerId = null;
+    let timerStartedAt = 0;
+
+    const stopVisibleTimer = () => {
+      if (timerId === null) return;
+      clearTimeout(timerId);
+      timerId = null;
+      remainingMs = Math.max(0, remainingMs - (performance.now() - timerStartedAt));
+    };
+
+    const recoverStartup = () => {
+      timerId = null;
+      const screen = document.getElementById("appLoadingScreen");
+      if (!screen) return;
+      console.error("Music Player startup recovery: visible-time timeout");
+      window.__musicPlayerReportError?.("BOOT", "startup-timeout", new Error("表示中の起動処理が90秒以内に完了しませんでした"));
+      const fill = document.getElementById("appLoadingProgressFill");
+      const percent = document.getElementById("appLoadingPercent");
+      const text = document.getElementById("appLoadingText");
+      if (fill) fill.style.width = "100%";
+      if (percent) percent.textContent = "100%";
+      if (text) text.textContent = "起動処理に時間がかかっています。画面を表示します...";
+      document.body.classList.remove("app-loading");
+      screen.remove();
+    };
+
+    const startVisibleTimer = () => {
+      if (timerId !== null || document.visibilityState !== "visible" || !document.getElementById("appLoadingScreen")) return;
+      if (remainingMs <= 0) return recoverStartup();
+      timerStartedAt = performance.now();
+      timerId = setTimeout(recoverStartup, remainingMs);
+    };
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") stopVisibleTimer();
+      else startVisibleTimer();
+    });
+    window.addEventListener("pageshow", startVisibleTimer);
+    startVisibleTimer();
+  })();
 </script>
 
 </body>
