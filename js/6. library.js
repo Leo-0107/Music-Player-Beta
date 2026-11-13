@@ -113,6 +113,42 @@
     }
   }
 
+  async function refreshMissingAudioMetadata(tracks) {
+    const pending = (tracks || []).filter(track => {
+      if (!track?.blob) return false;
+      const mime = String(track.mimeType || track.blob.type || "").toLowerCase();
+      const isOggAudio = /\.(ogg|oga|opus)$/i.test(String(track.name || "")) ||
+        mime.includes("audio/ogg") || mime.includes("audio/opus");
+      const artist = String(track.artist || "").trim();
+      return isOggAudio && (!artist || artist === "不明なアーティスト" || artist === "Unknown Artist");
+    });
+    let changed = false;
+
+    for (let i = 0; i < pending.length; i += 2) {
+      await Promise.all(pending.slice(i, i + 2).map(async track => {
+        try {
+          const mime = track.mimeType || track.blob.type || "audio/ogg";
+          const file = new File([track.blob], track.name || "audio.ogg", { type: mime });
+          const metadata = await parseID3(file);
+          if (!metadata?.artist || metadata.artist === "不明なアーティスト") return;
+
+          const updatedTrack = { ...track, artist: metadata.artist };
+          if (!await saveTrackToDB(updatedTrack)) return;
+
+          const song = state.playlist.find(item => item.name === track.name);
+          if (song) song.artist = metadata.artist;
+          if (state.currentSong?.name === track.name) {
+            state.currentSong.artist = metadata.artist;
+          }
+          changed = true;
+        } catch {}
+      }));
+      if (i + 2 < pending.length) await yieldToUI();
+    }
+
+    if (changed) renderAll();
+  }
+
   function extractVideoThumbnail(blob) {
     return new Promise(resolve => {
       if (!blob) return resolve(null);
@@ -519,6 +555,7 @@
     renderAll();
     void refreshMissingSongDurations(loadedSongs);
     void refreshMissingVideoCovers(tracks);
+    void refreshMissingAudioMetadata(tracks);
     return true;
   }
 
