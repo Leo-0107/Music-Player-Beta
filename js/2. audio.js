@@ -371,7 +371,9 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   const DEFAULT_PLAYBACK_PREBUFFER_MS = 100;
   function readPlaybackPrebufferMs() {
     try {
-      const stored = Number(localStorage.getItem(PLAYBACK_PREBUFFER_STORAGE_KEY));
+      const raw = localStorage.getItem(PLAYBACK_PREBUFFER_STORAGE_KEY);
+      if (raw === null || raw === "") return DEFAULT_PLAYBACK_PREBUFFER_MS;
+      const stored = Number(raw);
       return Number.isFinite(stored) ? Math.max(0, Math.min(500, Math.round(stored))) : DEFAULT_PLAYBACK_PREBUFFER_MS;
     } catch (e) {
       return DEFAULT_PLAYBACK_PREBUFFER_MS;
