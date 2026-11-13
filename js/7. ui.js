@@ -335,6 +335,45 @@
     });
   }
 
+  const playbackPrebufferSlider = document.getElementById("playbackPrebufferSlider");
+  const playbackPrebufferNumber = document.getElementById("playbackPrebufferNumber");
+  const playbackPrebufferValueText = document.getElementById("playbackPrebufferValueText");
+  const savedPlaybackPrebufferMs = (() => {
+    try {
+      const value = Number(localStorage.getItem("mp_playback_prebuffer_ms_v1"));
+      return Number.isFinite(value) ? Math.max(0, Math.min(500, Math.round(value))) : 100;
+    } catch (e) {
+      return 100;
+    }
+  })();
+  const initialPlaybackPrebufferMs = setPlaybackPrebufferMs(savedPlaybackPrebufferMs);
+  function syncPlaybackPrebufferControls(value) {
+    if (playbackPrebufferSlider) playbackPrebufferSlider.value = String(value);
+    if (playbackPrebufferNumber) playbackPrebufferNumber.value = String(value);
+    if (playbackPrebufferValueText) playbackPrebufferValueText.textContent = value + "ms";
+  }
+  syncPlaybackPrebufferControls(initialPlaybackPrebufferMs);
+  if (playbackPrebufferSlider) {
+    playbackPrebufferSlider.addEventListener("input", event => {
+      const value = setPlaybackPrebufferMs(event.target.value);
+      syncPlaybackPrebufferControls(value);
+    });
+  }
+  if (playbackPrebufferNumber) {
+    const commitPlaybackPrebufferNumber = () => {
+      const value = setPlaybackPrebufferMs(playbackPrebufferNumber.value);
+      syncPlaybackPrebufferControls(value);
+    };
+    playbackPrebufferNumber.addEventListener("change", commitPlaybackPrebufferNumber);
+    playbackPrebufferNumber.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitPlaybackPrebufferNumber();
+        playbackPrebufferNumber.blur();
+      }
+    });
+  }
+
   if (el.btnCrossfade) {
     el.btnCrossfade.addEventListener("click", () => {
       state.crossfade = !state.crossfade;
