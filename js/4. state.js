@@ -5,7 +5,7 @@
     const view = new DataView(buffer);
 
     const decodeBase64Bytes = value => {
-      const normalized = String(value || "").replace(/\\s+/g, "");
+      const normalized = String(value || "").replace(/\s+/g, "");
       if (!normalized || normalized.length > 12 * 1024 * 1024) return null;
       try {
         const binary = atob(normalized);
