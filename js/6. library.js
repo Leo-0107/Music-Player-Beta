@@ -118,11 +118,12 @@
       if (!track?.blob) return false;
       const mime = String(track.mimeType || track.blob.type || "").toLowerCase();
       const isOggAudio = /\.(ogg|oga|opus)$/i.test(String(track.name || "")) ||
-        mime.includes("audio/ogg") || mime.includes("audio/opus");
+        mime.includes("ogg") || mime.includes("opus");
       const artist = String(track.artist || "").trim();
       return isOggAudio && (!artist || artist === "不明なアーティスト" || artist === "Unknown Artist");
     });
     let changed = false;
+    const yieldToUI = () => new Promise(resolve => requestAnimationFrame(resolve));
 
     for (let i = 0; i < pending.length; i += 2) {
       await Promise.all(pending.slice(i, i + 2).map(async track => {
@@ -555,7 +556,10 @@
     renderAll();
     void refreshMissingSongDurations(loadedSongs);
     void refreshMissingVideoCovers(tracks);
-    void refreshMissingAudioMetadata(tracks);
+    void refreshMissingAudioMetadata(tracks).catch(error => {
+      console.warn("Audio metadata refresh failed:", error);
+      window.__musicPlayerReportError?.("METADATA", "refresh", error);
+    });
     return true;
   }
 
