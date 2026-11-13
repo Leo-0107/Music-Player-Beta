@@ -340,7 +340,9 @@
   const playbackPrebufferValueText = document.getElementById("playbackPrebufferValueText");
   const savedPlaybackPrebufferMs = (() => {
     try {
-      const value = Number(localStorage.getItem("mp_playback_prebuffer_ms_v1"));
+      const raw = localStorage.getItem("mp_playback_prebuffer_ms_v1");
+      if (raw === null || raw === "") return 100;
+      const value = Number(raw);
       return Number.isFinite(value) ? Math.max(0, Math.min(500, Math.round(value))) : 100;
     } catch (e) {
       return 100;
