@@ -1,5 +1,112 @@
   }
 
+  function parseOggCommentBuffer(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const view = new DataView(buffer);
+    const readAscii = (start, length) => {
+      if (start < 0 || start + length > bytes.length) return "";
+      return String.fromCharCode(...bytes.subarray(start, start + length));
+    };
+    const parseCommentPacket = packet => {
+      const data = new Uint8Array(packet);
+      let offset;
+      if (data.length >= 7 && data[0] === 0x03 &&
+          String.fromCharCode(...data.subarray(1, 7)) === "vorbis") {
+        offset = 7;
+      } else if (data.length >= 8 &&
+          String.fromCharCode(...data.subarray(0, 8)) === "OpusTags") {
+        offset = 8;
+      } else {
+        return null;
+      }
+
+      const packetView = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      const readLength = () => {
+        if (offset + 4 > data.length) return null;
+        const length = packetView.getUint32(offset, true);
+        offset += 4;
+        if (length > data.length - offset) return null;
+        return length;
+      };
+
+      const vendorLength = readLength();
+      if (vendorLength === null) return null;
+      offset += vendorLength;
+      if (offset + 4 > data.length) return null;
+      const commentCount = packetView.getUint32(offset, true);
+      offset += 4;
+      if (commentCount > 10000) return null;
+
+      let title = "";
+      const artists = [];
+      let albumArtist = "";
+      const decoder = new TextDecoder("utf-8");
+      for (let i = 0; i < commentCount; i++) {
+        const length = readLength();
+        if (length === null) return null;
+        const comment = decoder.decode(data.subarray(offset, offset + length));
+        offset += length;
+        const separator = comment.indexOf("=");
+        if (separator <= 0) continue;
+        const key = comment.slice(0, separator).trim().toUpperCase();
+        const value = comment.slice(separator + 1).trim();
+        if (!value) continue;
+        if (key === "TITLE" && !title) title = value;
+        else if (key === "ARTIST") artists.push(value);
+        else if (key === "ALBUMARTIST" && !albumArtist) albumArtist = value;
+      }
+      return {
+        title,
+        artist: artists.length ? [...new Set(artists)].join(", ") : albumArtist
+      };
+    };
+
+    let pageOffset = 0;
+    let packetParts = [];
+    let packetLength = 0;
+    let completedPackets = 0;
+    while (pageOffset + 27 <= bytes.length) {
+      if (readAscii(pageOffset, 4) !== "OggS" || bytes[pageOffset + 4] !== 0) break;
+      const segmentCount = bytes[pageOffset + 26];
+      const tableStart = pageOffset + 27;
+      const payloadStart = tableStart + segmentCount;
+      if (payloadStart > bytes.length) break;
+      let payloadOffset = payloadStart;
+      let pageComplete = true;
+
+      for (let i = 0; i < segmentCount; i++) {
+        const segmentLength = bytes[tableStart + i];
+        if (payloadOffset + segmentLength > bytes.length) {
+          pageComplete = false;
+          break;
+        }
+        if (segmentLength) {
+          packetParts.push(bytes.subarray(payloadOffset, payloadOffset + segmentLength));
+          packetLength += segmentLength;
+        }
+        payloadOffset += segmentLength;
+
+        if (segmentLength < 255) {
+          const packet = new Uint8Array(packetLength);
+          let packetOffset = 0;
+          for (const part of packetParts) {
+            packet.set(part, packetOffset);
+            packetOffset += part.length;
+          }
+          const metadata = parseCommentPacket(packet);
+          if (metadata) return metadata;
+          packetParts = [];
+          packetLength = 0;
+          completedPackets++;
+          if (completedPackets >= 8) return null;
+        }
+      }
+      if (!pageComplete) break;
+      pageOffset = payloadOffset;
+    }
+    return null;
+  }
+
   function parseID3(file) {
     return new Promise(resolve => {
       const defaultTitle = file.name.replace(/\.[^/.]+$/, "");
@@ -154,6 +261,29 @@
 
         const view = new DataView(header);
         const isID3 = view.getUint8(0) === 0x49 && view.getUint8(1) === 0x44 && view.getUint8(2) === 0x33;
+        const isOgg = header.byteLength >= 4 &&
+          view.getUint8(0) === 0x4F && view.getUint8(1) === 0x67 &&
+          view.getUint8(2) === 0x67 && view.getUint8(3) === 0x53;
+        if (isOgg) {
+          const oggReader = new FileReader();
+          oggReader.onload = oggEvent => {
+            const metadata = parseOggCommentBuffer(oggEvent.target.result);
+            resolve({
+              title: metadata?.title || defaultTitle,
+              artist: metadata?.artist || "不明なアーティスト",
+              coverBlob: null
+            });
+          };
+          oggReader.onerror = fallback;
+          const maxOggTagBytes = 8 * 1024 * 1024;
+          const oggReadLength = Math.min(Number.isFinite(file.size) ? file.size : maxOggTagBytes, maxOggTagBytes);
+          try {
+            oggReader.readAsArrayBuffer(file.slice(0, oggReadLength));
+          } catch {
+            fallback();
+          }
+          return;
+        }
         if (!isID3) {
           resolve(parseBuffer(header));
           return;
