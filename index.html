@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.55</title>
+<title>Music Player v7.4.56</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.55-r63">
+<link rel="stylesheet" href="style.css?v=7.4.56-r64">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -235,6 +235,13 @@
           <div class="settingsHelpText">曲の中の無音部分を自動で飛ばします。</div>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
           <div class="settingsHelpText">音量が大きすぎるときの歪みを抑えます。音源や機器によって効果は異なります。</div>
+          <div class="field" style="margin-top:12px;">
+            <label for="playbackPrebufferSlider">音声先行バッファ: <span id="playbackPrebufferValueText">100ms</span></label>
+            <div class="settingsHelpText">音声を指定時間だけ遅らせて出力し、出力前に余裕を作ります。値を大きくすると実際の音もその分遅れて聞こえます。CPU処理の遅れによる音切れを完全に防ぐものではありません。</div>
+            <input type="range" id="playbackPrebufferSlider" min="0" max="500" step="1" value="100" aria-label="音声先行バッファ時間">
+            <label for="playbackPrebufferNumber" class="customRateLabel">数値で指定（0〜500ms）</label>
+            <input type="number" id="playbackPrebufferNumber" min="0" max="500" step="1" value="100" inputmode="numeric" aria-label="音声先行バッファ時間を数値で指定">
+          </div>
           
         </div>
         <div class="sectionCard">
@@ -873,9 +880,9 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.55";
-  const BUILD_REVISION = 63;
-  const BUILD_COMMIT_ID = "21c62bb5c37eb18b79ac3ab3e919d4b69917f7af";
+  const APP_VERSION = "v7.4.56";
+  const BUILD_REVISION = 64;
+  const BUILD_COMMIT_ID = "3328106ec90a78a5f6ead8d3f3a748ac73397def";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1249,7 +1256,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.55-r63"></script>
+<script src="js/1. ctrl.js?v=7.4.56-r64"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
