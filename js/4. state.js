@@ -90,8 +90,8 @@
       if (payloadStart > bytes.length) break;
 
       let stream = streams.get(serial);
-      if (!stream) {
-        stream = { packetParts: [], packetLength: 0, completedPackets: 0, skipContinuation: false };
+      if (!stream || (headerType & 0x02)) {
+        stream = { packetParts: [], packetLength: 0, completedPackets: 0, skipContinuation: false, done: false };
         streams.set(serial, stream);
       }
 
@@ -116,6 +116,7 @@
         const segment = bytes.subarray(payloadOffset, payloadOffset + segmentLength);
         payloadOffset += segmentLength;
 
+        if (stream.done) continue;
         if (stream.skipContinuation) {
           if (segmentLength < 255) stream.skipContinuation = false;
           continue;
@@ -143,7 +144,7 @@
           stream.packetParts = [];
           stream.packetLength = 0;
           stream.completedPackets++;
-          if (stream.completedPackets >= 64) stream.skipContinuation = true;
+          if (stream.completedPackets >= 64) stream.done = true;
         }
       }
 
