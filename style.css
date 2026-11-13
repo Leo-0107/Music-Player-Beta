@@ -3083,3 +3083,57 @@ body.theme-light #btnSettingsAddMusic:hover {
   background: var(--panel3);
   filter: none;
 }
+
+
+/* Diagnostic log list */
+.mpDiagnosticsLogList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.mpDiagnosticsEntry {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  overflow: hidden;
+}
+.mpDiagnosticsEntry summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.mpDiagnosticsEntry summary::-webkit-details-marker { display: none; }
+.mpDiagnosticsEntry summary strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mpDiagnosticsEntry summary span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .78rem;
+}
+.mpDiagnosticsEntryBody {
+  padding: 0 12px 12px;
+  color: var(--text);
+  font-size: .82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mpDiagnosticsEmpty {
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+.mpDiagnosticsLogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
