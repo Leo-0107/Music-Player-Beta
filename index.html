@@ -728,6 +728,17 @@
       </div>
     </div>
   </div>
+  <div class="panelSection" id="diagnosticsSection">
+    <div class="sectionCard">
+      <div class="sectionTitle">エラーログ一覧</div>
+      <div class="settingsHelpText">アプリで記録された診断ログを新しい順に表示します。通知を閉じても、ここに保存されたログは残ります。</div>
+      <div id="mpDiagnosticsLogList" class="mpDiagnosticsLogList" aria-live="polite"></div>
+      <div class="mpDiagnosticsLogActions">
+        <button class="btn small" id="mpDiagnosticsCopy" type="button">診断情報をコピー</button>
+        <button class="btn danger small" id="mpDiagnosticsClear" type="button">ログを消去</button>
+      </div>
+    </div>
+  </div>
 </div>
     </div>
   </div>
@@ -861,9 +872,10 @@
 <script>
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
-  const APP_VERSION = "v7.4.51";
-  const BUILD_REVISION = 59;
-  const BUILD_COMMIT_ID = "84f3bb84a43a3775d9a3b15807e5d8f4cf1e666d";
+  const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
+  const APP_VERSION = "v7.4.52";
+  const BUILD_REVISION = 60;
+  const BUILD_COMMIT_ID = "4e61ce9895dae38b0025671ddbfcb0feda569dd3";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1061,8 +1073,12 @@
       };
       entries.push(record);
       entries = entries.slice(-10);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch {}
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+        localStorage.removeItem(DISMISSED_KEY);
+      } catch {}
       render(record);
+      renderDiagnosticLogList();
       return code;
     } catch (reportingError) {
       emergencyDisplay(null);
@@ -1100,6 +1116,57 @@
       emergencyDisplay(null);
     }
   });
+
+  const diagnosticLogList = document.getElementById("mpDiagnosticsLogList");
+
+  function renderDiagnosticLogList() {
+    if (!diagnosticLogList) return;
+    diagnosticLogList.replaceChildren();
+    if (!entries.length) {
+      const empty = document.createElement("div");
+      empty.className = "mpDiagnosticsEmpty";
+      empty.textContent = "保存されているエラーログはありません。";
+      diagnosticLogList.appendChild(empty);
+      return;
+    }
+    entries.slice().reverse().forEach(entry => {
+      const item = document.createElement("details");
+      item.className = "mpDiagnosticsEntry";
+      const summary = document.createElement("summary");
+      const title = document.createElement("strong");
+      title.textContent = entry.code || "診断ログ";
+      const date = document.createElement("span");
+      date.textContent = entry.time ? new Date(entry.time).toLocaleString() : "日時不明";
+      summary.append(title, date);
+      item.appendChild(summary);
+      const body = document.createElement("div");
+      body.className = "mpDiagnosticsEntryBody";
+      const lines = [
+        "機能: " + (entry.category || "不明"),
+        "段階: " + (entry.stage || "不明"),
+        "内容: " + (entry.message || "詳細なし"),
+        "変更確認番号: " + (entry.revision ?? "不明"),
+        "アプリ: " + (entry.version || "不明")
+      ];
+      if (entry.file) lines.push("場所: " + entry.file + (entry.line ? ":" + entry.line : ""));
+      if (entry.stack) lines.push("Stack: " + entry.stack);
+      body.textContent = lines.join("\n");
+      item.appendChild(body);
+      diagnosticLogList.appendChild(item);
+    });
+  }
+
+  function clearDiagnostics() {
+    entries = [];
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(DISMISSED_KEY, "1");
+    } catch {}
+    hideDiagnosticNotice();
+    renderDiagnosticLogList();
+  }
+
+  window.__musicPlayerRefreshDiagnostics = renderDiagnosticLogList;
 
   function getDiagnosticText() {
     const recent = entries.slice(-5);
@@ -1167,14 +1234,18 @@
   }
 
   document.getElementById("mpErrorCopy")?.addEventListener("click", copyDiagnostics);
-  document.getElementById("mpErrorClose")?.addEventListener("click", hideDiagnosticNotice);
-  document.getElementById("mpErrorClear")?.addEventListener("click", () => {
-    entries = [];
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  document.getElementById("mpErrorClose")?.addEventListener("click", () => {
+    try { localStorage.setItem(DISMISSED_KEY, "1"); } catch {}
     hideDiagnosticNotice();
   });
+  document.getElementById("mpErrorClear")?.addEventListener("click", clearDiagnostics);
+  document.getElementById("mpDiagnosticsCopy")?.addEventListener("click", copyDiagnostics);
+  document.getElementById("mpDiagnosticsClear")?.addEventListener("click", clearDiagnostics);
 
-  if (entries.length) render(entries[entries.length - 1]);
+  renderDiagnosticLogList();
+  let noticeDismissed = false;
+  try { noticeDismissed = localStorage.getItem(DISMISSED_KEY) === "1"; } catch {}
+  if (entries.length && !noticeDismissed) render(entries[entries.length - 1]);
 })();;
 </script>
 
