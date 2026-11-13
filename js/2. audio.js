@@ -604,7 +604,12 @@ let mainOutputUsesNativeDestination = false;
       micGainNode.connect(finalMixGainNode);
 
       speakerBusNode = audioCtx.createGain();
-      finalMixGainNode.connect(speakerBusNode);
+      // 先行バッファはメイン出力と追加スピーカーに共通するバスの手前へ置く。
+      // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
+      playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
+      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
+      finalMixGainNode.connect(playbackPrebufferDelayNode);
+      playbackPrebufferDelayNode.connect(speakerBusNode);
 
       speakerBusNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
@@ -613,21 +618,15 @@ let mainOutputUsesNativeDestination = false;
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
 
-      // 再生先行バッファ：音声を指定時間だけ遅らせ、出力前に余裕を持たせる。
-      // 0msなら追加遅延なし。既定100ms、上限500ms。
-      playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
-      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
-      channelMerger.connect(playbackPrebufferDelayNode);
-
       // 最終クリッピング保護はL/R個別ゲインの「後」に置く。
-      // 先行バッファの後段に置き、既存のL/R・解析・全出力経路を維持する。
+      // 先行バッファは共通スピーカーバスの手前にあるため、ここでは従来どおり接続する。
       if (state.clippingProtection) {
-        playbackPrebufferDelayNode.connect(limiterNode);
+        channelMerger.connect(limiterNode);
         limiterNode.connect(outputSplitter);
         limiterNode.connect(analyser);
       } else {
-        playbackPrebufferDelayNode.connect(outputSplitter);
-        playbackPrebufferDelayNode.connect(analyser);
+        channelMerger.connect(outputSplitter);
+        channelMerger.connect(analyser);
       }
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
