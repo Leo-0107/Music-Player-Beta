@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 63;
+  const BUILD_REVISION = 64;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -367,8 +367,36 @@
   }
 
 
-let outputTransitionPromise = Promise.resolve();
-let mainOutputDirectGainNode = null;
+const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
+  const DEFAULT_PLAYBACK_PREBUFFER_MS = 100;
+  function readPlaybackPrebufferMs() {
+    try {
+      const stored = Number(localStorage.getItem(PLAYBACK_PREBUFFER_STORAGE_KEY));
+      return Number.isFinite(stored) ? Math.max(0, Math.min(500, Math.round(stored))) : DEFAULT_PLAYBACK_PREBUFFER_MS;
+    } catch (e) {
+      return DEFAULT_PLAYBACK_PREBUFFER_MS;
+    }
+  }
+  let playbackPrebufferMs = readPlaybackPrebufferMs();
+  let playbackPrebufferDelayNode = null;
+
+  function setPlaybackPrebufferMs(value) {
+    let next = Number(value);
+    if (!Number.isFinite(next)) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
+    next = Math.max(0, Math.min(500, Math.round(next)));
+    if (Math.abs(next - DEFAULT_PLAYBACK_PREBUFFER_MS) <= 8) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
+    playbackPrebufferMs = next;
+    try { localStorage.setItem(PLAYBACK_PREBUFFER_STORAGE_KEY, String(next)); } catch (e) {}
+    if (playbackPrebufferDelayNode && audioCtx) {
+      const now = audioCtx.currentTime;
+      playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
+      playbackPrebufferDelayNode.delayTime.setTargetAtTime(next / 1000, now, 0.025);
+    }
+    return playbackPrebufferMs;
+  }
+
+  let outputTransitionPromise = Promise.resolve();
+  let mainOutputDirectGainNode = null;
 let mainOutputUsesDirectSink = false;
 let mainOutputUsesNativeDestination = false;
 
@@ -583,16 +611,21 @@ let mainOutputUsesNativeDestination = false;
       leftGainNode.connect(channelMerger, 0, 0);
       rightGainNode.connect(channelMerger, 0, 1);
 
+      // 再生先行バッファ：音声を指定時間だけ遅らせ、出力前に余裕を持たせる。
+      // 0msなら追加遅延なし。既定100ms、上限500ms。
+      playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
+      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
+      channelMerger.connect(playbackPrebufferDelayNode);
+
       // 最終クリッピング保護はL/R個別ゲインの「後」に置く。
-      // ここより前で抑えても、その後に最大2倍のチャンネルゲインを
-      // 掛けられると再びピーク超過するため、最終出力直前で保護する。
+      // 先行バッファの後段に置き、既存のL/R・解析・全出力経路を維持する。
       if (state.clippingProtection) {
-        channelMerger.connect(limiterNode);
+        playbackPrebufferDelayNode.connect(limiterNode);
         limiterNode.connect(outputSplitter);
         limiterNode.connect(analyser);
       } else {
-        channelMerger.connect(outputSplitter);
-        channelMerger.connect(analyser);
+        playbackPrebufferDelayNode.connect(outputSplitter);
+        playbackPrebufferDelayNode.connect(analyser);
       }
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
