@@ -939,7 +939,7 @@
             <div class="songMenuPopup" hidden>
               <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
               <button class="songMenuItem renameYoutubeBtn" type="button">表示名を変更</button>
-              <button class="songMenuItem deleteYoutubeBtn" type="button">🗑 削除</button>
+              <button class="songMenuItem deleteYoutubeBtn" type="button">🗑 登録リンクを削除</button>
             </div>
           </div>
         </div>`;
