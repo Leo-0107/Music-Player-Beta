@@ -120,7 +120,10 @@
       const isOggAudio = /\.(ogg|oga|opus)$/i.test(String(track.name || "")) ||
         mime.includes("ogg") || mime.includes("opus");
       const artist = String(track.artist || "").trim();
-      return isOggAudio && (!artist || artist === "不明なアーティスト" || artist === "Unknown Artist");
+      return isOggAudio && (
+        track.oggMetadataChecked !== true ||
+        !artist || artist === "不明なアーティスト" || artist === "Unknown Artist"
+      );
     });
     let changed = false;
     const yieldToUI = () => new Promise(resolve => requestAnimationFrame(resolve));
@@ -131,17 +134,42 @@
           const mime = track.mimeType || track.blob.type || "audio/ogg";
           const file = new File([track.blob], track.name || "audio.ogg", { type: mime });
           const metadata = await parseID3(file);
-          if (!metadata?.artist || metadata.artist === "不明なアーティスト") return;
-
-          const updatedTrack = { ...track, artist: metadata.artist };
+          const nextArtist = metadata?.artist && metadata.artist !== "不明なアーティスト"
+            ? metadata.artist
+            : track.artist || "不明なアーティスト";
+          const nextCoverBlob = metadata?.coverBlob || track.coverBlob || null;
+          const artistChanged = nextArtist !== (track.artist || "不明なアーティスト");
+          const coverAdded = !!metadata?.coverBlob && !track.coverBlob;
+          const updatedTrack = {
+            ...track,
+            artist: nextArtist,
+            coverBlob: nextCoverBlob,
+            oggMetadataChecked: true
+          };
           if (!await saveTrackToDB(updatedTrack)) return;
 
           const song = state.playlist.find(item => item.name === track.name);
-          if (song) song.artist = metadata.artist;
-          if (state.currentSong?.name === track.name) {
-            state.currentSong.artist = metadata.artist;
+          if (song && artistChanged) song.artist = nextArtist;
+          if (coverAdded) {
+            let urls = activeObjectURLMap.get(track.name);
+            if (!urls) {
+              urls = { url: song?.url || "", coverUrl: null };
+              activeObjectURLMap.set(track.name, urls);
+            }
+            if (urls.coverUrl) URL.revokeObjectURL(urls.coverUrl);
+            urls.coverUrl = URL.createObjectURL(metadata.coverBlob);
+            if (song) song.coverUrl = urls.coverUrl;
+            if (state.currentSong?.name === track.name) {
+              state.currentSong.coverUrl = urls.coverUrl;
+              updateArtwork(state.currentSong);
+              updateNowPlayingUI(state.currentSong);
+            }
           }
-          changed = true;
+          if (artistChanged && state.currentSong?.name === track.name) {
+            state.currentSong.artist = nextArtist;
+            updateNowPlayingUI(state.currentSong);
+          }
+          if (artistChanged || coverAdded) changed = true;
         } catch {}
       }));
       if (i + 2 < pending.length) await yieldToUI();
@@ -414,7 +442,10 @@
       if(usedNames.has(saveName))saveName=makeUniqueTrackName(saveName,usedNames);
       const f=item.file, mediaInfo=getMediaInfo(f);
       const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
-      const saved = await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
+      const isOggAudio = /\.(ogg|oga|opus)$/i.test(String(f.name || "")) ||
+        String(mediaInfo.mimeType || f.type || "").toLowerCase().includes("ogg") ||
+        String(mediaInfo.mimeType || f.type || "").toLowerCase().includes("opus");
+      const saved = await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,oggMetadataChecked:isOggAudio,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
       if (!saved) {
         failedSaveCount++;
         updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
