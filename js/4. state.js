@@ -3,10 +3,7 @@
   function parseOggCommentBuffer(buffer) {
     const bytes = new Uint8Array(buffer);
     const view = new DataView(buffer);
-    const readAscii = (start, length) => {
-      if (start < 0 || start + length > bytes.length) return "";
-      return String.fromCharCode(...bytes.subarray(start, start + length));
-    };
+
     const parseCommentPacket = packet => {
       const data = new Uint8Array(packet);
       let offset;
@@ -35,76 +32,126 @@
       if (offset + 4 > data.length) return null;
       const commentCount = packetView.getUint32(offset, true);
       offset += 4;
-      if (commentCount > 10000) return null;
+      if (commentCount > 20000) return null;
 
       let title = "";
       const artists = [];
+      const alternateArtists = [];
       let albumArtist = "";
       const decoder = new TextDecoder("utf-8");
       for (let i = 0; i < commentCount; i++) {
         const length = readLength();
         if (length === null) return null;
-        const comment = decoder.decode(data.subarray(offset, offset + length));
+        let comment = decoder.decode(data.subarray(offset, offset + length));
         offset += length;
+        if (i === 0) comment = comment.replace(/^\uFEFF/, "");
         const separator = comment.indexOf("=");
         if (separator <= 0) continue;
         const key = comment.slice(0, separator).trim().toUpperCase();
         const value = comment.slice(separator + 1).trim();
         if (!value) continue;
+
         if (key === "TITLE" && !title) title = value;
         else if (key === "ARTIST") artists.push(value);
-        else if (key === "ALBUMARTIST" && !albumArtist) albumArtist = value;
+        else if ((key === "ARTISTS" || key === "PERFORMER") && !alternateArtists.includes(value)) {
+          alternateArtists.push(value);
+        } else if ((key === "ALBUMARTIST" || key === "ALBUM ARTIST") && !albumArtist) {
+          albumArtist = value;
+        }
       }
+
+      const uniqueArtists = [...new Set(artists)];
       return {
         title,
-        artist: artists.length ? [...new Set(artists)].join(", ") : albumArtist
+        artist: uniqueArtists.length
+          ? uniqueArtists.join(", ")
+          : alternateArtists.length
+            ? alternateArtists.join(", ")
+            : albumArtist
       };
     };
 
+    // Oggは複数の論理ストリームを同時に格納できるため、serial numberごとに
+    // ページをまたぐパケットを再構成する。
+    const streams = new Map();
     let pageOffset = 0;
-    let packetParts = [];
-    let packetLength = 0;
-    let completedPackets = 0;
+    let bestMetadata = null;
+
     while (pageOffset + 27 <= bytes.length) {
-      if (readAscii(pageOffset, 4) !== "OggS" || bytes[pageOffset + 4] !== 0) break;
+      if (bytes[pageOffset] !== 0x4F || bytes[pageOffset + 1] !== 0x67 ||
+          bytes[pageOffset + 2] !== 0x67 || bytes[pageOffset + 3] !== 0x53 ||
+          bytes[pageOffset + 4] !== 0) break;
+
+      const headerType = bytes[pageOffset + 5];
+      const serial = view.getUint32(pageOffset + 14, true);
       const segmentCount = bytes[pageOffset + 26];
       const tableStart = pageOffset + 27;
       const payloadStart = tableStart + segmentCount;
       if (payloadStart > bytes.length) break;
+
+      let stream = streams.get(serial);
+      if (!stream) {
+        stream = { packetParts: [], packetLength: 0, completedPackets: 0, skipContinuation: false };
+        streams.set(serial, stream);
+      }
+
+      if (!(headerType & 0x01)) {
+        stream.packetParts = [];
+        stream.packetLength = 0;
+        stream.skipContinuation = false;
+      } else if (!stream.packetParts.length && stream.packetLength === 0) {
+        // 読み込み範囲の先頭が継続ページだった場合、途中からのパケットは捨てる。
+        stream.skipContinuation = true;
+      }
+
       let payloadOffset = payloadStart;
       let pageComplete = true;
-
       for (let i = 0; i < segmentCount; i++) {
         const segmentLength = bytes[tableStart + i];
         if (payloadOffset + segmentLength > bytes.length) {
           pageComplete = false;
           break;
         }
-        if (segmentLength) {
-          packetParts.push(bytes.subarray(payloadOffset, payloadOffset + segmentLength));
-          packetLength += segmentLength;
-        }
+
+        const segment = bytes.subarray(payloadOffset, payloadOffset + segmentLength);
         payloadOffset += segmentLength;
 
+        if (stream.skipContinuation) {
+          if (segmentLength < 255) stream.skipContinuation = false;
+          continue;
+        }
+
+        if (segmentLength) {
+          stream.packetParts.push(segment);
+          stream.packetLength += segmentLength;
+        }
+
         if (segmentLength < 255) {
-          const packet = new Uint8Array(packetLength);
+          const packet = new Uint8Array(stream.packetLength);
           let packetOffset = 0;
-          for (const part of packetParts) {
+          for (const part of stream.packetParts) {
             packet.set(part, packetOffset);
             packetOffset += part.length;
           }
+
           const metadata = parseCommentPacket(packet);
-          if (metadata) return metadata;
-          packetParts = [];
-          packetLength = 0;
-          completedPackets++;
-          if (completedPackets >= 8) return null;
+          if (metadata) {
+            if (metadata.artist) return metadata;
+            if (!bestMetadata || (!bestMetadata.title && metadata.title)) bestMetadata = metadata;
+          }
+
+          stream.packetParts = [];
+          stream.packetLength = 0;
+          stream.completedPackets++;
+          if (stream.completedPackets >= 64) stream.skipContinuation = true;
         }
       }
+
       if (!pageComplete) break;
       pageOffset = payloadOffset;
     }
-    return null;
+
+    return bestMetadata;
   }
 
   function parseID3(file) {
