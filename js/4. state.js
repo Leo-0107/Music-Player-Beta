@@ -4,6 +4,57 @@
     const bytes = new Uint8Array(buffer);
     const view = new DataView(buffer);
 
+    const decodeBase64Bytes = value => {
+      const normalized = String(value || "").replace(/\\s+/g, "");
+      if (!normalized || normalized.length > 12 * 1024 * 1024) return null;
+      try {
+        const binary = atob(normalized);
+        const result = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) result[i] = binary.charCodeAt(i);
+        return result;
+      } catch {
+        return null;
+      }
+    };
+
+    const detectImageMime = (data, fallback = "") => {
+      if (data.length >= 8 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) return "image/png";
+      if (data.length >= 3 && data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) return "image/jpeg";
+      if (data.length >= 6 && String.fromCharCode(...data.subarray(0, 3)) === "GIF") return "image/gif";
+      if (data.length >= 12 && String.fromCharCode(...data.subarray(0, 4)) === "RIFF" && String.fromCharCode(...data.subarray(8, 12)) === "WEBP") return "image/webp";
+      return String(fallback || "").toLowerCase().startsWith("image/") ? fallback : "application/octet-stream";
+    };
+
+    const parseFlacPicture = value => {
+      const data = decodeBase64Bytes(value);
+      if (!data || data.length < 32) return null;
+      const pictureView = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      let position = 0;
+      const readLength = () => {
+        if (position + 4 > data.length) return null;
+        const length = pictureView.getUint32(position, false);
+        position += 4;
+        if (length > data.length - position) return null;
+        return length;
+      };
+      const pictureType = readLength();
+      const mimeLength = readLength();
+      if (pictureType === null || mimeLength === null) return null;
+      const mime = new TextDecoder("utf-8").decode(data.subarray(position, position + mimeLength)).trim();
+      position += mimeLength;
+      const descriptionLength = readLength();
+      if (descriptionLength === null) return null;
+      position += descriptionLength;
+      if (position + 16 > data.length) return null;
+      position += 16;
+      const imageLength = readLength();
+      if (imageLength === null || imageLength === 0 || imageLength > data.length - position) return null;
+      const imageData = data.subarray(position, position + imageLength);
+      const detectedMime = detectImageMime(imageData, mime);
+      if (!detectedMime.startsWith("image/")) return null;
+      return new Blob([imageData], { type: detectedMime });
+    };
+
     const parseCommentPacket = packet => {
       const data = new Uint8Array(packet);
       let offset;
@@ -35,6 +86,9 @@
       if (commentCount > 20000) return null;
 
       let title = "";
+      let pictureBase64 = "";
+      let coverArtBase64 = "";
+      let coverArtMime = "";
       const artists = [];
       const alternateArtists = [];
       let albumArtist = "";
@@ -52,6 +106,9 @@
         if (!value) continue;
 
         if (key === "TITLE" && !title) title = value;
+        else if (key === "METADATA_BLOCK_PICTURE" && !pictureBase64) pictureBase64 = value;
+        else if (key === "COVERART" && !coverArtBase64) coverArtBase64 = value;
+        else if (key === "COVERARTMIME" && !coverArtMime) coverArtMime = value;
         else if (key === "ARTIST") artists.push(value);
         else if ((key === "ARTISTS" || key === "PERFORMER") && !alternateArtists.includes(value)) {
           alternateArtists.push(value);
@@ -60,9 +117,18 @@
         }
       }
 
+      let coverBlob = pictureBase64 ? parseFlacPicture(pictureBase64) : null;
+      if (!coverBlob && coverArtBase64) {
+        const imageData = decodeBase64Bytes(coverArtBase64);
+        if (imageData?.length) {
+          const mime = detectImageMime(imageData, coverArtMime || "image/jpeg");
+          if (mime.startsWith("image/")) coverBlob = new Blob([imageData], { type: mime });
+        }
+      }
       const uniqueArtists = [...new Set(artists)];
       return {
         title,
+        coverBlob,
         artist: uniqueArtists.length
           ? uniqueArtists.join(", ")
           : alternateArtists.length
@@ -319,7 +385,7 @@
             resolve({
               title: metadata?.title || defaultTitle,
               artist: metadata?.artist || "不明なアーティスト",
-              coverBlob: null
+              coverBlob: metadata?.coverBlob || null
             });
           };
           oggReader.onerror = fallback;
