@@ -1422,7 +1422,8 @@ function drawWave() {
       icon: "⚙️",
       title: "その他",
       items: [
-        ["queueSection", "⏭️", "再生キュー", "次に再生する曲の確認・並べ替え"]
+        ["queueSection", "⏭️", "再生キュー", "次に再生する曲の確認・並べ替え"],
+        ["diagnosticsSection", "📋", "エラーログ一覧", "アプリで記録された診断ログを確認"]
       ]
     }
   };
