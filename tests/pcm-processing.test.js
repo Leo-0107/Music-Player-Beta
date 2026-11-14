@@ -56,8 +56,8 @@ function createEngineClass(WorkerClass = MockWorker) {
     state: { eqState: { gains: [0, 0, 0, 0, 0] }, pitchSemitones: 0, currentSong: null },
     audioCtx: { sampleRate: 48000 }
   };
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;", sandbox);
-  return sandbox.BufferedPlaybackEngine;
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -102,7 +102,7 @@ test("worker rejects malformed sequence numbers and oversized chunks", () => {
 });
 
 test("processed chunks remain contiguous and cover the requested source range", async () => {
-  const Engine = createEngineClass();
+  const { Engine } = createEngineClass();
   const sampleRates = [8000, 44100, 96000, 192000];
   const chunkSizes = [1024, 4096, 8192, 32768];
   const pitches = [0.5, 0.99, 1.01, 2];
@@ -132,7 +132,7 @@ test("processed chunks remain contiguous and cover the requested source range", 
 });
 
 test("engine rejects a worker response with the wrong message type", async () => {
-  const Engine = createEngineClass(WrongResponseWorker);
+  const { Engine } = createEngineClass(WrongResponseWorker);
   const engine = new Engine();
   engine.buffer = makeMonoBuffer(8000, 1);
   engine.sourceUrl = "blob:pcm-test";
@@ -142,4 +142,37 @@ test("engine rejects a worker response with the wrong message type", async () =>
       void chunk;
     }
   }, /Unexpected PCM worker response/);
+});
+
+test("processed PCM ring buffer wraps without losing frame order", () => {
+  const { RingBuffer } = createEngineClass();
+  const ring = new RingBuffer(5);
+  ring.clear(100);
+  ring.write({ startFrame: 100, frameCount: 4, left: Float32Array.from([1, 2, 3, 4]), right: Float32Array.from([11, 12, 13, 14]) });
+
+  const first = ring.read(3);
+  assert.equal(first.startFrame, 100);
+  assert.deepEqual(Array.from(first.left), [1, 2, 3]);
+  assert.equal(ring.freeFrames, 4);
+
+  ring.write({ startFrame: 104, frameCount: 4, left: Float32Array.from([5, 6, 7, 8]), right: Float32Array.from([15, 16, 17, 18]) });
+  const second = ring.read(5);
+  assert.equal(second.startFrame, 103);
+  assert.deepEqual(Array.from(second.left), [4, 5, 6, 7, 8]);
+  assert.deepEqual(Array.from(second.right), [14, 15, 16, 17, 18]);
+  assert.equal(ring.availableFrames, 0);
+  assert.equal(ring.read(1), null);
+});
+
+test("processed PCM ring buffer rejects gaps, overflow, and invalid discard ranges", () => {
+  const { RingBuffer } = createEngineClass();
+  const ring = new RingBuffer(3);
+  ring.clear(20);
+  const chunk = { startFrame: 20, frameCount: 2, left: Float32Array.from([1, 2]), right: Float32Array.from([1, 2]) };
+  assert.throws(() => ring.write({ ...chunk, startFrame: 21 }), /not contiguous/);
+  ring.write(chunk);
+  assert.throws(() => ring.write({ ...chunk, startFrame: 22 }), /full/);
+  assert.throws(() => ring.discardBefore(23), /outside the buffered range/);
+  assert.equal(ring.discardBefore(21), 1);
+  assert.equal(ring.readFrame, 21);
 });
