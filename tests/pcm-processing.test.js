@@ -85,8 +85,8 @@ function createEngineClass(WorkerClass = MockWorker) {
     audioCtx: { sampleRate: 48000 },
     setGraphInputNode() {}
   };
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;", sandbox);
-  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter };
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -1169,4 +1169,135 @@ test("audio graph cleanup clears only the graph input node it owns", () => {
   assert.equal(staleSandbox.getActiveNode(), activeNode);
   assert.equal(staleSandbox.getActiveTarget(), activeTarget);
   assert.deepEqual(staleDisconnects, []);
+});
+
+
+test("PCM pump loop refills at a bounded cadence and cancels stale timers", async () => {
+  const { PcmOutputScheduler, PcmOutputPumpLoop } = createEngineClass();
+  const context = createMockOutputContext();
+  const timerTasks = new Map();
+  let timerId = 0;
+  const schedule = (callback, delay) => {
+    const id = ++timerId;
+    timerTasks.set(id, { callback, delay });
+    return id;
+  };
+  const cancel = id => timerTasks.delete(id);
+  const chunks = [0, 1024, 2048].map(startFrame => ({
+    startFrame, sampleRate: 8000, frameCount: 1024,
+    left: new Float32Array(1024), right: new Float32Array(1024)
+  }));
+  const queue = {
+    maxChunkFrames: 1024,
+    async readAsync() { return chunks.shift() || null; },
+    cancel() { this.cancelled = true; }
+  };
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const loop = new PcmOutputPumpLoop(scheduler, {
+    intervalMs: 25, schedule, cancel
+  });
+
+  await loop.start(queue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  assert.equal(context.sources.length, 1);
+  assert.equal(timerTasks.size, 1);
+  assert.equal(timerTasks.values().next().value.delay, 25);
+
+  const [firstTimerId, firstTimer] = timerTasks.entries().next().value;
+  timerTasks.delete(firstTimerId);
+  context.currentTime = 10.08;
+  firstTimer.callback();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(context.sources.length, 2);
+  assert.equal(scheduler.underrunCount, 0);
+  assert.equal(timerTasks.size, 1);
+
+  const stale = timerTasks.values().next().value.callback;
+  loop.stop();
+  assert.equal(queue.cancelled, true);
+  assert.equal(timerTasks.size, 0);
+  stale();
+  await Promise.resolve();
+  assert.equal(context.sources.length, 2);
+  assert.equal(loop.active, false);
+});
+
+test("PCM pump loop waits for an in-flight read before starting a replacement session", async () => {
+  const { PcmOutputScheduler, PcmOutputPumpLoop } = createEngineClass();
+  const context = createMockOutputContext();
+  const timerTasks = new Map();
+  let timerId = 0;
+  const schedule = (callback, delay) => {
+    const id = ++timerId;
+    timerTasks.set(id, callback);
+    return id;
+  };
+  const cancel = id => timerTasks.delete(id);
+  let releaseRead;
+  const oldQueue = {
+    maxChunkFrames: 1024,
+    reads: 0,
+    async readAsync() {
+      this.reads++;
+      if (this.reads === 1) {
+        return {
+          startFrame: 0, sampleRate: 8000, frameCount: 1024,
+          left: new Float32Array(1024), right: new Float32Array(1024)
+        };
+      }
+      return new Promise(resolve => { releaseRead = resolve; });
+    },
+    cancel() {
+      this.cancelled = true;
+      releaseRead?.(null);
+    }
+  };
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const loop = new PcmOutputPumpLoop(scheduler, {
+    intervalMs: 25, schedule, cancel
+  });
+  await loop.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  const [timerKey, timerCallback] = timerTasks.entries().next().value;
+  timerTasks.delete(timerKey);
+  context.currentTime = 10.1;
+  timerCallback();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(typeof releaseRead, "function");
+
+  loop.stop();
+  assert.equal(oldQueue.cancelled, true);
+
+  const newQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 1024, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  };
+  await loop.start(newQueue, {
+    startFrame: 1024, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  assert.equal(loop.active, true);
+  assert.equal(scheduler.active, true);
+  assert.equal(context.sources.length, 2);
+  loop.stop();
 });
