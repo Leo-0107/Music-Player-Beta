@@ -981,9 +981,15 @@ class PcmPlaybackSessionController {
   }
 
   get currentFrame() {
-    return this.activeSession?.scheduler.active
-      ? this.activeSession.scheduler.currentFrame
-      : this.lastFrame;
+    if (this.activeSession?.scheduler.active) {
+      return this.activeSession.scheduler.currentFrame;
+    }
+    // During handoff there is intentionally no activeSession while the previous
+    // scheduler drains already-scheduled audio. Its live clock, not the future
+    // handoff boundary stored in lastFrame, is the position pause/stop must use.
+    const draining = Array.from(this.drainingSessions).filter(session => session.scheduler.active);
+    if (draining.length) return draining[draining.length - 1].scheduler.currentFrame;
+    return this.lastFrame;
   }
 
   retireSession(session) {
@@ -1167,13 +1173,17 @@ class PcmPlaybackSessionController {
   stop() {
     if (this.state === "disposed") return this.lastFrame;
     this.generation++;
+    // Snapshot the audible scheduler clock before stopping active or draining
+    // sessions. During an async handoff lastFrame is the future boundary.
+    let frame = this.currentFrame;
     const active = this.activeSession;
     this.activeSession = null;
-    let frame = this.lastFrame;
     if (active) {
       frame = active.loop.stop();
       this.lastFrame = frame;
       this.retireSession(active);
+    } else {
+      this.lastFrame = frame;
     }
     for (const session of Array.from(this.drainingSessions)) {
       session.loop.stop();
