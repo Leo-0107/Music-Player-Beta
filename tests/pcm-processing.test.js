@@ -604,22 +604,22 @@ test("PCM output scheduler schedules contiguous chunks at playback-rate-adjusted
   });
 
   await scheduler.start(queue, {
-    startFrame: 100, sampleRate: 1000, playbackRate: 2,
+    startFrame: 100, sampleRate: 8000, playbackRate: 2,
     blockFrames: 4, lookAheadSeconds: 1, minimumLeadSeconds: 0.05
   });
 
   assert.equal(context.sources.length, 2);
   assert.equal(context.sources[0].startAt, 10.05);
-  assert.equal(context.sources[1].startAt, 10.052);
+  assert.equal(context.sources[1].startAt, 10.05025);
   assert.equal(context.sources[0].playbackRate.value, 2);
   assert.equal(context.sources[0].buffer.getChannelData(0)[0], 1);
   assert.equal(context.sources[1].buffer.getChannelData(1)[3], 108);
   assert.equal(scheduler.eof, true);
   assert.equal(scheduler.active, true);
 
-  context.currentTime = 10.051;
+  context.currentTime = 10.050125;
   assert.equal(scheduler.currentFrame, 102);
-  context.currentTime = 10.054;
+  context.currentTime = 10.0505;
   assert.equal(scheduler.currentFrame, 108);
 
   context.sources[0].finish();
@@ -652,7 +652,7 @@ test("PCM scheduler freezes the frame clock across underrun and resumes without 
   });
 
   await scheduler.start(queue, {
-    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
     blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
@@ -668,7 +668,7 @@ test("PCM scheduler freezes the frame clock across underrun and resumes without 
   assert.equal(underruns[0].frame, 4);
   assert.equal(scheduler.currentFrame, 4);
 
-  context.currentTime = 10.251;
+  context.currentTime = 10.250125;
   assert.equal(scheduler.currentFrame, 5);
   assert.equal(scheduler.underrunCount, 1);
   scheduler.stop();
@@ -693,7 +693,7 @@ test("stopping PCM scheduling while a queue read is pending rejects late source 
     lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
   });
   await scheduler.start(queue, {
-    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
     blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
@@ -721,7 +721,7 @@ test("PCM output scheduler rejects discontinuous or invalid chunk ranges", async
     lookAheadSeconds: 1, minimumLeadSeconds: 0.05
   });
   await assert.rejects(() => scheduler.start(queue, {
-    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
     blockFrames: 4, lookAheadSeconds: 1, minimumLeadSeconds: 0.05
   }), /invalid, discontinuous/);
   assert.equal(scheduler.active, false);
