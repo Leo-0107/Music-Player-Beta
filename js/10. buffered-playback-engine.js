@@ -690,7 +690,7 @@ class PcmOutputScheduler {
         !Number.isInteger(frameCount) || frameCount < 1 || frameCount > this.blockFrames ||
         !chunk.left || !chunk.right || chunk.left.length < frameCount || chunk.right.length < frameCount ||
         chunkRate !== this.sampleRate) {
-      throw new Error(`PCM scheduler received an invalid chunk: start=${String(chunk?.startFrame)} expected=${this.nextFrame} frames=${frameCount} rate=${chunkRate}/${this.sampleRate} left=${chunk?.left?.length} right=${chunk?.right?.length}`);
+      throw new Error(`PCM scheduler received an invalid, discontinuous, or mismatched chunk (start=${String(chunk?.startFrame)} expected=${this.nextFrame} frames=${frameCount} rate=${chunkRate}/${this.sampleRate} left=${chunk?.left?.length} right=${chunk?.right?.length})`);
     }
 
     const now = Number(this.audioContext.currentTime) || 0;
@@ -1618,8 +1618,9 @@ class BufferedPlaybackEngine {
     });
   }
 
-  createPcmSessionOptions(generation, sampleRate, startAtTime) {
+  createPcmSessionOptions(generation, sampleRate, startAtTime, startFrame = 0) {
     const options = {
+      startFrame,
       sampleRate,
       playbackRate: this.playbackRate,
       blockFrames: 4096,
@@ -1679,7 +1680,7 @@ class BufferedPlaybackEngine {
       queue.cancel();
       return false;
     }
-    const options = this.createPcmSessionOptions(generation, sampleRate, startAtTime);
+    const options = this.createPcmSessionOptions(generation, sampleRate, startAtTime, startFrame);
     const session = await controller.start(queue, options);
     if (!session || generation !== this.pcmPlaybackGeneration ||
         requestId !== this.playRequestId || !this.playRequested) {
