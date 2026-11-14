@@ -237,3 +237,35 @@ test("PCM prebuffer queue discards a chunk returned after cancellation", async (
   assert.equal(ring.availableFrames, 0);
   assert.equal(await queue.readAsync(1), null);
 });
+
+
+test("PCM worker iterator streams through the bounded prebuffer queue without gaps", async () => {
+  const { Engine, RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 1);
+  engine.sourceUrl = "blob:pcm-test";
+
+  const ring = new RingBuffer(4096);
+  const queue = new PcmPrebufferQueue(
+    ring,
+    engine.iterateProcessedChunks({ pitch: 1, chunkFrames: 1024, startFrame: 0 }),
+    1024
+  ).start();
+
+  let expectedFrame = 0;
+  let totalFrames = 0;
+  for (;;) {
+    const chunk = await queue.readAsync(1024);
+    if (!chunk) break;
+    assert.equal(chunk.startFrame, expectedFrame);
+    assert.equal(chunk.frameCount, chunk.left.length);
+    assert.equal(chunk.frameCount, chunk.right.length);
+    expectedFrame += chunk.frameCount;
+    totalFrames += chunk.frameCount;
+  }
+
+  assert.equal(totalFrames, engine.buffer.length);
+  assert.equal(expectedFrame, engine.buffer.length);
+  assert.equal(ring.availableFrames, 0);
+  engine.disposeProcessorWorker();
+});
