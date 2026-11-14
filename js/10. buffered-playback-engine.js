@@ -1188,11 +1188,14 @@ class PcmPlaybackSessionController {
     this.generation++;
     // Snapshot the audible scheduler clock before stopping active or draining
     // sessions. During an async handoff lastFrame is the future boundary.
-    let frame = this.currentFrame;
+    const frame = this.currentFrame;
     const active = this.activeSession;
     this.activeSession = null;
     if (active) {
-      frame = active.loop.stop();
+      // Keep the clock snapshot selected above. If the replacement session has
+      // not reached firstScheduledAt yet, currentFrame intentionally came from
+      // the still-audible draining session rather than the future new boundary.
+      active.loop.stop();
       this.lastFrame = frame;
       this.retireSession(active);
     } else {
