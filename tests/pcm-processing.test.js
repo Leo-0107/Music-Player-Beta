@@ -557,9 +557,9 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   assert.equal(ownership.activeNode, null);
   assert.equal(engine.paused, true);
   assert.equal(workers.every(worker => worker.terminated), true);
-  assert.ok(events.includes("play"));
-  assert.ok(events.includes("pause"));
-  assert.ok(events.includes("seeked"));
+  assert.ok(events.includes("play"), `Missing play event: ${events.join(",")}`);
+  assert.ok(events.includes("pause"), `Missing pause event: ${events.join(",")}`);
+  assert.ok(events.includes("seeked"), `Missing seeked event: ${events.join(",")}`);
 });
 
 test("engine invalidates active PCM queues on pause, seek, rate change, and source replacement", async () => {
