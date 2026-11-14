@@ -381,6 +381,59 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   }
   let playbackPrebufferMs = readPlaybackPrebufferMs();
   let playbackPrebufferDelayNode = null;
+  let activeGraphInputNode = null;
+  let activeGraphInputTarget = null;
+
+  function setGraphInputNode(node, target = null) {
+    if (node && !target) target = filters?.[0] || null;
+    if (activeGraphInputNode === node && activeGraphInputTarget === (node ? target : null)) return true;
+    if (activeGraphInputNode && activeGraphInputTarget) {
+      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (e) {}
+    }
+    activeGraphInputNode = node || null;
+    activeGraphInputTarget = node ? target : null;
+    if (node && target) {
+      try { node.connect(target); return true; }
+      catch (error) {
+        activeGraphInputNode = null;
+        activeGraphInputTarget = null;
+        throw error;
+      }
+    }
+    return !node;
+  }
+
+  function canUseBufferedPlayback() {
+    const rate = Number(currentRate);
+    const userPitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const compensatedPitch = userPitch / Math.max(0.1, rate);
+    return Number.isFinite(rate) && rate >= 0.5 && rate <= 2 &&
+      compensatedPitch >= 0.5 && compensatedPitch <= 2;
+  }
+
+  async function switchBufferedPlaybackToMediaElement(error, resume = false) {
+    if (!bufferedPlaybackMode || !bufferedPlaybackEngine) return false;
+    const url = bufferedPlaybackEngine.sourceUrl;
+    const position = bufferedPlaybackEngine.currentTime;
+    const shouldResume = !!resume || !bufferedPlaybackEngine.paused;
+    bufferedPlaybackEngine.releaseForFallback();
+    bufferedPlaybackMode = false;
+    if (!url) return false;
+    console.warn("Music Player PCM playback fallback:", error || "unsupported playback settings");
+    mediaElement.src = url;
+    try { mediaElement.currentTime = Math.max(0, Number(position) || 0); } catch (e) {}
+    mediaElement.playbackRate = currentRate;
+    mediaElement.preservesPitch = true;
+    setGraphInputNode(sourceNode, filters?.[0] || null);
+    if (playbackPrebufferDelayNode && audioCtx) {
+      const now = audioCtx.currentTime;
+      playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
+      playbackPrebufferDelayNode.delayTime.setTargetAtTime(playbackPrebufferMs / 1000, now, 0.025);
+    }
+    updatePitchShiftNode();
+    if (shouldResume) await mediaElement.play();
+    return true;
+  }
 
   function setPlaybackPrebufferMs(value) {
     let next = Number(value);
@@ -392,7 +445,7 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     if (playbackPrebufferDelayNode && audioCtx) {
       const now = audioCtx.currentTime;
       playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
-      playbackPrebufferDelayNode.delayTime.setTargetAtTime(next / 1000, now, 0.025);
+      playbackPrebufferDelayNode.delayTime.setTargetAtTime(bufferedPlaybackMode ? 0 : next / 1000, now, 0.025);
     }
     return playbackPrebufferMs;
   }
@@ -419,7 +472,7 @@ let mainOutputUsesNativeDestination = false;
         });
       }
       if (!sourceNode) {
-        sourceNode = audioCtx.createMediaElementSource(audio);
+        sourceNode = audioCtx.createMediaElementSource(mediaElement);
       }
       
       const freqs = [60, 250, 1000, 4000, 12000];
@@ -530,7 +583,7 @@ let mainOutputUsesNativeDestination = false;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
       waveTimeData = new Uint8Array(analyser.fftSize);
 
-      sourceNode.connect(filters[0]);
+      setGraphInputNode(sourceNode, filters[0]);
       for(let i=0; i<filters.length-1; i++) filters[i].connect(filters[i+1]);
       
       const pitchShiftNode = createPitchShifter(audioCtx);
@@ -678,6 +731,7 @@ let mainOutputUsesNativeDestination = false;
       applyMainOutputDelayNode();
 
       audioGraphReady = true;
+      updatePitchShiftNode();
       upgradePitchShifterToAudioWorklet(audioCtx).catch(error => {
         console.warn("Music Player AudioWorklet pitch upgrade unavailable; keeping ScriptProcessor fallback:", error);
       });
@@ -776,7 +830,8 @@ let mainOutputUsesNativeDestination = false;
   function updatePitchShiftNode(){
     const shifter = audioCtx?._musicPlayerPitchShifter;
     const pitchSource = audioCtx?._musicPlayerPitchSource;
-    const pitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const userPitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const pitchRatio = bufferedPlaybackMode ? userPitchRatio / Math.max(0.1, Number(currentRate) || 1) : userPitchRatio;
     const isNeutral = Math.abs(pitchRatio - 1) < 0.0001;
 
     if (shifter) shifter.pitch = pitchRatio;
@@ -952,9 +1007,15 @@ let mainOutputUsesNativeDestination = false;
 
   function applyPitchAndRate(){
     ensureGraph();
-    audio.playbackRate = currentRate;
-    audio.preservesPitch = true;
-    updatePitchShiftNode();
+    if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
+      switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), true).catch(error => {
+        console.warn("Music Player playback fallback failed:", error);
+      });
+    } else {
+      audio.playbackRate = currentRate;
+      audio.preservesPitch = true;
+      updatePitchShiftNode();
+    }
     if (el.rateText) el.rateText.textContent = `${currentRate.toFixed(2)}x`;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
     updateMediaSessionPosition();
