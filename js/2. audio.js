@@ -403,6 +403,17 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     return !node;
   }
 
+  function clearGraphInputNode(expectedNode, expectedTarget = null) {
+    if (!expectedNode || activeGraphInputNode !== expectedNode) return false;
+    if (expectedTarget && activeGraphInputTarget !== expectedTarget) return false;
+    if (activeGraphInputTarget) {
+      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (error) {}
+    }
+    activeGraphInputNode = null;
+    activeGraphInputTarget = null;
+    return true;
+  }
+
   function canUseBufferedPlayback() {
     const rate = Number(currentRate);
     const userPitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
