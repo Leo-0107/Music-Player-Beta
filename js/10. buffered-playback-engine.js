@@ -801,6 +801,204 @@ class PcmOutputPumpLoop {
   }
 }
 
+class PcmPlaybackSessionController {
+  constructor(audioContext, graphRouter, options = {}) {
+    if (!audioContext || !graphRouter ||
+        typeof graphRouter.attach !== "function" ||
+        typeof graphRouter.createSessionGain !== "function" ||
+        typeof graphRouter.crossfade !== "function" ||
+        typeof graphRouter.retireSessionGain !== "function" ||
+        typeof graphRouter.dispose !== "function") {
+      throw new TypeError("PCM session controller requires an AudioContext and graph router");
+    }
+    this.audioContext = audioContext;
+    this.graphRouter = graphRouter;
+    this.intervalMs = Number(options.intervalMs ?? 50);
+    this.schedule = options.schedule;
+    this.cancel = options.cancel;
+    this.state = "idle";
+    this.activeSession = null;
+    this.drainingSessions = new Set();
+    this.generation = 0;
+    this.lastFrame = 0;
+    this.lastError = null;
+  }
+
+  get currentFrame() {
+    return this.activeSession?.scheduler.active
+      ? this.activeSession.scheduler.currentFrame
+      : this.lastFrame;
+  }
+
+  retireSession(session) {
+    if (!session || session.retired) return;
+    session.retired = true;
+    this.graphRouter.retireSessionGain(session.gain);
+    this.drainingSessions.delete(session);
+    if (this.activeSession === session) this.activeSession = null;
+  }
+
+  createSession(queue, options, initialGain) {
+    this.graphRouter.attach();
+    const gain = this.graphRouter.createSessionGain(initialGain);
+    let session = null;
+    const scheduler = new PcmOutputScheduler(this.audioContext, gain, {
+      lookAheadSeconds: options.lookAheadSeconds,
+      minimumLeadSeconds: options.minimumLeadSeconds,
+      onUnderrun: detail => {
+        try { options.onUnderrun?.(detail); } catch (error) {}
+      },
+      onEnded: frame => {
+        this.lastFrame = frame;
+        this.retireSession(session);
+        if (this.activeSession === null && this.state !== "disposed" && this.state !== "handoff") {
+          this.state = "ended";
+        }
+        try { options.onEnded?.(frame); } catch (error) {}
+      },
+      onDrained: frame => {
+        this.lastFrame = frame;
+        this.retireSession(session);
+        if (this.activeSession === null && this.state !== "disposed" && this.state !== "handoff") {
+          this.state = "idle";
+        }
+        try { options.onDrained?.(frame); } catch (error) {}
+      },
+      onError: (error, frame) => {
+        this.lastFrame = frame;
+        this.lastError = error;
+        this.retireSession(session);
+        if (this.activeSession === null && this.state !== "disposed") this.state = "error";
+        try { options.onError?.(error, frame); } catch (ignore) {}
+      }
+    });
+    const loop = new PcmOutputPumpLoop(scheduler, {
+      intervalMs: options.intervalMs ?? this.intervalMs,
+      schedule: options.schedule ?? this.schedule,
+      cancel: options.cancel ?? this.cancel,
+      onError: error => {
+        this.lastError = error;
+        if (this.activeSession === session) {
+          this.retireSession(session);
+          this.state = "error";
+        }
+      }
+    });
+    session = { queue, gain, scheduler, loop, retired: false };
+    return session;
+  }
+
+  async start(queue, options = {}) {
+    if (this.state === "disposed") throw new Error("PCM session controller is disposed");
+    if (this.activeSession) throw new Error("PCM session controller already has an active session");
+    const generation = ++this.generation;
+    this.lastError = null;
+    const session = this.createSession(queue, options, options.initialGain ?? 1);
+    this.activeSession = session;
+    this.state = "starting";
+    try {
+      await session.loop.start(queue, options);
+    } catch (error) {
+      if (generation === this.generation) {
+        this.retireSession(session);
+        if (this.activeSession === null) this.state = "error";
+      }
+      throw error;
+    }
+    if (generation !== this.generation || this.activeSession !== session) {
+      session.loop.stop();
+      this.retireSession(session);
+      return false;
+    }
+    this.state = session.scheduler.active ? "running" : "ended";
+    return session;
+  }
+
+  async handoff(queue, options = {}) {
+    if (this.state === "disposed") throw new Error("PCM session controller is disposed");
+    const previous = this.activeSession;
+    if (!previous) return this.start(queue, options);
+
+    const generation = ++this.generation;
+    const handoff = previous.loop.drainForHandoff();
+    this.lastFrame = handoff.startFrame;
+    this.drainingSessions.add(previous);
+    this.activeSession = null;
+    this.state = "handoff";
+
+    const nextOptions = {
+      ...options,
+      startFrame: handoff.startFrame,
+      startAtTime: handoff.startAtTime,
+      initialGain: 0
+    };
+    const next = this.createSession(queue, nextOptions, 0);
+    this.activeSession = next;
+    try {
+      await next.loop.start(queue, nextOptions);
+    } catch (error) {
+      if (generation === this.generation) {
+        this.retireSession(next);
+        if (this.activeSession === null) this.state = "error";
+      }
+      throw error;
+    }
+
+    if (generation !== this.generation || this.activeSession !== next) {
+      next.loop.stop();
+      this.retireSession(next);
+      return false;
+    }
+
+    const firstAt = next.scheduler.firstScheduledAt;
+    if (firstAt !== null && next.scheduler.active) {
+      const fadeDuration = Math.max(0.005, Math.min(0.1, Number(options.crossfadeSeconds) || 0.02));
+      const oldIsAudible = previous.scheduler.active &&
+        previous.scheduler.activeSources.size > 0 &&
+        firstAt <= handoff.startAtTime + 0.001;
+      if (oldIsAudible && !previous.retired) {
+        const fadeStart = Math.max(
+          Number(this.audioContext.currentTime) || 0,
+          firstAt - fadeDuration
+        );
+        const actualFadeDuration = Math.max(0.005, firstAt - fadeStart);
+        this.graphRouter.crossfade(previous.gain, next.gain, fadeStart, actualFadeDuration);
+      } else {
+        this.graphRouter.crossfade(null, next.gain, firstAt, fadeDuration);
+      }
+    }
+
+    this.state = next.scheduler.active ? "running" : "ended";
+    return { session: next, handoff };
+  }
+
+  stop() {
+    if (this.state === "disposed") return this.lastFrame;
+    this.generation++;
+    const active = this.activeSession;
+    this.activeSession = null;
+    let frame = this.lastFrame;
+    if (active) {
+      frame = active.loop.stop();
+      this.lastFrame = frame;
+      this.retireSession(active);
+    }
+    for (const session of Array.from(this.drainingSessions)) {
+      session.loop.stop();
+      this.retireSession(session);
+    }
+    this.state = "paused";
+    return frame;
+  }
+
+  dispose() {
+    if (this.state === "disposed") return;
+    this.stop();
+    this.graphRouter.dispose();
+    this.state = "disposed";
+  }
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
