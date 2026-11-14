@@ -612,6 +612,9 @@ let mainOutputUsesNativeDestination = false;
       const pitchProcessedGainNode = audioCtx.createGain();
       const pitchRouteNode = audioCtx.createGain();
       audioCtx._musicPlayerPitchRoute = pitchRouteNode;
+      // Stable PCM insertion boundary: processed PCM already contains EQ/pitch,
+      // so it enters here before the shared spatial and output graph.
+      audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;
       audioCtx._musicPlayerPitchBypassGain = pitchBypassGainNode;
       audioCtx._musicPlayerPitchProcessedGain = pitchProcessedGainNode;
       pitchBypassGainNode.gain.value = 1;
@@ -756,6 +759,7 @@ let mainOutputUsesNativeDestination = false;
     } catch(e) {
       audioGraphReady = false;
       graphInputOwnership?.reset();
+      if (audioCtx) audioCtx._musicPlayerPostDspInputNode = null;
       // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
       // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
       try { sourceNode?.disconnect(); } catch (ignore) {}
