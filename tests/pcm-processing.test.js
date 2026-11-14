@@ -84,7 +84,8 @@ function createEngineClass(WorkerClass = MockWorker) {
     audioCtx: { sampleRate: 48000 },
     setGraphInputNode() {}
   };
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;", sandbox);
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;
+  this.PcmOutputScheduler = PcmOutputScheduler;", sandbox);
   return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue };
 }
 
@@ -99,6 +100,41 @@ function makeMonoBuffer(sampleRate, durationSeconds = 2) {
     numberOfChannels: 1,
     getChannelData: () => samples
   };
+}
+
+
+
+function createMockOutputContext() {
+  const sources = [];
+  const context = {
+    currentTime: 10,
+    createBuffer(channelCount, frameCount, sampleRate) {
+      const channels = Array.from({ length: channelCount }, () => new Float32Array(frameCount));
+      return {
+        numberOfChannels: channelCount,
+        length: frameCount,
+        sampleRate,
+        getChannelData(index) { return channels[index]; }
+      };
+    },
+    createBufferSource() {
+      const source = {
+        playbackRate: {
+          value: 1,
+          setValueAtTime(value, time) { this.value = value; this.time = time; }
+        },
+        connect(node) { this.connectedNode = node; },
+        disconnect() { this.disconnected = true; },
+        start(time) { this.startAt = time; },
+        stop() { this.stopped = true; this.onended?.(); },
+        finish() { this.onended?.(); }
+      };
+      sources.push(source);
+      return source;
+    },
+    sources
+  };
+  return context;
 }
 
 test("worker preserves the identity signal when EQ is flat and pitch is unchanged", () => {
@@ -545,4 +581,151 @@ test("pause during an in-flight PCM block cannot contaminate the resumed queue",
   assert.ok(resumedQueue.ringBuffer.availableFrames > 0);
   assert.equal((await resumedQueue.readAsync(512)).startFrame, 2048);
   engine.disposeProcessorWorker();
+});
+
+
+test("PCM output scheduler schedules contiguous chunks at playback-rate-adjusted times", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  const inputNode = { connect() {} };
+  const chunks = [
+    makePcmChunk(100, [1, 2, 3, 4]),
+    makePcmChunk(104, [5, 6, 7, 8])
+  ];
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() { return chunks.length ? chunks.shift() : null; },
+    cancel() { this.cancelled = true; }
+  };
+  const ended = [];
+  const scheduler = new PcmOutputScheduler(context, inputNode, {
+    lookAheadSeconds: 1,
+    minimumLeadSeconds: 0.05,
+    onEnded: frame => ended.push(frame)
+  });
+
+  await scheduler.start(queue, {
+    startFrame: 100, sampleRate: 1000, playbackRate: 2,
+    blockFrames: 4, lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+
+  assert.equal(context.sources.length, 2);
+  assert.equal(context.sources[0].startAt, 10.05);
+  assert.equal(context.sources[1].startAt, 10.052);
+  assert.equal(context.sources[0].playbackRate.value, 2);
+  assert.equal(context.sources[0].buffer.getChannelData(0)[0], 1);
+  assert.equal(context.sources[1].buffer.getChannelData(1)[3], 108);
+  assert.equal(scheduler.eof, true);
+  assert.equal(scheduler.active, true);
+
+  context.currentTime = 10.051;
+  assert.equal(scheduler.currentFrame, 102);
+  context.currentTime = 10.054;
+  assert.equal(scheduler.currentFrame, 108);
+
+  context.sources[0].finish();
+  assert.equal(scheduler.active, true);
+  context.sources[1].finish();
+  assert.equal(scheduler.active, false);
+  assert.deepEqual(ended, [108]);
+});
+
+test("PCM scheduler freezes the frame clock across underrun and resumes without skipping frames", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  let reads = 0;
+  let releaseSecond;
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() {
+      reads++;
+      if (reads === 1) return makePcmChunk(0, [1, 2, 3, 4]);
+      if (reads === 2) return new Promise(resolve => { releaseSecond = resolve; });
+      return null;
+    },
+    cancel() {}
+  };
+  const underruns = [];
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.01,
+    minimumLeadSeconds: 0.05,
+    onUnderrun: detail => underruns.push(detail)
+  });
+
+  await scheduler.start(queue, {
+    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+  });
+  context.currentTime = 10.2;
+  const pendingPump = scheduler.pump();
+  await Promise.resolve();
+  assert.equal(typeof releaseSecond, "function");
+  releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
+  await pendingPump;
+
+  assert.equal(context.sources.length, 2);
+  assert.equal(context.sources[1].startAt, 10.25);
+  assert.equal(underruns.length, 1);
+  assert.equal(underruns[0].frame, 4);
+  assert.equal(scheduler.currentFrame, 4);
+
+  context.currentTime = 10.251;
+  assert.equal(scheduler.currentFrame, 5);
+  assert.equal(scheduler.underrunCount, 1);
+  scheduler.stop();
+});
+
+test("stopping PCM scheduling while a queue read is pending rejects late source scheduling", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  let releaseSecond;
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() {
+      if (!this.sentFirst) {
+        this.sentFirst = true;
+        return makePcmChunk(0, [1, 2, 3, 4]);
+      }
+      return new Promise(resolve => { releaseSecond = resolve; });
+    },
+    cancel() { this.cancelled = true; }
+  };
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+  });
+  await scheduler.start(queue, {
+    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+  });
+  context.currentTime = 10.2;
+  const pendingPump = scheduler.pump();
+  await Promise.resolve();
+  const frozenFrame = scheduler.stop();
+  assert.equal(frozenFrame, 4);
+  assert.equal(queue.cancelled, true);
+  releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
+  await pendingPump;
+  assert.equal(context.sources.length, 1);
+  assert.equal(context.sources[0].stopped, true);
+  assert.equal(scheduler.currentFrame, 4);
+});
+
+test("PCM output scheduler rejects discontinuous or invalid chunk ranges", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() { return makePcmChunk(10, [1, 2, 3, 4]); },
+    cancel() { this.cancelled = true; }
+  };
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+  await assert.rejects(() => scheduler.start(queue, {
+    startFrame: 0, sampleRate: 1000, playbackRate: 1,
+    blockFrames: 4, lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  }), /invalid, discontinuous/);
+  assert.equal(scheduler.active, false);
+  assert.equal(queue.cancelled, true);
+  assert.equal(context.sources.length, 0);
 });
