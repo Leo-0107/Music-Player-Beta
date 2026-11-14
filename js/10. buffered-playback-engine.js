@@ -62,6 +62,9 @@ class BufferedPlaybackEngine {
       if (!response.ok) throw new Error("Local audio data could not be read");
       const compressed = await response.arrayBuffer();
       if (generation !== this.generation) throw new Error("PCM preparation was cancelled");
+      if (compressed.byteLength > this.maxPcmBytes) {
+        throw new Error("Compressed source exceeds the PCM memory budget");
+      }
 
       const durationHint = Number(state.currentSong?.duration) || 0;
       const sampleRateHint = Math.max(48000, Number(audioCtx?.sampleRate) || 48000);
@@ -115,6 +118,7 @@ class BufferedPlaybackEngine {
     this.playRequested = true;
     ensureGraph();
     await resumeAudioCtx();
+    if (!this.buffer) this.dispatch("waiting");
     await this.prepare();
     if (requestId !== this.playRequestId || !this.playRequested) return;
     if (!this.buffer) throw new Error("PCM decoding did not produce audio");
@@ -165,9 +169,13 @@ class BufferedPlaybackEngine {
   }
 
   pause() {
+    const wasPreparing = this.playRequested && !this.buffer;
     this.playRequestId++;
     this.playRequested = false;
-    if (this.paused) return;
+    if (this.paused) {
+      if (wasPreparing) this.dispatch("canplay");
+      return;
+    }
     this.offset = this.currentTime;
     this.paused = true;
     this.stopSource();
