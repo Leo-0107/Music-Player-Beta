@@ -1741,9 +1741,12 @@ class BufferedPlaybackEngine {
     if (requestId !== this.playRequestId || !this.playRequested) return;
     if (!this.buffer) throw new Error("PCM decoding did not produce audio");
     if (this.offset >= this.buffer.duration) this.offset = 0;
-    this.startSource(this.offset);
+    const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(this.offset * this.buffer.sampleRate)));
+    const session = await this.startPcmSession(startFrame);
+    if (!session || requestId !== this.playRequestId || !this.playRequested) return;
     this.paused = false;
     this.ended = false;
+    this.startedAt = 0;
     this.startTimeUpdates();
     this.dispatch("play");
     this.dispatch("playing");
@@ -1788,50 +1791,79 @@ class BufferedPlaybackEngine {
   }
 
   pause() {
-    this.cancelProcessedPcmQueue();
     const wasPreparing = this.playRequested && !this.buffer;
+    const wasPlaying = !this.paused;
     this.playRequestId++;
     this.playRequested = false;
+    this.pcmPlaybackGeneration++;
+    if (this.pcmSettingsTimer !== null) clearTimeout(this.pcmSettingsTimer);
+    this.pcmSettingsTimer = null;
+    if (this.pcmOutputController) {
+      const frame = this.pcmOutputController.stop();
+      if (this.pcmSampleRate > 0) this.offset = frame / this.pcmSampleRate;
+    } else {
+      this.offset = this.currentTime;
+      this.cancelProcessedPcmQueue();
+      this.stopSource();
+    }
     if (this.paused) {
       if (wasPreparing) this.dispatch("canplay");
       return;
     }
-    this.offset = this.currentTime;
     this.paused = true;
-    this.stopSource();
+    this.startedAt = 0;
     this.stopTimeUpdates();
-    this.dispatch("pause");
-    this.dispatch("timeupdate");
+    if (wasPlaying) {
+      this.dispatch("pause");
+      this.dispatch("timeupdate");
+    }
   }
 
   seek(value) {
-    this.cancelProcessedPcmQueue();
     let next = Number(value);
     if (!Number.isFinite(next)) next = 0;
     const max = this.buffer?.duration || Number(state.currentSong?.duration) || 0;
     next = Math.max(0, max > 0 ? Math.min(max, next) : next);
     const wasPlaying = !this.paused;
+    const requestId = this.playRequestId;
+    this.pcmPlaybackGeneration++;
     this.dispatch("seeking");
-    if (wasPlaying) this.stopSource();
+    if (this.pcmOutputController) {
+      const frame = this.pcmOutputController.stop();
+      if (this.pcmSampleRate > 0 && wasPlaying) this.offset = frame / this.pcmSampleRate;
+    } else {
+      this.cancelProcessedPcmQueue();
+      if (wasPlaying) this.stopSource();
+    }
     this.offset = next;
     this.ended = false;
-    if (wasPlaying && this.buffer) this.startSource(next);
-    this.dispatch("seeked");
-    this.dispatch("timeupdate");
+    if (wasPlaying && this.buffer) {
+      const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(next * this.buffer.sampleRate)));
+      this.startPcmSession(startFrame).then(session => {
+        if (!session || requestId !== this.playRequestId || !this.playRequested) return;
+        this.paused = false;
+        this.startedAt = 0;
+        this.startTimeUpdates();
+        this.dispatch("seeked");
+        this.dispatch("timeupdate");
+      }).catch(error => {
+        this.handlePcmPlaybackError(error, this.pcmOutputController?.currentFrame, this.pcmPlaybackGeneration);
+      });
+    } else {
+      this.dispatch("seeked");
+      this.dispatch("timeupdate");
+    }
   }
 
   setPlaybackRate(value) {
     let next = Number(value);
     if (!Number.isFinite(next)) next = 1;
     next = Math.max(0.1, Math.min(10, next));
-    if (Math.abs(next - this.playbackRate) < 0.0001) return;
-    this.cancelProcessedPcmQueue();
-    const wasPlaying = !this.paused;
+    if (Math.abs(next - this.playbackRate) < 0.0001) return false;
     const position = this.currentTime;
-    if (wasPlaying) this.stopSource();
     this.playbackRate = next;
     this.offset = position;
-    if (wasPlaying && this.buffer) this.startSource(position);
+    return true;
   }
 
   startTimeUpdates() {
@@ -1848,10 +1880,11 @@ class BufferedPlaybackEngine {
   }
 
   releaseForFallback() {
+    this.offset = this.currentTime;
+    this.disposePcmOutputController();
     this.disposeProcessorWorker();
     this.playRequestId++;
     this.playRequested = false;
-    this.offset = this.currentTime;
     this.paused = true;
     this.stopSource();
     this.stopTimeUpdates();
@@ -1861,6 +1894,7 @@ class BufferedPlaybackEngine {
   }
 
   clear() {
+    this.disposePcmOutputController();
     this.disposeProcessorWorker();
     this.generation++;
     this.playRequestId++;
@@ -1875,6 +1909,7 @@ class BufferedPlaybackEngine {
     this.offset = 0;
     this.startedAt = 0;
     this._readyState = 0;
+    this.pcmSampleRate = 0;
   }
 }
 
