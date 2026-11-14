@@ -487,10 +487,21 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   class TrackingWorker extends MockWorker {
     constructor() {
       super();
+      this.messages = [];
       workers.push(this);
+    }
+
+    postMessage(data, transfer) {
+      this.messages.push(data);
+      super.postMessage(data, transfer);
     }
   }
 
+  const appState = {
+    eqState: { gains: [0, 0, 0, 0, 0] },
+    pitchSemitones: 0,
+    currentSong: { duration: 1 }
+  };
   const context = createMockOutputContext();
   const routeNode = { connect() {}, disconnect() {} };
   context._musicPlayerPostDspInputNode = routeNode;
@@ -499,11 +510,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   let timerId = 0;
   const { Engine, GraphInputOwnership } = createEngineClass(TrackingWorker, {
     audioCtx: context,
-    state: {
-      eqState: { gains: [0, 0, 0, 0, 0] },
-      pitchSemitones: 0,
-      currentSong: { duration: 1 }
-    },
+    state: appState,
     setGraphInputNode(node, target) { return ownership.set(node, target); },
     clearGraphInputNode(node, target) { return ownership.clear(node, target); },
     ensureGraph() {},
@@ -546,9 +553,14 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, 24000);
   assert.equal(engine.paused, false);
 
+  appState.eqState.gains = [2, -1, 0, 0, 0];
+  appState.pitchSemitones = 12;
   engine.setPlaybackRate(1.25);
   const handoff = await engine.updateProcessingSettings();
   assert.equal(handoff.session.scheduler.playbackRate, 1.25);
+  const latestWorkerInit = workers[workers.length - 1].messages.find(message => message.type === "init");
+  assert.deepEqual(latestWorkerInit.eqGains, [2, -1, 0, 0, 0]);
+  assert.equal(latestWorkerInit.pitch, 1.6);
   assert.equal(handoff.session.scheduler.initialFrame, handoff.handoff.startFrame);
   assert.ok(workers.length >= 4);
   assert.ok(engine.pcmOutputController.drainingSessions.size >= 1);
