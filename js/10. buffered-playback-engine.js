@@ -18,6 +18,10 @@ class BufferedPlaybackEngine {
     this.playRequested = false;
     this.timeUpdateTimer = null;
     this.maxPcmBytes = this.getMemoryBudget();
+    this.processorWorker = null;
+    this.processorRequestId = 0;
+    this.processorRequests = new Map();
+    this.processorReady = null;
   }
 
   get readyState() {
@@ -32,6 +36,115 @@ class BufferedPlaybackEngine {
     if (this.paused || !audioCtx || !this.startedAt) return this.offset;
     const elapsed = Math.max(0, audioCtx.currentTime - this.startedAt);
     return Math.max(0, Math.min(this.duration || this.offset, this.offset + elapsed * this.playbackRate));
+  }
+
+
+  async ensureProcessorWorker(settings = {}) {
+    if (this.processorWorker && this.processorReady) return this.processorReady;
+    if (typeof Worker !== "function") throw new Error("Web Worker is unavailable");
+    const worker = new Worker(new URL("js/11. pcm-processing-worker.js", document.baseURI));
+    this.processorWorker = worker;
+    worker.onmessage = event => {
+      const message = event.data || {};
+      const pending = this.processorRequests.get(message.id);
+      if (!pending) return;
+      this.processorRequests.delete(message.id);
+      if (message.type === "error") pending.reject(new Error(message.message || "PCM processing failed"));
+      else pending.resolve(message);
+    };
+    worker.onerror = event => {
+      const error = new Error(event.message || "PCM processing worker failed");
+      for (const pending of this.processorRequests.values()) pending.reject(error);
+      this.processorRequests.clear();
+      try { worker.terminate(); } catch (e) {}
+      if (this.processorWorker === worker) {
+        this.processorWorker = null;
+        this.processorReady = null;
+      }
+    };
+    const sampleRate = this.buffer?.sampleRate || audioCtx?.sampleRate || 48000;
+    const eqGains = Array.isArray(settings.eqGains) ? settings.eqGains.slice(0, 5) : state.eqState.gains.slice(0, 5);
+    const pitch = Number.isFinite(Number(settings.pitch))
+      ? Number(settings.pitch)
+      : Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, this.playbackRate);
+    this.processorReady = this.sendProcessorMessage("init", { sampleRate, eqGains, pitch });
+    return this.processorReady;
+  }
+
+  sendProcessorMessage(type, payload = {}, transfer = []) {
+    const worker = this.processorWorker;
+    if (!worker) return Promise.reject(new Error("PCM processing worker is not ready"));
+    const id = ++this.processorRequestId;
+    return new Promise((resolve, reject) => {
+      this.processorRequests.set(id, { resolve, reject });
+      try {
+        worker.postMessage({ type, id, ...payload }, transfer);
+      } catch (error) {
+        this.processorRequests.delete(id);
+        reject(error);
+      }
+    });
+  }
+
+  async *iterateProcessedChunks(options = {}) {
+    if (!this.buffer) await this.prepare();
+    if (!this.buffer) throw new Error("PCM source is not decoded");
+    const generation = this.generation;
+    const sampleRate = this.buffer.sampleRate;
+    const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
+    const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
+    const eqGains = Array.isArray(options.eqGains) ? options.eqGains.slice(0, 5) : state.eqState.gains.slice(0, 5);
+    const pitch = Number.isFinite(Number(options.pitch))
+      ? Number(options.pitch)
+      : Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, this.playbackRate);
+    if (pitch < 0.5 || pitch > 2) throw new Error("Pitch ratio is outside the PCM processor range");
+
+    await this.ensureProcessorWorker({ eqGains, pitch });
+    if (generation !== this.generation) throw new Error("PCM processing was cancelled");
+    await this.sendProcessorMessage("reset");
+    await this.sendProcessorMessage("configure", { eqGains, pitch });
+
+    // Re-run a short preceding window so IIR EQ and granular pitch state are warm at a seek point.
+    const warmupFrames = Math.min(startFrame, Math.ceil(sampleRate * 1.5));
+    const processStart = startFrame - warmupFrames;
+    let sequence = 0;
+    for (let offset = processStart; offset < this.buffer.length; offset += chunkFrames) {
+      if (generation !== this.generation || !this.processorWorker) {
+        throw new Error("PCM processing was cancelled");
+      }
+      const end = Math.min(this.buffer.length, offset + chunkFrames);
+      const sourceLeft = this.buffer.getChannelData(0);
+      const sourceRight = this.buffer.numberOfChannels > 1 ? this.buffer.getChannelData(1) : sourceLeft;
+      const left = sourceLeft.slice(offset, end);
+      const right = sourceRight.slice(offset, end);
+      const result = await this.sendProcessorMessage("process", {
+        sequence, left, right
+      }, [left.buffer, right.buffer]);
+      sequence++;
+      if (generation !== this.generation) throw new Error("PCM processing was cancelled");
+      const discard = Math.max(0, startFrame - offset);
+      if (discard >= result.frameCount) continue;
+      const outputLeft = discard ? result.left.subarray(discard) : result.left;
+      const outputRight = discard ? result.right.subarray(discard) : result.right;
+      yield {
+        startFrame: offset + discard,
+        sampleRate,
+        frameCount: outputLeft.length,
+        left: outputLeft,
+        right: outputRight
+      };
+    }
+  }
+
+  disposeProcessorWorker() {
+    const worker = this.processorWorker;
+    this.processorWorker = null;
+    this.processorReady = null;
+    for (const pending of this.processorRequests.values()) {
+      pending.reject(new Error("PCM processing worker was disposed"));
+    }
+    this.processorRequests.clear();
+    try { worker?.terminate(); } catch (e) {}
   }
 
   getMemoryBudget() {
@@ -226,6 +339,7 @@ class BufferedPlaybackEngine {
   }
 
   releaseForFallback() {
+    this.disposeProcessorWorker();
     this.playRequestId++;
     this.playRequested = false;
     this.offset = this.currentTime;
@@ -238,6 +352,7 @@ class BufferedPlaybackEngine {
   }
 
   clear() {
+    this.disposeProcessorWorker();
     this.generation++;
     this.playRequestId++;
     this.playRequested = false;
