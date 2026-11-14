@@ -722,7 +722,8 @@ class PcmOutputPumpLoop {
   }
 
   scheduleNext(generation) {
-    if (!this.active || generation !== this.generation || !this.scheduler.active) {
+    if (generation !== this.generation) return;
+    if (!this.active || !this.scheduler.active) {
       this.active = false;
       return;
     }
