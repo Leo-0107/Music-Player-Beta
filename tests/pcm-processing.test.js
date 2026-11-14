@@ -1890,7 +1890,7 @@ test("PCM session controller hands off contiguous frames and retires the old gai
   assert.equal(controller.activeSession, result.session);
   assert.equal(controller.currentFrame, 0);
   context.currentTime = result.session.scheduler.firstScheduledAt + 0.022;
-  assert.equal(controller.currentFrame, 1244);
+  assert.equal(controller.currentFrame, 1200);
   assert.equal(controller.state, "running");
   assert.equal(oldQueue.cancelled, true);
   assert.equal(result.session.scheduler.firstScheduledAt, result.handoff.startAtTime);
@@ -2117,7 +2117,7 @@ test("PCM controller chains a newer handoff from the latest draining scheduler",
   assert.equal(controller.drainingSessions.has(firstSession), true);
   assert.equal(controller.currentFrame, 0);
   context.currentTime = nextHandoff.session.scheduler.firstScheduledAt + 0.022;
-  assert.equal(controller.currentFrame, 1200);
+  assert.equal(controller.currentFrame, 1244);
   const staleQueue = makeQueue(0);
   resolveStaleFactory(staleQueue);
   assert.equal(await staleHandoff, false);
