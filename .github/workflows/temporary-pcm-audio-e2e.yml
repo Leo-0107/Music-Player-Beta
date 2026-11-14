@@ -148,8 +148,8 @@ jobs:
             );
 
             await page.locator("#folder").setInputFiles("pcm-e2e-test.wav");
-            await page.locator(".song").first().waitFor({ state: "visible", timeout: 30000 });
-            await page.locator(".song").first().click();
+            await page.locator(".song:not(.queuePreviewRow)").first().waitFor({ state: "visible", timeout: 30000 });
+            await page.locator(".song:not(.queuePreviewRow)").first().click();
 
             await page.waitForFunction(() => {
               const audit = window.__pcmAudit;
