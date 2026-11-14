@@ -417,6 +417,15 @@ class BufferedPlaybackEngine {
   }
 
   async createProcessedPcmQueue(options = {}) {
+    const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
+    const capacityFrames = options.capacityFrames === undefined
+      ? chunkFrames * 4
+      : Number(options.capacityFrames);
+    if (!Number.isInteger(capacityFrames) || capacityFrames < chunkFrames ||
+        capacityFrames > 1048576) {
+      throw new RangeError("PCM queue capacity must fit at least one chunk and not exceed 1048576 frames");
+    }
+
     this.cancelProcessedPcmQueue();
     const generation = this.generation;
     const requestSessionId = this.processingSessionId;
@@ -425,16 +434,7 @@ class BufferedPlaybackEngine {
         requestSessionId !== this.processingSessionId || !this.buffer) {
       throw new Error("PCM queue creation was cancelled");
     }
-
-    const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
     const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
-    const capacityFrames = options.capacityFrames === undefined
-      ? chunkFrames * 4
-      : Number(options.capacityFrames);
-    if (!Number.isInteger(capacityFrames) || capacityFrames < chunkFrames ||
-        capacityFrames > 1048576) {
-      throw new RangeError("PCM queue capacity must fit at least one chunk and not exceed 1048576 frames");
-    }
 
     const ringBuffer = new ProcessedPcmRingBuffer(capacityFrames);
     ringBuffer.clear(startFrame);
