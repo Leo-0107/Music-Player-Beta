@@ -109,8 +109,8 @@ class PcmPrebufferQueue {
         typeof ringBuffer.write !== "function" ||
         !Number.isInteger(ringBuffer.capacityFrames) || ringBuffer.capacityFrames < 1 ||
         !Number.isInteger(maxFrames) || maxFrames < 1 ||
-        maxFrames > 32768 || maxFrames > ringBuffer.capacityFrames) {
-      throw new RangeError("PCM prebuffer queue configuration is invalid");
+        maxFrames > 32768 || maxFrames * 2 > ringBuffer.capacityFrames) {
+      throw new RangeError("PCM prebuffer queue requires capacity for at least two maximum-sized chunks");
     }
     if (!iterator || typeof iterator.next !== "function") {
       throw new TypeError("PCM prebuffer queue requires an async iterator");
@@ -182,8 +182,8 @@ class PcmPrebufferQueue {
     if (!this.started) throw new Error("PCM prebuffer queue has not been started");
     const requested = Number(maxFrames);
     if (!Number.isInteger(requested) || requested < 1 ||
-        requested > this.ringBuffer.capacityFrames) {
-      throw new RangeError("PCM prebuffer read size is outside the ring buffer capacity");
+        requested > this.maxChunkFrames) {
+      throw new RangeError("PCM prebuffer read size must not exceed the maximum chunk size");
     }
     for (;;) {
       if (this.error) throw this.error;
@@ -421,9 +421,9 @@ class BufferedPlaybackEngine {
     const capacityFrames = options.capacityFrames === undefined
       ? chunkFrames * 4
       : Number(options.capacityFrames);
-    if (!Number.isInteger(capacityFrames) || capacityFrames < chunkFrames ||
+    if (!Number.isInteger(capacityFrames) || capacityFrames < chunkFrames * 2 ||
         capacityFrames > 1048576) {
-      throw new RangeError("PCM queue capacity must fit at least one chunk and not exceed 1048576 frames");
+      throw new RangeError("PCM queue capacity must fit at least two chunks and not exceed 1048576 frames");
     }
 
     this.cancelProcessedPcmQueue();
