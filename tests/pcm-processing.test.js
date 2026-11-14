@@ -10,6 +10,7 @@ const { test } = require("node:test");
 const root = path.resolve(__dirname, "..");
 const engineSource = fs.readFileSync(path.join(root, "js/10. buffered-playback-engine.js"), "utf8");
 const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-worker.js"), "utf8");
+const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -1114,4 +1115,45 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
   assert.equal(activeInput, null);
   assert.equal(ownedBus.disconnected, true);
   assert.equal(graphCalls[graphCalls.length - 1].node, null);
+});
+
+
+test("audio graph cleanup clears only the graph input node it owns", () => {
+  const match = audioSource.match(/function clearGraphInputNode\\([\\s\\S]*?\\n  \\}/);
+  assert.ok(match, "clearGraphInputNode source must exist");
+
+  const currentDisconnects = [];
+  const currentNode = { disconnect(target) { currentDisconnects.push(target); } };
+  const currentTarget = {};
+  const currentSandbox = { initialNode: currentNode, initialTarget: currentTarget };
+  vm.runInNewContext(`
+    let activeGraphInputNode = initialNode;
+    let activeGraphInputTarget = initialTarget;
+    ${match[0]}
+    this.clearGraphInputNode = clearGraphInputNode;
+    this.getActiveNode = () => activeGraphInputNode;
+    this.getActiveTarget = () => activeGraphInputTarget;
+  `, currentSandbox);
+  assert.equal(currentSandbox.clearGraphInputNode(currentNode, currentTarget), true);
+  assert.equal(currentSandbox.getActiveNode(), null);
+  assert.equal(currentSandbox.getActiveTarget(), null);
+  assert.deepEqual(currentDisconnects, [currentTarget]);
+
+  const staleDisconnects = [];
+  const activeNode = { disconnect(target) { staleDisconnects.push(target); } };
+  const activeTarget = {};
+  const staleSandbox = { initialNode: activeNode, initialTarget: activeTarget };
+  vm.runInNewContext(`
+    let activeGraphInputNode = initialNode;
+    let activeGraphInputTarget = initialTarget;
+    ${match[0]}
+    this.clearGraphInputNode = clearGraphInputNode;
+    this.getActiveNode = () => activeGraphInputNode;
+    this.getActiveTarget = () => activeGraphInputTarget;
+  `, staleSandbox);
+  assert.equal(staleSandbox.clearGraphInputNode({}, activeTarget), false);
+  assert.equal(staleSandbox.clearGraphInputNode(activeNode, {}), false);
+  assert.equal(staleSandbox.getActiveNode(), activeNode);
+  assert.equal(staleSandbox.getActiveTarget(), activeTarget);
+  assert.deepEqual(staleDisconnects, []);
 });
