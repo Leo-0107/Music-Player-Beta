@@ -846,34 +846,33 @@ class PcmPlaybackSessionController {
     let loop;
     try {
       scheduler = new PcmOutputScheduler(this.audioContext, gain, {
-      lookAheadSeconds: options.lookAheadSeconds,
-      minimumLeadSeconds: options.minimumLeadSeconds,
-      onUnderrun: detail => {
-        try { options.onUnderrun?.(detail); } catch (error) {}
-      },
-      onEnded: frame => {
-        this.lastFrame = frame;
-        const wasActive = this.activeSession === session;
-        this.retireSession(session);
-        if (wasActive && this.state !== "disposed") this.state = "ended";
-        try { options.onEnded?.(frame); } catch (error) {}
-      },
-      onDrained: frame => {
-        this.lastFrame = frame;
-        const wasActive = this.activeSession === session;
-        this.retireSession(session);
-        if (wasActive && this.state !== "disposed") this.state = "idle";
-        try { options.onDrained?.(frame); } catch (error) {}
-      },
-      onError: (error, frame) => {
-        this.lastFrame = frame;
-        this.lastError = error;
-        const wasActive = this.activeSession === session;
-        this.retireSession(session);
-        if (wasActive && this.state !== "disposed") this.state = "error";
-        try { options.onError?.(error, frame); } catch (ignore) {}
-      }
-    });
+        lookAheadSeconds: options.lookAheadSeconds,
+        minimumLeadSeconds: options.minimumLeadSeconds,
+        onUnderrun: detail => {
+          try { options.onUnderrun?.(detail); } catch (error) {}
+        },
+        onEnded: frame => {
+          this.lastFrame = frame;
+          const wasActive = this.activeSession === session;
+          this.retireSession(session);
+          if (wasActive && this.state !== "disposed") this.state = "ended";
+          try { options.onEnded?.(frame); } catch (error) {}
+        },
+        onDrained: frame => {
+          this.lastFrame = frame;
+          const wasActive = this.activeSession === session;
+          this.retireSession(session);
+          if (wasActive && this.state !== "disposed") this.state = "idle";
+          try { options.onDrained?.(frame); } catch (error) {}
+        },
+        onError: (error, frame) => {
+          this.lastFrame = frame;
+          this.lastError = error;
+          const wasActive = this.activeSession === session;
+          this.retireSession(session);
+          if (wasActive && this.state !== "disposed") this.state = "error";
+          try { options.onError?.(error, frame); } catch (ignore) {}
+        }
       });
       loop = new PcmOutputPumpLoop(scheduler, {
         intervalMs: options.intervalMs ?? this.intervalMs,
