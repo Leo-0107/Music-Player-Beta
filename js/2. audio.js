@@ -661,7 +661,7 @@ let mainOutputUsesNativeDestination = false;
       // 先行バッファはメイン出力と追加スピーカーに共通するバスの手前へ置く。
       // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
       playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
-      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
+      playbackPrebufferDelayNode.delayTime.value = bufferedPlaybackMode ? 0 : playbackPrebufferMs / 1000;
       finalMixGainNode.connect(playbackPrebufferDelayNode);
       playbackPrebufferDelayNode.connect(speakerBusNode);
 
@@ -739,6 +739,8 @@ let mainOutputUsesNativeDestination = false;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
+      activeGraphInputNode = null;
+      activeGraphInputTarget = null;
       // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
       // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
       try { sourceNode?.disconnect(); } catch (ignore) {}
