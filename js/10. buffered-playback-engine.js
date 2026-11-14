@@ -219,6 +219,61 @@ class PcmPrebufferQueue {
 // The caller owns the polling cadence and the single input GainNode connected after EQ/pitch.
 // Shared post-EQ/pitch input bus for multiple preprocessed PCM sessions.
 // Session GainNodes can be crossfaded without replacing the single graph input connection.
+class PcmGraphInputOwnership {
+  constructor() {
+    this.activeNode = null;
+    this.activeTarget = null;
+  }
+
+  set(node, target) {
+    if (!node) {
+      this.reset();
+      return true;
+    }
+    if (!target || typeof node.connect !== "function" ||
+        typeof node.disconnect !== "function") {
+      throw new TypeError("PCM graph input requires a connectable node and target");
+    }
+    if (this.activeNode === node && this.activeTarget === target) return true;
+
+    // Connect the replacement first. If connection fails, the current audible
+    // route remains intact and the caller can safely fall back.
+    node.connect(target);
+    const previousNode = this.activeNode;
+    const previousTarget = this.activeTarget;
+    this.activeNode = node;
+    this.activeTarget = target;
+    if (previousNode && previousTarget) {
+      try { previousNode.disconnect(previousTarget); } catch (error) {}
+    }
+    return true;
+  }
+
+  clear(expectedNode, expectedTarget = null) {
+    if (!expectedNode || this.activeNode !== expectedNode) return false;
+    if (expectedTarget && this.activeTarget !== expectedTarget) return false;
+    const node = this.activeNode;
+    const target = this.activeTarget;
+    this.activeNode = null;
+    this.activeTarget = null;
+    if (node && target) {
+      try { node.disconnect(target); } catch (error) {}
+    }
+    return true;
+  }
+
+  reset() {
+    const node = this.activeNode;
+    const target = this.activeTarget;
+    this.activeNode = null;
+    this.activeTarget = null;
+    if (node && target) {
+      try { node.disconnect(target); } catch (error) {}
+    }
+    return true;
+  }
+}
+
 class PcmOutputGraphRouter {
   constructor(audioContext, routeNode, setGraphInput, clearGraphInput) {
     if (!audioContext || typeof audioContext.createGain !== "function" ||
