@@ -272,7 +272,7 @@ class PcmOutputScheduler {
     const segment = this.clockSegments[activeIndex];
     if (now <= segment.endTime) {
       const elapsed = Math.max(0, now - segment.startTime);
-      return Math.min(segment.endFrame, segment.startFrame + elapsed * this.sampleRate * this.playbackRate);
+      return Math.floor(Math.min(segment.endFrame, segment.startFrame + elapsed * this.sampleRate * this.playbackRate));
     }
     return segment.endFrame;
   }
@@ -374,13 +374,19 @@ class PcmOutputScheduler {
       } catch (error) {}
     }
 
-    const buffer = this.audioContext.createBuffer(2, frameCount, this.sampleRate);
-    buffer.getChannelData(0).set(chunk.left.subarray ? chunk.left.subarray(0, frameCount) : chunk.left);
-    buffer.getChannelData(1).set(chunk.right.subarray ? chunk.right.subarray(0, frameCount) : chunk.right);
-    const source = this.audioContext.createBufferSource();
-    source.buffer = buffer;
-    source.playbackRate.setValueAtTime(this.playbackRate, startAt);
-    source.connect(this.inputNode);
+    let source = null;
+    try {
+      const buffer = this.audioContext.createBuffer(2, frameCount, this.sampleRate);
+      buffer.getChannelData(0).set(chunk.left.subarray ? chunk.left.subarray(0, frameCount) : chunk.left);
+      buffer.getChannelData(1).set(chunk.right.subarray ? chunk.right.subarray(0, frameCount) : chunk.right);
+      source = this.audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.setValueAtTime(this.playbackRate, startAt);
+      source.connect(this.inputNode);
+    } catch (error) {
+      try { source?.disconnect(); } catch (ignore) {}
+      throw error;
+    }
 
     const endTime = startAt + frameCount / this.sampleRate / this.playbackRate;
     const endFrame = this.nextFrame + frameCount;
