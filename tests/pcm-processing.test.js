@@ -54,7 +54,8 @@ function createEngineClass(WorkerClass = MockWorker) {
     document: { baseURI: "https://music-player.invalid/" },
     navigator: { deviceMemory: 4 },
     state: { eqState: { gains: [0, 0, 0, 0, 0] }, pitchSemitones: 0, currentSong: null },
-    audioCtx: { sampleRate: 48000 }
+    audioCtx: { sampleRate: 48000 },
+    setGraphInputNode() {}
   };
   vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;", sandbox);
   return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue };
