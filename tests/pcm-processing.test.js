@@ -1119,8 +1119,10 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
 
 
 test("audio graph cleanup clears only the graph input node it owns", () => {
-  const match = audioSource.match(/function clearGraphInputNode\\([\\s\\S]*?\\n  \\}/);
-  assert.ok(match, "clearGraphInputNode source must exist");
+  const helperStart = audioSource.indexOf("function clearGraphInputNode(");
+  const helperEnd = audioSource.indexOf("\\n  }\\n", helperStart) + 4;
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, "clearGraphInputNode source must exist");
+  const helperSource = audioSource.slice(helperStart, helperEnd);
 
   const currentDisconnects = [];
   const currentNode = { disconnect(target) { currentDisconnects.push(target); } };
@@ -1129,7 +1131,7 @@ test("audio graph cleanup clears only the graph input node it owns", () => {
   vm.runInNewContext(`
     let activeGraphInputNode = initialNode;
     let activeGraphInputTarget = initialTarget;
-    ${match[0]}
+    ${helperSource}
     this.clearGraphInputNode = clearGraphInputNode;
     this.getActiveNode = () => activeGraphInputNode;
     this.getActiveTarget = () => activeGraphInputTarget;
@@ -1146,7 +1148,7 @@ test("audio graph cleanup clears only the graph input node it owns", () => {
   vm.runInNewContext(`
     let activeGraphInputNode = initialNode;
     let activeGraphInputTarget = initialTarget;
-    ${match[0]}
+    ${helperSource}
     this.clearGraphInputNode = clearGraphInputNode;
     this.getActiveNode = () => activeGraphInputNode;
     this.getActiveTarget = () => activeGraphInputTarget;
