@@ -1888,7 +1888,9 @@ test("PCM session controller hands off contiguous frames and retires the old gai
   assert.equal(result.handoff.startFrame, 1024);
   assert.equal(result.handoff.startAtTime, 10.178);
   assert.equal(controller.activeSession, result.session);
-  assert.equal(controller.currentFrame, 1024);
+  assert.equal(controller.currentFrame, 0);
+  context.currentTime = result.session.scheduler.firstScheduledAt + 0.022;
+  assert.equal(controller.currentFrame, 1244);
   assert.equal(controller.state, "running");
   assert.equal(oldQueue.cancelled, true);
   assert.equal(result.session.scheduler.firstScheduledAt, result.handoff.startAtTime);
