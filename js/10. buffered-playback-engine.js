@@ -660,6 +660,101 @@ class PcmOutputScheduler {
   }
 }
 
+class PcmOutputPumpLoop {
+  constructor(scheduler, options = {}) {
+    if (!scheduler || typeof scheduler.start !== "function" ||
+        typeof scheduler.pump !== "function" || typeof scheduler.stop !== "function" ||
+        typeof scheduler.drainForHandoff !== "function") {
+      throw new TypeError("PCM pump loop requires a compatible output scheduler");
+    }
+    const intervalMs = Number(options.intervalMs ?? 50);
+    if (!Number.isFinite(intervalMs) || intervalMs < 10 || intervalMs > 500) {
+      throw new RangeError("PCM pump interval must be between 10 and 500 milliseconds");
+    }
+    this.scheduler = scheduler;
+    this.intervalMs = intervalMs;
+    this.schedule = typeof options.schedule === "function"
+      ? options.schedule
+      : (callback, delay) => setTimeout(callback, delay);
+    this.cancel = typeof options.cancel === "function"
+      ? options.cancel
+      : timer => clearTimeout(timer);
+    this.active = false;
+    this.generation = 0;
+    this.timer = null;
+    this.pumpPromise = null;
+  }
+
+  start(queue, options = {}) {
+    if (this.active || this.timer !== null || this.pumpPromise) {
+      throw new Error("PCM pump loop is already active or stopping");
+    }
+    this.active = true;
+    const generation = ++this.generation;
+    let initialPump;
+    try {
+      initialPump = this.scheduler.start(queue, options);
+    } catch (error) {
+      this.active = false;
+      throw error;
+    }
+    const task = Promise.resolve(initialPump).then(result => {
+      this.scheduleNext(generation);
+      return result;
+    }, error => {
+      if (generation === this.generation) this.active = false;
+      throw error;
+    });
+    this.pumpPromise = task;
+    return task.finally(() => {
+      if (this.pumpPromise === task) this.pumpPromise = null;
+    });
+  }
+
+  scheduleNext(generation) {
+    if (!this.active || generation !== this.generation || !this.scheduler.active) {
+      this.active = false;
+      return;
+    }
+    if (this.timer !== null) return;
+    this.timer = this.schedule(() => {
+      this.timer = null;
+      if (!this.active || generation !== this.generation) return;
+      const task = Promise.resolve().then(() => this.scheduler.pump());
+      this.pumpPromise = task;
+      task.then(() => {
+        this.scheduleNext(generation);
+      }, error => {
+        if (generation === this.generation) this.active = false;
+        try { this.cancelTimer(); } catch (ignore) {}
+      }).finally(() => {
+        if (this.pumpPromise === task) this.pumpPromise = null;
+      });
+    }, this.intervalMs);
+  }
+
+  cancelTimer() {
+    if (this.timer === null) return;
+    const timer = this.timer;
+    this.timer = null;
+    try { this.cancel(timer); } catch (error) {}
+  }
+
+  stop() {
+    this.active = false;
+    this.generation++;
+    this.cancelTimer();
+    return this.scheduler.stop();
+  }
+
+  drainForHandoff() {
+    this.active = false;
+    this.generation++;
+    this.cancelTimer();
+    return this.scheduler.drainForHandoff();
+  }
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
