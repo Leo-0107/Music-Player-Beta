@@ -250,7 +250,9 @@ class PcmOutputScheduler {
     this.underrunCount = 0;
     this.onUnderrun = typeof options.onUnderrun === "function" ? options.onUnderrun : null;
     this.onEnded = typeof options.onEnded === "function" ? options.onEnded : null;
+    this.onDrained = typeof options.onDrained === "function" ? options.onDrained : null;
     this.onError = typeof options.onError === "function" ? options.onError : null;
+    this.isDraining = false;
   }
 
   get currentFrame() {
@@ -296,6 +298,10 @@ class PcmOutputScheduler {
     const startBufferFrames = Number(options.startBufferFrames ?? blockFrames * 2);
     const lookAheadSeconds = Number(options.lookAheadSeconds ?? this.defaultLookAheadSeconds);
     const minimumLeadSeconds = Number(options.minimumLeadSeconds ?? this.defaultMinimumLeadSeconds);
+    const hasRequestedStartAt = options.startAtTime !== undefined;
+    const requestedStartAt = hasRequestedStartAt
+      ? Number(options.startAtTime)
+      : (Number(this.audioContext.currentTime) || 0) + minimumLeadSeconds;
     if (!Number.isSafeInteger(startFrame) || startFrame < 0 ||
         !Number.isFinite(sampleRate) || sampleRate < 3000 || sampleRate > 192000 ||
         !Number.isFinite(playbackRate) || playbackRate < 0.5 || playbackRate > 2 ||
@@ -304,7 +310,8 @@ class PcmOutputScheduler {
         !Number.isSafeInteger(startBufferFrames) || startBufferFrames < 1 || startBufferFrames > 1048576 ||
         !Number.isFinite(lookAheadSeconds) || lookAheadSeconds <= 0 ||
         !Number.isFinite(minimumLeadSeconds) || minimumLeadSeconds <= 0 ||
-        minimumLeadSeconds >= lookAheadSeconds) {
+        minimumLeadSeconds >= lookAheadSeconds ||
+        !Number.isFinite(requestedStartAt) || requestedStartAt < 0) {
       throw new RangeError("PCM output scheduler settings are outside the supported range");
     }
 
@@ -323,8 +330,9 @@ class PcmOutputScheduler {
     this.startBufferFrames = startBufferFrames;
     this.lookAheadSeconds = lookAheadSeconds;
     this.minimumLeadSeconds = minimumLeadSeconds;
-    this.nextStartTime = (Number(this.audioContext.currentTime) || 0) + minimumLeadSeconds;
-    this.hasScheduledData = false;
+    this.nextStartTime = requestedStartAt;
+    this.hasScheduledData = hasRequestedStartAt;
+    this.isDraining = false;
     this.underrunCount = 0;
     return this.pump();
   }
@@ -455,10 +463,33 @@ class PcmOutputScheduler {
 
   finish() {
     if (!this.active) return;
+    const wasDraining = this.isDraining;
     this.active = false;
     this.pausedFrame = this.nextFrame;
     this.queue = null;
-    try { this.onEnded?.(this.pausedFrame); } catch (error) {}
+    this.isDraining = false;
+    if (wasDraining) {
+      try { this.onDrained?.(this.pausedFrame); } catch (error) {}
+    } else {
+      try { this.onEnded?.(this.pausedFrame); } catch (error) {}
+    }
+  }
+
+  drainForHandoff() {
+    const handoff = {
+      startFrame: this.active ? this.nextFrame : this.pausedFrame,
+      startAtTime: this.active ? this.nextStartTime : (Number(this.audioContext.currentTime) || 0)
+    };
+    if (!this.active) return handoff;
+
+    this.isDraining = true;
+    this.eof = true;
+    this.generation++;
+    const queue = this.queue;
+    this.queue = null;
+    try { queue?.cancel(); } catch (error) {}
+    if (this.activeSources.size === 0) this.finish();
+    return handoff;
   }
 
   fail(error) {
@@ -466,6 +497,7 @@ class PcmOutputScheduler {
     const frame = this.currentFrame;
     this.active = false;
     this.generation++;
+    this.isDraining = false;
     const queue = this.queue;
     this.queue = null;
     try { queue?.cancel(); } catch (ignore) {}
