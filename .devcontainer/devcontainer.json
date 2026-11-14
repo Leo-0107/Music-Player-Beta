@@ -1,0 +1,12 @@
+{
+  "name": "Music Player PR #5 Chromebook test",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "Music Player PR #5 test server",
+      "onAutoForward": "notify",
+      "visibility": "private"
+    }
+  }
+}
