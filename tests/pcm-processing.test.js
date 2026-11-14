@@ -1212,8 +1212,7 @@ test("PCM pump loop refills at a bounded cadence and cancels stale timers", asyn
   timerTasks.delete(firstTimerId);
   context.currentTime = 10.08;
   firstTimer.callback();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
   assert.equal(context.sources.length, 2);
   assert.equal(scheduler.underrunCount, 0);
   assert.equal(timerTasks.size, 1);
