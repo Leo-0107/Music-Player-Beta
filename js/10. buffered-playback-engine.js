@@ -111,35 +111,66 @@ class BufferedPlaybackEngine {
     if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
     await this.sendProcessorMessage("configure", { eqGains, pitch });
 
-    // Re-run a short preceding window so IIR EQ and granular pitch state are warm at a seek point.
+    // Warm the stateful EQ and granular pitch processor with audio before the requested seek point.
     const warmupFrames = Math.min(startFrame, Math.ceil(sampleRate * 1.5));
     const processStart = startFrame - warmupFrames;
+    const pitchLatencyFrames = Math.abs(pitch - 1) < 0.0001
+      ? 0
+      : Math.ceil(Math.max(2048, Math.round(sampleRate * 0.09)) * (pitch > 1 ? pitch + 0.35 : 1.35));
+    const totalInputFrames = this.buffer.length - processStart + pitchLatencyFrames;
     let sequence = 0;
-    for (let offset = processStart; offset < this.buffer.length; offset += chunkFrames) {
+    let outputFrames = 0;
+
+    // The granular pitch shifter is causal and has a fixed startup delay.
+    // Discard that leading delay and feed zeroes at EOF to return a duration-aligned PCM stream.
+    for (let relativeOffset = 0; relativeOffset < totalInputFrames; relativeOffset += chunkFrames) {
       if (generation !== this.generation || sessionId !== this.processingSessionId || !this.processorWorker) {
         throw new Error("PCM processing was cancelled");
       }
-      const end = Math.min(this.buffer.length, offset + chunkFrames);
-      const sourceLeft = this.buffer.getChannelData(0);
-      const sourceRight = this.buffer.numberOfChannels > 1 ? this.buffer.getChannelData(1) : sourceLeft;
-      const left = sourceLeft.slice(offset, end);
-      const right = sourceRight.slice(offset, end);
+      const frameCount = Math.min(chunkFrames, totalInputFrames - relativeOffset);
+      const absoluteInputOffset = processStart + relativeOffset;
+      const realStart = Math.min(this.buffer.length, absoluteInputOffset);
+      const realEnd = Math.min(this.buffer.length, absoluteInputOffset + frameCount);
+      const realFrames = Math.max(0, realEnd - realStart);
+      const left = new Float32Array(frameCount);
+      const right = new Float32Array(frameCount);
+      if (realFrames > 0) {
+        const sourceLeft = this.buffer.getChannelData(0);
+        const sourceRight = this.buffer.numberOfChannels > 1 ? this.buffer.getChannelData(1) : sourceLeft;
+        left.set(sourceLeft.subarray(realStart, realEnd));
+        right.set(sourceRight.subarray(realStart, realEnd));
+      }
+
       const result = await this.sendProcessorMessage("process", {
         sequence, left, right
       }, [left.buffer, right.buffer]);
       sequence++;
-      if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
-      const discard = Math.max(0, startFrame - offset);
-      if (discard >= result.frameCount) continue;
-      const outputLeft = discard ? result.left.subarray(discard) : result.left;
-      const outputRight = discard ? result.right.subarray(discard) : result.right;
+      if (generation !== this.generation || sessionId !== this.processingSessionId) {
+        throw new Error("PCM processing was cancelled");
+      }
+
+      const sourceFrameAtResultStart = absoluteInputOffset - processStart - pitchLatencyFrames + processStart;
+      const discard = Math.max(0, startFrame - sourceFrameAtResultStart);
+      const validSourceFrames = Math.max(0, Math.min(
+        result.frameCount - discard,
+        this.buffer.length - Math.max(startFrame, sourceFrameAtResultStart + discard)
+      ));
+      if (validSourceFrames <= 0) continue;
+      const outputLeft = result.left.subarray(discard, discard + validSourceFrames);
+      const outputRight = result.right.subarray(discard, discard + validSourceFrames);
+      const outputStartFrame = Math.max(startFrame, sourceFrameAtResultStart + discard);
+      outputFrames += validSourceFrames;
       yield {
-        startFrame: offset + discard,
+        startFrame: outputStartFrame,
         sampleRate,
-        frameCount: outputLeft.length,
+        frameCount: validSourceFrames,
         left: outputLeft,
         right: outputRight
       };
+    }
+
+    if (outputFrames !== this.buffer.length - startFrame) {
+      throw new Error("PCM preprocessing produced an incomplete frame range");
     }
   }
 
