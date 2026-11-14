@@ -194,6 +194,54 @@ test("concurrent PCM processing sessions keep independent Worker and DSP state",
   assert.equal(second.worker, null);
 });
 
+test("concurrent processed PCM queues use isolated Workers and cancel independently", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      workers.push(this);
+    }
+  }
+
+  const { Engine } = createEngineClass(TrackingWorker);
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(48000, 1);
+  const options = {
+    concurrentSession: true,
+    chunkFrames: 1024,
+    capacityFrames: 4096,
+    eqGains: [0, 0, 0, 0, 0]
+  };
+
+  const firstQueue = await engine.createProcessedPcmQueue({ ...options, pitch: 1 });
+  const secondQueue = await engine.createProcessedPcmQueue({ ...options, pitch: 1.5 });
+  assert.equal(workers.length, 2);
+  assert.notEqual(workers[0], workers[1]);
+  assert.equal(engine.activePcmQueues.size, 2);
+
+  const [firstChunk, secondChunk] = await Promise.all([
+    firstQueue.readAsync(1024),
+    secondQueue.readAsync(1024)
+  ]);
+  assert.equal(firstChunk.startFrame, 0);
+  assert.equal(secondChunk.startFrame, 0);
+  assert.equal(firstChunk.frameCount, 1024);
+  assert.equal(secondChunk.frameCount, 1024);
+
+  firstQueue.cancel();
+  assert.equal(workers[0].terminated, true);
+  assert.equal(workers[1].terminated, false);
+  assert.equal(engine.activePcmQueues.size, 1);
+
+  const remainingChunk = await secondQueue.readAsync(1024);
+  assert.ok(remainingChunk);
+  assert.equal(secondQueue.cancelled, false);
+
+  engine.cancelProcessedPcmQueue();
+  assert.equal(engine.activePcmQueues.size, 0);
+  assert.equal(workers.every(worker => worker.terminated), true);
+});
+
 test("worker preserves the identity signal when EQ is flat and pitch is unchanged", () => {
   let response;
   const host = { onmessage: event => { response = event.data; } };
