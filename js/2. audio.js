@@ -1051,7 +1051,10 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function invalidateBufferedPcmProcessing() {
+    // While audible PCM output is active, leave its scheduled tail intact.
+    // applyPitchAndRate/applyEqGains will request a frame-aligned Worker handoff.
     if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        audio.paused &&
         typeof bufferedPlaybackEngine.cancelProcessedPcmQueue === "function") {
       bufferedPlaybackEngine.cancelProcessedPcmQueue();
     }
@@ -1067,7 +1070,16 @@ let mainOutputUsesNativeDestination = false;
     } else {
       audio.playbackRate = currentRate;
       audio.preservesPitch = true;
-      updatePitchShiftNode();
+      if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+          typeof bufferedPlaybackEngine.updateProcessingSettings === "function") {
+        bufferedPlaybackEngine.updateProcessingSettings().catch(error => {
+          switchBufferedPlaybackToMediaElement(error, !audio.paused).catch(fallbackError => {
+            console.warn("Music Player playback fallback failed:", fallbackError);
+          });
+        });
+      } else {
+        updatePitchShiftNode();
+      }
     }
     if (el.rateText) el.rateText.textContent = `${currentRate.toFixed(2)}x`;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
@@ -1382,6 +1394,10 @@ let mainOutputUsesNativeDestination = false;
         }
       }
     });
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        typeof bufferedPlaybackEngine.scheduleProcessingSettingsUpdate === "function") {
+      bufferedPlaybackEngine.scheduleProcessingSettingsUpdate();
+    }
   }
 
   if (el.btnEqReset) {
