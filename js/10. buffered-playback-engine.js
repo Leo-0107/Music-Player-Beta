@@ -1229,6 +1229,13 @@ class BufferedPlaybackEngine {
     this.processingSessionId = 0;
     this.activePcmQueue = null;
     this.activePcmQueues = new Set();
+    this.pcmOutputController = null;
+    this.pcmGraphRouter = null;
+    this.pcmOutputContext = null;
+    this.pcmRouteNode = null;
+    this.pcmSampleRate = 0;
+    this.pcmPlaybackGeneration = 0;
+    this.pcmSettingsTimer = null;
   }
 
   get readyState() {
@@ -1240,7 +1247,14 @@ class BufferedPlaybackEngine {
   }
 
   get currentTime() {
-    if (this.paused || !audioCtx || !this.startedAt) return this.offset;
+    if (this.paused) return this.offset;
+    if (this.pcmOutputController && this.pcmSampleRate > 0) {
+      return Math.max(0, Math.min(
+        this.duration || this.offset,
+        this.pcmOutputController.currentFrame / this.pcmSampleRate
+      ));
+    }
+    if (!audioCtx || !this.startedAt) return this.offset;
     const elapsed = Math.max(0, audioCtx.currentTime - this.startedAt);
     return Math.max(0, Math.min(this.duration || this.offset, this.offset + elapsed * this.playbackRate));
   }
@@ -1548,6 +1562,170 @@ class BufferedPlaybackEngine {
     });
 
     return this.decodePromise;
+  }
+
+  ensurePcmOutputController() {
+    if (!audioCtx) throw new Error("AudioContext is unavailable for PCM playback");
+    const routeNode = audioCtx._musicPlayerPostDspInputNode;
+    if (!routeNode || typeof routeNode.connect !== "function") {
+      throw new Error("The post-DSP PCM graph input is unavailable");
+    }
+    if (this.pcmOutputController && this.pcmOutputContext === audioCtx &&
+        this.pcmRouteNode === routeNode && this.pcmOutputController.state !== "disposed") {
+      return this.pcmOutputController;
+    }
+    this.disposePcmOutputController();
+    const router = new PcmOutputGraphRouter(
+      audioCtx,
+      routeNode,
+      setGraphInputNode,
+      clearGraphInputNode
+    );
+    const controller = new PcmPlaybackSessionController(audioCtx, router);
+    this.pcmGraphRouter = router;
+    this.pcmOutputController = controller;
+    this.pcmOutputContext = audioCtx;
+    this.pcmRouteNode = routeNode;
+    return controller;
+  }
+
+  disposePcmOutputController() {
+    this.pcmPlaybackGeneration++;
+    if (this.pcmSettingsTimer !== null) clearTimeout(this.pcmSettingsTimer);
+    this.pcmSettingsTimer = null;
+    const controller = this.pcmOutputController;
+    this.pcmOutputController = null;
+    this.pcmGraphRouter = null;
+    this.pcmOutputContext = null;
+    this.pcmRouteNode = null;
+    if (controller) {
+      try { controller.dispose(); } catch (error) {
+        console.warn("Music Player PCM output disposal failed:", error);
+      }
+    }
+  }
+
+  createPlaybackPcmQueue(startFrame) {
+    const userPitch = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+    const compensatedPitch = userPitch / Math.max(0.1, this.playbackRate);
+    return this.createProcessedPcmQueue({
+      concurrentSession: true,
+      startFrame,
+      chunkFrames: 8192,
+      capacityFrames: 32768,
+      eqGains: Array.isArray(state.eqState?.gains) ? state.eqState.gains.slice(0, 5) : [0, 0, 0, 0, 0],
+      pitch: compensatedPitch
+    });
+  }
+
+  createPcmSessionOptions(generation, sampleRate, startAtTime) {
+    const options = {
+      sampleRate,
+      playbackRate: this.playbackRate,
+      blockFrames: 4096,
+      startBufferFrames: 8192,
+      lookAheadSeconds: 0.25,
+      minimumLeadSeconds: 0.03,
+      onEnded: frame => {
+        if (generation !== this.pcmPlaybackGeneration) return;
+        this.offset = frame / sampleRate;
+        this.paused = true;
+        this.playRequested = false;
+        this.ended = true;
+        this.startedAt = 0;
+        this.stopTimeUpdates();
+        this.dispatch("timeupdate");
+        this.dispatch("ended");
+      },
+      onError: (error, frame) => {
+        this.handlePcmPlaybackError(error, frame, generation);
+      }
+    };
+    if (startAtTime !== undefined) options.startAtTime = startAtTime;
+    return options;
+  }
+
+  handlePcmPlaybackError(error, frame, generation = this.pcmPlaybackGeneration) {
+    if (generation !== this.pcmPlaybackGeneration) return;
+    if (this.pcmSampleRate > 0 && Number.isFinite(Number(frame))) {
+      this.offset = Math.max(0, Number(frame) / this.pcmSampleRate);
+    } else {
+      this.offset = this.currentTime;
+    }
+    this.paused = false;
+    if (typeof switchBufferedPlaybackToMediaElement === "function") {
+      Promise.resolve(switchBufferedPlaybackToMediaElement(error, true)).catch(fallbackError => {
+        this.paused = true;
+        this.stopTimeUpdates();
+        console.warn("Music Player PCM playback fallback failed:", fallbackError);
+      });
+    } else {
+      this.paused = true;
+      this.stopTimeUpdates();
+      this.dispatch("error");
+    }
+  }
+
+  async startPcmSession(startFrame, startAtTime) {
+    if (!this.buffer) throw new Error("PCM buffer is not ready");
+    const controller = this.ensurePcmOutputController();
+    const generation = ++this.pcmPlaybackGeneration;
+    const requestId = this.playRequestId;
+    const sampleRate = this.buffer.sampleRate;
+    this.pcmSampleRate = sampleRate;
+    const queue = await this.createPlaybackPcmQueue(startFrame);
+    if (generation !== this.pcmPlaybackGeneration || requestId !== this.playRequestId ||
+        !this.playRequested) {
+      queue.cancel();
+      return false;
+    }
+    const options = this.createPcmSessionOptions(generation, sampleRate, startAtTime);
+    const session = await controller.start(queue, options);
+    if (!session || generation !== this.pcmPlaybackGeneration ||
+        requestId !== this.playRequestId || !this.playRequested) {
+      if (controller.activeSession === session) controller.stop();
+      return false;
+    }
+    return session;
+  }
+
+  async updateProcessingSettings() {
+    if (this.paused || !this.playRequested || !this.buffer) return false;
+    if (typeof canUseBufferedPlayback === "function" && !canUseBufferedPlayback()) {
+      throw new Error("Playback rate and pitch combination is outside the PCM path range");
+    }
+    const controller = this.ensurePcmOutputController();
+    const generation = ++this.pcmPlaybackGeneration;
+    const requestId = this.playRequestId;
+    const sampleRate = this.buffer.sampleRate;
+    this.pcmSampleRate = sampleRate;
+    const options = this.createPcmSessionOptions(generation, sampleRate);
+
+    const queueFactory = async boundary => {
+      const queue = await this.createPlaybackPcmQueue(boundary.startFrame);
+      if (generation !== this.pcmPlaybackGeneration || requestId !== this.playRequestId ||
+          !this.playRequested) {
+        queue.cancel();
+      }
+      return queue;
+    };
+
+    const result = await controller.handoff(queueFactory, options);
+    if (!result || generation !== this.pcmPlaybackGeneration ||
+        requestId !== this.playRequestId || !this.playRequested) return false;
+    return result;
+  }
+
+  scheduleProcessingSettingsUpdate(delay = 120) {
+    if (this.paused || !this.playRequested || !this.buffer) return false;
+    if (this.pcmSettingsTimer !== null) clearTimeout(this.pcmSettingsTimer);
+    this.pcmSettingsTimer = setTimeout(() => {
+      this.pcmSettingsTimer = null;
+      this.updateProcessingSettings().catch(error => {
+        this.handlePcmPlaybackError(error, this.pcmOutputController?.currentFrame, this.pcmPlaybackGeneration);
+      });
+    }, Math.max(0, Number(delay) || 0));
+    return true;
   }
 
   async play() {
