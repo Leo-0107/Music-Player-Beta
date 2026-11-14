@@ -979,3 +979,52 @@ test("late PCM settings handoff freezes the frame clock instead of skipping fram
   assert.equal(newScheduler.currentFrame, 1025);
   newScheduler.stop();
 });
+
+
+test("PCM scheduler handoff invalidates an in-flight producer read without scheduling stale frames", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  let releaseSecond;
+  const queue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      if (!this.sentFirst) {
+        this.sentFirst = true;
+        return {
+          startFrame: 0, sampleRate: 8000, frameCount: 1024,
+          left: new Float32Array(1024), right: new Float32Array(1024)
+        };
+      }
+      return new Promise(resolve => { releaseSecond = resolve; });
+    },
+    cancel() { this.cancelled = true; }
+  };
+  const drained = [];
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05,
+    onDrained: frame => drained.push(frame)
+  });
+  await scheduler.start(queue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  context.currentTime = 10.2;
+  const pendingPump = scheduler.pump();
+  await Promise.resolve();
+  assert.equal(typeof releaseSecond, "function");
+  const handoff = scheduler.drainForHandoff();
+  assert.equal(handoff.startFrame, 1024);
+  assert.equal(queue.cancelled, true);
+  releaseSecond({
+    startFrame: 1024, sampleRate: 8000, frameCount: 1024,
+    left: new Float32Array(1024), right: new Float32Array(1024)
+  });
+  await pendingPump;
+
+  assert.equal(context.sources.length, 1);
+  assert.equal(scheduler.active, true);
+  context.sources[0].finish();
+  assert.deepEqual(drained, [1024]);
+});
