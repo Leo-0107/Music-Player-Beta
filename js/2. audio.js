@@ -1052,7 +1052,15 @@ let mainOutputUsesNativeDestination = false;
     return node;
   }
 
+  function invalidateBufferedPcmProcessing() {
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        typeof bufferedPlaybackEngine.cancelProcessedPcmQueue === "function") {
+      bufferedPlaybackEngine.cancelProcessedPcmQueue();
+    }
+  }
+
   function applyPitchAndRate(){
+    invalidateBufferedPcmProcessing();
     ensureGraph();
     if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
       switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), !audio.paused).catch(error => {
@@ -1300,6 +1308,7 @@ let mainOutputUsesNativeDestination = false;
       const slider = vBand.querySelector(".vSlider");
 
       slider.addEventListener("input", () => {
+        invalidateBufferedPcmProcessing();
         if(eqAnimId) cancelAnimationFrame(eqAnimId);
         const v = Number(slider.value);
         state.eqState.preset = "Custom";
@@ -1331,6 +1340,7 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function animateEqPreset(targetGains) {
+    invalidateBufferedPcmProcessing();
     if(eqAnimId) cancelAnimationFrame(eqAnimId);
     
     const startGains = [...state.eqState.gains];
