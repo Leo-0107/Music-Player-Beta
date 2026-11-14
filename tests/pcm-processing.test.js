@@ -47,6 +47,33 @@ class WrongResponseWorker extends MockWorker {
   }
 }
 
+class DeferredProcessWorker extends MockWorker {
+  constructor() {
+    super();
+    this.deferredResponses = [];
+  }
+
+  postMessage(data) {
+    if (data.type !== "process") {
+      super.postMessage(data);
+      return;
+    }
+    const handler = this.onmessage;
+    this.onmessage = event => this.deferredResponses.push({ handler, event });
+    try {
+      super.postMessage(data);
+    } finally {
+      this.onmessage = handler;
+    }
+  }
+
+  flushNextResponse() {
+    const pending = this.deferredResponses.shift();
+    if (!pending) throw new Error("No deferred PCM worker response is available");
+    pending.handler(pending.event);
+  }
+}
+
 function createEngineClass(WorkerClass = MockWorker) {
   const sandbox = {
     Worker: WorkerClass,
@@ -353,4 +380,54 @@ test("direct PCM iterator is invalidated when cancelled during preparation", asy
   finishPreparation(engine.buffer);
   await assert.rejects(() => pending, /PCM processing was cancelled/);
   engine.disposeProcessorWorker();
+});
+
+
+test("cancelled PCM worker responses cannot enter a newer seek session", async () => {
+  const { Engine } = createEngineClass(DeferredProcessWorker);
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 2);
+  engine.sourceUrl = "blob:pcm-test";
+
+  const oldQueue = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 0
+  });
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  const worker = engine.processorWorker;
+  assert.equal(worker.deferredResponses.length, 1);
+
+  engine.seek(0.5);
+  const newQueue = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 4000
+  });
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(worker.deferredResponses.length, 2);
+
+  worker.flushNextResponse();
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  assert.equal(oldQueue.ringBuffer.availableFrames, 0);
+  assert.equal(newQueue.ringBuffer.availableFrames, 0);
+  assert.equal(await oldQueue.readAsync(1), null);
+
+  worker.flushNextResponse();
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(newQueue.ringBuffer.availableFrames, 1024);
+  assert.equal((await newQueue.readAsync(1024)).startFrame, 4000);
+  engine.disposeProcessorWorker();
+});
+
+test("cancelled producer errors do not turn a cancelled queue into a failed read", async () => {
+  const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  let rejectNext;
+  const iterator = {
+    next: () => new Promise((resolve, reject) => { rejectNext = reject; }),
+    return: async () => ({ done: true })
+  };
+  const queue = new PcmPrebufferQueue(new RingBuffer(8), iterator, 4).start();
+  await Promise.resolve();
+  queue.cancel();
+  rejectNext(new Error("iterator closed"));
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(await queue.readAsync(1), null);
 });
