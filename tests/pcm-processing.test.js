@@ -228,13 +228,15 @@ test("PCM prebuffer queue discards a chunk returned after cancellation", async (
     return: async () => ({ done: true })
   };
   const ring = new RingBuffer(8);
+  ring.write(makePcmChunk(0, [1, 2, 3, 4]));
   const queue = new PcmPrebufferQueue(ring, iterator, 4).start();
   await Promise.resolve();
   queue.cancel();
-  release({ done: false, value: makePcmChunk(0, [1, 2, 3, 4]) });
+  release({ done: false, value: makePcmChunk(4, [5, 6, 7, 8]) });
   await Promise.resolve();
   await Promise.resolve();
   assert.equal(ring.availableFrames, 0);
+  assert.equal(ring.readFrame, 0);
   assert.equal(await queue.readAsync(1), null);
 });
 
