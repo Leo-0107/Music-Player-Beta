@@ -1555,3 +1555,59 @@ test("PCM pump loop fails closed when timer registration is unavailable", async 
   assert.equal(context.sources[0].stopped, true);
   assert.deepEqual(errors, ["timer registration failed"]);
 });
+
+
+test("PCM pump loop treats immediate EOF and cancelled startup as normal lifecycle outcomes", async () => {
+  const { PcmOutputScheduler, PcmOutputPumpLoop } = createEngineClass();
+  const context = createMockOutputContext();
+  const timers = new Map();
+  let timerId = 0;
+  const schedule = (callback, delay) => {
+    const id = ++timerId;
+    timers.set(id, { callback, delay });
+    return id;
+  };
+  const cancel = id => timers.delete(id);
+
+  const endedFrames = [];
+  const endedScheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    onEnded: frame => endedFrames.push(frame)
+  });
+  const endedLoop = new PcmOutputPumpLoop(endedScheduler, { schedule, cancel });
+  const eofQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() { return null; },
+    cancel() {}
+  };
+  await endedLoop.start(eofQueue, {
+    startFrame: 0, sampleRate: 48000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024
+  });
+  assert.equal(endedScheduler.active, false);
+  assert.equal(endedLoop.active, false);
+  assert.equal(timers.size, 0);
+  assert.deepEqual(endedFrames, [0]);
+
+  let releaseRead;
+  const waitingQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return new Promise(resolve => { releaseRead = resolve; });
+    },
+    cancel() { releaseRead?.(null); }
+  };
+  const waitingScheduler = new PcmOutputScheduler(context, { connect() {} });
+  const waitingLoop = new PcmOutputPumpLoop(waitingScheduler, { schedule, cancel });
+  const startPromise = waitingLoop.start(waitingQueue, {
+    startFrame: 4096, sampleRate: 48000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024
+  });
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  assert.equal(typeof releaseRead, "function");
+  waitingLoop.stop();
+  const startResult = await startPromise;
+  assert.equal(startResult, false);
+  assert.equal(waitingScheduler.active, false);
+  assert.equal(waitingLoop.active, false);
+  assert.equal(timers.size, 0);
+});
