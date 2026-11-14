@@ -324,10 +324,13 @@ class BufferedPlaybackEngine {
   }
 
   async *iterateProcessedChunks(options = {}) {
-    if (!this.buffer) await this.prepare();
-    if (!this.buffer) throw new Error("PCM source is not decoded");
     const generation = this.generation;
     const sessionId = ++this.processingSessionId;
+    if (!this.buffer) await this.prepare();
+    if (generation !== this.generation || sessionId !== this.processingSessionId) {
+      throw new Error("PCM processing was cancelled");
+    }
+    if (!this.buffer) throw new Error("PCM source is not decoded");
     const sampleRate = this.buffer.sampleRate;
     const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
     const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
