@@ -56,7 +56,7 @@ function createEngineClass(WorkerClass = MockWorker) {
     state: { eqState: { gains: [0, 0, 0, 0, 0] }, pitchSemitones: 0, currentSong: null },
     audioCtx: { sampleRate: 48000 }
   };
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;", sandbox);
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;", sandbox);
   return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer };
 }
 
@@ -175,4 +175,65 @@ test("processed PCM ring buffer rejects gaps, overflow, and invalid discard rang
   assert.throws(() => ring.discardBefore(23), /outside the buffered range/);
   assert.equal(ring.discardBefore(21), 1);
   assert.equal(ring.readFrame, 21);
+});
+
+
+function makePcmChunk(startFrame, values) {
+  const left = Float32Array.from(values);
+  const right = Float32Array.from(values, value => value + 100);
+  return { startFrame, frameCount: left.length, left, right };
+}
+
+test("PCM prebuffer queue applies bounded backpressure and resumes after reads", async () => {
+  const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  const ring = new RingBuffer(8);
+  let produced = 0;
+  async function* source() {
+    for (let index = 0; index < 3; index++) {
+      produced++;
+      yield makePcmChunk(index * 4, [index * 4 + 1, index * 4 + 2, index * 4 + 3, index * 4 + 4]);
+    }
+  }
+
+  const queue = new PcmPrebufferQueue(ring, source(), 4).start();
+  const first = await queue.readAsync(3);
+  assert.equal(first.startFrame, 0);
+  assert.deepEqual(Array.from(first.left), [1, 2, 3]);
+
+  const second = await queue.readAsync(5);
+  assert.equal(second.startFrame, 3);
+  assert.deepEqual(Array.from(second.left), [4, 5, 6, 7, 8]);
+  const third = await queue.readAsync(8);
+  assert.equal(third.startFrame, 8);
+  assert.deepEqual(Array.from(third.left), [9, 10, 11, 12]);
+  assert.equal(await queue.readAsync(1), null);
+  assert.equal(produced, 3);
+  assert.equal(ring.availableFrames, 0);
+});
+
+test("PCM prebuffer queue propagates producer errors and rejects invalid chunks", async () => {
+  const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  async function* brokenSource() {
+    yield { startFrame: 0, frameCount: 5, left: new Float32Array(5), right: new Float32Array(5) };
+  }
+  const queue = new PcmPrebufferQueue(new RingBuffer(8), brokenSource(), 4).start();
+  await assert.rejects(() => queue.readAsync(1), /invalid or oversized chunk/);
+});
+
+test("PCM prebuffer queue discards a chunk returned after cancellation", async () => {
+  const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  let release;
+  const iterator = {
+    next: () => new Promise(resolve => { release = resolve; }),
+    return: async () => ({ done: true })
+  };
+  const ring = new RingBuffer(8);
+  const queue = new PcmPrebufferQueue(ring, iterator, 4).start();
+  await Promise.resolve();
+  queue.cancel();
+  release({ done: false, value: makePcmChunk(0, [1, 2, 3, 4]) });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(ring.availableFrames, 0);
+  assert.equal(await queue.readAsync(1), null);
 });
