@@ -1139,98 +1139,46 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
 });
 
 
-test("audio graph cleanup clears only the graph input node it owns", () => {
-  const setStart = audioSource.indexOf("function setGraphInputNode(");
-  const setEnd = audioSource.indexOf("\n  }\n", setStart) + 4;
-  const helperStart = audioSource.indexOf("function clearGraphInputNode(");
-  const helperEnd = audioSource.indexOf("\n  }\n", helperStart) + 4;
-  assert.ok(helperStart >= 0 && helperEnd > helperStart, "clearGraphInputNode source must exist");
-  const helperSource = audioSource.slice(helperStart, helperEnd);
-  assert.ok(setStart >= 0 && setEnd > setStart, "setGraphInputNode source must exist");
-  const setSource = audioSource.slice(setStart, setEnd);
-
-  const currentDisconnects = [];
-  const currentNode = { disconnect(target) { currentDisconnects.push(target); } };
-  const currentTarget = {};
-  const currentSandbox = { initialNode: currentNode, initialTarget: currentTarget };
+test("audio graph input functions use transactional ownership and preserve fallback", () => {
+  const ownerStart = engineSource.indexOf("class PcmGraphInputOwnership {");
+  const ownerEnd = engineSource.indexOf("class PcmOutputGraphRouter {", ownerStart);
+  assert.ok(ownerStart >= 0 && ownerEnd > ownerStart, "PCM graph ownership class must exist");
+  const ownerSource = engineSource.slice(ownerStart, ownerEnd);
+  const ownerDecl = "let graphInputOwnership = null;";
+  const getStart = audioSource.indexOf("function getGraphInputOwnership()");
+  const clearEnd = audioSource.indexOf("\n  }", audioSource.indexOf("function clearGraphInputNode(", getStart)) + 4;
+  assert.ok(getStart >= 0 && clearEnd > getStart, "audio graph ownership functions must exist");
+  const audioOwnershipSource = audioSource.slice(getStart, clearEnd);
+  const events = [];
+  const targetA = {};
+  const targetB = {};
+  const makeNode = name => ({
+    connect(target) { events.push([name, "connect", target]); },
+    disconnect(target) { events.push([name, "disconnect", target]); }
+  });
+  const mediaNode = makeNode("media");
+  const pcmBus = makeNode("pcm");
+  const fallbackNode = makeNode("fallback");
+  const sandbox = { filters: [targetA] };
   vm.runInNewContext(`
-    let activeGraphInputNode = initialNode;
-    let activeGraphInputTarget = initialTarget;
-    ${helperSource}
-    this.clearGraphInputNode = clearGraphInputNode;
-    this.getActiveNode = () => activeGraphInputNode;
-    this.getActiveTarget = () => activeGraphInputTarget;
-  `, currentSandbox);
-  assert.equal(currentSandbox.clearGraphInputNode(currentNode, currentTarget), true);
-  assert.equal(currentSandbox.getActiveNode(), null);
-  assert.equal(currentSandbox.getActiveTarget(), null);
-  assert.deepEqual(currentDisconnects, [currentTarget]);
-
-  const staleDisconnects = [];
-  const activeNode = { disconnect(target) { staleDisconnects.push(target); } };
-  const activeTarget = {};
-  const staleSandbox = { initialNode: activeNode, initialTarget: activeTarget };
-  vm.runInNewContext(`
-    let activeGraphInputNode = initialNode;
-    let activeGraphInputTarget = initialTarget;
-    ${helperSource}
-    this.clearGraphInputNode = clearGraphInputNode;
-    this.getActiveNode = () => activeGraphInputNode;
-    this.getActiveTarget = () => activeGraphInputTarget;
-  `, staleSandbox);
-  assert.equal(staleSandbox.clearGraphInputNode({}, activeTarget), false);
-  assert.equal(staleSandbox.clearGraphInputNode(activeNode, {}), false);
-  assert.equal(staleSandbox.getActiveNode(), activeNode);
-  assert.equal(staleSandbox.getActiveTarget(), activeTarget);
-  assert.deepEqual(staleDisconnects, []);
-
-  const sourceDisconnects = [];
-  const sourceConnects = [];
-  const originalSource = {
-    connect(target) { sourceConnects.push(target); },
-    disconnect(target) { sourceDisconnects.push(target); }
-  };
-  const pcmBus = {
-    connect(target) { sourceConnects.push(target); },
-    disconnect(target) { sourceDisconnects.push(target); }
-  };
-  const fallbackSource = {
-    connect(target) { sourceConnects.push(target); },
-    disconnect(target) { sourceDisconnects.push(target); }
-  };
-  const filterInput = {};
-  const pitchRoute = {};
-  const routingSandbox = {
-    filters: [filterInput],
-    originalSource,
-    pcmBus,
-    fallbackSource,
-    filterInput,
-    pitchRoute
-  };
-  vm.runInNewContext(`
-    let activeGraphInputNode = null;
-    let activeGraphInputTarget = null;
-    ${setSource}
-    ${helperSource}
+    ${ownerSource}
+    ${ownerDecl}
+    ${audioOwnershipSource}
     this.setGraphInputNode = setGraphInputNode;
     this.clearGraphInputNode = clearGraphInputNode;
-    this.getActiveNode = () => activeGraphInputNode;
-    this.getActiveTarget = () => activeGraphInputTarget;
-  `, routingSandbox);
-  assert.equal(routingSandbox.setGraphInputNode(originalSource, filterInput), true);
-  assert.equal(routingSandbox.setGraphInputNode(pcmBus, pitchRoute), true);
-  assert.deepEqual(sourceDisconnects, [filterInput]);
-  assert.deepEqual(sourceConnects, [filterInput, pitchRoute]);
-  assert.equal(routingSandbox.setGraphInputNode(fallbackSource, filterInput), true);
-  assert.equal(routingSandbox.getActiveNode(), fallbackSource);
-  assert.deepEqual(sourceDisconnects, [filterInput, pitchRoute]);
-  assert.deepEqual(sourceConnects, [filterInput, pitchRoute, filterInput]);
-  assert.equal(routingSandbox.clearGraphInputNode(pcmBus, pitchRoute), false);
-  assert.equal(routingSandbox.getActiveNode(), fallbackSource);
-  assert.equal(routingSandbox.clearGraphInputNode(fallbackSource, filterInput), true);
-  assert.equal(routingSandbox.getActiveNode(), null);
-  assert.deepEqual(sourceDisconnects, [filterInput, pitchRoute, filterInput]);
+    this.getOwner = () => graphInputOwnership;
+  `, sandbox);
+  assert.equal(sandbox.setGraphInputNode(mediaNode, targetA), true);
+  assert.equal(sandbox.setGraphInputNode(pcmBus, targetB), true);
+  assert.equal(sandbox.getOwner().activeNode, pcmBus);
+  assert.equal(sandbox.getOwner().activeTarget, targetB);
+  assert.equal(events.some(event => event[0] === "media" && event[1] === "disconnect" && event[2] === targetA), true);
+  assert.equal(sandbox.setGraphInputNode(fallbackNode, targetA), true);
+  assert.equal(sandbox.getOwner().activeNode, fallbackNode);
+  assert.equal(sandbox.clearGraphInputNode(pcmBus, targetB), false);
+  assert.equal(sandbox.getOwner().activeNode, fallbackNode);
+  assert.equal(sandbox.clearGraphInputNode(fallbackNode, targetA), true);
+  assert.equal(sandbox.getOwner().activeNode, null);
 });
 
 
