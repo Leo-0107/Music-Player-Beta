@@ -475,3 +475,71 @@ test("source replacement invalidates a PCM queue request still waiting for prepa
   assert.equal(engine.activePcmQueue, null);
   engine.disposeProcessorWorker();
 });
+
+
+test("repeated pause and resume recreates queues at the exact next source frame", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 3);
+  engine.sourceUrl = "blob:pcm-test";
+
+  let nextFrame = 0;
+  for (let cycle = 0; cycle < 6; cycle++) {
+    const queue = await engine.createProcessedPcmQueue({
+      pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: nextFrame
+    });
+    const block = await queue.readAsync(512);
+    assert.equal(block.startFrame, nextFrame);
+    assert.equal(block.frameCount, 512);
+    nextFrame += block.frameCount;
+
+    engine.pause();
+    assert.equal(queue.cancelled, true);
+    assert.equal(queue.ringBuffer.availableFrames, 0);
+    assert.equal(await queue.readAsync(1), null);
+    assert.equal(engine.activePcmQueue, null);
+  }
+
+  const resumed = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: nextFrame
+  });
+  const finalBlock = await resumed.readAsync(512);
+  assert.equal(finalBlock.startFrame, nextFrame);
+  assert.equal(finalBlock.frameCount, 512);
+  engine.disposeProcessorWorker();
+});
+
+test("pause during an in-flight PCM block cannot contaminate the resumed queue", async () => {
+  const { Engine } = createEngineClass(DeferredProcessWorker);
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 2);
+  engine.sourceUrl = "blob:pcm-test";
+
+  const pausedQueue = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 0
+  });
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  const worker = engine.processorWorker;
+  assert.equal(worker.deferredResponses.length, 1);
+
+  engine.pause();
+  assert.equal(pausedQueue.cancelled, true);
+
+  const resumedQueue = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 2048
+  });
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(worker.deferredResponses.length, 2);
+
+  worker.flushNextResponse();
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  assert.equal(pausedQueue.ringBuffer.availableFrames, 0);
+  assert.equal(resumedQueue.ringBuffer.availableFrames, 0);
+  assert.equal(await pausedQueue.readAsync(1), null);
+
+  worker.flushNextResponse();
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.ok(resumedQueue.ringBuffer.availableFrames > 0);
+  assert.equal((await resumedQueue.readAsync(512)).startFrame, 2048);
+  engine.disposeProcessorWorker();
+});
