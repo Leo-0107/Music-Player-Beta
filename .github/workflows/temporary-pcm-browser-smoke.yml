@@ -1,0 +1,81 @@
+name: Temporary PCM browser smoke test
+on:
+  push:
+    branches:
+      - test/pcm-browser-smoke-20261114
+permissions:
+  contents: read
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Start local application server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/music-player-http.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/music-player-http.log
+          exit 1
+      - name: Smoke test desktop and mobile startup
+        run: |
+          node <<'NODE'
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const cases = [
+              { name: "desktop", viewport: { width: 1365, height: 900 } },
+              { name: "mobile", viewport: { width: 390, height: 844 } }
+            ];
+            for (const item of cases) {
+              const page = await browser.newPage({ viewport: item.viewport });
+              const pageErrors = [];
+              const localRequestFailures = [];
+              page.on("pageerror", error => pageErrors.push(error.message));
+              page.on("requestfailed", request => {
+                if (request.url().startsWith("http://127.0.0.1:4173/")) {
+                  localRequestFailures.push(request.url() + " :: " + request.failure()?.errorText);
+                }
+              });
+              const response = await page.goto("http://127.0.0.1:4173/index.html", {
+                waitUntil: "domcontentloaded",
+                timeout: 60000
+              });
+              if (!response || response.status() !== 200) {
+                throw new Error(item.name + " index.html did not return HTTP 200");
+              }
+              await page.waitForFunction(() =>
+                !!document.querySelector("#btnPlay") &&
+                !document.body.classList.contains("app-loading"),
+                null,
+                { timeout: 45000 }
+              );
+              if (!(await page.locator("#btnPlay").isVisible())) {
+                throw new Error(item.name + " play control is not visible");
+              }
+              await page.waitForTimeout(500);
+              if (pageErrors.length || localRequestFailures.length) {
+                throw new Error(item.name + " runtime errors: " +
+                  JSON.stringify({ pageErrors, localRequestFailures }));
+              }
+              console.log(item.name + " startup PASS; title=" + await page.title() +
+                "; play control visible; viewport=" + JSON.stringify(item.viewport));
+              await page.close();
+            }
+            await browser.close();
+          })().catch(error => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
