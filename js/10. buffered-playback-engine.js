@@ -690,7 +690,7 @@ class PcmOutputScheduler {
         !Number.isInteger(frameCount) || frameCount < 1 || frameCount > this.blockFrames ||
         !chunk.left || !chunk.right || chunk.left.length < frameCount || chunk.right.length < frameCount ||
         chunkRate !== this.sampleRate) {
-      throw new Error("PCM scheduler received an invalid, discontinuous, or mismatched chunk");
+      throw new Error(`PCM scheduler received an invalid chunk: start=${String(chunk?.startFrame)} expected=${this.nextFrame} frames=${frameCount} rate=${chunkRate}/${this.sampleRate} left=${chunk?.left?.length} right=${chunk?.right?.length}`);
     }
 
     const now = Number(this.audioContext.currentTime) || 0;
