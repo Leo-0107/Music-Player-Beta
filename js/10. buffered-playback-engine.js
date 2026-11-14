@@ -236,6 +236,7 @@ class BufferedPlaybackEngine {
     this.processorRequests = new Map();
     this.processorReady = null;
     this.processingSessionId = 0;
+    this.activePcmQueue = null;
   }
 
   get readyState() {
@@ -405,8 +406,42 @@ class BufferedPlaybackEngine {
     }
   }
 
-  disposeProcessorWorker() {
+  cancelProcessedPcmQueue() {
     this.processingSessionId++;
+    const queue = this.activePcmQueue;
+    this.activePcmQueue = null;
+    queue?.cancel();
+  }
+
+  async createProcessedPcmQueue(options = {}) {
+    this.cancelProcessedPcmQueue();
+    const generation = this.generation;
+    if (!this.buffer) await this.prepare();
+    if (generation !== this.generation || !this.buffer) {
+      throw new Error("PCM queue creation was cancelled");
+    }
+
+    const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
+    const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
+    const capacityFrames = options.capacityFrames === undefined
+      ? chunkFrames * 4
+      : Number(options.capacityFrames);
+    if (!Number.isInteger(capacityFrames) || capacityFrames < chunkFrames ||
+        capacityFrames > 1048576) {
+      throw new RangeError("PCM queue capacity must fit at least one chunk and not exceed 1048576 frames");
+    }
+
+    const ringBuffer = new ProcessedPcmRingBuffer(capacityFrames);
+    ringBuffer.clear(startFrame);
+    const iterator = this.iterateProcessedChunks({ ...options, chunkFrames, startFrame });
+    const queue = new PcmPrebufferQueue(ringBuffer, iterator, chunkFrames);
+    this.activePcmQueue = queue;
+    queue.start();
+    return queue;
+  }
+
+  disposeProcessorWorker() {
+    this.cancelProcessedPcmQueue();
     const worker = this.processorWorker;
     this.processorWorker = null;
     this.processorReady = null;
@@ -552,6 +587,7 @@ class BufferedPlaybackEngine {
   }
 
   pause() {
+    this.cancelProcessedPcmQueue();
     const wasPreparing = this.playRequested && !this.buffer;
     this.playRequestId++;
     this.playRequested = false;
@@ -568,6 +604,7 @@ class BufferedPlaybackEngine {
   }
 
   seek(value) {
+    this.cancelProcessedPcmQueue();
     let next = Number(value);
     if (!Number.isFinite(next)) next = 0;
     const max = this.buffer?.duration || Number(state.currentSong?.duration) || 0;
@@ -587,6 +624,7 @@ class BufferedPlaybackEngine {
     if (!Number.isFinite(next)) next = 1;
     next = Math.max(0.1, Math.min(10, next));
     if (Math.abs(next - this.playbackRate) < 0.0001) return;
+    this.cancelProcessedPcmQueue();
     const wasPlaying = !this.paused;
     const position = this.currentTime;
     if (wasPlaying) this.stopSource();
