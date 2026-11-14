@@ -1881,3 +1881,37 @@ test("PCM graph input ownership reset detaches a stale graph edge", () => {
   assert.equal(ownership.activeNode, null);
   assert.equal(ownership.activeTarget, null);
 });
+
+
+test("PCM graph detach disconnects only its owned edge once", () => {
+  const { PcmOutputGraphRouter } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = {};
+  let activeInput = null;
+  const router = new PcmOutputGraphRouter(
+    context,
+    routeNode,
+    (node, target) => {
+      node.connect(target);
+      activeInput = { node, target };
+      return true;
+    },
+    (node, target) => {
+      if (activeInput?.node !== node || activeInput.target !== target) return false;
+      node.disconnect(target);
+      activeInput = null;
+      return true;
+    }
+  );
+  const disconnectCalls = [];
+  router.bus.disconnect = target => { disconnectCalls.push(target); };
+  const sessionGain = router.createSessionGain(1);
+
+  assert.equal(sessionGain.connectedTo, router.bus);
+  assert.equal(router.detach(), true);
+  assert.deepEqual(disconnectCalls, [routeNode]);
+  assert.equal(sessionGain.connectedTo, router.bus);
+  assert.equal(activeInput, null);
+
+  router.dispose();
+});
