@@ -1057,13 +1057,18 @@ test("PCM scheduler waits for its startup reserve but permits short tracks to re
   const { PcmOutputScheduler } = createEngineClass();
   const context = createMockOutputContext();
   let releaseSecond;
+  let notifySecondRead;
+  const secondReadStarted = new Promise(resolve => { notifySecondRead = resolve; });
   let reads = 0;
   const queue = {
     maxChunkFrames: 4,
     async readAsync() {
       reads++;
       if (reads === 1) return makePcmChunk(0, [1, 2, 3, 4]);
-      if (reads === 2) return new Promise(resolve => { releaseSecond = resolve; });
+      if (reads === 2) return new Promise(resolve => {
+        releaseSecond = resolve;
+        notifySecondRead();
+      });
       return null;
     },
     cancel() {}
@@ -1076,8 +1081,7 @@ test("PCM scheduler waits for its startup reserve but permits short tracks to re
     blockFrames: 4, startBufferFrames: 8,
     lookAheadSeconds: 1, minimumLeadSeconds: 0.05
   });
-  await Promise.resolve();
-  await Promise.resolve();
+  await secondReadStarted;
   assert.equal(typeof releaseSecond, "function");
   assert.equal(context.sources.length, 0);
   releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
