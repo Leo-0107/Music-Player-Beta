@@ -2113,6 +2113,9 @@ test("PCM controller chains a newer handoff from the latest draining scheduler",
   assert.equal(nextHandoff.session.scheduler.initialFrame, 1024);
   assert.equal(controller.activeSession, nextHandoff.session);
   assert.equal(controller.drainingSessions.has(firstSession), true);
+  assert.equal(controller.currentFrame, 0);
+  context.currentTime = nextHandoff.session.scheduler.firstScheduledAt + 0.022;
+  assert.equal(controller.currentFrame, 1200);
   const staleQueue = makeQueue(0);
   resolveStaleFactory(staleQueue);
   assert.equal(await staleHandoff, false);
