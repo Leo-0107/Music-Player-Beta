@@ -1748,3 +1748,119 @@ test("PCM session controller hands off contiguous frames and retires the old gai
   controller.dispose();
   assert.equal(result.session.gain.disconnected, true);
 });
+
+
+test("PCM session handoff cleans up transactionally when new gain creation fails", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const makeQueue = startFrame => ({
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  });
+  const oldQueue = makeQueue(0);
+  const oldSession = await controller.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const createGain = router.createSessionGain.bind(router);
+  router.createSessionGain = () => { throw new Error("gain creation failed"); };
+
+  await assert.rejects(
+    () => controller.handoff(makeQueue(1024), {
+      sampleRate: 8000, playbackRate: 1,
+      blockFrames: 1024, startBufferFrames: 1024,
+      lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    }),
+    /gain creation failed/
+  );
+  assert.equal(controller.state, "error");
+  assert.equal(controller.activeSession, null);
+  assert.equal(controller.lastError.message, "gain creation failed");
+  assert.equal(controller.drainingSessions.has(oldSession), true);
+
+  router.createSessionGain = createGain;
+  controller.dispose();
+  assert.equal(controller.state, "disposed");
+  assert.equal(oldSession.gain.disconnected, true);
+  assert.equal(activeInput, null);
+});
+
+test("PCM session handoff retires the new session when crossfade scheduling fails", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const makeQueue = startFrame => ({
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  });
+  const oldSession = await controller.start(makeQueue(0), {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  router.crossfade = () => { throw new Error("crossfade scheduling failed"); };
+
+  await assert.rejects(
+    () => controller.handoff(makeQueue(1024), {
+      sampleRate: 8000, playbackRate: 1,
+      blockFrames: 1024, startBufferFrames: 1024,
+      lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    }),
+    /crossfade scheduling failed/
+  );
+  assert.equal(controller.state, "error");
+  assert.equal(controller.activeSession, null);
+  assert.equal(controller.lastError.message, "crossfade scheduling failed");
+  assert.equal(controller.drainingSessions.has(oldSession), true);
+  assert.equal(context.sources[1].stopped, true);
+
+  controller.dispose();
+  assert.equal(oldSession.gain.disconnected, true);
+  assert.equal(activeInput, null);
+});
