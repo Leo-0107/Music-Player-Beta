@@ -567,6 +567,14 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   assert.ok(workers.length >= 4);
   assert.ok(engine.pcmOutputController.drainingSessions.size >= 1);
 
+  // Pausing before the replacement's scheduled start must retain the old
+  // audible frame, not jump forward to the replacement handoff boundary.
+  engine.pause();
+  assert.equal(engine.paused, true);
+  assert.ok(Math.abs(engine.offset - 0.5) < 0.0001);
+  assert.equal(engine.pcmOutputController.activeSession, null);
+  assert.equal(engine.pcmOutputController.drainingSessions.size, 0);
+
   engine.releaseForFallback();
   assert.equal(engine.pcmOutputController, null);
   assert.equal(ownership.activeNode, null);
