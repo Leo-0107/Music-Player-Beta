@@ -854,6 +854,15 @@ let mainOutputUsesNativeDestination = false;
     return ctx._musicPlayerPitchWorkletUpgradePromise;
   }
 
+  function resetPitchShifter() {
+    const shifter = audioCtx?._musicPlayerPitchShifter;
+    if (!shifter) return;
+    try {
+      if (shifter.port?.postMessage) shifter.port.postMessage({ type: "reset" });
+      else if (typeof shifter.reset === "function") shifter.reset();
+    } catch (e) {}
+  }
+
   function updatePitchShiftNode(){
     const shifter = audioCtx?._musicPlayerPitchShifter;
     const pitchSource = audioCtx?._musicPlayerPitchSource;
@@ -949,6 +958,17 @@ let mainOutputUsesNativeDestination = false;
 
       nextSlot = 0;
       spawnCountdown = hopSize;
+    };
+
+    node.reset = () => {
+      buffers[0].fill(0);
+      buffers[1].fill(0);
+      writeIndex = 0;
+      spawnCountdown = 0;
+      nextSlot = 0;
+      grains[0].active = false;
+      grains[1].active = false;
+      if (Math.abs(Number(stateRef.pitch) - 1) >= 0.0001) resetHeads();
     };
 
     node.onaudioprocess = e => {
