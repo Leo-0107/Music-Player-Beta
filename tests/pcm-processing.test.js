@@ -1915,3 +1915,12 @@ test("PCM graph detach disconnects only its owned edge once", () => {
 
   router.dispose();
 });
+
+
+test("audio graph exposes and clears the stable post-DSP PCM insertion boundary", () => {
+  const boundary = audioSource.indexOf("audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;");
+  const spatialRoute = audioSource.indexOf("if (pannerNode)", boundary);
+  assert.ok(boundary >= 0, "post-DSP input boundary must be exposed");
+  assert.ok(spatialRoute > boundary, "PCM boundary must precede spatial processing");
+  assert.match(audioSource, /if \(audioCtx\) audioCtx\._musicPlayerPostDspInputNode = null;/);
+});
