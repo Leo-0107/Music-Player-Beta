@@ -1423,3 +1423,44 @@ test("PCM preparation checks actual compressed-plus-decoded peak when duration i
   assert.equal(decodeCalls, 1);
   assert.equal(engine.buffer, null);
 });
+
+
+test("PCM prebuffer queue streams a long sequence within a two-chunk ring capacity", async () => {
+  const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
+  const chunkFrames = 4096;
+  const chunkCount = 128;
+  const ring = new RingBuffer(chunkFrames * 2);
+  ring.clear(0);
+  async function* produce() {
+    for (let index = 0; index < chunkCount; index++) {
+      const startFrame = index * chunkFrames;
+      const left = new Float32Array(chunkFrames);
+      const right = new Float32Array(chunkFrames);
+      left.fill(index);
+      right.fill(-index);
+      yield {
+        startFrame, sampleRate: 48000, frameCount: chunkFrames,
+        left, right
+      };
+    }
+  }
+  const queue = new PcmPrebufferQueue(ring, produce(), chunkFrames).start();
+  let expectedFrame = 0;
+  let consumedChunks = 0;
+  while (true) {
+    const chunk = await queue.readAsync(chunkFrames);
+    if (!chunk) break;
+    assert.equal(chunk.startFrame, expectedFrame);
+    assert.equal(chunk.frameCount, chunkFrames);
+    assert.equal(chunk.left[0], consumedChunks);
+    assert.equal(chunk.right[0], -consumedChunks);
+    expectedFrame += chunk.frameCount;
+    consumedChunks++;
+  }
+  assert.equal(consumedChunks, chunkCount);
+  assert.equal(expectedFrame, chunkCount * chunkFrames);
+  assert.equal(ring.availableFrames, 0);
+  assert.equal(ring.capacityFrames, chunkFrames * 2);
+  assert.equal(ring.left.byteLength + ring.right.byteLength, chunkFrames * 2 * 2 * 4);
+  assert.equal(queue.done, true);
+});
