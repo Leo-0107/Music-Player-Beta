@@ -416,8 +416,10 @@ class BufferedPlaybackEngine {
   async createProcessedPcmQueue(options = {}) {
     this.cancelProcessedPcmQueue();
     const generation = this.generation;
+    const requestSessionId = this.processingSessionId;
     if (!this.buffer) await this.prepare();
-    if (generation !== this.generation || !this.buffer) {
+    if (generation !== this.generation ||
+        requestSessionId !== this.processingSessionId || !this.buffer) {
       throw new Error("PCM queue creation was cancelled");
     }
 
