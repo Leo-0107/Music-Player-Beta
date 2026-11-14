@@ -247,6 +247,7 @@ class PcmOutputScheduler {
     this.lookAheadSeconds = this.defaultLookAheadSeconds;
     this.minimumLeadSeconds = this.defaultMinimumLeadSeconds;
     this.hasScheduledData = false;
+    this.hasStartTimeAnchor = false;
     this.underrunCount = 0;
     this.onUnderrun = typeof options.onUnderrun === "function" ? options.onUnderrun : null;
     this.onEnded = typeof options.onEnded === "function" ? options.onEnded : null;
@@ -331,7 +332,8 @@ class PcmOutputScheduler {
     this.lookAheadSeconds = lookAheadSeconds;
     this.minimumLeadSeconds = minimumLeadSeconds;
     this.nextStartTime = requestedStartAt;
-    this.hasScheduledData = hasRequestedStartAt;
+    this.hasScheduledData = false;
+    this.hasStartTimeAnchor = hasRequestedStartAt;
     this.isDraining = false;
     this.underrunCount = 0;
     return this.pump();
@@ -404,7 +406,7 @@ class PcmOutputScheduler {
     const previousEndTime = this.nextStartTime;
     const startAt = Math.max(previousEndTime, now + this.minimumLeadSeconds);
     const gapSeconds = Math.max(0, startAt - previousEndTime);
-    if (this.hasScheduledData && gapSeconds > 0.000001) {
+    if ((this.hasScheduledData || this.hasStartTimeAnchor) && gapSeconds > 0.000001) {
       this.underrunCount++;
       try {
         this.onUnderrun?.({ frame: this.nextFrame, gapSeconds, count: this.underrunCount });
@@ -532,6 +534,8 @@ class PcmOutputScheduler {
     this.nextFrame = frame;
     this.clockSegments = [];
     this.hasScheduledData = false;
+    this.hasStartTimeAnchor = false;
+    this.isDraining = false;
     return frame;
   }
 }
