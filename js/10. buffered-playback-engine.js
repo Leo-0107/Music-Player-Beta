@@ -981,14 +981,23 @@ class PcmPlaybackSessionController {
   }
 
   get currentFrame() {
-    if (this.activeSession?.scheduler.active) {
-      return this.activeSession.scheduler.currentFrame;
-    }
-    // During handoff there is intentionally no activeSession while the previous
-    // scheduler drains already-scheduled audio. Its live clock, not the future
-    // handoff boundary stored in lastFrame, is the position pause/stop must use.
     const draining = Array.from(this.drainingSessions).filter(session => session.scheduler.active);
-    if (draining.length) return draining[draining.length - 1].scheduler.currentFrame;
+    const latestDraining = draining.length ? draining[draining.length - 1] : null;
+    const active = this.activeSession?.scheduler.active ? this.activeSession : null;
+    if (active) {
+      const firstAt = active.scheduler.firstScheduledAt;
+      const now = Number(this.audioContext.currentTime) || 0;
+      // A replacement session can be prepared before its scheduled start time.
+      // Until that boundary is audible, the old draining scheduler remains the
+      // authoritative playback clock.
+      if (latestDraining && (firstAt === null || now < firstAt)) {
+        return latestDraining.scheduler.currentFrame;
+      }
+      return active.scheduler.currentFrame;
+    }
+    // During handoff there may be no activeSession while old scheduled audio
+    // drains. Its live clock, not the future handoff boundary, is authoritative.
+    if (latestDraining) return latestDraining.scheduler.currentFrame;
     return this.lastFrame;
   }
 
@@ -1248,7 +1257,8 @@ class BufferedPlaybackEngine {
 
   get currentTime() {
     if (this.paused) return this.offset;
-    if (this.pcmOutputController && this.pcmSampleRate > 0) {
+    if (this.pcmOutputController && this.pcmSampleRate > 0 &&
+        (this.pcmOutputController.activeSession || this.pcmOutputController.drainingSessions.size > 0)) {
       return Math.max(0, Math.min(
         this.duration || this.offset,
         this.pcmOutputController.currentFrame / this.pcmSampleRate
