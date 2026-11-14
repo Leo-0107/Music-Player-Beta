@@ -134,6 +134,7 @@ class BufferedPlaybackEngine {
 
   startSource(offset) {
     if (!this.buffer || !audioCtx) throw new Error("PCM buffer is not ready");
+    if (typeof resetPitchShifter === "function") resetPitchShifter();
     const source = audioCtx.createBufferSource();
     source.buffer = this.buffer;
     source.playbackRate.setValueAtTime(this.playbackRate, audioCtx.currentTime);
