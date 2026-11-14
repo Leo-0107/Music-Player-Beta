@@ -1076,10 +1076,18 @@ class PcmPlaybackSessionController {
     return session;
   }
 
-  async handoff(queue, options = {}) {
+  async handoff(queueOrFactory, options = {}) {
     if (this.state === "disposed") throw new Error("PCM session controller is disposed");
     const previous = this.activeSession;
-    if (!previous) return this.start(queue, options);
+    if (!previous) {
+      const initialQueue = typeof queueOrFactory === "function"
+        ? await queueOrFactory({
+            startFrame: Number(options.startFrame) || 0,
+            startAtTime: options.startAtTime
+          })
+        : queueOrFactory;
+      return this.start(initialQueue, options);
+    }
 
     const generation = ++this.generation;
     const handoff = previous.loop.drainForHandoff();
@@ -1096,10 +1104,25 @@ class PcmPlaybackSessionController {
       initialGain: 0
     };
     let next = null;
+    let nextQueue = null;
     try {
-      next = this.createSession(queue, nextOptions, 0);
+      // A queue factory receives the exact frame/time boundary after the old
+      // scheduler has drained new input. It can prepare a separate Worker queue
+      // while already-scheduled old audio continues toward that boundary.
+      nextQueue = typeof queueOrFactory === "function"
+        ? await queueOrFactory(handoff)
+        : queueOrFactory;
+      if (!nextQueue || typeof nextQueue.readAsync !== "function" ||
+          typeof nextQueue.cancel !== "function") {
+        throw new TypeError("PCM handoff requires a prepared cancellable queue");
+      }
+      if (generation !== this.generation) {
+        nextQueue.cancel();
+        return false;
+      }
+      next = this.createSession(nextQueue, nextOptions, 0);
       this.activeSession = next;
-      await next.loop.start(queue, nextOptions);
+      await next.loop.start(nextQueue, nextOptions);
 
       if (generation !== this.generation || this.activeSession !== next) {
         next.loop.stop();
