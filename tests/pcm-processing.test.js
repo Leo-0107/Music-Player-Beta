@@ -482,6 +482,86 @@ test("PCM worker iterator streams through the bounded prebuffer queue without ga
 });
 
 
+test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff through post-DSP PCM output", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      workers.push(this);
+    }
+  }
+
+  const context = createMockOutputContext();
+  const routeNode = { connect() {}, disconnect() {} };
+  context._musicPlayerPostDspInputNode = routeNode;
+  let ownership;
+  const events = [];
+  let timerId = 0;
+  const { Engine, GraphInputOwnership } = createEngineClass(TrackingWorker, {
+    audioCtx: context,
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { duration: 1 }
+    },
+    setGraphInputNode(node, target) { return ownership.set(node, target); },
+    clearGraphInputNode(node, target) { return ownership.clear(node, target); },
+    ensureGraph() {},
+    async resumeAudioCtx() {},
+    canUseBufferedPlayback() { return true; },
+    mediaElement: { dispatchEvent(event) { events.push(event.type); return true; } },
+    setInterval() { return ++timerId; },
+    clearInterval() {},
+    setTimeout() { return ++timerId; },
+    clearTimeout() {}
+  });
+  ownership = new GraphInputOwnership();
+  const engine = new Engine();
+  engine.sourceUrl = "blob:pcm-integration";
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine._readyState = 4;
+
+  await engine.play();
+  assert.equal(engine.paused, false);
+  assert.equal(engine.pcmOutputController.state, "running");
+  assert.ok(engine.pcmOutputController.activeSession);
+  assert.equal(ownership.activeTarget, routeNode);
+  assert.equal(ownership.activeNode, engine.pcmGraphRouter.bus);
+  assert.ok(context.sources.length >= 2);
+  assert.ok(context.sources.every(source => source.connectedNode));
+
+  context.currentTime = 10.1001;
+  assert.equal(engine.currentTime, 0.0701);
+  engine.pause();
+  assert.equal(engine.paused, true);
+  assert.equal(engine.offset, engine.pcmOutputController.lastFrame / 48000);
+  assert.equal(engine.pcmOutputController.activeSession, null);
+
+  await engine.play();
+  assert.equal(engine.paused, false);
+  assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, Math.floor(engine.offset * 48000));
+
+  await engine.seek(0.5);
+  assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, 24000);
+  assert.equal(engine.paused, false);
+
+  engine.setPlaybackRate(1.25);
+  const handoff = await engine.updateProcessingSettings();
+  assert.equal(handoff.session.scheduler.playbackRate, 1.25);
+  assert.equal(handoff.session.scheduler.initialFrame, handoff.handoff.startFrame);
+  assert.ok(workers.length >= 4);
+  assert.ok(engine.pcmOutputController.drainingSessions.size >= 1);
+
+  engine.releaseForFallback();
+  assert.equal(engine.pcmOutputController, null);
+  assert.equal(ownership.activeNode, null);
+  assert.equal(engine.paused, true);
+  assert.equal(workers.every(worker => worker.terminated), true);
+  assert.ok(events.includes("play"));
+  assert.ok(events.includes("pause"));
+  assert.ok(events.includes("seeked"));
+});
+
 test("engine invalidates active PCM queues on pause, seek, rate change, and source replacement", async () => {
   const { Engine } = createEngineClass();
   const engine = new Engine();
