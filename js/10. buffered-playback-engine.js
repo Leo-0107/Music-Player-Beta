@@ -321,8 +321,11 @@ class PcmOutputGraphRouter {
     }
     this.sessionGains.clear();
     this.sessionGainState.clear();
-    try { this.setGraphInput(null); } catch (error) {}
-    try { this.bus.disconnect(); } catch (error) {}
+    // Do not clear the global graph input here: a fallback source may have
+    // replaced this bus since construction. Disconnect only this router's bus.
+    try { this.bus.disconnect(this.routeNode); } catch (error) {
+      try { this.bus.disconnect(); } catch (ignore) {}
+    }
   }
 }
 
