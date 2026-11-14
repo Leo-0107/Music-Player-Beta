@@ -1506,3 +1506,43 @@ test("PCM worker keeps a multi-chunk 192 kHz maximum-pitch stream contiguous", a
   assert.ok(chunkCount >= 6);
   engine.disposeProcessorWorker();
 });
+
+
+test("PCM pump loop fails closed when timer registration is unavailable", async () => {
+  const { PcmOutputScheduler, PcmOutputPumpLoop } = createEngineClass();
+  const context = createMockOutputContext();
+  const queue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 0, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  };
+  const errors = [];
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const loop = new PcmOutputPumpLoop(scheduler, {
+    intervalMs: 25,
+    schedule() { throw new Error("timer registration failed"); },
+    cancel() {},
+    onError(error) { errors.push(error.message); }
+  });
+
+  await assert.rejects(
+    () => loop.start(queue, {
+      startFrame: 0, sampleRate: 8000, playbackRate: 1,
+      blockFrames: 1024, startBufferFrames: 1024,
+      lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    }),
+    /timer registration failed/
+  );
+  assert.equal(loop.active, false);
+  assert.equal(scheduler.active, false);
+  assert.equal(queue.cancelled, true);
+  assert.equal(context.sources[0].stopped, true);
+  assert.deepEqual(errors, ["timer registration failed"]);
+});
