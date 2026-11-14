@@ -1,0 +1,25 @@
+name: Temporary PCM Node 24 compatibility test
+on:
+  push:
+    branches:
+      - test/pcm-node24-20261114
+permissions:
+  contents: read
+jobs:
+  pcm-node24-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check "js/10. buffered-playback-engine.js"
+          node --check "js/11. pcm-processing-worker.js"
+          node --check "js/2. audio.js"
+          node --check "tests/pcm-processing.test.js"
+      - name: Run native Node.js test runner
+        run: node --test tests/pcm-processing.test.js
