@@ -373,6 +373,7 @@ class PcmOutputScheduler {
     this.pausedFrame = 0;
     this.nextFrame = 0;
     this.nextStartTime = 0;
+    this.firstScheduledAt = null;
     this.sampleRate = 0;
     this.playbackRate = 1;
     this.blockFrames = 0;
@@ -465,6 +466,7 @@ class PcmOutputScheduler {
     this.lookAheadSeconds = lookAheadSeconds;
     this.minimumLeadSeconds = minimumLeadSeconds;
     this.nextStartTime = requestedStartAt;
+    this.firstScheduledAt = null;
     this.hasScheduledData = false;
     this.hasStartTimeAnchor = hasRequestedStartAt;
     this.isDraining = false;
@@ -560,6 +562,7 @@ class PcmOutputScheduler {
       throw error;
     }
 
+    if (this.firstScheduledAt === null) this.firstScheduledAt = startAt;
     const endTime = startAt + frameCount / this.sampleRate / this.playbackRate;
     const endFrame = this.nextFrame + frameCount;
     const previousSegment = this.clockSegments[this.clockSegments.length - 1];
