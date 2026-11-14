@@ -870,6 +870,7 @@
           currentYoutubeItem = null;
           setPlaybackIntent(false);
           try { audio.pause(); } catch {}
+          try { audio.src = ""; } catch {}
           state.currentSong = null;
           try { localStorage.removeItem(STORAGE.lastSong); } catch {}
           updateArtwork(null);
@@ -1017,6 +1018,7 @@
       // Audio側のバックグラウンド自動復帰がpauseイベントに反応しないよう先に停止状態へ。
       setPlaybackIntent(false);
       try { audio.pause(); } catch {}
+      try { audio.src = ""; } catch {}
       playYoutubeItem(item);
       return;
     }
