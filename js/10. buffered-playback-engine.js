@@ -215,6 +215,260 @@ class PcmPrebufferQueue {
   }
 }
 
+// Schedules already-processed PCM chunks without changing the audible graph yet.
+// The caller owns the polling cadence and the single input GainNode connected after EQ/pitch.
+class PcmOutputScheduler {
+  constructor(audioContext, inputNode, options = {}) {
+    if (!audioContext || typeof audioContext.createBuffer !== "function" ||
+        typeof audioContext.createBufferSource !== "function" ||
+        !inputNode || typeof inputNode.connect !== "function") {
+      throw new TypeError("PCM output scheduler requires an AudioContext and input node");
+    }
+    this.audioContext = audioContext;
+    this.inputNode = inputNode;
+    this.defaultLookAheadSeconds = Number(options.lookAheadSeconds) || 0.25;
+    this.defaultMinimumLeadSeconds = Number(options.minimumLeadSeconds) || 0.03;
+    this.queue = null;
+    this.active = false;
+    this.eof = false;
+    this.error = null;
+    this.generation = 0;
+    this.pumpPromise = null;
+    this.activeSources = new Set();
+    this.clockSegments = [];
+    this.initialFrame = 0;
+    this.pausedFrame = 0;
+    this.nextFrame = 0;
+    this.nextStartTime = 0;
+    this.sampleRate = 0;
+    this.playbackRate = 1;
+    this.blockFrames = 0;
+    this.lookAheadSeconds = this.defaultLookAheadSeconds;
+    this.minimumLeadSeconds = this.defaultMinimumLeadSeconds;
+    this.hasScheduledData = false;
+    this.underrunCount = 0;
+    this.onUnderrun = typeof options.onUnderrun === "function" ? options.onUnderrun : null;
+    this.onEnded = typeof options.onEnded === "function" ? options.onEnded : null;
+    this.onError = typeof options.onError === "function" ? options.onError : null;
+  }
+
+  get currentFrame() {
+    if (!this.active) return this.pausedFrame;
+    const now = Number(this.audioContext.currentTime) || 0;
+    let activeIndex = -1;
+    for (let index = 0; index < this.clockSegments.length; index++) {
+      if (now < this.clockSegments[index].startTime) break;
+      activeIndex = index;
+    }
+    if (activeIndex < 0) return this.initialFrame;
+
+    if (activeIndex > 0) {
+      const anchor = this.clockSegments[activeIndex];
+      this.initialFrame = anchor.startFrame;
+      this.clockSegments.splice(0, activeIndex);
+      activeIndex = 0;
+    }
+
+    const segment = this.clockSegments[activeIndex];
+    if (now <= segment.endTime) {
+      const elapsed = Math.max(0, now - segment.startTime);
+      return Math.min(segment.endFrame, segment.startFrame + elapsed * this.sampleRate * this.playbackRate);
+    }
+    return segment.endFrame;
+  }
+
+  get currentTime() {
+    return this.sampleRate > 0 ? this.currentFrame / this.sampleRate : 0;
+  }
+
+  start(queue, options = {}) {
+    if (this.active || this.pumpPromise || this.activeSources.size) {
+      throw new Error("PCM output scheduler is already active or stopping");
+    }
+    if (!queue || typeof queue.readAsync !== "function" || typeof queue.cancel !== "function") {
+      throw new TypeError("PCM output scheduler requires a cancellable PCM queue");
+    }
+    const startFrame = Number(options.startFrame ?? 0);
+    const sampleRate = Number(options.sampleRate);
+    const playbackRate = Number(options.playbackRate ?? 1);
+    const blockFrames = Number(options.blockFrames ?? queue.maxChunkFrames);
+    const lookAheadSeconds = Number(options.lookAheadSeconds ?? this.defaultLookAheadSeconds);
+    const minimumLeadSeconds = Number(options.minimumLeadSeconds ?? this.defaultMinimumLeadSeconds);
+    if (!Number.isSafeInteger(startFrame) || startFrame < 0 ||
+        !Number.isFinite(sampleRate) || sampleRate < 3000 || sampleRate > 192000 ||
+        !Number.isFinite(playbackRate) || playbackRate < 0.5 || playbackRate > 2 ||
+        !Number.isInteger(blockFrames) || blockFrames < 1 ||
+        !Number.isInteger(queue.maxChunkFrames) || blockFrames > queue.maxChunkFrames ||
+        !Number.isFinite(lookAheadSeconds) || lookAheadSeconds <= 0 ||
+        !Number.isFinite(minimumLeadSeconds) || minimumLeadSeconds <= 0 ||
+        minimumLeadSeconds >= lookAheadSeconds) {
+      throw new RangeError("PCM output scheduler settings are outside the supported range");
+    }
+
+    this.queue = queue;
+    this.active = true;
+    this.eof = false;
+    this.error = null;
+    this.generation++;
+    this.clockSegments = [];
+    this.initialFrame = startFrame;
+    this.pausedFrame = startFrame;
+    this.nextFrame = startFrame;
+    this.sampleRate = sampleRate;
+    this.playbackRate = playbackRate;
+    this.blockFrames = blockFrames;
+    this.lookAheadSeconds = lookAheadSeconds;
+    this.minimumLeadSeconds = minimumLeadSeconds;
+    this.nextStartTime = (Number(this.audioContext.currentTime) || 0) + minimumLeadSeconds;
+    this.hasScheduledData = false;
+    this.underrunCount = 0;
+    return this.pump();
+  }
+
+  pump() {
+    if (!this.active) return Promise.resolve(false);
+    if (this.pumpPromise) return this.pumpPromise;
+    const generation = this.generation;
+    const task = (async () => {
+      while (this.active && generation === this.generation && !this.eof &&
+             this.nextStartTime <= (Number(this.audioContext.currentTime) || 0) + this.lookAheadSeconds) {
+        const chunk = await this.queue.readAsync(this.blockFrames);
+        if (!this.active || generation !== this.generation) return false;
+        if (!chunk) {
+          this.eof = true;
+          if (this.activeSources.size === 0) this.finish();
+          return true;
+        }
+        this.scheduleChunk(chunk);
+      }
+      return true;
+    })();
+    const wrapped = task.catch(error => {
+      if (this.active && generation === this.generation) this.fail(error);
+      throw error;
+    }).finally(() => {
+      if (this.pumpPromise === wrapped) this.pumpPromise = null;
+    });
+    this.pumpPromise = wrapped;
+    return wrapped;
+  }
+
+  scheduleChunk(chunk) {
+    const frameCount = Number(chunk?.frameCount);
+    const chunkRate = Number(chunk?.sampleRate) || this.sampleRate;
+    if (!Number.isSafeInteger(chunk?.startFrame) || chunk.startFrame !== this.nextFrame ||
+        !Number.isInteger(frameCount) || frameCount < 1 || frameCount > this.blockFrames ||
+        !chunk.left || !chunk.right || chunk.left.length < frameCount || chunk.right.length < frameCount ||
+        chunkRate !== this.sampleRate) {
+      throw new Error("PCM scheduler received an invalid, discontinuous, or mismatched chunk");
+    }
+
+    const now = Number(this.audioContext.currentTime) || 0;
+    const previousEndTime = this.nextStartTime;
+    const startAt = Math.max(previousEndTime, now + this.minimumLeadSeconds);
+    const gapSeconds = Math.max(0, startAt - previousEndTime);
+    if (this.hasScheduledData && gapSeconds > 0.001) {
+      this.underrunCount++;
+      try {
+        this.onUnderrun?.({ frame: this.nextFrame, gapSeconds, count: this.underrunCount });
+      } catch (error) {}
+    }
+
+    const buffer = this.audioContext.createBuffer(2, frameCount, this.sampleRate);
+    buffer.getChannelData(0).set(chunk.left.subarray ? chunk.left.subarray(0, frameCount) : chunk.left);
+    buffer.getChannelData(1).set(chunk.right.subarray ? chunk.right.subarray(0, frameCount) : chunk.right);
+    const source = this.audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.setValueAtTime(this.playbackRate, startAt);
+    source.connect(this.inputNode);
+
+    const endTime = startAt + frameCount / this.sampleRate / this.playbackRate;
+    const endFrame = this.nextFrame + frameCount;
+    const previousSegment = this.clockSegments[this.clockSegments.length - 1];
+    if (previousSegment && Math.abs(startAt - previousSegment.endTime) < 0.001 &&
+        chunk.startFrame === previousSegment.endFrame) {
+      previousSegment.endTime = endTime;
+      previousSegment.endFrame = endFrame;
+    } else {
+      this.clockSegments.push({
+        startTime: startAt,
+        startFrame: chunk.startFrame,
+        endTime,
+        endFrame
+      });
+    }
+
+    source.onended = () => {
+      if (!this.activeSources.delete(source)) return;
+      try { source.disconnect(); } catch (error) {}
+      if (this.eof && this.activeSources.size === 0) this.finish();
+    };
+    this.activeSources.add(source);
+    try {
+      source.start(startAt);
+    } catch (error) {
+      this.activeSources.delete(source);
+      source.onended = null;
+      try { source.disconnect(); } catch (ignore) {}
+      throw error;
+    }
+
+    this.nextFrame = endFrame;
+    this.nextStartTime = endTime;
+    this.hasScheduledData = true;
+  }
+
+  finish() {
+    if (!this.active) return;
+    this.active = false;
+    this.pausedFrame = this.nextFrame;
+    this.queue = null;
+    try { this.onEnded?.(this.pausedFrame); } catch (error) {}
+  }
+
+  fail(error) {
+    this.error = error;
+    const frame = this.currentFrame;
+    this.active = false;
+    this.generation++;
+    const queue = this.queue;
+    this.queue = null;
+    try { queue?.cancel(); } catch (ignore) {}
+    for (const source of this.activeSources) {
+      source.onended = null;
+      try { source.stop(); } catch (ignore) {}
+      try { source.disconnect(); } catch (ignore) {}
+    }
+    this.activeSources.clear();
+    this.pausedFrame = frame;
+    this.initialFrame = frame;
+    this.clockSegments = [];
+    try { this.onError?.(error, frame); } catch (ignore) {}
+  }
+
+  stop() {
+    const frame = this.currentFrame;
+    this.active = false;
+    this.generation++;
+    const queue = this.queue;
+    this.queue = null;
+    try { queue?.cancel(); } catch (ignore) {}
+    for (const source of this.activeSources) {
+      source.onended = null;
+      try { source.stop(); } catch (ignore) {}
+      try { source.disconnect(); } catch (ignore) {}
+    }
+    this.activeSources.clear();
+    this.eof = false;
+    this.pausedFrame = frame;
+    this.initialFrame = frame;
+    this.nextFrame = frame;
+    this.clockSegments = [];
+    this.hasScheduledData = false;
+    return frame;
+  }
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
