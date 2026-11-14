@@ -1075,6 +1075,13 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
   assert.deepEqual(newGain.gain.events, [
     ["cancel", 12], ["set", 0, 12], ["ramp", 1, 12.01]
   ]);
+  assert.equal(router.crossfade(newGain, oldGain, 13, 0.02), 13.02);
+  assert.deepEqual(oldGain.gain.events.slice(-3), [
+    ["cancel", 13], ["set", 0, 13], ["ramp", 1, 13.02]
+  ]);
+  assert.deepEqual(newGain.gain.events.slice(-3), [
+    ["cancel", 13], ["set", 1, 13], ["ramp", 0, 13.02]
+  ]);
   assert.throws(() => router.crossfade(oldGain, oldGain, 12, 0.01), /unknown session gain/);
   assert.throws(() => router.createSessionGain(1.5), /between 0 and 1/);
 
