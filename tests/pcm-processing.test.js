@@ -86,8 +86,8 @@ function createEngineClass(WorkerClass = MockWorker, overrides = {}) {
     setGraphInputNode() {}
   };
   Object.assign(sandbox, overrides);
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;\n  this.PcmPlaybackSessionController = PcmPlaybackSessionController;", sandbox);
-  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter, PcmPlaybackSessionController: sandbox.PcmPlaybackSessionController };
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.PcmGraphInputOwnership = PcmGraphInputOwnership;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;\n  this.PcmPlaybackSessionController = PcmPlaybackSessionController;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, GraphInputOwnership: sandbox.PcmGraphInputOwnership, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter, PcmPlaybackSessionController: sandbox.PcmPlaybackSessionController };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -1863,4 +1863,73 @@ test("PCM session handoff retires the new session when crossfade scheduling fail
   controller.dispose();
   assert.equal(oldSession.gain.disconnected, true);
   assert.equal(activeInput, null);
+});
+
+
+test("PCM graph input ownership preserves the current route when replacement connection fails", () => {
+  const { GraphInputOwnership } = createEngineClass();
+  const ownership = new GraphInputOwnership();
+  const targetA = {};
+  const targetB = {};
+  const events = [];
+  const oldNode = {
+    connect(target) { events.push(["old-connect", target]); },
+    disconnect(target) { events.push(["old-disconnect", target]); }
+  };
+  const failingNode = {
+    connect(target) { events.push(["failed-connect", target]); throw new Error("connect failed"); },
+    disconnect(target) { events.push(["failed-disconnect", target]); }
+  };
+
+  ownership.set(oldNode, targetA);
+  assert.throws(() => ownership.set(failingNode, targetB), /connect failed/);
+  assert.equal(ownership.activeNode, oldNode);
+  assert.equal(ownership.activeTarget, targetA);
+  assert.deepEqual(events.map(event => event[0]), ["old-connect", "failed-connect"]);
+});
+
+test("PCM graph input ownership switches and clears only the exact owned connection", () => {
+  const { GraphInputOwnership } = createEngineClass();
+  const ownership = new GraphInputOwnership();
+  const targetA = {};
+  const targetB = {};
+  const events = [];
+  const makeNode = name => ({
+    connect(target) { events.push([name, "connect", target]); },
+    disconnect(target) { events.push([name, "disconnect", target]); }
+  });
+  const mediaNode = makeNode("media");
+  const pcmNode = makeNode("pcm");
+
+  ownership.set(mediaNode, targetA);
+  ownership.set(mediaNode, targetA);
+  ownership.set(pcmNode, targetB);
+  assert.equal(ownership.activeNode, pcmNode);
+  assert.equal(ownership.activeTarget, targetB);
+  assert.equal(events.filter(event => event[0] === "media" && event[1] === "connect").length, 1);
+  assert.equal(events.some(event => event[0] === "media" && event[1] === "disconnect" && event[2] === targetA), true);
+  assert.equal(ownership.clear(mediaNode, targetA), false);
+  assert.equal(ownership.activeNode, pcmNode);
+  assert.equal(ownership.clear(pcmNode, {}), false);
+  assert.equal(ownership.activeNode, pcmNode);
+  assert.equal(ownership.clear(pcmNode, targetB), true);
+  assert.equal(ownership.activeNode, null);
+  assert.equal(ownership.activeTarget, null);
+});
+
+test("PCM graph input ownership reset detaches a stale graph edge", () => {
+  const { GraphInputOwnership } = createEngineClass();
+  const ownership = new GraphInputOwnership();
+  const target = {};
+  let disconnectCount = 0;
+  const node = {
+    connect() {},
+    disconnect(value) { assert.equal(value, target); disconnectCount++; }
+  };
+  ownership.set(node, target);
+  ownership.reset();
+  ownership.reset();
+  assert.equal(disconnectCount, 1);
+  assert.equal(ownership.activeNode, null);
+  assert.equal(ownership.activeTarget, null);
 });
