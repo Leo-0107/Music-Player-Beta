@@ -100,7 +100,6 @@ class BufferedPlaybackEngine {
     })().catch(error => {
       if (generation === this.generation) {
         this._readyState = 0;
-        this.dispatch("error");
       }
       throw error;
     }).finally(() => {
