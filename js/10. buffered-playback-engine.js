@@ -1321,7 +1321,7 @@ class BufferedPlaybackEngine {
     // The granular pitch shifter is causal and has a fixed startup delay.
     // Discard that leading delay and feed zeroes at EOF to return a duration-aligned PCM stream.
     for (let relativeOffset = 0; relativeOffset < totalInputFrames; relativeOffset += chunkFrames) {
-      if (isCancelled() || !this.processorWorker) {
+      if (isCancelled() || (!workerSession && !this.processorWorker)) {
         throw new Error("PCM processing was cancelled");
       }
       const frameCount = Math.min(chunkFrames, totalInputFrames - relativeOffset);
