@@ -16,7 +16,15 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
       { active: false, readPos: 0, phase: 0 }
     ];
     this.port.onmessage = event => {
-      if (event.data?.type === "pitch") {
+      if (event.data?.type === "reset") {
+        this.buffers[0].fill(0);
+        this.buffers[1].fill(0);
+        this.writeIndex = 0;
+        this.spawnCountdown = 0;
+        this.nextSlot = 0;
+        this.grains[0].active = false;
+        this.grains[1].active = false;
+      } else if (event.data?.type === "pitch") {
         const value = Number(event.data.value);
         if (Number.isFinite(value)) {
           const next = Math.max(0.5, Math.min(2, value));
