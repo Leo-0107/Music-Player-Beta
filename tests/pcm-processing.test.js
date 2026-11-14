@@ -730,3 +730,78 @@ test("PCM output scheduler rejects discontinuous or invalid chunk ranges", async
   assert.equal(queue.cancelled, true);
   assert.equal(context.sources.length, 0);
 });
+
+
+test("PCM scheduler preserves timing across sample-rate, block-size, and playback-rate matrix", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const sampleRates = [8000, 44100, 96000, 192000];
+  const blockSizes = [1024, 8192, 32768];
+  const playbackRates = [0.5, 1, 2];
+
+  for (const sampleRate of sampleRates) {
+    for (const blockFrames of blockSizes) {
+      for (const playbackRate of playbackRates) {
+        const context = createMockOutputContext();
+        const makeChunk = startFrame => ({
+          startFrame,
+          sampleRate,
+          frameCount: blockFrames,
+          left: new Float32Array(blockFrames),
+          right: new Float32Array(blockFrames)
+        });
+        const chunks = [makeChunk(0), makeChunk(blockFrames)];
+        const queue = {
+          maxChunkFrames: blockFrames,
+          async readAsync() { return chunks.length ? chunks.shift() : null; },
+          cancel() {}
+        };
+        const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+          lookAheadSeconds: 20, minimumLeadSeconds: 0.05
+        });
+        await scheduler.start(queue, {
+          startFrame: 0, sampleRate, playbackRate, blockFrames,
+          lookAheadSeconds: 20, minimumLeadSeconds: 0.05
+        });
+        assert.equal(context.sources.length, 2);
+        const expectedDuration = blockFrames / sampleRate / playbackRate;
+        const actualDuration = context.sources[1].startAt - context.sources[0].startAt;
+        assert.ok(Math.abs(actualDuration - expectedDuration) < 0.0000001);
+        assert.equal(scheduler.nextFrame, blockFrames * 2);
+        scheduler.stop();
+      }
+    }
+  }
+});
+
+test("PCM scheduler detects sub-millisecond underruns and freezes its clock", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  const chunks = [
+    makePcmChunk(0, [1, 2, 3, 4]),
+    makePcmChunk(4, [5, 6, 7, 8])
+  ];
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() { return chunks.length ? chunks.shift() : null; },
+    cancel() {}
+  };
+  const underruns = [];
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.0001,
+    minimumLeadSeconds: 0.00005,
+    onUnderrun: detail => underruns.push(detail)
+  });
+  await scheduler.start(queue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 4, lookAheadSeconds: 0.0001, minimumLeadSeconds: 0.00005
+  });
+
+  context.currentTime = 10.00105;
+  await scheduler.pump();
+  assert.equal(underruns.length, 1);
+  assert.ok(underruns[0].gapSeconds > 0.0005);
+  assert.equal(scheduler.currentFrame, 4);
+  context.currentTime = 10.001225;
+  assert.equal(scheduler.currentFrame, 5);
+  scheduler.stop();
+});
