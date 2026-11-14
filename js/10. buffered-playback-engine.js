@@ -243,6 +243,7 @@ class PcmOutputScheduler {
     this.sampleRate = 0;
     this.playbackRate = 1;
     this.blockFrames = 0;
+    this.startBufferFrames = 0;
     this.lookAheadSeconds = this.defaultLookAheadSeconds;
     this.minimumLeadSeconds = this.defaultMinimumLeadSeconds;
     this.hasScheduledData = false;
@@ -292,6 +293,7 @@ class PcmOutputScheduler {
     const sampleRate = Number(options.sampleRate);
     const playbackRate = Number(options.playbackRate ?? 1);
     const blockFrames = Number(options.blockFrames ?? queue.maxChunkFrames);
+    const startBufferFrames = Number(options.startBufferFrames ?? blockFrames * 2);
     const lookAheadSeconds = Number(options.lookAheadSeconds ?? this.defaultLookAheadSeconds);
     const minimumLeadSeconds = Number(options.minimumLeadSeconds ?? this.defaultMinimumLeadSeconds);
     if (!Number.isSafeInteger(startFrame) || startFrame < 0 ||
@@ -299,6 +301,7 @@ class PcmOutputScheduler {
         !Number.isFinite(playbackRate) || playbackRate < 0.5 || playbackRate > 2 ||
         !Number.isInteger(blockFrames) || blockFrames < 1 ||
         !Number.isInteger(queue.maxChunkFrames) || blockFrames > queue.maxChunkFrames ||
+        !Number.isSafeInteger(startBufferFrames) || startBufferFrames < 1 || startBufferFrames > 1048576 ||
         !Number.isFinite(lookAheadSeconds) || lookAheadSeconds <= 0 ||
         !Number.isFinite(minimumLeadSeconds) || minimumLeadSeconds <= 0 ||
         minimumLeadSeconds >= lookAheadSeconds) {
@@ -317,6 +320,7 @@ class PcmOutputScheduler {
     this.sampleRate = sampleRate;
     this.playbackRate = playbackRate;
     this.blockFrames = blockFrames;
+    this.startBufferFrames = startBufferFrames;
     this.lookAheadSeconds = lookAheadSeconds;
     this.minimumLeadSeconds = minimumLeadSeconds;
     this.nextStartTime = (Number(this.audioContext.currentTime) || 0) + minimumLeadSeconds;
@@ -330,6 +334,31 @@ class PcmOutputScheduler {
     if (this.pumpPromise) return this.pumpPromise;
     const generation = this.generation;
     const task = (async () => {
+      // Do not expose the first audio block until a bounded startup reserve is ready.
+      // Short tracks may reach EOF before the target; in that case schedule what exists.
+      if (!this.hasScheduledData) {
+        const startupChunks = [];
+        let startupFrames = 0;
+        while (this.active && generation === this.generation && !this.eof &&
+               startupFrames < this.startBufferFrames) {
+          const chunk = await this.queue.readAsync(this.blockFrames);
+          if (!this.active || generation !== this.generation) return false;
+          if (!chunk) {
+            this.eof = true;
+            break;
+          }
+          const frameCount = Number(chunk.frameCount);
+          if (!Number.isInteger(frameCount) || frameCount < 1 || frameCount > this.blockFrames) {
+            throw new Error("PCM scheduler startup received an invalid or oversized chunk");
+          }
+          startupChunks.push(chunk);
+          startupFrames += frameCount;
+        }
+        for (const chunk of startupChunks) this.scheduleChunk(chunk);
+        if (this.eof && this.activeSources.size === 0) this.finish();
+        if (this.eof) return true;
+      }
+
       while (this.active && generation === this.generation && !this.eof &&
              this.nextStartTime <= (Number(this.audioContext.currentTime) || 0) + this.lookAheadSeconds) {
         const chunk = await this.queue.readAsync(this.blockFrames);
