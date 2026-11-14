@@ -75,7 +75,7 @@ class DeferredProcessWorker extends MockWorker {
   }
 }
 
-function createEngineClass(WorkerClass = MockWorker) {
+function createEngineClass(WorkerClass = MockWorker, overrides = {}) {
   const sandbox = {
     Worker: WorkerClass,
     URL,
@@ -85,6 +85,7 @@ function createEngineClass(WorkerClass = MockWorker) {
     audioCtx: { sampleRate: 48000 },
     setGraphInputNode() {}
   };
+  Object.assign(sandbox, overrides);
   vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;", sandbox);
   return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter };
 }
@@ -1351,4 +1352,74 @@ test("PCM pump loop waits for an in-flight read before starting a replacement se
   assert.equal(scheduler.active, true);
   assert.equal(context.sources.length, 2);
   loop.stop();
+});
+
+
+test("PCM preparation budgets compressed copies together with estimated decoded PCM", async () => {
+  let decodeCalls = 0;
+  const compressed = new ArrayBuffer(60);
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() {
+        decodeCalls++;
+        throw new Error("decode should not run when peak memory exceeds budget");
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { duration: 1 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/audio";
+  engine.maxPcmBytes = 384100;
+
+  await assert.rejects(
+    () => engine.prepare(),
+    /exceed the PCM memory budget before decoding/
+  );
+  assert.equal(decodeCalls, 0);
+  assert.equal(engine.buffer, null);
+});
+
+test("PCM preparation checks actual compressed-plus-decoded peak when duration is unknown", async () => {
+  const compressed = new ArrayBuffer(100);
+  let decodeCalls = 0;
+  const samples = new Float32Array(101);
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() {
+        decodeCalls++;
+        return {
+          length: 101,
+          numberOfChannels: 2,
+          duration: 101 / 48000,
+          sampleRate: 48000,
+          getChannelData() { return samples; }
+        };
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: null
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/audio";
+  engine.maxPcmBytes = 1000;
+
+  await assert.rejects(
+    () => engine.prepare(),
+    /Compressed and decoded PCM exceed the available memory budget/
+  );
+  assert.equal(decodeCalls, 1);
+  assert.equal(engine.buffer, null);
 });
