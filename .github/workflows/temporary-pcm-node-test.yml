@@ -1,0 +1,28 @@
+name: Temporary PCM native Node test
+on:
+  push:
+    branches:
+      - test/pcm-node-runner-final-20261114
+permissions:
+  contents: read
+jobs:
+  pcm-node-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact test branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check "js/10. buffered-playback-engine.js"
+          node --check "js/11. pcm-processing-worker.js"
+          node --check "js/2. audio.js"
+          node --check "tests/pcm-processing.test.js"
+      - name: Check application scripts in loader order
+        run: |
+          cat "js/storage.js" "js/state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/library.js" "js/ui.js" "js/youtube.js" | node --check
+      - name: Run native Node.js test runner
+        run: node --test tests/pcm-processing.test.js
