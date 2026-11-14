@@ -685,12 +685,20 @@ class PcmOutputPumpLoop {
     this.pumpPromise = null;
   }
 
-  start(queue, options = {}) {
-    if (this.active || this.timer !== null || this.pumpPromise) {
+  async start(queue, options = {}) {
+    if (this.active || this.timer !== null) {
       throw new Error("PCM pump loop is already active or stopping");
     }
+    const previousPump = this.pumpPromise;
     this.active = true;
     const generation = ++this.generation;
+    if (previousPump) {
+      try { await previousPump; } catch (error) {}
+    }
+    if (!this.active || generation !== this.generation) {
+      throw new Error("PCM pump loop start was cancelled");
+    }
+
     let initialPump;
     try {
       initialPump = this.scheduler.start(queue, options);
@@ -706,9 +714,11 @@ class PcmOutputPumpLoop {
       throw error;
     });
     this.pumpPromise = task;
-    return task.finally(() => {
+    try {
+      return await task;
+    } finally {
       if (this.pumpPromise === task) this.pumpPromise = null;
-    });
+    }
   }
 
   scheduleNext(generation) {
