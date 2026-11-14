@@ -84,8 +84,8 @@ function createEngineClass(WorkerClass = MockWorker) {
     audioCtx: { sampleRate: 48000 },
     setGraphInputNode() {}
   };
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;", sandbox);
-  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler };
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -105,8 +105,26 @@ function makeMonoBuffer(sampleRate, durationSeconds = 2) {
 
 function createMockOutputContext() {
   const sources = [];
+  const gains = [];
   const context = {
     currentTime: 10,
+    createGain() {
+      const events = [];
+      const parameter = {
+        value: 1,
+        events,
+        cancelScheduledValues(time) { events.push(["cancel", time]); },
+        setValueAtTime(value, time) { this.value = value; events.push(["set", value, time]); },
+        linearRampToValueAtTime(value, time) { this.value = value; events.push(["ramp", value, time]); }
+      };
+      const node = {
+        gain: parameter,
+        connect(target) { this.connectedTo = target; },
+        disconnect() { this.disconnected = true; }
+      };
+      gains.push(node);
+      return node;
+    },
     createBuffer(channelCount, frameCount, sampleRate) {
       const channels = Array.from({ length: channelCount }, () => new Float32Array(frameCount));
       return {
@@ -131,7 +149,8 @@ function createMockOutputContext() {
       sources.push(source);
       return source;
     },
-    sources
+    sources,
+    gains
   };
   return context;
 }
@@ -1027,4 +1046,44 @@ test("PCM scheduler handoff invalidates an in-flight producer read without sched
   assert.equal(scheduler.active, true);
   context.sources[0].finish();
   assert.deepEqual(drained, [1024]);
+});
+
+
+test("PCM graph router keeps one graph input and crossfades session gains safely", () => {
+  const { PcmOutputGraphRouter } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  const graphCalls = [];
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    graphCalls.push({ node, target });
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput);
+  assert.equal(activeInput.node, router.bus);
+  assert.equal(activeInput.target, routeNode);
+
+  const oldGain = router.createSessionGain(1);
+  const newGain = router.createSessionGain(0);
+  assert.equal(oldGain.connectedTo, router.bus);
+  assert.equal(newGain.connectedTo, router.bus);
+  assert.equal(router.crossfade(oldGain, newGain, 12, 0.01), 12.01);
+  assert.deepEqual(oldGain.gain.events, [
+    ["cancel", 12], ["set", 1, 12], ["ramp", 0, 12.01]
+  ]);
+  assert.deepEqual(newGain.gain.events, [
+    ["cancel", 12], ["set", 0, 12], ["ramp", 1, 12.01]
+  ]);
+  assert.throws(() => router.crossfade(oldGain, oldGain, 12, 0.01), /unknown session gain/);
+  assert.throws(() => router.createSessionGain(1.5), /between 0 and 1/);
+
+  assert.equal(router.retireSessionGain(oldGain), true);
+  assert.equal(oldGain.disconnected, true);
+  router.dispose();
+  assert.equal(activeInput, null);
+  assert.equal(newGain.disconnected, true);
+  assert.equal(router.bus.disconnected, true);
+  assert.equal(graphCalls[graphCalls.length - 1].node, null);
+  router.dispose();
 });
