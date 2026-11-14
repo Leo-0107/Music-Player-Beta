@@ -679,6 +679,8 @@ class PcmOutputPumpLoop {
     this.cancel = typeof options.cancel === "function"
       ? options.cancel
       : timer => clearTimeout(timer);
+    this.onError = typeof options.onError === "function" ? options.onError : null;
+    this.lastError = null;
     this.active = false;
     this.generation = 0;
     this.timer = null;
@@ -707,7 +709,7 @@ class PcmOutputPumpLoop {
       throw error;
     }
     const task = Promise.resolve(initialPump).then(result => {
-      this.scheduleNext(generation);
+      if (!this.scheduleNext(generation)) throw this.lastError || new Error("PCM pump timer could not be scheduled");
       return result;
     }, error => {
       if (generation === this.generation) this.active = false;
@@ -728,20 +730,35 @@ class PcmOutputPumpLoop {
       return;
     }
     if (this.timer !== null) return;
-    this.timer = this.schedule(() => {
-      this.timer = null;
-      if (!this.active || generation !== this.generation) return;
-      const task = Promise.resolve().then(() => this.scheduler.pump());
-      this.pumpPromise = task;
-      task.then(() => {
-        this.scheduleNext(generation);
-      }, error => {
-        if (generation === this.generation) this.active = false;
-        try { this.cancelTimer(); } catch (ignore) {}
-      }).finally(() => {
-        if (this.pumpPromise === task) this.pumpPromise = null;
-      });
-    }, this.intervalMs);
+    try {
+      this.timer = this.schedule(() => {
+        this.timer = null;
+        if (!this.active || generation !== this.generation) return;
+        const task = Promise.resolve().then(() => this.scheduler.pump());
+        this.pumpPromise = task;
+        task.then(() => {
+          this.scheduleNext(generation);
+        }, error => {
+          if (generation === this.generation) this.active = false;
+          this.cancelTimer();
+          try { this.onError?.(error); } catch (ignore) {}
+        }).finally(() => {
+          if (this.pumpPromise === task) this.pumpPromise = null;
+        });
+      }, this.intervalMs);
+      if (this.timer === null || this.timer === undefined) {
+        throw new Error("PCM pump timer scheduler did not return a timer handle");
+      }
+      return true;
+    } catch (error) {
+      this.lastError = error;
+      this.active = false;
+      this.generation++;
+      this.cancelTimer();
+      try { this.scheduler.stop(); } catch (ignore) {}
+      try { this.onError?.(error); } catch (ignore) {}
+      return false;
+    }
   }
 
   cancelTimer() {
