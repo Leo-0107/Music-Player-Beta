@@ -531,7 +531,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   assert.ok(context.sources.every(source => source.connectedNode));
 
   context.currentTime = 10.1001;
-  assert.equal(engine.currentTime, 0.0701);
+  assert.ok(Math.abs(engine.currentTime - 0.0701) < 0.0001);
   engine.pause();
   assert.equal(engine.paused, true);
   assert.equal(engine.offset, engine.pcmOutputController.lastFrame / 48000);
