@@ -86,8 +86,8 @@ function createEngineClass(WorkerClass = MockWorker, overrides = {}) {
     setGraphInputNode() {}
   };
   Object.assign(sandbox, overrides);
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;", sandbox);
-  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter };
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;\n  this.PcmPlaybackSessionController = PcmPlaybackSessionController;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter, PcmPlaybackSessionController: sandbox.PcmPlaybackSessionController };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -1610,4 +1610,136 @@ test("PCM pump loop treats immediate EOF and cancelled startup as normal lifecyc
   assert.equal(waitingScheduler.active, false);
   assert.equal(waitingLoop.active, false);
   assert.equal(timers.size, 0);
+});
+
+
+test("PCM session controller owns graph routing and cleans up on pause/dispose", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const timers = new Map();
+  let timerId = 0;
+  const controller = new PcmPlaybackSessionController(context, router, {
+    intervalMs: 25,
+    schedule(callback, delay) {
+      const id = ++timerId;
+      timers.set(id, { callback, delay });
+      return id;
+    },
+    cancel(id) { timers.delete(id); }
+  });
+  const queue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 0, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  };
+
+  const session = await controller.start(queue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  assert.equal(controller.state, "running");
+  assert.equal(controller.activeSession, session);
+  assert.equal(controller.currentFrame, 0);
+  assert.equal(activeInput.node, router.bus);
+  assert.equal(session.gain.gain.value, 1);
+
+  const stoppedFrame = controller.stop();
+  assert.equal(stoppedFrame, 0);
+  assert.equal(controller.state, "paused");
+  assert.equal(controller.activeSession, null);
+  assert.equal(queue.cancelled, true);
+  assert.equal(session.gain.disconnected, true);
+  assert.equal(activeInput.node, router.bus);
+
+  controller.dispose();
+  assert.equal(controller.state, "disposed");
+  assert.equal(activeInput, null);
+  assert.equal(router.bus.disconnected, true);
+});
+
+test("PCM session controller hands off contiguous frames and retires the old gain", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const makeQueue = startFrame => ({
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  });
+  const oldQueue = makeQueue(0);
+  const oldSession = await controller.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const newQueue = makeQueue(1024);
+  const result = await controller.handoff(newQueue, {
+    sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05,
+    crossfadeSeconds: 0.02
+  });
+
+  assert.equal(result.handoff.startFrame, 1024);
+  assert.equal(result.handoff.startAtTime, 10.178);
+  assert.equal(controller.activeSession, result.session);
+  assert.equal(controller.currentFrame, 1024);
+  assert.equal(controller.state, "running");
+  assert.equal(oldQueue.cancelled, true);
+  assert.equal(result.session.scheduler.firstScheduledAt, result.handoff.startAtTime);
+  assert.deepEqual(oldSession.gain.gain.events.slice(-3), [
+    ["cancel", 10.158], ["set", 1, 10.158], ["ramp", 0, 10.178]
+  ]);
+  assert.deepEqual(result.session.gain.gain.events.slice(-3), [
+    ["cancel", 10.158], ["set", 0, 10.158], ["ramp", 1, 10.178]
+  ]);
+
+  context.sources[0].finish();
+  assert.equal(oldSession.gain.disconnected, true);
+  assert.equal(controller.drainingSessions.size, 0);
+  controller.dispose();
+  assert.equal(result.session.gain.disconnected, true);
 });
