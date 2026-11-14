@@ -539,7 +539,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
 
   await engine.play();
   assert.equal(engine.paused, false);
-  assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, Math.floor(engine.offset * 48000));
+  assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, Math.round(engine.offset * 48000));
 
   await engine.seek(0.5);
   assert.equal(engine.pcmOutputController.activeSession.scheduler.initialFrame, 24000);
