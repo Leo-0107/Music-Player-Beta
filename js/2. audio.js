@@ -381,37 +381,21 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   }
   let playbackPrebufferMs = readPlaybackPrebufferMs();
   let playbackPrebufferDelayNode = null;
-  let activeGraphInputNode = null;
-  let activeGraphInputTarget = null;
+  let graphInputOwnership = null;
+
+  function getGraphInputOwnership() {
+    if (!graphInputOwnership) graphInputOwnership = new PcmGraphInputOwnership();
+    return graphInputOwnership;
+  }
 
   function setGraphInputNode(node, target = null) {
     if (node && !target) target = filters?.[0] || null;
-    if (activeGraphInputNode === node && activeGraphInputTarget === (node ? target : null)) return true;
-    if (activeGraphInputNode && activeGraphInputTarget) {
-      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (e) {}
-    }
-    activeGraphInputNode = node || null;
-    activeGraphInputTarget = node ? target : null;
-    if (node && target) {
-      try { node.connect(target); return true; }
-      catch (error) {
-        activeGraphInputNode = null;
-        activeGraphInputTarget = null;
-        throw error;
-      }
-    }
-    return !node;
+    if (!node) return getGraphInputOwnership().set(null, null);
+    return getGraphInputOwnership().set(node, target);
   }
 
   function clearGraphInputNode(expectedNode, expectedTarget = null) {
-    if (!expectedNode || activeGraphInputNode !== expectedNode) return false;
-    if (expectedTarget && activeGraphInputTarget !== expectedTarget) return false;
-    if (activeGraphInputTarget) {
-      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (error) {}
-    }
-    activeGraphInputNode = null;
-    activeGraphInputTarget = null;
-    return true;
+    return getGraphInputOwnership().clear(expectedNode, expectedTarget);
   }
 
   function canUseBufferedPlayback() {
@@ -771,8 +755,7 @@ let mainOutputUsesNativeDestination = false;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
-      activeGraphInputNode = null;
-      activeGraphInputTarget = null;
+      graphInputOwnership?.reset();
       // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
       // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
       try { sourceNode?.disconnect(); } catch (ignore) {}
