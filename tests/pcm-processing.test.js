@@ -1130,10 +1130,14 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
 
 
 test("audio graph cleanup clears only the graph input node it owns", () => {
+  const setStart = audioSource.indexOf("function setGraphInputNode(");
+  const setEnd = audioSource.indexOf("\\n  }\\n", setStart) + 4;
   const helperStart = audioSource.indexOf("function clearGraphInputNode(");
   const helperEnd = audioSource.indexOf("\n  }\n", helperStart) + 4;
   assert.ok(helperStart >= 0 && helperEnd > helperStart, "clearGraphInputNode source must exist");
   const helperSource = audioSource.slice(helperStart, helperEnd);
+  assert.ok(setStart >= 0 && setEnd > setStart, "setGraphInputNode source must exist");
+  const setSource = audioSource.slice(setStart, setEnd);
 
   const currentDisconnects = [];
   const currentNode = { disconnect(target) { currentDisconnects.push(target); } };
@@ -1169,6 +1173,54 @@ test("audio graph cleanup clears only the graph input node it owns", () => {
   assert.equal(staleSandbox.getActiveNode(), activeNode);
   assert.equal(staleSandbox.getActiveTarget(), activeTarget);
   assert.deepEqual(staleDisconnects, []);
+
+  const sourceDisconnects = [];
+  const sourceConnects = [];
+  const originalSource = {
+    connect(target) { sourceConnects.push(target); },
+    disconnect(target) { sourceDisconnects.push(target); }
+  };
+  const pcmBus = {
+    connect(target) { sourceConnects.push(target); },
+    disconnect(target) { sourceDisconnects.push(target); }
+  };
+  const fallbackSource = {
+    connect(target) { sourceConnects.push(target); },
+    disconnect(target) { sourceDisconnects.push(target); }
+  };
+  const filterInput = {};
+  const pitchRoute = {};
+  const routingSandbox = {
+    filters: [filterInput],
+    originalSource,
+    pcmBus,
+    fallbackSource,
+    filterInput,
+    pitchRoute
+  };
+  vm.runInNewContext(`
+    let activeGraphInputNode = null;
+    let activeGraphInputTarget = null;
+    ${setSource}
+    ${helperSource}
+    this.setGraphInputNode = setGraphInputNode;
+    this.clearGraphInputNode = clearGraphInputNode;
+    this.getActiveNode = () => activeGraphInputNode;
+    this.getActiveTarget = () => activeGraphInputTarget;
+  `, routingSandbox);
+  assert.equal(routingSandbox.setGraphInputNode(originalSource, filterInput), true);
+  assert.equal(routingSandbox.setGraphInputNode(pcmBus, pitchRoute), true);
+  assert.deepEqual(sourceDisconnects, [filterInput]);
+  assert.deepEqual(sourceConnects, [filterInput, pitchRoute]);
+  assert.equal(routingSandbox.setGraphInputNode(fallbackSource, filterInput), true);
+  assert.equal(routingSandbox.getActiveNode(), fallbackSource);
+  assert.deepEqual(sourceDisconnects, [filterInput, pitchRoute]);
+  assert.deepEqual(sourceConnects, [filterInput, pitchRoute, filterInput]);
+  assert.equal(routingSandbox.clearGraphInputNode(pcmBus, pitchRoute), false);
+  assert.equal(routingSandbox.getActiveNode(), fallbackSource);
+  assert.equal(routingSandbox.clearGraphInputNode(fallbackSource, filterInput), true);
+  assert.equal(routingSandbox.getActiveNode(), null);
+  assert.deepEqual(sourceDisconnects, [filterInput, pitchRoute, filterInput]);
 });
 
 
