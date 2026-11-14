@@ -467,7 +467,7 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     if (playbackPrebufferDelayNode && audioCtx) {
       const now = audioCtx.currentTime;
       playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
-      playbackPrebufferDelayNode.delayTime.setTargetAtTime(bufferedPlaybackMode ? 0 : next / 1000, now, 0.025);
+      playbackPrebufferDelayNode.delayTime.setTargetAtTime(next / 1000, now, 0.025);
     }
     return playbackPrebufferMs;
   }
@@ -682,7 +682,7 @@ let mainOutputUsesNativeDestination = false;
       // 先行バッファはメイン出力と追加スピーカーに共通するバスの手前へ置く。
       // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
       playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
-      playbackPrebufferDelayNode.delayTime.value = bufferedPlaybackMode ? 0 : playbackPrebufferMs / 1000;
+      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
       finalMixGainNode.connect(playbackPrebufferDelayNode);
       playbackPrebufferDelayNode.connect(speakerBusNode);
 
