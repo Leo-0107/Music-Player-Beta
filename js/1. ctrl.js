@@ -10,6 +10,7 @@
     '4. state.js?v=7.4.57-r65',
     '2. audio.js?v=7.4.57-r65',
     '3. audio-output.js?v=7.4.57-r65',
+    '10. buffered-playback-engine.js?v=7.4.57-r65',
     '6. library.js?v=7.4.57-r65',
     '7. ui.js?v=7.4.57-r65',
     '9. youtube.js?v=7.4.57-r65'
