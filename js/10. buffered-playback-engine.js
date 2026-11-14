@@ -22,6 +22,7 @@ class BufferedPlaybackEngine {
     this.processorRequestId = 0;
     this.processorRequests = new Map();
     this.processorReady = null;
+    this.processingSessionId = 0;
   }
 
   get readyState() {
@@ -67,7 +68,11 @@ class BufferedPlaybackEngine {
     const pitch = Number.isFinite(Number(settings.pitch))
       ? Number(settings.pitch)
       : Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, this.playbackRate);
-    this.processorReady = this.sendProcessorMessage("init", { sampleRate, eqGains, pitch });
+    this.processorReady = this.sendProcessorMessage("init", { sampleRate, eqGains, pitch })
+      .catch(error => {
+        this.disposeProcessorWorker();
+        throw error;
+      });
     return this.processorReady;
   }
 
@@ -90,6 +95,7 @@ class BufferedPlaybackEngine {
     if (!this.buffer) await this.prepare();
     if (!this.buffer) throw new Error("PCM source is not decoded");
     const generation = this.generation;
+    const sessionId = ++this.processingSessionId;
     const sampleRate = this.buffer.sampleRate;
     const chunkFrames = Math.max(1024, Math.min(32768, Math.round(Number(options.chunkFrames) || 8192)));
     const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
@@ -100,8 +106,9 @@ class BufferedPlaybackEngine {
     if (pitch < 0.5 || pitch > 2) throw new Error("Pitch ratio is outside the PCM processor range");
 
     await this.ensureProcessorWorker({ eqGains, pitch });
-    if (generation !== this.generation) throw new Error("PCM processing was cancelled");
+    if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
     await this.sendProcessorMessage("reset");
+    if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
     await this.sendProcessorMessage("configure", { eqGains, pitch });
 
     // Re-run a short preceding window so IIR EQ and granular pitch state are warm at a seek point.
@@ -109,7 +116,7 @@ class BufferedPlaybackEngine {
     const processStart = startFrame - warmupFrames;
     let sequence = 0;
     for (let offset = processStart; offset < this.buffer.length; offset += chunkFrames) {
-      if (generation !== this.generation || !this.processorWorker) {
+      if (generation !== this.generation || sessionId !== this.processingSessionId || !this.processorWorker) {
         throw new Error("PCM processing was cancelled");
       }
       const end = Math.min(this.buffer.length, offset + chunkFrames);
@@ -121,7 +128,7 @@ class BufferedPlaybackEngine {
         sequence, left, right
       }, [left.buffer, right.buffer]);
       sequence++;
-      if (generation !== this.generation) throw new Error("PCM processing was cancelled");
+      if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
       const discard = Math.max(0, startFrame - offset);
       if (discard >= result.frameCount) continue;
       const outputLeft = discard ? result.left.subarray(discard) : result.left;
@@ -137,6 +144,7 @@ class BufferedPlaybackEngine {
   }
 
   disposeProcessorWorker() {
+    this.processingSessionId++;
     const worker = this.processorWorker;
     this.processorWorker = null;
     this.processorReady = null;
