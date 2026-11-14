@@ -1886,7 +1886,7 @@ test("PCM graph input ownership reset detaches a stale graph edge", () => {
 test("PCM graph detach disconnects only its owned edge once", () => {
   const { PcmOutputGraphRouter } = createEngineClass();
   const context = createMockOutputContext();
-  const routeNode = {};
+  const routeNode = { connect() {} };
   let activeInput = null;
   const router = new PcmOutputGraphRouter(
     context,
