@@ -422,7 +422,28 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     if (!url) return false;
     console.warn("Music Player PCM playback fallback:", error || "unsupported playback settings");
     mediaElement.src = url;
-    try { mediaElement.currentTime = Math.max(0, Number(position) || 0); } catch (e) {}
+    const seekPosition = Math.max(0, Number(position) || 0);
+    if (seekPosition > 0) {
+      const applySeek = () => {
+        if (mediaElement.readyState < 1) return false;
+        try { mediaElement.currentTime = seekPosition; return true; } catch (e) { return false; }
+      };
+      if (!applySeek()) {
+        await new Promise(resolve => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            mediaElement.removeEventListener("loadedmetadata", onMetadata);
+            resolve();
+          };
+          const onMetadata = () => { applySeek(); finish(); };
+          const timer = setTimeout(finish, 3000);
+          mediaElement.addEventListener("loadedmetadata", onMetadata, { once: true });
+        });
+      }
+    }
     mediaElement.playbackRate = currentRate;
     mediaElement.preservesPitch = true;
     setGraphInputNode(sourceNode, filters?.[0] || null);
