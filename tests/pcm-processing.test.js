@@ -188,6 +188,10 @@ function makePcmChunk(startFrame, values) {
 test("PCM prebuffer queue applies bounded backpressure and resumes after reads", async () => {
   const { RingBuffer, PcmPrebufferQueue } = createEngineClass();
   const ring = new RingBuffer(8);
+  assert.throws(
+    () => new PcmPrebufferQueue(new RingBuffer(4), { next: async () => ({ done: true }) }, 4),
+    /two maximum-sized chunks/
+  );
   let produced = 0;
   async function* source() {
     for (let index = 0; index < 3; index++) {
@@ -197,16 +201,20 @@ test("PCM prebuffer queue applies bounded backpressure and resumes after reads",
   }
 
   const queue = new PcmPrebufferQueue(ring, source(), 4).start();
+  await assert.rejects(() => queue.readAsync(5), /maximum chunk size/);
   const first = await queue.readAsync(3);
   assert.equal(first.startFrame, 0);
   assert.deepEqual(Array.from(first.left), [1, 2, 3]);
 
-  const second = await queue.readAsync(5);
+  const second = await queue.readAsync(4);
   assert.equal(second.startFrame, 3);
-  assert.deepEqual(Array.from(second.left), [4, 5, 6, 7, 8]);
-  const third = await queue.readAsync(8);
-  assert.equal(third.startFrame, 8);
-  assert.deepEqual(Array.from(third.left), [9, 10, 11, 12]);
+  assert.deepEqual(Array.from(second.left), [4, 5, 6, 7]);
+  const third = await queue.readAsync(4);
+  assert.equal(third.startFrame, 7);
+  assert.deepEqual(Array.from(third.left), [8, 9, 10, 11]);
+  const fourth = await queue.readAsync(4);
+  assert.equal(fourth.startFrame, 11);
+  assert.deepEqual(Array.from(fourth.left), [12]);
   assert.equal(await queue.readAsync(1), null);
   assert.equal(produced, 3);
   assert.equal(ring.availableFrames, 0);
