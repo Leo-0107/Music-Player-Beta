@@ -106,8 +106,10 @@ class PcmPrebufferQueue {
   constructor(ringBuffer, iterator, maxChunkFrames = 8192) {
     const maxFrames = Number(maxChunkFrames);
     if (!ringBuffer || typeof ringBuffer.read !== "function" ||
-        typeof ringBuffer.write !== "function" || !Number.isInteger(maxFrames) ||
-        maxFrames < 1 || maxFrames > 32768 || maxFrames > ringBuffer.capacityFrames) {
+        typeof ringBuffer.write !== "function" ||
+        !Number.isInteger(ringBuffer.capacityFrames) || ringBuffer.capacityFrames < 1 ||
+        !Number.isInteger(maxFrames) || maxFrames < 1 ||
+        maxFrames > 32768 || maxFrames > ringBuffer.capacityFrames) {
       throw new RangeError("PCM prebuffer queue configuration is invalid");
     }
     if (!iterator || typeof iterator.next !== "function") {
