@@ -537,8 +537,11 @@ test("pause during an in-flight PCM block cannot contaminate the resumed queue",
   assert.equal(resumedQueue.ringBuffer.availableFrames, 0);
   assert.equal(await pausedQueue.readAsync(1), null);
 
-  worker.flushNextResponse();
-  for (let i = 0; i < 12; i++) await Promise.resolve();
+  for (let i = 0; i < 8 && resumedQueue.ringBuffer.availableFrames === 0; i++) {
+    if (worker.deferredResponses.length) worker.flushNextResponse();
+    for (let tick = 0; tick < 12; tick++) await Promise.resolve();
+  }
+  assert.equal(pausedQueue.ringBuffer.availableFrames, 0);
   assert.ok(resumedQueue.ringBuffer.availableFrames > 0);
   assert.equal((await resumedQueue.readAsync(512)).startFrame, 2048);
   engine.disposeProcessorWorker();
