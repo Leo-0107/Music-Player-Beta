@@ -1942,13 +1942,20 @@ test("PCM session handoff cancels a factory queue when a newer stop invalidates 
     lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   assert.equal(typeof resolveFactory, "function");
-  controller.stop();
+  const handoffBoundary = controller.lastFrame;
+  assert.equal(handoffBoundary, 1024);
+  context.currentTime = 10.1;
+  const audibleFrameDuringDrain = controller.currentFrame;
+  assert.equal(audibleFrameDuringDrain, 400);
+  const stoppedFrame = controller.stop();
+  assert.equal(stoppedFrame, audibleFrameDuringDrain);
   const staleQueue = makeQueue(1024);
   resolveFactory(staleQueue);
 
   assert.equal(await handoffPromise, false);
   assert.equal(staleQueue.cancelled, true);
   assert.equal(controller.state, "paused");
+  assert.equal(controller.lastFrame, audibleFrameDuringDrain);
   assert.equal(controller.activeSession, null);
   controller.dispose();
   assert.equal(activeInput, null);
