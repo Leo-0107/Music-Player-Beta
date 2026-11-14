@@ -436,12 +436,96 @@
     });
   }
 
-  const audio = document.createElement("video");
-  audio.preload = "auto";
-  audio.playsInline = true;
-  audio.controls = false;
-  audio.setAttribute("playsinline", "");
-  audio.setAttribute("webkit-playsinline", "");
+  let bufferedPlaybackEngine = null;
+  let bufferedPlaybackMode = false;
+
+  const mediaElement = document.createElement("video");
+  mediaElement.preload = "auto";
+  mediaElement.playsInline = true;
+  mediaElement.controls = false;
+  mediaElement.setAttribute("playsinline", "");
+  mediaElement.setAttribute("webkit-playsinline", "");
+
+  // ローカル音声だけ新しいPCM再生エンジンへ委譲し、動画・YouTubeは従来のHTMLMediaElementを使う。
+  // Proxyは既存コードが参照するcurrentTime/duration/paused等とイベントAPIを維持する互換層。
+  const audio = new Proxy(mediaElement, {
+    get(target, property) {
+      if (bufferedPlaybackMode && bufferedPlaybackEngine) {
+        switch (property) {
+          case "currentTime": return bufferedPlaybackEngine.currentTime;
+          case "duration": return bufferedPlaybackEngine.duration;
+          case "paused": return bufferedPlaybackEngine.paused;
+          case "ended": return bufferedPlaybackEngine.ended;
+          case "readyState": return bufferedPlaybackEngine.readyState;
+          case "playbackRate": return bufferedPlaybackEngine.playbackRate;
+          case "src":
+          case "currentSrc": return bufferedPlaybackEngine.sourceUrl;
+          case "error": return null;
+          case "preservesPitch": return true;
+          case "play":
+            return async () => {
+              if (typeof canUseBufferedPlayback === "function" && !canUseBufferedPlayback()) {
+                await switchBufferedPlaybackToMediaElement(new Error("現在の速度・ピッチ設定はPCM経路の対応範囲外です"), false);
+                return mediaElement.play();
+              }
+              try {
+                return await bufferedPlaybackEngine.play();
+              } catch (error) {
+                await switchBufferedPlaybackToMediaElement(error, false);
+                return mediaElement.play();
+              }
+            };
+          case "pause":
+            return () => bufferedPlaybackEngine.pause();
+          case "load":
+            return () => {};
+          case "removeAttribute":
+            return name => {
+              if (String(name).toLowerCase() === "src") {
+                bufferedPlaybackEngine.clear();
+                bufferedPlaybackMode = false;
+                if (typeof setGraphInputNode === "function") setGraphInputNode(sourceNode, filters?.[0] || null);
+              }
+              return target.removeAttribute(name);
+            };
+        }
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set(target, property, value) {
+      if (property === "src") {
+        const nextUrl = String(value || "");
+        const isLocalAudio = !!nextUrl && state.currentSong?.mediaType === "audio" && !!bufferedPlaybackEngine;
+        if (isLocalAudio) {
+          bufferedPlaybackMode = true;
+          bufferedPlaybackEngine.setSource(nextUrl);
+          try {
+            target.removeAttribute("src");
+            target.load();
+          } catch {}
+          if (typeof setGraphInputNode === "function") setGraphInputNode(null);
+          return true;
+        }
+        if (bufferedPlaybackEngine) bufferedPlaybackEngine.clear();
+        bufferedPlaybackMode = false;
+        if (typeof setGraphInputNode === "function") setGraphInputNode(sourceNode, filters?.[0] || null);
+        return Reflect.set(target, property, value, target);
+      }
+      if (bufferedPlaybackMode && bufferedPlaybackEngine) {
+        if (property === "currentTime") {
+          bufferedPlaybackEngine.seek(value);
+          return true;
+        }
+        if (property === "playbackRate") {
+          bufferedPlaybackEngine.setPlaybackRate(value);
+          return true;
+        }
+        if (property === "preservesPitch") return true;
+      }
+      return Reflect.set(target, property, value, target);
+    }
+  });
 
   let audioCtx = null, sourceNode = null, filters = [], masterGain = null, limiterNode = null, pannerNode = null, panner3DNode = null, analyser = null, analyserData = null;
   let channelSplitter = null, leftGainNode = null, rightGainNode = null, channelMerger = null;
