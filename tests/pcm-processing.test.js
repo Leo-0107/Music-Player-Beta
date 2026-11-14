@@ -697,7 +697,8 @@ test("stopping PCM scheduling while a queue read is pending rejects late source 
   });
   await scheduler.start(queue, {
     startFrame: 0, sampleRate: 8000, playbackRate: 1,
-    blockFrames: 1024, lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
   const pendingPump = scheduler.pump();
