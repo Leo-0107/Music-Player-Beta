@@ -204,6 +204,8 @@ class PcmPrebufferQueue {
     this.cancelled = true;
     this.running = false;
     this.done = true;
+    // Cancellation invalidates buffered output as well as future producer results.
+    this.ringBuffer.clear(this.ringBuffer.readFrame);
     try {
       const closing = this.iterator.return?.();
       if (closing && typeof closing.catch === "function") closing.catch(() => {});
