@@ -246,6 +246,26 @@ class PcmOutputGraphRouter {
     }
   }
 
+  attach() {
+    if (this.disposed) throw new Error("PCM graph router is disposed");
+    if (this.setGraphInput(this.bus, this.routeNode) === false) {
+      throw new Error("PCM graph input could not be reconnected");
+    }
+    return true;
+  }
+
+  detach() {
+    if (this.disposed) return false;
+    let cleared = false;
+    try { cleared = this.clearGraphInput(this.bus, this.routeNode) === true; } catch (error) {}
+    if (cleared) {
+      try { this.bus.disconnect(this.routeNode); } catch (error) {
+        try { this.bus.disconnect(); } catch (ignore) {}
+      }
+    }
+    return cleared;
+  }
+
   createSessionGain(initialGain = 0) {
     if (this.disposed) throw new Error("PCM graph router is disposed");
     const value = Number(initialGain);
@@ -323,17 +343,9 @@ class PcmOutputGraphRouter {
     }
     this.sessionGains.clear();
     this.sessionGainState.clear();
-    // Clear only if this router still owns the active graph input. A fallback
-    // source may have replaced it since construction.
-    if (this.clearGraphInput) {
-      let cleared = false;
-      try { cleared = this.clearGraphInput(this.bus, this.routeNode) === true; } catch (error) {}
-      if (cleared) {
-        try { this.bus.disconnect(this.routeNode); } catch (error) {
-          try { this.bus.disconnect(); } catch (ignore) {}
-        }
-      }
-    }
+    // Detach only our own connection; a fallback source may already own the graph input.
+    this.detach();
+    try { this.bus.disconnect(); } catch (error) {}
   }
 }
 
