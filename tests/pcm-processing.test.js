@@ -1120,7 +1120,7 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
 
 test("audio graph cleanup clears only the graph input node it owns", () => {
   const helperStart = audioSource.indexOf("function clearGraphInputNode(");
-  const helperEnd = audioSource.indexOf("\\n  }\\n", helperStart) + 4;
+  const helperEnd = audioSource.indexOf("\n  }\n", helperStart) + 4;
   assert.ok(helperStart >= 0 && helperEnd > helperStart, "clearGraphInputNode source must exist");
   const helperSource = audioSource.slice(helperStart, helperEnd);
 
