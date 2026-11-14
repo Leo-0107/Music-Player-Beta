@@ -220,11 +220,11 @@ class PcmPrebufferQueue {
 // Shared post-EQ/pitch input bus for multiple preprocessed PCM sessions.
 // Session GainNodes can be crossfaded without replacing the single graph input connection.
 class PcmOutputGraphRouter {
-  constructor(audioContext, routeNode, setGraphInput, clearGraphInput = null) {
+  constructor(audioContext, routeNode, setGraphInput, clearGraphInput) {
     if (!audioContext || typeof audioContext.createGain !== "function" ||
         !routeNode || typeof routeNode.connect !== "function" ||
         typeof setGraphInput !== "function" ||
-        (clearGraphInput !== null && typeof clearGraphInput !== "function")) {
+        typeof clearGraphInput !== "function") {
       throw new TypeError("PCM graph router requires an AudioContext, route node, and graph input setter");
     }
     this.audioContext = audioContext;
