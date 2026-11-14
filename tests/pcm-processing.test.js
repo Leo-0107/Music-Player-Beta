@@ -325,3 +325,19 @@ test("PCM queue creation is rejected if pause invalidates source preparation", a
   assert.equal(engine.activePcmQueue, null);
   engine.disposeProcessorWorker();
 });
+
+
+test("direct PCM iterator is invalidated when cancelled during preparation", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  let finishPreparation;
+  engine.prepare = () => new Promise(resolve => { finishPreparation = resolve; });
+  const iterator = engine.iterateProcessedChunks({ pitch: 1, chunkFrames: 1024 });
+  const pending = iterator.next();
+  await Promise.resolve();
+  engine.cancelProcessedPcmQueue();
+  engine.buffer = makeMonoBuffer(8000, 1);
+  finishPreparation(engine.buffer);
+  await assert.rejects(() => pending, /PCM processing was cancelled/);
+  engine.disposeProcessorWorker();
+});
