@@ -1839,19 +1839,22 @@ class BufferedPlaybackEngine {
     this.ended = false;
     if (wasPlaying && this.buffer) {
       const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(next * this.buffer.sampleRate)));
-      this.startPcmSession(startFrame).then(session => {
-        if (!session || requestId !== this.playRequestId || !this.playRequested) return;
+      return this.startPcmSession(startFrame).then(session => {
+        if (!session || requestId !== this.playRequestId || !this.playRequested) return false;
         this.paused = false;
         this.startedAt = 0;
         this.startTimeUpdates();
         this.dispatch("seeked");
         this.dispatch("timeupdate");
+        return true;
       }).catch(error => {
         this.handlePcmPlaybackError(error, this.pcmOutputController?.currentFrame, this.pcmPlaybackGeneration);
+        return false;
       });
     } else {
       this.dispatch("seeked");
       this.dispatch("timeupdate");
+      return Promise.resolve(true);
     }
   }
 
