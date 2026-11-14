@@ -245,10 +245,12 @@ self.onmessage = event => {
     if (message.type === "process") {
       const left = message.left instanceof Float32Array ? message.left : new Float32Array(message.left || []);
       const right = message.right instanceof Float32Array ? message.right : new Float32Array(message.right || []);
-      if (!left.length || left.length !== right.length) throw new Error("PCM chunk channel lengths are invalid");
-      const sequence = Number(message.sequence);
-      if (Number.isFinite(sequence) && sequence !== expectedSequence) {
-        throw new Error("PCM chunk sequence is discontinuous");
+      if (!left.length || left.length !== right.length || left.length > 32768) {
+        throw new Error("PCM chunk channel lengths are invalid or exceed the 32768-frame limit");
+      }
+      const sequence = message.sequence;
+      if (!Number.isInteger(sequence) || sequence !== expectedSequence) {
+        throw new Error("PCM chunk sequence is missing, invalid, or discontinuous");
       }
       processEq(left, right);
       processPitch(left, right);
@@ -264,8 +266,12 @@ self.onmessage = event => {
       initialized = false;
       filters = [];
       pitchState = null;
+      expectedSequence = 0;
       self.postMessage({ type: "disposed", id: message.id });
+      return;
     }
+
+    throw new Error(`Unsupported PCM worker request: ${String(message.type)}`);
   } catch (error) {
     self.postMessage({ type: "error", id: message.id, message: String(error?.message || error) });
   }

@@ -381,26 +381,21 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   }
   let playbackPrebufferMs = readPlaybackPrebufferMs();
   let playbackPrebufferDelayNode = null;
-  let activeGraphInputNode = null;
-  let activeGraphInputTarget = null;
+  let graphInputOwnership = null;
+
+  function getGraphInputOwnership() {
+    if (!graphInputOwnership) graphInputOwnership = new PcmGraphInputOwnership();
+    return graphInputOwnership;
+  }
 
   function setGraphInputNode(node, target = null) {
     if (node && !target) target = filters?.[0] || null;
-    if (activeGraphInputNode === node && activeGraphInputTarget === (node ? target : null)) return true;
-    if (activeGraphInputNode && activeGraphInputTarget) {
-      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (e) {}
-    }
-    activeGraphInputNode = node || null;
-    activeGraphInputTarget = node ? target : null;
-    if (node && target) {
-      try { node.connect(target); return true; }
-      catch (error) {
-        activeGraphInputNode = null;
-        activeGraphInputTarget = null;
-        throw error;
-      }
-    }
-    return !node;
+    if (!node) return getGraphInputOwnership().set(null, null);
+    return getGraphInputOwnership().set(node, target);
+  }
+
+  function clearGraphInputNode(expectedNode, expectedTarget = null) {
+    return getGraphInputOwnership().clear(expectedNode, expectedTarget);
   }
 
   function canUseBufferedPlayback() {
@@ -617,6 +612,9 @@ let mainOutputUsesNativeDestination = false;
       const pitchProcessedGainNode = audioCtx.createGain();
       const pitchRouteNode = audioCtx.createGain();
       audioCtx._musicPlayerPitchRoute = pitchRouteNode;
+      // Stable PCM insertion boundary: processed PCM already contains EQ/pitch,
+      // so it enters here before the shared spatial and output graph.
+      audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;
       audioCtx._musicPlayerPitchBypassGain = pitchBypassGainNode;
       audioCtx._musicPlayerPitchProcessedGain = pitchProcessedGainNode;
       pitchBypassGainNode.gain.value = 1;
@@ -760,8 +758,8 @@ let mainOutputUsesNativeDestination = false;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
-      activeGraphInputNode = null;
-      activeGraphInputTarget = null;
+      graphInputOwnership?.reset();
+      if (audioCtx) audioCtx._musicPlayerPostDspInputNode = null;
       // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
       // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
       try { sourceNode?.disconnect(); } catch (ignore) {}
@@ -1052,7 +1050,18 @@ let mainOutputUsesNativeDestination = false;
     return node;
   }
 
+  function invalidateBufferedPcmProcessing() {
+    // While audible PCM output is active, leave its scheduled tail intact.
+    // applyPitchAndRate/applyEqGains will request a frame-aligned Worker handoff.
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        audio.paused &&
+        typeof bufferedPlaybackEngine.cancelProcessedPcmQueue === "function") {
+      bufferedPlaybackEngine.cancelProcessedPcmQueue();
+    }
+  }
+
   function applyPitchAndRate(){
+    invalidateBufferedPcmProcessing();
     ensureGraph();
     if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
       switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), !audio.paused).catch(error => {
@@ -1061,7 +1070,16 @@ let mainOutputUsesNativeDestination = false;
     } else {
       audio.playbackRate = currentRate;
       audio.preservesPitch = true;
-      updatePitchShiftNode();
+      if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+          typeof bufferedPlaybackEngine.updateProcessingSettings === "function") {
+        bufferedPlaybackEngine.updateProcessingSettings().catch(error => {
+          switchBufferedPlaybackToMediaElement(error, !audio.paused).catch(fallbackError => {
+            console.warn("Music Player playback fallback failed:", fallbackError);
+          });
+        });
+      } else {
+        updatePitchShiftNode();
+      }
     }
     if (el.rateText) el.rateText.textContent = `${currentRate.toFixed(2)}x`;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
@@ -1300,6 +1318,7 @@ let mainOutputUsesNativeDestination = false;
       const slider = vBand.querySelector(".vSlider");
 
       slider.addEventListener("input", () => {
+        invalidateBufferedPcmProcessing();
         if(eqAnimId) cancelAnimationFrame(eqAnimId);
         const v = Number(slider.value);
         state.eqState.preset = "Custom";
@@ -1331,6 +1350,7 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function animateEqPreset(targetGains) {
+    invalidateBufferedPcmProcessing();
     if(eqAnimId) cancelAnimationFrame(eqAnimId);
     
     const startGains = [...state.eqState.gains];
@@ -1374,6 +1394,10 @@ let mainOutputUsesNativeDestination = false;
         }
       }
     });
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        typeof bufferedPlaybackEngine.scheduleProcessingSettingsUpdate === "function") {
+      bufferedPlaybackEngine.scheduleProcessingSettingsUpdate();
+    }
   }
 
   if (el.btnEqReset) {
