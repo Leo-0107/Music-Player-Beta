@@ -1,6 +1,105 @@
 // Music Player PCM playback engine (local audio only).
 // Decodes the complete local track before audible playback so the media decoder is not
 // responsible for delivering real-time audio frames. Existing Web Audio effects remain downstream.
+class ProcessedPcmRingBuffer {
+  constructor(capacityFrames) {
+    const capacity = Number(capacityFrames);
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1048576) {
+      throw new RangeError("PCM ring buffer capacity must be an integer from 1 to 1048576 frames");
+    }
+    this.capacityFrames = capacity;
+    this.left = new Float32Array(capacity);
+    this.right = new Float32Array(capacity);
+    this.readIndex = 0;
+    this.writeIndex = 0;
+    this.availableFrames = 0;
+    this.readFrame = 0;
+    this.writeFrame = 0;
+  }
+
+  get freeFrames() {
+    return this.capacityFrames - this.availableFrames;
+  }
+
+  clear(startFrame = 0) {
+    const frame = Number(startFrame);
+    if (!Number.isSafeInteger(frame) || frame < 0) {
+      throw new RangeError("PCM ring buffer start frame must be a non-negative safe integer");
+    }
+    this.readIndex = 0;
+    this.writeIndex = 0;
+    this.availableFrames = 0;
+    this.readFrame = frame;
+    this.writeFrame = frame;
+  }
+
+  write(chunk) {
+    const frameCount = Number(chunk?.frameCount);
+    const isFloat32 = value => Object.prototype.toString.call(value) === "[object Float32Array]";
+    if (!Number.isInteger(frameCount) || frameCount < 1 ||
+        !isFloat32(chunk.left) || !isFloat32(chunk.right) ||
+        chunk.left.length < frameCount || chunk.right.length < frameCount) {
+      throw new TypeError("PCM ring buffer received an invalid chunk");
+    }
+    if (!Number.isSafeInteger(chunk.startFrame) || chunk.startFrame !== this.writeFrame) {
+      throw new Error("PCM ring buffer chunk is not contiguous with the write frame");
+    }
+    if (frameCount > this.freeFrames) {
+      throw new RangeError("PCM ring buffer is full");
+    }
+
+    const firstPart = Math.min(frameCount, this.capacityFrames - this.writeIndex);
+    const secondPart = frameCount - firstPart;
+    this.left.set(chunk.left.subarray(0, firstPart), this.writeIndex);
+    this.right.set(chunk.right.subarray(0, firstPart), this.writeIndex);
+    if (secondPart > 0) {
+      this.left.set(chunk.left.subarray(firstPart, frameCount), 0);
+      this.right.set(chunk.right.subarray(firstPart, frameCount), 0);
+    }
+    this.writeIndex = (this.writeIndex + frameCount) % this.capacityFrames;
+    this.availableFrames += frameCount;
+    this.writeFrame += frameCount;
+    return frameCount;
+  }
+
+  read(maxFrames) {
+    const requested = Number(maxFrames);
+    if (!Number.isInteger(requested) || requested < 1) {
+      throw new RangeError("PCM ring buffer read size must be a positive integer");
+    }
+    const frameCount = Math.min(requested, this.availableFrames);
+    if (frameCount === 0) return null;
+
+    const left = new Float32Array(frameCount);
+    const right = new Float32Array(frameCount);
+    const firstPart = Math.min(frameCount, this.capacityFrames - this.readIndex);
+    const secondPart = frameCount - firstPart;
+    left.set(this.left.subarray(this.readIndex, this.readIndex + firstPart));
+    right.set(this.right.subarray(this.readIndex, this.readIndex + firstPart));
+    if (secondPart > 0) {
+      left.set(this.left.subarray(0, secondPart), firstPart);
+      right.set(this.right.subarray(0, secondPart), firstPart);
+    }
+    const startFrame = this.readFrame;
+    this.readIndex = (this.readIndex + frameCount) % this.capacityFrames;
+    this.availableFrames -= frameCount;
+    this.readFrame += frameCount;
+    return { startFrame, frameCount, left, right };
+  }
+
+  discardBefore(frame) {
+    const target = Number(frame);
+    if (!Number.isSafeInteger(target) || target < this.readFrame || target > this.writeFrame) {
+      throw new RangeError("PCM ring buffer discard frame is outside the buffered range");
+    }
+    const discarded = target - this.readFrame;
+    this.readIndex = (this.readIndex + discarded) % this.capacityFrames;
+    this.availableFrames -= discarded;
+    this.readFrame = target;
+    return discarded;
+  }
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
