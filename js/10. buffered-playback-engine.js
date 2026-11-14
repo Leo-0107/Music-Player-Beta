@@ -928,7 +928,8 @@ class PcmPlaybackSessionController {
     const generation = ++this.generation;
     const handoff = previous.loop.drainForHandoff();
     this.lastFrame = handoff.startFrame;
-    this.drainingSessions.add(previous);
+    if (previous.retired) this.drainingSessions.delete(previous);
+    else this.drainingSessions.add(previous);
     this.activeSession = null;
     this.state = "handoff";
 
