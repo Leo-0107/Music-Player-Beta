@@ -1110,15 +1110,24 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
 
   assert.equal(router.retireSessionGain(oldGain), true);
   assert.equal(oldGain.disconnected, true);
+  assert.equal(router.attach(), true);
+  assert.equal(activeInput.node, router.bus);
+  assert.equal(router.detach(), true);
+  assert.equal(activeInput, null);
+  assert.equal(router.attach(), true);
+  assert.equal(activeInput.node, router.bus);
+
   const fallbackNode = { connect() {} };
   const fallbackTarget = { connect() {} };
   setGraphInput(fallbackNode, fallbackTarget);
   assert.equal(activeInput.node, fallbackNode);
+  assert.equal(router.detach(), false);
   router.dispose();
   assert.equal(activeInput.node, fallbackNode);
   assert.equal(newGain.disconnected, true);
   assert.equal(router.bus.disconnected, true);
-  assert.equal(graphCalls.length, 2);
+  assert.equal(graphCalls.length, 5);
+  assert.throws(() => router.attach(), /disposed/);
   router.dispose();
 
   const ownedRouter = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
