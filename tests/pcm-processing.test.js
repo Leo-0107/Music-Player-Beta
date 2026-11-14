@@ -86,8 +86,8 @@ function createEngineClass(WorkerClass = MockWorker, overrides = {}) {
     setGraphInputNode() {}
   };
   Object.assign(sandbox, overrides);
-  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.PcmGraphInputOwnership = PcmGraphInputOwnership;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;\n  this.PcmPlaybackSessionController = PcmPlaybackSessionController;", sandbox);
-  return { Engine: sandbox.BufferedPlaybackEngine, GraphInputOwnership: sandbox.PcmGraphInputOwnership, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter, PcmPlaybackSessionController: sandbox.PcmPlaybackSessionController };
+  vm.runInNewContext(engineSource + "\nthis.BufferedPlaybackEngine = BufferedPlaybackEngine;\n  this.PcmProcessingWorkerSession = PcmProcessingWorkerSession;\n  this.PcmGraphInputOwnership = PcmGraphInputOwnership;\n  this.ProcessedPcmRingBuffer = ProcessedPcmRingBuffer;\n  this.PcmPrebufferQueue = PcmPrebufferQueue;\n  this.PcmOutputScheduler = PcmOutputScheduler;\n  this.PcmOutputPumpLoop = PcmOutputPumpLoop;\n  this.PcmOutputGraphRouter = PcmOutputGraphRouter;\n  this.PcmPlaybackSessionController = PcmPlaybackSessionController;", sandbox);
+  return { Engine: sandbox.BufferedPlaybackEngine, PcmProcessingWorkerSession: sandbox.PcmProcessingWorkerSession, GraphInputOwnership: sandbox.PcmGraphInputOwnership, RingBuffer: sandbox.ProcessedPcmRingBuffer, PcmPrebufferQueue: sandbox.PcmPrebufferQueue, PcmOutputScheduler: sandbox.PcmOutputScheduler, PcmOutputPumpLoop: sandbox.PcmOutputPumpLoop, PcmOutputGraphRouter: sandbox.PcmOutputGraphRouter, PcmPlaybackSessionController: sandbox.PcmPlaybackSessionController };
 }
 
 function makeMonoBuffer(sampleRate, durationSeconds = 2) {
@@ -156,6 +156,43 @@ function createMockOutputContext() {
   };
   return context;
 }
+
+test("concurrent PCM processing sessions keep independent Worker and DSP state", async () => {
+  const { PcmProcessingWorkerSession } = createEngineClass(MockWorker);
+  const first = new PcmProcessingWorkerSession();
+  const second = new PcmProcessingWorkerSession();
+
+  assert.notEqual(first.worker, second.worker);
+  await Promise.all([
+    first.initialize({ sampleRate: 48000, eqGains: [0, 0, 0, 0, 0], pitch: 1 }),
+    second.initialize({ sampleRate: 48000, eqGains: [0, 0, 0, 0, 0], pitch: 1.5 })
+  ]);
+
+  const makeInput = sequence => ({
+    sequence,
+    left: Float32Array.from({ length: 4096 }, (_, index) => Math.sin((index + sequence) * 0.025)),
+    right: Float32Array.from({ length: 4096 }, (_, index) => Math.cos((index + sequence) * 0.025))
+  });
+  const firstBlock = await first.send("process", makeInput(0));
+  const secondBlock = await second.send("process", makeInput(0));
+  assert.equal(firstBlock.type, "processed");
+  assert.equal(secondBlock.type, "processed");
+  assert.equal(firstBlock.sequence, 0);
+  assert.equal(secondBlock.sequence, 0);
+
+  // Advancing one worker's state must not advance the other worker's sequence or DSP state.
+  const nextFirstBlock = await first.send("process", makeInput(1));
+  assert.equal(nextFirstBlock.sequence, 1);
+  const nextSecondBlock = await second.send("process", makeInput(1));
+  assert.equal(nextSecondBlock.sequence, 1);
+
+  first.dispose();
+  second.dispose();
+  assert.equal(first.active, false);
+  assert.equal(second.active, false);
+  assert.equal(first.worker, null);
+  assert.equal(second.worker, null);
+});
 
 test("worker preserves the identity signal when EQ is flat and pitch is unchanged", () => {
   let response;
