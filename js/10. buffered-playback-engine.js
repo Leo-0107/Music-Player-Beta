@@ -337,14 +337,15 @@ class PcmOutputGraphRouter {
 
   dispose() {
     if (this.disposed) return;
+    // detach() must run before marking the router disposed.
+    // It clears the graph input only when this router still owns it.
+    this.detach();
     this.disposed = true;
     for (const gain of this.sessionGains) {
       try { gain.disconnect(); } catch (error) {}
     }
     this.sessionGains.clear();
     this.sessionGainState.clear();
-    // Detach only our own connection; a fallback source may already own the graph input.
-    this.detach();
     try { this.bus.disconnect(); } catch (error) {}
   }
 }
