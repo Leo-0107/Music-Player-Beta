@@ -808,3 +808,57 @@ test("PCM scheduler detects sub-millisecond underruns and freezes its clock", as
   assert.equal(scheduler.currentFrame, 5);
   scheduler.stop();
 });
+
+
+test("PCM scheduler waits for its startup reserve but permits short tracks to reach EOF", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  let releaseSecond;
+  let reads = 0;
+  const queue = {
+    maxChunkFrames: 4,
+    async readAsync() {
+      reads++;
+      if (reads === 1) return makePcmChunk(0, [1, 2, 3, 4]);
+      if (reads === 2) return new Promise(resolve => { releaseSecond = resolve; });
+      return null;
+    },
+    cancel() {}
+  };
+  const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+  const starting = scheduler.start(queue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 4, startBufferFrames: 8,
+    lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(typeof releaseSecond, "function");
+  assert.equal(context.sources.length, 0);
+  releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
+  await starting;
+  assert.equal(context.sources.length, 2);
+  scheduler.stop();
+
+  const shortContext = createMockOutputContext();
+  const shortChunks = [makePcmChunk(20, [1, 2, 3, 4])];
+  const shortQueue = {
+    maxChunkFrames: 4,
+    async readAsync() { return shortChunks.length ? shortChunks.shift() : null; },
+    cancel() {}
+  };
+  const shortScheduler = new PcmOutputScheduler(shortContext, { connect() {} }, {
+    lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+  await shortScheduler.start(shortQueue, {
+    startFrame: 20, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 4, startBufferFrames: 8,
+    lookAheadSeconds: 1, minimumLeadSeconds: 0.05
+  });
+  assert.equal(shortContext.sources.length, 1);
+  assert.equal(shortScheduler.eof, true);
+  shortContext.sources[0].finish();
+  assert.equal(shortScheduler.active, false);
+});
