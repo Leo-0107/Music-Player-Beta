@@ -1819,6 +1819,84 @@ test("PCM session controller hands off contiguous frames and retires the old gai
 });
 
 
+test("PCM controller handoff creates the next isolated Worker queue at the exact drain frame", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      workers.push(this);
+    }
+  }
+  const { Engine, PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass(TrackingWorker);
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(48000, 2);
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const queueOptions = {
+    concurrentSession: true,
+    chunkFrames: 1024,
+    capacityFrames: 4096,
+    eqGains: [0, 0, 0, 0, 0]
+  };
+  const firstQueue = await engine.createProcessedPcmQueue({ ...queueOptions, startFrame: 0, pitch: 1 });
+  const firstSession = await controller.start(firstQueue, {
+    startFrame: 0, sampleRate: 48000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.25, minimumLeadSeconds: 0.03
+  });
+
+  let factoryBoundary = null;
+  let secondQueue = null;
+  const handoffResult = await controller.handoff(async boundary => {
+    factoryBoundary = boundary;
+    secondQueue = await engine.createProcessedPcmQueue({
+      ...queueOptions,
+      startFrame: boundary.startFrame,
+      pitch: 1.5
+    });
+    return secondQueue;
+  }, {
+    sampleRate: 48000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.25, minimumLeadSeconds: 0.03,
+    crossfadeSeconds: 0.02
+  });
+
+  assert.equal(workers.length, 2);
+  assert.notEqual(workers[0], workers[1]);
+  assert.equal(firstQueue.cancelled, true);
+  assert.equal(workers[0].terminated, true);
+  assert.equal(handoffResult.handoff.startFrame, factoryBoundary.startFrame);
+  assert.equal(handoffResult.session.scheduler.initialFrame, factoryBoundary.startFrame);
+  assert.equal(handoffResult.session.scheduler.firstScheduledAt, factoryBoundary.startAtTime);
+  assert.equal(controller.activeSession, handoffResult.session);
+  assert.equal(controller.state, "running");
+  assert.equal(engine.activePcmQueues.has(secondQueue), true);
+
+  controller.dispose();
+  engine.cancelProcessedPcmQueue();
+  assert.equal(workers.every(worker => worker.terminated), true);
+  assert.equal(engine.activePcmQueues.size, 0);
+  assert.equal(activeInput, null);
+  assert.equal(firstSession.gain.disconnected, true);
+});
+
 test("PCM session handoff cancels a factory queue when a newer stop invalidates preparation", async () => {
   const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
   const context = createMockOutputContext();
