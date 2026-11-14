@@ -53,11 +53,20 @@ function makeBiquad(type, frequency, gainDb, q, rate) {
   };
 }
 
-function configureEq(gains) {
+function configureEq(gains, preserveState = false) {
   const values = Array.isArray(gains) ? gains : [];
-  filters = BAND_FREQUENCIES.map((frequency, index) =>
-    makeBiquad(BAND_TYPES[index], frequency, Number(values[index]) || 0, 1, sampleRate)
-  );
+  const previous = filters;
+  filters = BAND_FREQUENCIES.map((frequency, index) => {
+    const next = makeBiquad(BAND_TYPES[index], frequency, Number(values[index]) || 0, 1, sampleRate);
+    const old = previous[index];
+    if (preserveState && old) {
+      next.x1 = old.x1.slice();
+      next.x2 = old.x2.slice();
+      next.y1 = old.y1.slice();
+      next.y2 = old.y2.slice();
+    }
+    return next;
+  });
 }
 
 function createPitchState() {
@@ -212,7 +221,7 @@ self.onmessage = event => {
 
     if (message.type === "configure") {
       const gains = Array.isArray(message.eqGains) ? message.eqGains : null;
-      if (gains) configureEq(gains);
+      if (gains) configureEq(gains, true);
       const nextPitch = Number(message.pitch);
       if (Number.isFinite(nextPitch)) {
         const clamped = Math.max(0.5, Math.min(2, nextPitch));
