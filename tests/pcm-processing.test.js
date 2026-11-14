@@ -1056,11 +1056,21 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
   const graphCalls = [];
   let activeInput = null;
   const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
     graphCalls.push({ node, target });
     activeInput = node ? { node, target } : null;
     return true;
   };
-  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput);
+  const clearGraphInput = (expectedNode, expectedTarget) => {
+    if (activeInput?.node !== expectedNode || activeInput.target !== expectedTarget) return false;
+    try { expectedNode.disconnect(expectedTarget); } catch (error) {}
+    activeInput = null;
+    graphCalls.push({ node: null, target: expectedTarget });
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
   assert.equal(activeInput.node, router.bus);
   assert.equal(activeInput.target, routeNode);
 
@@ -1097,4 +1107,11 @@ test("PCM graph router keeps one graph input and crossfades session gains safely
   assert.equal(router.bus.disconnected, true);
   assert.equal(graphCalls.length, 2);
   router.dispose();
+
+  const ownedRouter = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const ownedBus = ownedRouter.bus;
+  ownedRouter.dispose();
+  assert.equal(activeInput, null);
+  assert.equal(ownedBus.disconnected, true);
+  assert.equal(graphCalls[graphCalls.length - 1].node, null);
 });
