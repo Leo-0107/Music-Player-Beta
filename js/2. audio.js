@@ -413,6 +413,7 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
 
   async function switchBufferedPlaybackToMediaElement(error, resume = false) {
     if (!bufferedPlaybackMode || !bufferedPlaybackEngine) return false;
+    ensureGraph();
     const url = bufferedPlaybackEngine.sourceUrl;
     const position = bufferedPlaybackEngine.currentTime;
     const shouldResume = !!resume || !bufferedPlaybackEngine.paused;
@@ -778,7 +779,10 @@ let mainOutputUsesNativeDestination = false;
         channelCountMode: "explicit",
         channelInterpretation: "speakers"
       });
-      let pitchValue = Math.max(0.5, Math.min(2, Number(state.pitchSemitones) ? Math.pow(2, Number(state.pitchSemitones) / 12) : 1));
+      const userPitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
+      let pitchValue = Math.max(0.5, Math.min(2, bufferedPlaybackMode
+        ? userPitchRatio / Math.max(0.1, Number(currentRate) || 1)
+        : userPitchRatio));
       Object.defineProperty(workletNode, "pitch", {
         configurable: false,
         enumerable: true,
@@ -1008,7 +1012,7 @@ let mainOutputUsesNativeDestination = false;
   function applyPitchAndRate(){
     ensureGraph();
     if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
-      switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), true).catch(error => {
+      switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), !audio.paused).catch(error => {
         console.warn("Music Player playback fallback failed:", error);
       });
     } else {
