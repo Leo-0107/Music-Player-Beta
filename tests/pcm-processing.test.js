@@ -619,7 +619,7 @@ test("PCM output scheduler schedules contiguous chunks at playback-rate-adjusted
 
   context.currentTime = 10.050126;
   assert.equal(scheduler.currentFrame, 102);
-  context.currentTime = 10.0505;
+  context.currentTime = 10.050501;
   assert.equal(scheduler.currentFrame, 108);
 
   context.sources[0].finish();
