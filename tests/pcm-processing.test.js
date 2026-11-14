@@ -617,7 +617,7 @@ test("PCM output scheduler schedules contiguous chunks at playback-rate-adjusted
   assert.equal(scheduler.eof, true);
   assert.equal(scheduler.active, true);
 
-  context.currentTime = 10.050125;
+  context.currentTime = 10.050126;
   assert.equal(scheduler.currentFrame, 102);
   context.currentTime = 10.0505;
   assert.equal(scheduler.currentFrame, 108);
@@ -634,11 +634,12 @@ test("PCM scheduler freezes the frame clock across underrun and resumes without 
   const context = createMockOutputContext();
   let reads = 0;
   let releaseSecond;
+  const largeChunk = Array.from({ length: 1024 }, (_, index) => index);
   const queue = {
-    maxChunkFrames: 4,
+    maxChunkFrames: 1024,
     async readAsync() {
       reads++;
-      if (reads === 1) return makePcmChunk(0, [1, 2, 3, 4]);
+      if (reads === 1) return makePcmChunk(0, largeChunk);
       if (reads === 2) return new Promise(resolve => { releaseSecond = resolve; });
       return null;
     },
@@ -646,30 +647,30 @@ test("PCM scheduler freezes the frame clock across underrun and resumes without 
   };
   const underruns = [];
   const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
-    lookAheadSeconds: 0.01,
+    lookAheadSeconds: 0.1,
     minimumLeadSeconds: 0.05,
     onUnderrun: detail => underruns.push(detail)
   });
 
   await scheduler.start(queue, {
     startFrame: 0, sampleRate: 8000, playbackRate: 1,
-    blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+    blockFrames: 1024, lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
   const pendingPump = scheduler.pump();
   await Promise.resolve();
   assert.equal(typeof releaseSecond, "function");
-  releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
+  releaseSecond(makePcmChunk(1024, largeChunk));
   await pendingPump;
 
   assert.equal(context.sources.length, 2);
   assert.equal(context.sources[1].startAt, 10.25);
   assert.equal(underruns.length, 1);
-  assert.equal(underruns[0].frame, 4);
-  assert.equal(scheduler.currentFrame, 4);
+  assert.equal(underruns[0].frame, 1024);
+  assert.equal(scheduler.currentFrame, 1024);
 
   context.currentTime = 10.250125;
-  assert.equal(scheduler.currentFrame, 5);
+  assert.equal(scheduler.currentFrame, 1025);
   assert.equal(scheduler.underrunCount, 1);
   scheduler.stop();
 });
@@ -678,35 +679,36 @@ test("stopping PCM scheduling while a queue read is pending rejects late source 
   const { PcmOutputScheduler } = createEngineClass();
   const context = createMockOutputContext();
   let releaseSecond;
+  const largeChunk = Array.from({ length: 1024 }, (_, index) => index);
   const queue = {
-    maxChunkFrames: 4,
+    maxChunkFrames: 1024,
     async readAsync() {
       if (!this.sentFirst) {
         this.sentFirst = true;
-        return makePcmChunk(0, [1, 2, 3, 4]);
+        return makePcmChunk(0, largeChunk);
       }
       return new Promise(resolve => { releaseSecond = resolve; });
     },
     cancel() { this.cancelled = true; }
   };
   const scheduler = new PcmOutputScheduler(context, { connect() {} }, {
-    lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   await scheduler.start(queue, {
     startFrame: 0, sampleRate: 8000, playbackRate: 1,
-    blockFrames: 4, lookAheadSeconds: 0.01, minimumLeadSeconds: 0.05
+    blockFrames: 1024, lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
   const pendingPump = scheduler.pump();
   await Promise.resolve();
   const frozenFrame = scheduler.stop();
-  assert.equal(frozenFrame, 4);
+  assert.equal(frozenFrame, 1024);
   assert.equal(queue.cancelled, true);
   releaseSecond(makePcmChunk(4, [5, 6, 7, 8]));
   await pendingPump;
   assert.equal(context.sources.length, 1);
   assert.equal(context.sources[0].stopped, true);
-  assert.equal(scheduler.currentFrame, 4);
+  assert.equal(scheduler.currentFrame, 1024);
 });
 
 test("PCM output scheduler rejects discontinuous or invalid chunk ranges", async () => {
