@@ -217,6 +217,92 @@ class PcmPrebufferQueue {
 
 // Schedules already-processed PCM chunks without changing the audible graph yet.
 // The caller owns the polling cadence and the single input GainNode connected after EQ/pitch.
+// Shared post-EQ/pitch input bus for multiple preprocessed PCM sessions.
+// Session GainNodes can be crossfaded without replacing the single graph input connection.
+class PcmOutputGraphRouter {
+  constructor(audioContext, routeNode, setGraphInput) {
+    if (!audioContext || typeof audioContext.createGain !== "function" ||
+        !routeNode || typeof routeNode.connect !== "function" ||
+        typeof setGraphInput !== "function") {
+      throw new TypeError("PCM graph router requires an AudioContext, route node, and graph input setter");
+    }
+    this.audioContext = audioContext;
+    this.routeNode = routeNode;
+    this.setGraphInput = setGraphInput;
+    this.bus = audioContext.createGain();
+    this.sessionGains = new Set();
+    this.disposed = false;
+    try {
+      if (this.setGraphInput(this.bus, routeNode) === false) {
+        throw new Error("PCM graph input could not be connected");
+      }
+    } catch (error) {
+      try { this.bus.disconnect(); } catch (ignore) {}
+      this.disposed = true;
+      throw error;
+    }
+  }
+
+  createSessionGain(initialGain = 0) {
+    if (this.disposed) throw new Error("PCM graph router is disposed");
+    const value = Number(initialGain);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new RangeError("PCM session gain must be between 0 and 1");
+    }
+    const gain = this.audioContext.createGain();
+    gain.gain.value = value;
+    gain.connect(this.bus);
+    this.sessionGains.add(gain);
+    return gain;
+  }
+
+  crossfade(oldGain, newGain, startAt, duration = 0.02) {
+    if (this.disposed) throw new Error("PCM graph router is disposed");
+    if ((oldGain && !this.sessionGains.has(oldGain)) ||
+        (newGain && !this.sessionGains.has(newGain)) ||
+        (!oldGain && !newGain)) {
+      throw new TypeError("PCM crossfade references an unknown session gain");
+    }
+    const start = Number(startAt);
+    const fadeDuration = Number(duration);
+    if (!Number.isFinite(start) || start < 0 ||
+        !Number.isFinite(fadeDuration) || fadeDuration <= 0 || fadeDuration > 0.5) {
+      throw new RangeError("PCM crossfade timing is invalid");
+    }
+
+    if (oldGain) {
+      const parameter = oldGain.gain;
+      parameter.cancelScheduledValues(start);
+      parameter.setValueAtTime(Math.max(0, Math.min(1, Number(parameter.value) || 0)), start);
+      parameter.linearRampToValueAtTime(0, start + fadeDuration);
+    }
+    if (newGain) {
+      const parameter = newGain.gain;
+      parameter.cancelScheduledValues(start);
+      parameter.setValueAtTime(0, start);
+      parameter.linearRampToValueAtTime(1, start + fadeDuration);
+    }
+    return start + fadeDuration;
+  }
+
+  retireSessionGain(gain) {
+    if (!gain || !this.sessionGains.delete(gain)) return false;
+    try { gain.disconnect(); } catch (error) {}
+    return true;
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const gain of this.sessionGains) {
+      try { gain.disconnect(); } catch (error) {}
+    }
+    this.sessionGains.clear();
+    try { this.setGraphInput(null); } catch (error) {}
+    try { this.bus.disconnect(); } catch (error) {}
+  }
+}
+
 class PcmOutputScheduler {
   constructor(audioContext, inputNode, options = {}) {
     if (!audioContext || typeof audioContext.createBuffer !== "function" ||
