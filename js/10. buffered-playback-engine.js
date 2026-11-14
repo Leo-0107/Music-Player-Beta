@@ -100,10 +100,99 @@ class ProcessedPcmRingBuffer {
   }
 }
 
+// Owns an isolated stateful PCM Worker for one processing session.
+// Separate instances prevent configure/reset messages from corrupting another queue's DSP state.
+class PcmProcessingWorkerSession {
+  constructor(options = {}) {
+    const WorkerConstructor = options.WorkerClass || Worker;
+    const workerUrl = options.workerUrl || new URL("js/11. pcm-processing-worker.js", document.baseURI);
+    if (typeof WorkerConstructor !== "function") throw new Error("Web Worker is unavailable");
+    this.worker = new WorkerConstructor(workerUrl);
+    this.requests = new Map();
+    this.requestId = 0;
+    this.initialized = false;
+    this.disposed = false;
+    this.readyPromise = null;
+    this.worker.onmessage = event => {
+      const message = event.data || {};
+      const pending = this.requests.get(message.id);
+      if (!pending) return;
+      this.requests.delete(message.id);
+      if (message.type === "error") {
+        pending.reject(new Error(message.message || "PCM processing failed"));
+      } else if (message.type !== pending.expectedType) {
+        pending.reject(new Error(`Unexpected PCM worker response: expected ${pending.expectedType}, received ${String(message.type)}`));
+      } else if (pending.sequence !== null && message.sequence !== pending.sequence) {
+        pending.reject(new Error("PCM worker response sequence does not match the request"));
+      } else {
+        pending.resolve(message);
+      }
+    };
+    this.worker.onerror = event => this.fail(new Error(event.message || "PCM processing worker failed"));
+    this.worker.onmessageerror = () => this.fail(new Error("PCM processing worker message could not be deserialized"));
+  }
+
+  get active() {
+    return !this.disposed;
+  }
+
+  send(type, payload = {}, transfer = []) {
+    if (this.disposed || !this.worker) {
+      return Promise.reject(new Error("PCM processing session is disposed"));
+    }
+    const responseTypes = {
+      init: "ready", configure: "configured", reset: "reset",
+      process: "processed", dispose: "disposed"
+    };
+    const expectedType = responseTypes[type];
+    if (!expectedType) return Promise.reject(new Error(`Unsupported PCM worker request: ${type}`));
+    const id = ++this.requestId;
+    const sequence = type === "process" ? payload.sequence : null;
+    return new Promise((resolve, reject) => {
+      this.requests.set(id, { resolve, reject, expectedType, sequence });
+      try {
+        this.worker.postMessage({ type, id, ...payload }, transfer);
+      } catch (error) {
+        this.requests.delete(id);
+        reject(error);
+      }
+    });
+  }
+
+  initialize(settings = {}) {
+    if (this.disposed) return Promise.reject(new Error("PCM processing session is disposed"));
+    if (this.initialized) return Promise.resolve(true);
+    if (this.readyPromise) return this.readyPromise;
+    this.readyPromise = this.send("init", settings).then(() => {
+      if (this.disposed) throw new Error("PCM processing session was disposed during initialization");
+      this.initialized = true;
+      return true;
+    }).catch(error => {
+      this.fail(error);
+      throw error;
+    });
+    return this.readyPromise;
+  }
+
+  fail(error) {
+    this.dispose(error || new Error("PCM processing worker failed"));
+  }
+
+  dispose(reason = new Error("PCM processing session was disposed")) {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const pending of this.requests.values()) pending.reject(reason);
+    this.requests.clear();
+    const worker = this.worker;
+    this.worker = null;
+    try { worker?.terminate(); } catch (error) {}
+  }
+}
+
 // Bounded producer/consumer queue for processed PCM. This is intentionally not wired
 // into audible playback until the output scheduler and DSP ownership are validated.
 class PcmPrebufferQueue {
-  constructor(ringBuffer, iterator, maxChunkFrames = 8192) {
+  constructor(ringBuffer, iterator, maxChunkFrames = 8192, onSettle = null) {
     const maxFrames = Number(maxChunkFrames);
     if (!ringBuffer || typeof ringBuffer.read !== "function" ||
         typeof ringBuffer.write !== "function" ||
@@ -125,6 +214,14 @@ class PcmPrebufferQueue {
     this.error = null;
     this.pumpPromise = null;
     this.waiters = new Set();
+    this.onSettle = typeof onSettle === "function" ? onSettle : null;
+    this.settled = false;
+  }
+
+  settle() {
+    if (this.settled) return;
+    this.settled = true;
+    try { this.onSettle?.(this); } catch (error) {}
   }
 
   start() {
@@ -154,6 +251,7 @@ class PcmPrebufferQueue {
             this.done = true;
             this.running = false;
             this.notify();
+            this.settle();
             return;
           }
           const chunk = result.value;
@@ -169,6 +267,7 @@ class PcmPrebufferQueue {
         this.error = error;
         this.running = false;
         this.notify();
+        this.settle();
       }
     })();
     this.pumpPromise = task.finally(() => {
@@ -212,6 +311,7 @@ class PcmPrebufferQueue {
       if (closing && typeof closing.catch === "function") closing.catch(() => {});
     } catch (error) {}
     this.notify();
+    this.settle();
   }
 }
 
@@ -1088,6 +1188,7 @@ class BufferedPlaybackEngine {
     this.processorReady = null;
     this.processingSessionId = 0;
     this.activePcmQueue = null;
+    this.activePcmQueues = new Set();
   }
 
   get readyState() {
@@ -1176,9 +1277,15 @@ class BufferedPlaybackEngine {
 
   async *iterateProcessedChunks(options = {}) {
     const generation = this.generation;
-    const sessionId = ++this.processingSessionId;
+    const workerSession = options.workerSession || null;
+    const sessionId = workerSession ? null : ++this.processingSessionId;
+    const isCancelled = () => generation !== this.generation ||
+      (workerSession ? !workerSession.active : sessionId !== this.processingSessionId);
+    const send = (type, payload = {}, transfer = []) => workerSession
+      ? workerSession.send(type, payload, transfer)
+      : this.sendProcessorMessage(type, payload, transfer);
     if (!this.buffer) await this.prepare();
-    if (generation !== this.generation || sessionId !== this.processingSessionId) {
+    if (isCancelled()) {
       throw new Error("PCM processing was cancelled");
     }
     if (!this.buffer) throw new Error("PCM source is not decoded");
@@ -1191,11 +1298,15 @@ class BufferedPlaybackEngine {
       : Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, this.playbackRate);
     if (pitch < 0.5 || pitch > 2) throw new Error("Pitch ratio is outside the PCM processor range");
 
-    await this.ensureProcessorWorker({ eqGains, pitch });
-    if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
-    await this.sendProcessorMessage("reset");
-    if (generation !== this.generation || sessionId !== this.processingSessionId) throw new Error("PCM processing was cancelled");
-    await this.sendProcessorMessage("configure", { eqGains, pitch });
+    if (workerSession) {
+      await workerSession.initialize({ sampleRate, eqGains, pitch });
+    } else {
+      await this.ensureProcessorWorker({ eqGains, pitch });
+    }
+    if (isCancelled()) throw new Error("PCM processing was cancelled");
+    await send("reset");
+    if (isCancelled()) throw new Error("PCM processing was cancelled");
+    await send("configure", { eqGains, pitch });
 
     // Warm the stateful EQ and granular pitch processor with audio before the requested seek point.
     const warmupFrames = Math.min(startFrame, Math.ceil(sampleRate * 1.5));
@@ -1210,7 +1321,7 @@ class BufferedPlaybackEngine {
     // The granular pitch shifter is causal and has a fixed startup delay.
     // Discard that leading delay and feed zeroes at EOF to return a duration-aligned PCM stream.
     for (let relativeOffset = 0; relativeOffset < totalInputFrames; relativeOffset += chunkFrames) {
-      if (generation !== this.generation || sessionId !== this.processingSessionId || !this.processorWorker) {
+      if (isCancelled() || !this.processorWorker) {
         throw new Error("PCM processing was cancelled");
       }
       const frameCount = Math.min(chunkFrames, totalInputFrames - relativeOffset);
@@ -1227,11 +1338,11 @@ class BufferedPlaybackEngine {
         right.set(sourceRight.subarray(realStart, realEnd));
       }
 
-      const result = await this.sendProcessorMessage("process", {
+      const result = await send("process", {
         sequence, left, right
       }, [left.buffer, right.buffer]);
       sequence++;
-      if (generation !== this.generation || sessionId !== this.processingSessionId) {
+      if (isCancelled()) {
         throw new Error("PCM processing was cancelled");
       }
 
@@ -1262,9 +1373,11 @@ class BufferedPlaybackEngine {
 
   cancelProcessedPcmQueue() {
     this.processingSessionId++;
-    const queue = this.activePcmQueue;
+    const queues = Array.from(this.activePcmQueues);
+    if (this.activePcmQueue && !queues.includes(this.activePcmQueue)) queues.push(this.activePcmQueue);
     this.activePcmQueue = null;
-    queue?.cancel();
+    this.activePcmQueues.clear();
+    for (const queue of queues) queue.cancel();
   }
 
   async createProcessedPcmQueue(options = {}) {
@@ -1277,21 +1390,32 @@ class BufferedPlaybackEngine {
       throw new RangeError("PCM queue capacity must fit at least two chunks and not exceed 1048576 frames");
     }
 
-    this.cancelProcessedPcmQueue();
+    // Concurrent queues are reserved for seamless handoff. Each owns an isolated
+    // Worker because the EQ and pitch processors retain state between chunks.
+    const concurrentSession = options.concurrentSession === true;
+    if (!concurrentSession) this.cancelProcessedPcmQueue();
+    const workerSession = concurrentSession ? new PcmProcessingWorkerSession() : null;
     const generation = this.generation;
     const requestSessionId = this.processingSessionId;
     if (!this.buffer) await this.prepare();
     if (generation !== this.generation ||
-        requestSessionId !== this.processingSessionId || !this.buffer) {
+        (!concurrentSession && requestSessionId !== this.processingSessionId) || !this.buffer) {
+      workerSession?.dispose();
       throw new Error("PCM queue creation was cancelled");
     }
     const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
 
     const ringBuffer = new ProcessedPcmRingBuffer(capacityFrames);
     ringBuffer.clear(startFrame);
-    const iterator = this.iterateProcessedChunks({ ...options, chunkFrames, startFrame });
-    const queue = new PcmPrebufferQueue(ringBuffer, iterator, chunkFrames);
+    const iterator = this.iterateProcessedChunks({ ...options, chunkFrames, startFrame, workerSession });
+    let queue = null;
+    queue = new PcmPrebufferQueue(ringBuffer, iterator, chunkFrames, () => {
+      this.activePcmQueues.delete(queue);
+      if (this.activePcmQueue === queue) this.activePcmQueue = null;
+      workerSession?.dispose();
+    });
     this.activePcmQueue = queue;
+    this.activePcmQueues.add(queue);
     queue.start();
     return queue;
   }
