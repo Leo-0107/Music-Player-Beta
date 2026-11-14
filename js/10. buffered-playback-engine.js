@@ -1861,6 +1861,7 @@ class BufferedPlaybackEngine {
     next = Math.max(0.1, Math.min(10, next));
     if (Math.abs(next - this.playbackRate) < 0.0001) return false;
     const position = this.currentTime;
+    if (this.paused) this.cancelProcessedPcmQueue();
     this.playbackRate = next;
     this.offset = position;
     return true;
