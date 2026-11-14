@@ -25,7 +25,7 @@ jobs:
           python3 - <<'PY'
           import math, struct, wave
           sample_rate = 48000
-          seconds = 24
+          seconds = 120
           with wave.open("pcm-e2e-test.wav", "wb") as output:
               output.setnchannels(2)
               output.setsampwidth(2)
@@ -84,6 +84,7 @@ jobs:
                   super(url, options);
                   const resolvedUrl = String(url);
                   audit.workerUrls.push(resolvedUrl);
+                this.__pcmAuditUrl = resolvedUrl;
                   this.addEventListener("message", event => {
                     const data = event.data || {};
                     audit.workerResponses.push({
@@ -183,6 +184,44 @@ jobs:
               throw new Error("PCM AudioBufferSourceNode was never scheduled: " + JSON.stringify(initial));
             }
 
+            // Sustained playback: keep a 120-second source running for 45 seconds.
+            const cdp = await page.context().newCDPSession(page);
+            await cdp.send("Performance.enable");
+            const metricsBefore = await cdp.send("Performance.getMetrics");
+            const longBefore = await page.evaluate(() => ({
+              progress: Number(document.querySelector("#progress")?.value || 0),
+              currentTime: window.__pcmAudit.audioContexts[0]?.currentTime || 0,
+              processed: window.__pcmAudit.workerResponses.filter(message => message.type === "processed").length,
+              sourceStarts: window.__pcmAudit.sourceStarts.length
+            }));
+            await page.waitForTimeout(45000);
+            const metricsAfter = await cdp.send("Performance.getMetrics");
+            const longAfter = await page.evaluate(() => ({
+              progress: Number(document.querySelector("#progress")?.value || 0),
+              currentTime: window.__pcmAudit.audioContexts[0]?.currentTime || 0,
+              processed: window.__pcmAudit.workerResponses.filter(message => message.type === "processed").length,
+              sourceStarts: window.__pcmAudit.sourceStarts.length,
+              workerErrors: window.__pcmAudit.workerErrors
+            }));
+            const metricValue = (metrics, name) =>
+              metrics.metrics.find(metric => metric.name === name)?.value ?? null;
+            const longRun = {
+              before: longBefore,
+              after: longAfter,
+              taskDurationDelta: metricValue(metricsAfter, "TaskDuration") !== null &&
+                metricValue(metricsBefore, "TaskDuration") !== null
+                ? metricValue(metricsAfter, "TaskDuration") - metricValue(metricsBefore, "TaskDuration")
+                : null,
+              jsHeapUsedSize: metricValue(metricsAfter, "JSHeapUsedSize")
+            };
+            if (longAfter.progress - longBefore.progress < 15 ||
+                longAfter.currentTime - longBefore.currentTime < 30 ||
+                longAfter.processed - longBefore.processed < 80 ||
+                longAfter.workerErrors.length) {
+              throw new Error("Sustained PCM playback did not remain healthy: " + JSON.stringify(longRun));
+            }
+            await cdp.detach();
+
             // Pause and resume through the application's actual playback control.
             await page.locator("#btnPlay").click();
             await page.waitForFunction(() =>
@@ -253,6 +292,7 @@ jobs:
 
             console.log("PCM audio integration PASS");
             console.log(JSON.stringify({
+              longRun,
               initial,
               final: {
                 playButton: finalState.playButton,
