@@ -311,14 +311,12 @@ class PcmOutputGraphRouter {
 
   detach() {
     if (this.disposed) return false;
-    let cleared = false;
-    try { cleared = this.clearGraphInput(this.bus, this.routeNode) === true; } catch (error) {}
-    if (cleared) {
-      try { this.bus.disconnect(this.routeNode); } catch (error) {
-        try { this.bus.disconnect(); } catch (ignore) {}
-      }
+    // clearGraphInput owns the exact edge and performs its disconnection.
+    // Do not disconnect the same edge again: a redundant AudioNode.disconnect
+    // may throw and a broad disconnect() would also sever session gains.
+    try { return this.clearGraphInput(this.bus, this.routeNode) === true; } catch (error) {
+      return false;
     }
-    return cleared;
   }
 
   createSessionGain(initialGain = 0) {
