@@ -186,7 +186,9 @@ class PcmPrebufferQueue {
     for (;;) {
       if (this.error) throw this.error;
       if (this.ringBuffer.availableFrames >= requested) {
-        return this.ringBuffer.read(requested);
+        const chunk = this.ringBuffer.read(requested);
+        this.pump();
+        return chunk;
       }
       if (this.done || !this.running) {
         return this.ringBuffer.read(requested);
