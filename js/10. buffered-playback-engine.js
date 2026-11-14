@@ -1394,15 +1394,14 @@ class BufferedPlaybackEngine {
     // Worker because the EQ and pitch processors retain state between chunks.
     const concurrentSession = options.concurrentSession === true;
     if (!concurrentSession) this.cancelProcessedPcmQueue();
-    const workerSession = concurrentSession ? new PcmProcessingWorkerSession() : null;
     const generation = this.generation;
     const requestSessionId = this.processingSessionId;
     if (!this.buffer) await this.prepare();
     if (generation !== this.generation ||
         (!concurrentSession && requestSessionId !== this.processingSessionId) || !this.buffer) {
-      workerSession?.dispose();
       throw new Error("PCM queue creation was cancelled");
     }
+    const workerSession = concurrentSession ? new PcmProcessingWorkerSession() : null;
     const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(Number(options.startFrame) || 0)));
 
     const ringBuffer = new ProcessedPcmRingBuffer(capacityFrames);
