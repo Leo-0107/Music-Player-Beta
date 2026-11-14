@@ -165,6 +165,7 @@ class PcmPrebufferQueue {
           this.notify();
         }
       } catch (error) {
+        if (this.cancelled) return;
         this.error = error;
         this.running = false;
         this.notify();
