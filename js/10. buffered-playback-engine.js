@@ -220,15 +220,17 @@ class PcmPrebufferQueue {
 // Shared post-EQ/pitch input bus for multiple preprocessed PCM sessions.
 // Session GainNodes can be crossfaded without replacing the single graph input connection.
 class PcmOutputGraphRouter {
-  constructor(audioContext, routeNode, setGraphInput) {
+  constructor(audioContext, routeNode, setGraphInput, clearGraphInput = null) {
     if (!audioContext || typeof audioContext.createGain !== "function" ||
         !routeNode || typeof routeNode.connect !== "function" ||
-        typeof setGraphInput !== "function") {
+        typeof setGraphInput !== "function" ||
+        (clearGraphInput !== null && typeof clearGraphInput !== "function")) {
       throw new TypeError("PCM graph router requires an AudioContext, route node, and graph input setter");
     }
     this.audioContext = audioContext;
     this.routeNode = routeNode;
     this.setGraphInput = setGraphInput;
+    this.clearGraphInput = clearGraphInput;
     this.bus = audioContext.createGain();
     this.sessionGains = new Set();
     this.sessionGainState = new Map();
@@ -321,10 +323,16 @@ class PcmOutputGraphRouter {
     }
     this.sessionGains.clear();
     this.sessionGainState.clear();
-    // Do not clear the global graph input here: a fallback source may have
-    // replaced this bus since construction. Disconnect only this router's bus.
-    try { this.bus.disconnect(this.routeNode); } catch (error) {
-      try { this.bus.disconnect(); } catch (ignore) {}
+    // Clear only if this router still owns the active graph input. A fallback
+    // source may have replaced it since construction.
+    if (this.clearGraphInput) {
+      let cleared = false;
+      try { cleared = this.clearGraphInput(this.bus, this.routeNode) === true; } catch (error) {}
+      if (cleared) {
+        try { this.bus.disconnect(this.routeNode); } catch (error) {
+          try { this.bus.disconnect(); } catch (ignore) {}
+        }
+      }
     }
   }
 }
