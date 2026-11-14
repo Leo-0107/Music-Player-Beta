@@ -562,6 +562,8 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   assert.deepEqual(latestWorkerInit.eqGains, [2, -1, 0, 0, 0]);
   assert.equal(latestWorkerInit.pitch, 1.6);
   assert.equal(handoff.session.scheduler.initialFrame, handoff.handoff.startFrame);
+  assert.ok(engine.currentTime < handoff.handoff.startFrame / 48000);
+  assert.ok(Math.abs(engine.currentTime - 0.5) < 0.0001);
   assert.ok(workers.length >= 4);
   assert.ok(engine.pcmOutputController.drainingSessions.size >= 1);
 
