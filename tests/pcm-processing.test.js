@@ -271,3 +271,56 @@ test("PCM worker iterator streams through the bounded prebuffer queue without ga
   assert.equal(ring.availableFrames, 0);
   engine.disposeProcessorWorker();
 });
+
+
+test("engine invalidates active PCM queues on pause, seek, rate change, and source replacement", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 1);
+  engine.sourceUrl = "blob:pcm-test";
+
+  const first = await engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 2048 });
+  const firstBlock = await first.readAsync(1024);
+  assert.equal(firstBlock.startFrame, 0);
+  engine.seek(0.5);
+  assert.equal(first.ringBuffer.availableFrames, 0);
+  assert.equal(await first.readAsync(1), null);
+
+  const second = await engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 4000
+  });
+  assert.equal(second.ringBuffer.readFrame, 4000);
+  const secondBlock = await second.readAsync(1024);
+  assert.equal(secondBlock.startFrame, 4000);
+  engine.setPlaybackRate(1.25);
+  assert.equal(second.ringBuffer.availableFrames, 0);
+  assert.equal(await second.readAsync(1), null);
+
+  const third = await engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 2048 });
+  await third.readAsync(1024);
+  engine.pause();
+  assert.equal(third.ringBuffer.availableFrames, 0);
+  assert.equal(await third.readAsync(1), null);
+
+  const fourth = await engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 2048 });
+  await fourth.readAsync(1024);
+  engine.setSource("blob:replacement");
+  assert.equal(fourth.ringBuffer.availableFrames, 0);
+  assert.equal(await fourth.readAsync(1), null);
+  engine.disposeProcessorWorker();
+});
+
+test("PCM queue creation is rejected if pause invalidates source preparation", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  let finishPreparation;
+  engine.prepare = () => new Promise(resolve => { finishPreparation = resolve; });
+  const pending = engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 2048 });
+  await Promise.resolve();
+  engine.pause();
+  engine.buffer = makeMonoBuffer(8000, 1);
+  finishPreparation(engine.buffer);
+  await assert.rejects(() => pending, /queue creation was cancelled/);
+  assert.equal(engine.activePcmQueue, null);
+  engine.disposeProcessorWorker();
+});
