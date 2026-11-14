@@ -1741,7 +1741,7 @@ class BufferedPlaybackEngine {
     if (requestId !== this.playRequestId || !this.playRequested) return;
     if (!this.buffer) throw new Error("PCM decoding did not produce audio");
     if (this.offset >= this.buffer.duration) this.offset = 0;
-    const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(this.offset * this.buffer.sampleRate)));
+    const startFrame = Math.max(0, Math.min(this.buffer.length, Math.round(this.offset * this.buffer.sampleRate)));
     const session = await this.startPcmSession(startFrame);
     if (!session || requestId !== this.playRequestId || !this.playRequested) return;
     this.paused = false;
@@ -1838,7 +1838,7 @@ class BufferedPlaybackEngine {
     this.offset = next;
     this.ended = false;
     if (wasPlaying && this.buffer) {
-      const startFrame = Math.max(0, Math.min(this.buffer.length, Math.floor(next * this.buffer.sampleRate)));
+      const startFrame = Math.max(0, Math.min(this.buffer.length, Math.round(next * this.buffer.sampleRate)));
       return this.startPcmSession(startFrame).then(session => {
         if (!session || requestId !== this.playRequestId || !this.playRequested) return false;
         this.paused = false;
