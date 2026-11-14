@@ -654,7 +654,8 @@ test("PCM scheduler freezes the frame clock across underrun and resumes without 
 
   await scheduler.start(queue, {
     startFrame: 0, sampleRate: 8000, playbackRate: 1,
-    blockFrames: 1024, lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
   context.currentTime = 10.2;
   const pendingPump = scheduler.pump();
@@ -793,7 +794,8 @@ test("PCM scheduler detects sub-millisecond underruns and freezes its clock", as
   });
   await scheduler.start(queue, {
     startFrame: 0, sampleRate: 8000, playbackRate: 1,
-    blockFrames: 4, lookAheadSeconds: 0.0001, minimumLeadSeconds: 0.00005
+    blockFrames: 4, startBufferFrames: 4,
+    lookAheadSeconds: 0.0001, minimumLeadSeconds: 0.00005
   });
 
   context.currentTime = 10.00105;
