@@ -178,14 +178,19 @@ class PcmPrebufferQueue {
 
   async readAsync(maxFrames) {
     if (!this.started) throw new Error("PCM prebuffer queue has not been started");
+    const requested = Number(maxFrames);
+    if (!Number.isInteger(requested) || requested < 1 ||
+        requested > this.ringBuffer.capacityFrames) {
+      throw new RangeError("PCM prebuffer read size is outside the ring buffer capacity");
+    }
     for (;;) {
-      const chunk = this.ringBuffer.read(maxFrames);
-      if (chunk) {
-        this.pump();
-        return chunk;
-      }
       if (this.error) throw this.error;
-      if (this.done || !this.running) return null;
+      if (this.ringBuffer.availableFrames >= requested) {
+        return this.ringBuffer.read(requested);
+      }
+      if (this.done || !this.running) {
+        return this.ringBuffer.read(requested);
+      }
       await new Promise(resolve => this.waiters.add(resolve));
     }
   }
