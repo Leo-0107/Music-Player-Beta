@@ -737,12 +737,14 @@ class PcmOutputPumpLoop {
   }
 
   scheduleNext(generation) {
-    if (generation !== this.generation) return;
+    // A stale generation or a scheduler that already ended needs no timer;
+    // these are normal lifecycle outcomes, not timer-registration failures.
+    if (generation !== this.generation) return true;
     if (!this.active || !this.scheduler.active) {
       this.active = false;
-      return;
+      return true;
     }
-    if (this.timer !== null) return;
+    if (this.timer !== null) return true;
     try {
       this.timer = this.schedule(() => {
         this.timer = null;
