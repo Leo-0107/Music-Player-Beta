@@ -510,6 +510,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
     async resumeAudioCtx() {},
     canUseBufferedPlayback() { return true; },
     mediaElement: { dispatchEvent(event) { events.push(event.type); return true; } },
+    Event: class MockEvent { constructor(type) { this.type = type; } },
     setInterval() { return ++timerId; },
     clearInterval() {},
     setTimeout() { return ++timerId; },
