@@ -431,3 +431,47 @@ test("cancelled producer errors do not turn a cancelled queue into a failed read
   await Promise.resolve();
   assert.equal(await queue.readAsync(1), null);
 });
+
+
+test("a newer PCM queue request supersedes an older request waiting for preparation", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  let finishPreparation;
+  const preparation = new Promise(resolve => { finishPreparation = resolve; });
+  engine.prepare = () => preparation;
+
+  const oldRequest = engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 0
+  });
+  await Promise.resolve();
+  const newRequest = engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048, startFrame: 1000
+  });
+  await Promise.resolve();
+
+  engine.buffer = makeMonoBuffer(8000, 1);
+  finishPreparation(engine.buffer);
+  await assert.rejects(() => oldRequest, /queue creation was cancelled/);
+  const queue = await newRequest;
+  assert.equal(queue.ringBuffer.readFrame, 1000);
+  assert.equal(engine.activePcmQueue, queue);
+  engine.disposeProcessorWorker();
+});
+
+test("source replacement invalidates a PCM queue request still waiting for preparation", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  let finishPreparation;
+  engine.prepare = () => new Promise(resolve => { finishPreparation = resolve; });
+
+  const pending = engine.createProcessedPcmQueue({
+    pitch: 1, chunkFrames: 1024, capacityFrames: 2048
+  });
+  await Promise.resolve();
+  engine.setSource("blob:new-source");
+  finishPreparation(makeMonoBuffer(8000, 1));
+  await assert.rejects(() => pending, /queue creation was cancelled/);
+  assert.equal(engine.sourceUrl, "blob:new-source");
+  assert.equal(engine.activePcmQueue, null);
+  engine.disposeProcessorWorker();
+});
