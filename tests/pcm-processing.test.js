@@ -1780,14 +1780,18 @@ test("PCM session controller hands off contiguous frames and retires the old gai
     blockFrames: 1024, startBufferFrames: 1024,
     lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
   });
-  const newQueue = makeQueue(1024);
-  const result = await controller.handoff(newQueue, {
+  let factoryBoundary = null;
+  const result = await controller.handoff(async boundary => {
+    factoryBoundary = boundary;
+    return makeQueue(boundary.startFrame);
+  }, {
     sampleRate: 8000, playbackRate: 1,
     blockFrames: 1024, startBufferFrames: 1024,
     lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05,
     crossfadeSeconds: 0.02
   });
 
+  assert.deepEqual(factoryBoundary, result.handoff);
   assert.equal(result.handoff.startFrame, 1024);
   assert.equal(result.handoff.startAtTime, 10.178);
   assert.equal(controller.activeSession, result.session);
@@ -1814,6 +1818,115 @@ test("PCM session controller hands off contiguous frames and retires the old gai
   assert.equal(result.session.gain.disconnected, true);
 });
 
+
+test("PCM session handoff cancels a factory queue when a newer stop invalidates preparation", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const makeQueue = startFrame => ({
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  });
+  await controller.start(makeQueue(0), {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  let resolveFactory;
+  const handoffPromise = controller.handoff(() => new Promise(resolve => {
+    resolveFactory = resolve;
+  }), {
+    sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  assert.equal(typeof resolveFactory, "function");
+  controller.stop();
+  const staleQueue = makeQueue(1024);
+  resolveFactory(staleQueue);
+
+  assert.equal(await handoffPromise, false);
+  assert.equal(staleQueue.cancelled, true);
+  assert.equal(controller.state, "paused");
+  assert.equal(controller.activeSession, null);
+  controller.dispose();
+  assert.equal(activeInput, null);
+});
+
+test("PCM session handoff reports queue factory errors without creating a new session", async () => {
+  const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
+  const context = createMockOutputContext();
+  const routeNode = { connect() {} };
+  let activeInput = null;
+  const setGraphInput = (node, target) => {
+    if (activeInput?.node && activeInput.node !== node) {
+      try { activeInput.node.disconnect(activeInput.target); } catch (error) {}
+    }
+    activeInput = node ? { node, target } : null;
+    return true;
+  };
+  const clearGraphInput = (node, target) => {
+    if (activeInput?.node !== node || activeInput.target !== target) return false;
+    try { node.disconnect(target); } catch (error) {}
+    activeInput = null;
+    return true;
+  };
+  const router = new PcmOutputGraphRouter(context, routeNode, setGraphInput, clearGraphInput);
+  const controller = new PcmPlaybackSessionController(context, router);
+  const oldQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 0, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  };
+  const oldSession = await controller.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  await assert.rejects(
+    () => controller.handoff(async () => { throw new Error("queue preparation failed"); }, {
+      sampleRate: 8000, playbackRate: 1,
+      blockFrames: 1024, startBufferFrames: 1024,
+      lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+    }),
+    /queue preparation failed/
+  );
+  assert.equal(controller.state, "error");
+  assert.equal(controller.activeSession, null);
+  assert.equal(controller.lastError.message, "queue preparation failed");
+  assert.equal(controller.drainingSessions.has(oldSession), true);
+  controller.dispose();
+  assert.equal(activeInput, null);
+});
 
 test("PCM session handoff cleans up transactionally when new gain creation fails", async () => {
   const { PcmOutputGraphRouter, PcmPlaybackSessionController } = createEngineClass();
