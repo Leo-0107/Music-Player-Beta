@@ -231,6 +231,7 @@ class PcmOutputGraphRouter {
     this.setGraphInput = setGraphInput;
     this.bus = audioContext.createGain();
     this.sessionGains = new Set();
+    this.sessionGainState = new Map();
     this.disposed = false;
     try {
       if (this.setGraphInput(this.bus, routeNode) === false) {
@@ -254,6 +255,7 @@ class PcmOutputGraphRouter {
       gain.gain.value = value;
       gain.connect(this.bus);
       this.sessionGains.add(gain);
+      this.sessionGainState.set(gain, { from: value, to: value, startAt: 0, endAt: 0 });
       return gain;
     } catch (error) {
       try { gain.disconnect(); } catch (ignore) {}
@@ -275,23 +277,38 @@ class PcmOutputGraphRouter {
       throw new RangeError("PCM crossfade timing is invalid");
     }
 
+    const getValueAtTime = gain => {
+      if (!gain) return 0;
+      const state = this.sessionGainState.get(gain);
+      if (!state || start <= state.startAt) return state?.from ?? 0;
+      if (start >= state.endAt) return state.to;
+      const progress = (start - state.startAt) / Math.max(0.000001, state.endAt - state.startAt);
+      return state.from + (state.to - state.from) * progress;
+    };
+    const endAt = start + fadeDuration;
+
     if (oldGain) {
       const parameter = oldGain.gain;
+      const from = Math.max(0, Math.min(1, getValueAtTime(oldGain)));
       parameter.cancelScheduledValues(start);
-      parameter.setValueAtTime(Math.max(0, Math.min(1, Number(parameter.value) || 0)), start);
-      parameter.linearRampToValueAtTime(0, start + fadeDuration);
+      parameter.setValueAtTime(from, start);
+      parameter.linearRampToValueAtTime(0, endAt);
+      this.sessionGainState.set(oldGain, { from, to: 0, startAt: start, endAt });
     }
     if (newGain) {
       const parameter = newGain.gain;
+      const from = Math.max(0, Math.min(1, getValueAtTime(newGain)));
       parameter.cancelScheduledValues(start);
-      parameter.setValueAtTime(0, start);
-      parameter.linearRampToValueAtTime(1, start + fadeDuration);
+      parameter.setValueAtTime(from, start);
+      parameter.linearRampToValueAtTime(1, endAt);
+      this.sessionGainState.set(newGain, { from, to: 1, startAt: start, endAt });
     }
-    return start + fadeDuration;
+    return endAt;
   }
 
   retireSessionGain(gain) {
     if (!gain || !this.sessionGains.delete(gain)) return false;
+    this.sessionGainState.delete(gain);
     try { gain.disconnect(); } catch (error) {}
     return true;
   }
@@ -303,6 +320,7 @@ class PcmOutputGraphRouter {
       try { gain.disconnect(); } catch (error) {}
     }
     this.sessionGains.clear();
+    this.sessionGainState.clear();
     try { this.setGraphInput(null); } catch (error) {}
     try { this.bus.disconnect(); } catch (error) {}
   }
