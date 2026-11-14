@@ -250,17 +250,22 @@ class PcmOutputGraphRouter {
       throw new RangeError("PCM session gain must be between 0 and 1");
     }
     const gain = this.audioContext.createGain();
-    gain.gain.value = value;
-    gain.connect(this.bus);
-    this.sessionGains.add(gain);
-    return gain;
+    try {
+      gain.gain.value = value;
+      gain.connect(this.bus);
+      this.sessionGains.add(gain);
+      return gain;
+    } catch (error) {
+      try { gain.disconnect(); } catch (ignore) {}
+      throw error;
+    }
   }
 
   crossfade(oldGain, newGain, startAt, duration = 0.02) {
     if (this.disposed) throw new Error("PCM graph router is disposed");
     if ((oldGain && !this.sessionGains.has(oldGain)) ||
         (newGain && !this.sessionGains.has(newGain)) ||
-        (!oldGain && !newGain)) {
+        (!oldGain && !newGain) || (oldGain && oldGain === newGain)) {
       throw new TypeError("PCM crossfade references an unknown session gain");
     }
     const start = Number(startAt);
