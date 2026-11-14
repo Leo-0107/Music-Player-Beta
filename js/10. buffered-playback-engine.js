@@ -1084,7 +1084,8 @@ class PcmPlaybackSessionController {
 
   async handoff(queueOrFactory, options = {}) {
     if (this.state === "disposed") throw new Error("PCM session controller is disposed");
-    const previous = this.activeSession;
+    const draining = Array.from(this.drainingSessions).filter(session => session.scheduler.active);
+    const previous = this.activeSession || (draining.length ? draining[draining.length - 1] : null);
     if (!previous) {
       const initialQueue = typeof queueOrFactory === "function"
         ? await queueOrFactory({
@@ -1096,11 +1097,14 @@ class PcmPlaybackSessionController {
     }
 
     const generation = ++this.generation;
+    // A newer setting change may arrive while the previous handoff is still
+    // preparing its queue. Continue from the latest draining scheduler instead
+    // of starting a second independent stream at an unrelated frame.
     const handoff = previous.loop.drainForHandoff();
     this.lastFrame = handoff.startFrame;
     if (previous.retired) this.drainingSessions.delete(previous);
     else this.drainingSessions.add(previous);
-    this.activeSession = null;
+    if (this.activeSession === previous) this.activeSession = null;
     this.state = "handoff";
 
     const nextOptions = {
