@@ -100,6 +100,109 @@ class ProcessedPcmRingBuffer {
   }
 }
 
+// Bounded producer/consumer queue for processed PCM. This is intentionally not wired
+// into audible playback until the output scheduler and DSP ownership are validated.
+class PcmPrebufferQueue {
+  constructor(ringBuffer, iterator, maxChunkFrames = 8192) {
+    const maxFrames = Number(maxChunkFrames);
+    if (!ringBuffer || typeof ringBuffer.read !== "function" ||
+        typeof ringBuffer.write !== "function" || !Number.isInteger(maxFrames) ||
+        maxFrames < 1 || maxFrames > 32768 || maxFrames > ringBuffer.capacityFrames) {
+      throw new RangeError("PCM prebuffer queue configuration is invalid");
+    }
+    if (!iterator || typeof iterator.next !== "function") {
+      throw new TypeError("PCM prebuffer queue requires an async iterator");
+    }
+    this.ringBuffer = ringBuffer;
+    this.iterator = iterator;
+    this.maxChunkFrames = maxFrames;
+    this.started = false;
+    this.running = false;
+    this.done = false;
+    this.cancelled = false;
+    this.error = null;
+    this.pumpPromise = null;
+    this.waiters = new Set();
+  }
+
+  start() {
+    if (this.started) return this;
+    this.started = true;
+    this.running = true;
+    this.pump();
+    return this;
+  }
+
+  notify() {
+    const waiters = Array.from(this.waiters);
+    this.waiters.clear();
+    for (const resolve of waiters) resolve();
+  }
+
+  pump() {
+    if (!this.running || this.pumpPromise) return this.pumpPromise;
+    const task = (async () => {
+      try {
+        while (this.running && !this.done &&
+               this.ringBuffer.freeFrames >= this.maxChunkFrames) {
+          const result = await this.iterator.next();
+          // A cancelled or superseded producer must never write into the queue.
+          if (!this.running || this.cancelled) return;
+          if (result.done) {
+            this.done = true;
+            this.running = false;
+            this.notify();
+            return;
+          }
+          const chunk = result.value;
+          if (!chunk || !Number.isInteger(chunk.frameCount) ||
+              chunk.frameCount < 1 || chunk.frameCount > this.maxChunkFrames) {
+            throw new Error("PCM producer returned an invalid or oversized chunk");
+          }
+          this.ringBuffer.write(chunk);
+          this.notify();
+        }
+      } catch (error) {
+        this.error = error;
+        this.running = false;
+        this.notify();
+      }
+    })();
+    this.pumpPromise = task.finally(() => {
+      this.pumpPromise = null;
+      if (this.running && !this.done &&
+          this.ringBuffer.freeFrames >= this.maxChunkFrames) this.pump();
+    });
+    return this.pumpPromise;
+  }
+
+  async readAsync(maxFrames) {
+    if (!this.started) throw new Error("PCM prebuffer queue has not been started");
+    for (;;) {
+      const chunk = this.ringBuffer.read(maxFrames);
+      if (chunk) {
+        this.pump();
+        return chunk;
+      }
+      if (this.error) throw this.error;
+      if (this.done || !this.running) return null;
+      await new Promise(resolve => this.waiters.add(resolve));
+    }
+  }
+
+  cancel() {
+    if (this.cancelled) return;
+    this.cancelled = true;
+    this.running = false;
+    this.done = true;
+    try {
+      const closing = this.iterator.return?.();
+      if (closing && typeof closing.catch === "function") closing.catch(() => {});
+    } catch (error) {}
+    this.notify();
+  }
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
