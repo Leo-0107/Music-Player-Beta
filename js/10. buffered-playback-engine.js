@@ -939,44 +939,50 @@ class PcmPlaybackSessionController {
       startAtTime: handoff.startAtTime,
       initialGain: 0
     };
-    const next = this.createSession(queue, nextOptions, 0);
-    this.activeSession = next;
+    let next = null;
     try {
+      next = this.createSession(queue, nextOptions, 0);
+      this.activeSession = next;
       await next.loop.start(queue, nextOptions);
-    } catch (error) {
-      if (generation === this.generation) {
+
+      if (generation !== this.generation || this.activeSession !== next) {
+        next.loop.stop();
         this.retireSession(next);
-        if (this.activeSession === null) this.state = "error";
+        return false;
+      }
+
+      const firstAt = next.scheduler.firstScheduledAt;
+      if (firstAt !== null && next.scheduler.active) {
+        const fadeDuration = Math.max(0.005, Math.min(0.1, Number(options.crossfadeSeconds) || 0.02));
+        const oldIsAudible = previous.scheduler.active &&
+          previous.scheduler.activeSources.size > 0 &&
+          firstAt <= handoff.startAtTime + 0.001;
+        if (oldIsAudible && !previous.retired) {
+          const fadeStart = Math.max(
+            Number(this.audioContext.currentTime) || 0,
+            firstAt - fadeDuration
+          );
+          const actualFadeDuration = Math.max(0.005, firstAt - fadeStart);
+          this.graphRouter.crossfade(previous.gain, next.gain, fadeStart, actualFadeDuration);
+        } else {
+          this.graphRouter.crossfade(null, next.gain, firstAt, fadeDuration);
+        }
+      }
+
+      this.state = next.scheduler.active ? "running" : "ended";
+      return { session: next, handoff };
+    } catch (error) {
+      if (next && !next.retired) {
+        try { next.loop.stop(); } catch (ignore) {}
+        this.retireSession(next);
+      }
+      if (generation === this.generation) {
+        if (this.activeSession === next) this.activeSession = null;
+        this.lastError = error;
+        this.state = "error";
       }
       throw error;
     }
-
-    if (generation !== this.generation || this.activeSession !== next) {
-      next.loop.stop();
-      this.retireSession(next);
-      return false;
-    }
-
-    const firstAt = next.scheduler.firstScheduledAt;
-    if (firstAt !== null && next.scheduler.active) {
-      const fadeDuration = Math.max(0.005, Math.min(0.1, Number(options.crossfadeSeconds) || 0.02));
-      const oldIsAudible = previous.scheduler.active &&
-        previous.scheduler.activeSources.size > 0 &&
-        firstAt <= handoff.startAtTime + 0.001;
-      if (oldIsAudible && !previous.retired) {
-        const fadeStart = Math.max(
-          Number(this.audioContext.currentTime) || 0,
-          firstAt - fadeDuration
-        );
-        const actualFadeDuration = Math.max(0.005, firstAt - fadeStart);
-        this.graphRouter.crossfade(previous.gain, next.gain, fadeStart, actualFadeDuration);
-      } else {
-        this.graphRouter.crossfade(null, next.gain, firstAt, fadeDuration);
-      }
-    }
-
-    this.state = next.scheduler.active ? "running" : "ended";
-    return { session: next, handoff };
   }
 
   stop() {
