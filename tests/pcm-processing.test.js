@@ -242,6 +242,38 @@ test("concurrent processed PCM queues use isolated Workers and cancel independen
   assert.equal(workers.every(worker => worker.terminated), true);
 });
 
+test("completed PCM queue remains cancellable until its buffered tail is consumed", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      workers.push(this);
+    }
+  }
+
+  const { Engine } = createEngineClass(TrackingWorker);
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(8000, 0.125);
+  const queue = await engine.createProcessedPcmQueue({
+    concurrentSession: true,
+    chunkFrames: 1024,
+    capacityFrames: 2048,
+    eqGains: [0, 0, 0, 0, 0],
+    pitch: 1
+  });
+
+  await queue.pumpPromise;
+  assert.equal(queue.done, true);
+  assert.equal(queue.ringBuffer.availableFrames, 1000);
+  assert.equal(engine.activePcmQueues.has(queue), true);
+  assert.equal(workers[0].terminated, false);
+
+  const tail = await queue.readAsync(1024);
+  assert.equal(tail.frameCount, 1000);
+  assert.equal(engine.activePcmQueues.has(queue), false);
+  assert.equal(workers[0].terminated, true);
+});
+
 test("worker preserves the identity signal when EQ is flat and pitch is unchanged", () => {
   let response;
   const host = { onmessage: event => { response = event.data; } };
