@@ -14,6 +14,8 @@ class BufferedPlaybackEngine {
     this._readyState = 0;
     this.decodePromise = null;
     this.generation = 0;
+    this.playRequestId = 0;
+    this.playRequested = false;
     this.timeUpdateTimer = null;
     this.maxPcmBytes = this.getMemoryBudget();
   }
@@ -108,11 +110,14 @@ class BufferedPlaybackEngine {
   async play() {
     if (!this.sourceUrl) throw new Error("No local audio source is selected");
     if (!canUseBufferedPlayback()) throw new Error("Playback rate and pitch combination is outside the PCM path range");
+    if (!this.paused) return;
+    const requestId = ++this.playRequestId;
+    this.playRequested = true;
     ensureGraph();
     await resumeAudioCtx();
     await this.prepare();
+    if (requestId !== this.playRequestId || !this.playRequested) return;
     if (!this.buffer) throw new Error("PCM decoding did not produce audio");
-    if (!this.paused) return;
     if (this.offset >= this.buffer.duration) this.offset = 0;
     this.startSource(this.offset);
     this.paused = false;
@@ -160,6 +165,8 @@ class BufferedPlaybackEngine {
   }
 
   pause() {
+    this.playRequestId++;
+    this.playRequested = false;
     if (this.paused) return;
     this.offset = this.currentTime;
     this.paused = true;
@@ -211,6 +218,8 @@ class BufferedPlaybackEngine {
   }
 
   releaseForFallback() {
+    this.playRequestId++;
+    this.playRequested = false;
     this.offset = this.currentTime;
     this.paused = true;
     this.stopSource();
@@ -222,6 +231,8 @@ class BufferedPlaybackEngine {
 
   clear() {
     this.generation++;
+    this.playRequestId++;
+    this.playRequested = false;
     this.paused = true;
     this.ended = false;
     this.stopSource();
