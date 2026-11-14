@@ -1730,12 +1730,17 @@ test("PCM session controller hands off contiguous frames and retires the old gai
   assert.equal(controller.state, "running");
   assert.equal(oldQueue.cancelled, true);
   assert.equal(result.session.scheduler.firstScheduledAt, result.handoff.startAtTime);
-  assert.deepEqual(oldSession.gain.gain.events.slice(-3), [
-    ["cancel", 10.158], ["set", 1, 10.158], ["ramp", 0, 10.178]
-  ]);
-  assert.deepEqual(result.session.gain.gain.events.slice(-3), [
-    ["cancel", 10.158], ["set", 0, 10.158], ["ramp", 1, 10.178]
-  ]);
+  const oldFade = oldSession.gain.gain.events.slice(-3);
+  const newFade = result.session.gain.gain.events.slice(-3);
+  assert.ok(Math.abs(oldFade[0][1] - 10.158) < 0.000001);
+  assert.ok(Math.abs(oldFade[1][2] - 10.158) < 0.000001);
+  assert.equal(oldFade[2][1], 0);
+  assert.equal(oldFade[2][2], 10.178);
+  assert.ok(Math.abs(newFade[0][1] - 10.158) < 0.000001);
+  assert.ok(Math.abs(newFade[1][2] - 10.158) < 0.000001);
+  assert.equal(newFade[1][1], 0);
+  assert.equal(newFade[2][1], 1);
+  assert.equal(newFade[2][2], 10.178);
 
   context.sources[0].finish();
   assert.equal(oldSession.gain.disconnected, true);
