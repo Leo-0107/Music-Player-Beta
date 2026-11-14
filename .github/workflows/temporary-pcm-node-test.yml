@@ -24,6 +24,6 @@ jobs:
       - name: Check application scripts in loader order
         run: |
           set -o pipefail
-          { printf '(() => {\\n'; cat "js/5. storage.js" "js/4. state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/6. library.js" "js/7. ui.js" "js/9. youtube.js"; printf '\\n})();\\n'; } | node --check
+          { printf '%s\\n' '(() => {'; cat "js/5. storage.js" "js/4. state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/6. library.js" "js/7. ui.js" "js/9. youtube.js"; printf '%s\\n' '})();'; } | node --check
       - name: Run native Node.js test runner
         run: node --test tests/pcm-processing.test.js
