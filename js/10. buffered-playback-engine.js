@@ -251,7 +251,7 @@ class PcmPrebufferQueue {
             this.done = true;
             this.running = false;
             this.notify();
-            this.settle();
+            if (this.ringBuffer.availableFrames === 0) this.settle();
             return;
           }
           const chunk = result.value;
@@ -289,11 +289,14 @@ class PcmPrebufferQueue {
       if (this.error) throw this.error;
       if (this.ringBuffer.availableFrames >= requested) {
         const chunk = this.ringBuffer.read(requested);
+        if (this.done && this.ringBuffer.availableFrames === 0) this.settle();
         this.pump();
         return chunk;
       }
       if (this.done || !this.running) {
-        return this.ringBuffer.read(requested);
+        const chunk = this.ringBuffer.read(requested);
+        if (this.ringBuffer.availableFrames === 0) this.settle();
+        return chunk;
       }
       await new Promise(resolve => this.waiters.add(resolve));
     }
