@@ -83,6 +83,8 @@ function createEngineClass(WorkerClass = MockWorker, overrides = {}) {
     navigator: { deviceMemory: 4 },
     state: { eqState: { gains: [0, 0, 0, 0, 0] }, pitchSemitones: 0, currentSong: null },
     audioCtx: { sampleRate: 48000 },
+    setTimeout,
+    clearTimeout,
     setGraphInputNode() {}
   };
   Object.assign(sandbox, overrides);
