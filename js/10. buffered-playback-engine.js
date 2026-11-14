@@ -367,7 +367,7 @@ class PcmOutputScheduler {
     const previousEndTime = this.nextStartTime;
     const startAt = Math.max(previousEndTime, now + this.minimumLeadSeconds);
     const gapSeconds = Math.max(0, startAt - previousEndTime);
-    if (this.hasScheduledData && gapSeconds > 0.001) {
+    if (this.hasScheduledData && gapSeconds > 0.000001) {
       this.underrunCount++;
       try {
         this.onUnderrun?.({ frame: this.nextFrame, gapSeconds, count: this.underrunCount });
@@ -391,7 +391,7 @@ class PcmOutputScheduler {
     const endTime = startAt + frameCount / this.sampleRate / this.playbackRate;
     const endFrame = this.nextFrame + frameCount;
     const previousSegment = this.clockSegments[this.clockSegments.length - 1];
-    if (previousSegment && Math.abs(startAt - previousSegment.endTime) < 0.001 &&
+    if (previousSegment && Math.abs(startAt - previousSegment.endTime) < 0.000001 &&
         chunk.startFrame === previousSegment.endFrame) {
       previousSegment.endTime = endTime;
       previousSegment.endFrame = endFrame;
