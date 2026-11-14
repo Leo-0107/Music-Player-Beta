@@ -281,6 +281,11 @@ test("engine invalidates active PCM queues on pause, seek, rate change, and sour
   engine.sourceUrl = "blob:pcm-test";
 
   const first = await engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 2048 });
+  await assert.rejects(
+    () => engine.createProcessedPcmQueue({ pitch: 1, chunkFrames: 1024, capacityFrames: 512 }),
+    /queue capacity/
+  );
+  assert.equal(first.cancelled, false);
   const firstBlock = await first.readAsync(1024);
   assert.equal(firstBlock.startFrame, 0);
   engine.seek(0.5);
