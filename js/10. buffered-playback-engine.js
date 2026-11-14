@@ -1044,8 +1044,11 @@ class BufferedPlaybackEngine {
       const durationHint = Number(state.currentSong?.duration) || 0;
       const sampleRateHint = Math.max(48000, Number(audioCtx?.sampleRate) || 48000);
       const estimatedBytes = durationHint > 0 ? durationHint * sampleRateHint * 2 * 4 : 0;
-      if (estimatedBytes > this.maxPcmBytes) {
-        throw new Error("PCM memory budget exceeded before decoding");
+      // decodeAudioData receives a copy so the original compressed payload remains
+      // intact; budget for both compressed copies and the decoded stereo PCM peak.
+      const estimatedPeakBytes = compressed.byteLength * 2 + estimatedBytes;
+      if (!Number.isFinite(estimatedPeakBytes) || estimatedPeakBytes > this.maxPcmBytes) {
+        throw new Error("Compressed and decoded audio exceed the PCM memory budget before decoding");
       }
 
       ensureGraph();
@@ -1060,8 +1063,9 @@ class BufferedPlaybackEngine {
       if (channels < 1 || channels > 2) {
         throw new Error("This channel layout is not supported by the PCM playback path");
       }
-      if (pcmBytes > this.maxPcmBytes) {
-        throw new Error("Decoded PCM exceeds the available memory budget");
+      const actualPeakBytes = compressed.byteLength * 2 + pcmBytes;
+      if (!Number.isFinite(actualPeakBytes) || actualPeakBytes > this.maxPcmBytes) {
+        throw new Error("Compressed and decoded PCM exceed the available memory budget");
       }
 
       this.buffer = decoded;
