@@ -862,3 +862,120 @@ test("PCM scheduler waits for its startup reserve but permits short tracks to re
   shortContext.sources[0].finish();
   assert.equal(shortScheduler.active, false);
 });
+
+
+test("PCM scheduler can drain old scheduled audio into a new settings queue without a frame gap", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  const oldQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 0, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() { this.cancelled = true; }
+  };
+  const drained = [];
+  const ended = [];
+  const oldScheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05,
+    onDrained: frame => drained.push(frame),
+    onEnded: frame => ended.push(frame)
+  });
+  await oldScheduler.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  const handoff = oldScheduler.drainForHandoff();
+  assert.equal(handoff.startFrame, 1024);
+  assert.equal(handoff.startAtTime, 10.178);
+  assert.equal(oldQueue.cancelled, true);
+  assert.equal(oldScheduler.active, true);
+
+  const newQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 1024, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() {}
+  };
+  const newScheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  await newScheduler.start(newQueue, {
+    startFrame: handoff.startFrame, startAtTime: handoff.startAtTime,
+    sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  assert.equal(context.sources.length, 2);
+  assert.equal(context.sources[1].startAt, context.sources[0].startAt + 1024 / 8000);
+  assert.equal(newScheduler.underrunCount, 0);
+  context.sources[0].finish();
+  assert.deepEqual(drained, [1024]);
+  assert.deepEqual(ended, []);
+  newScheduler.stop();
+});
+
+test("late PCM settings handoff freezes the frame clock instead of skipping frames", async () => {
+  const { PcmOutputScheduler } = createEngineClass();
+  const context = createMockOutputContext();
+  const oldQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() {
+      return {
+        startFrame: 0, sampleRate: 8000, frameCount: 1024,
+        left: new Float32Array(1024), right: new Float32Array(1024)
+      };
+    },
+    cancel() {}
+  };
+  const oldScheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  await oldScheduler.start(oldQueue, {
+    startFrame: 0, sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+  const handoff = oldScheduler.drainForHandoff();
+  context.currentTime = 10.2;
+  context.sources[0].finish();
+
+  const chunks = [{
+    startFrame: handoff.startFrame, sampleRate: 8000, frameCount: 1024,
+    left: new Float32Array(1024), right: new Float32Array(1024)
+  }];
+  const newQueue = {
+    maxChunkFrames: 1024,
+    async readAsync() { return chunks.length ? chunks.shift() : null; },
+    cancel() {}
+  };
+  const underruns = [];
+  const newScheduler = new PcmOutputScheduler(context, { connect() {} }, {
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05,
+    onUnderrun: detail => underruns.push(detail)
+  });
+  await newScheduler.start(newQueue, {
+    startFrame: handoff.startFrame, startAtTime: handoff.startAtTime,
+    sampleRate: 8000, playbackRate: 1,
+    blockFrames: 1024, startBufferFrames: 1024,
+    lookAheadSeconds: 0.1, minimumLeadSeconds: 0.05
+  });
+
+  assert.equal(context.sources[1].startAt, 10.25);
+  assert.equal(underruns.length, 1);
+  assert.equal(underruns[0].frame, 1024);
+  assert.equal(newScheduler.currentFrame, 1024);
+  context.currentTime = 10.250125;
+  assert.equal(newScheduler.currentFrame, 1025);
+  newScheduler.stop();
+});
