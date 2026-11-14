@@ -1464,3 +1464,45 @@ test("PCM prebuffer queue streams a long sequence within a two-chunk ring capaci
   assert.equal(ring.left.byteLength + ring.right.byteLength, chunkFrames * 2 * 2 * 4);
   assert.equal(queue.done, true);
 });
+
+
+test("PCM worker keeps a sustained 192 kHz maximum-pitch stream contiguous", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  const sampleRate = 192000;
+  const durationSeconds = 8;
+  const length = sampleRate * durationSeconds;
+  const left = new Float32Array(length);
+  const right = new Float32Array(length);
+  for (let index = 0; index < length; index++) {
+    left[index] = Math.sin(index * 0.0007) * 0.5;
+    right[index] = Math.cos(index * 0.0009) * 0.5;
+  }
+  engine.buffer = {
+    sampleRate,
+    length,
+    duration: durationSeconds,
+    numberOfChannels: 2,
+    getChannelData(channel) { return channel === 0 ? left : right; }
+  };
+
+  let expectedFrame = 0;
+  let chunkCount = 0;
+  for await (const chunk of engine.iterateProcessedChunks({
+    chunkFrames: 32768,
+    eqGains: [0, 0, 0, 0, 0],
+    pitch: 2
+  })) {
+    assert.equal(chunk.startFrame, expectedFrame);
+    assert.ok(chunk.frameCount > 0 && chunk.frameCount <= 32768);
+    for (let index = 0; index < chunk.frameCount; index += 4096) {
+      assert.ok(Number.isFinite(chunk.left[index]));
+      assert.ok(Number.isFinite(chunk.right[index]));
+    }
+    expectedFrame += chunk.frameCount;
+    chunkCount++;
+  }
+  assert.equal(expectedFrame, length);
+  assert.ok(chunkCount >= 59);
+  engine.disposeProcessorWorker();
+});
