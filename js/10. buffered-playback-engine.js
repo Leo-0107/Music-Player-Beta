@@ -45,16 +45,7 @@ class BufferedPlaybackEngine {
     if (typeof Worker !== "function") throw new Error("Web Worker is unavailable");
     const worker = new Worker(new URL("js/11. pcm-processing-worker.js", document.baseURI));
     this.processorWorker = worker;
-    worker.onmessage = event => {
-      const message = event.data || {};
-      const pending = this.processorRequests.get(message.id);
-      if (!pending) return;
-      this.processorRequests.delete(message.id);
-      if (message.type === "error") pending.reject(new Error(message.message || "PCM processing failed"));
-      else pending.resolve(message);
-    };
-    worker.onerror = event => {
-      const error = new Error(event.message || "PCM processing worker failed");
+    const failWorker = error => {
       for (const pending of this.processorRequests.values()) pending.reject(error);
       this.processorRequests.clear();
       try { worker.terminate(); } catch (e) {}
@@ -63,6 +54,23 @@ class BufferedPlaybackEngine {
         this.processorReady = null;
       }
     };
+    worker.onmessage = event => {
+      const message = event.data || {};
+      const pending = this.processorRequests.get(message.id);
+      if (!pending) return;
+      this.processorRequests.delete(message.id);
+      if (message.type === "error") {
+        pending.reject(new Error(message.message || "PCM processing failed"));
+      } else if (message.type !== pending.expectedType) {
+        pending.reject(new Error(`Unexpected PCM worker response: expected ${pending.expectedType}, received ${String(message.type)}`));
+      } else if (pending.sequence !== null && message.sequence !== pending.sequence) {
+        pending.reject(new Error("PCM worker response sequence does not match the request"));
+      } else {
+        pending.resolve(message);
+      }
+    };
+    worker.onerror = event => failWorker(new Error(event.message || "PCM processing worker failed"));
+    worker.onmessageerror = () => failWorker(new Error("PCM processing worker message could not be deserialized"));
     const sampleRate = this.buffer?.sampleRate || audioCtx?.sampleRate || 48000;
     const eqGains = Array.isArray(settings.eqGains) ? settings.eqGains.slice(0, 5) : state.eqState.gains.slice(0, 5);
     const pitch = Number.isFinite(Number(settings.pitch))
@@ -79,9 +87,19 @@ class BufferedPlaybackEngine {
   sendProcessorMessage(type, payload = {}, transfer = []) {
     const worker = this.processorWorker;
     if (!worker) return Promise.reject(new Error("PCM processing worker is not ready"));
+    const responseTypes = {
+      init: "ready",
+      configure: "configured",
+      reset: "reset",
+      process: "processed",
+      dispose: "disposed"
+    };
+    const expectedType = responseTypes[type];
+    if (!expectedType) return Promise.reject(new Error(`Unsupported PCM worker request: ${type}`));
     const id = ++this.processorRequestId;
+    const sequence = type === "process" ? payload.sequence : null;
     return new Promise((resolve, reject) => {
-      this.processorRequests.set(id, { resolve, reject });
+      this.processorRequests.set(id, { resolve, reject, expectedType, sequence });
       try {
         worker.postMessage({ type, id, ...payload }, transfer);
       } catch (error) {
