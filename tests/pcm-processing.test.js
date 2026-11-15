@@ -3149,3 +3149,49 @@ test("spatial audio updates before visualizer canvas checks and restarts after p
   assert.match(uiSource, /document\.addEventListener\("visibilitychange",\s*\(\)\s*=>\s*\{\s*if \(document\.visibilityState !== "visible"\)\s*\{\s*isWaveAnimating = false;\s*return;\s*\}\s*if \(!audio\.paused\) startWaveAnimation\(\);/);
   assert.match(uiSource, /drawWave\._lastSpatialAudioTime = audioCtx\?\.currentTime/);
 });
+
+
+test("spatial mode changes preserve the rotation phase and restore direct stereo in 2D", () => {
+  const start = audioSource.indexOf("function setDMode(mode)");
+  const end = audioSource.indexOf("\n  if (el.dModeBtns)", start);
+  assert.ok(start >= 0 && end > start, "spatial mode setter must exist");
+  const setterSource = audioSource.slice(start, end);
+  const panner = {
+    positionX: { value: 1 },
+    positionY: { value: 2 },
+    positionZ: { value: 3 }
+  };
+  const buttons = ["2D", "3D", "BINAURAL", "4D", "8D", "16D"].map(mode => ({
+    dataset: { d: mode },
+    classList: { active: false, toggle(name, value) { if (name === "active") this.active = value; } }
+  }));
+  let saveCount = 0;
+  let routeUpdates = 0;
+  const sandbox = {
+    state: { dMode: "3D", panValue: 0.25 },
+    spatialAngle: 12.345,
+    panner3DNode: panner,
+    saveState() { saveCount++; },
+    updateSpatialAudioRouting() { routeUpdates++; },
+    el: {
+      dModeDesc: { textContent: "" },
+      dModeBtns: { querySelectorAll() { return buttons; } }
+    }
+  };
+  vm.runInNewContext(setterSource + "\nthis.setDMode = setDMode;", sandbox);
+
+  for (const mode of ["4D", "8D", "16D", "BINAURAL", "3D", "2D"]) {
+    sandbox.setDMode(mode);
+    assert.equal(sandbox.state.dMode, mode);
+    assert.equal(sandbox.spatialAngle, 12.345);
+    assert.equal(buttons.find(button => button.dataset.d === mode).classList.active, true);
+  }
+
+  assert.deepEqual(
+    [panner.positionX.value, panner.positionY.value, panner.positionZ.value],
+    [0, 0, 0]
+  );
+  assert.equal(saveCount, 6);
+  assert.equal(routeUpdates, 6);
+  assert.match(sandbox.el.dModeDesc.textContent, /通常の左右ステレオ/);
+});
