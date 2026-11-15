@@ -27,6 +27,8 @@
     micMonitorVolume: "mp_mic_monitor_volume_v1",
     micFeedbackProtection: "mp_mic_feedback_protection_v1",
     micFeedbackStrength: "mp_mic_feedback_strength_v1",
+    normalizeTrackVolume: "mp_track_loudness_normalization_v1",
+    outputLevelDb: "mp_output_level_db_v1",
     speakerPairSwap: "mp_speaker_pair_swap_v1",
     visualizerSettings: "mp_visualizer_settings_v1",
     visualizerModeSettings: "mp_visualizer_mode_settings_v1",

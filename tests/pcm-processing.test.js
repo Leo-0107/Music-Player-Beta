@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.82";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 82;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 82;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.82"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.82-r82'));
-  assert.ok(indexSource.includes("7.4.82-r82"));
-  assert.ok(controllerSource.includes("7.4.82-r82"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.82-r82"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.83";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 83"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 83;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.83"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.83-r83'));
+  assert.ok(indexSource.includes("7.4.83-r83"));
+  assert.ok(controllerSource.includes("7.4.83-r83"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.83-r83"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -139,14 +139,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.82-r82"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.82-r82"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.82-r82"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.82-r82"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.83-r83"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.83-r83"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.83-r83"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.83-r83"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.82-r82"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.83-r83"));
 });
 
 
@@ -3054,9 +3054,12 @@ test("PCM insertion boundary traverses the shared stereo output and optional cli
   const orderedMarkers = [
     "audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;",
     "spatialDirectGainNode.connect(channelNormalizeNode);",
-    "channelNormalizeNode.connect(masterGain);",
+    "channelNormalizeNode.connect(trackLoudnessAnalyser);",
+    "trackLoudnessAnalyser.connect(trackLoudnessGainNode);",
+    "trackLoudnessGainNode.connect(masterGain);",
     "masterGain.connect(finalMixGainNode);",
-    "finalMixGainNode.connect(playbackPrebufferDelayNode);",
+    "finalMixGainNode.connect(outputLevelGainNode);",
+    "outputLevelGainNode.connect(playbackPrebufferDelayNode);",
     "playbackPrebufferDelayNode.connect(speakerBusNode);",
     "speakerBusNode.connect(channelSplitter);",
     "leftGainNode.connect(channelMerger, 0, 0);",
@@ -3105,6 +3108,7 @@ test("clipping protection toggles the main output through the limiter without di
   const sandbox = {
     state: { clippingProtection: false },
     saveState() { saveCount++; },
+    resetTrackLoudnessNormalization() {},
     audioCtx: {},
     channelMerger,
     limiterNode,
@@ -3532,7 +3536,7 @@ test("multiple speaker output is opt-in and defaults to OFF", () => {
   assert.equal(sandbox.isMultipleOutputEnabled(), true);
   assert.match(stateSource, /multipleOutputEnabled:\s*false/);
   assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
-  assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力: OFF/);
+  assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力：OFF/);
   assert.ok(outputSource.includes('const normalized = isMultipleOutputEnabled() ? requestedId : ""'));
   assert.match(outputSource, /複数出力ONで使用/);
 });
@@ -3819,4 +3823,43 @@ test("bottom navigation has visible separators between tabs and from the mini-pl
   assert.match(cssSource, /\.bottomNav\s*\{[\s\S]*?border-top-color: color-mix\(in srgb, var\(--line\) 72%, var\(--text\) 28%\)/);
   assert.match(cssSource, /\.navTab:not\(:last-child\)\s*\{\s*border-right: 1px solid color-mix/);
   assert.match(cssSource, /body\.theme-light \.navTab:not\(:last-child\)/);
+});
+
+
+test("full file reset clears playback progress, duration, favorite state, and loudness tracking", () => {
+  assert.match(audioSource, /if \(el\.timeNow\) el\.timeNow\.textContent = "0:00"/);
+  assert.match(audioSource, /if \(el\.timeAll\) el\.timeAll\.textContent = "0:00"/);
+  assert.match(audioSource, /if \(el\.progress\) el\.progress\.value = "0"/);
+  assert.match(audioSource, /if \(el\.btnFav\)[\s\S]*?classList\.remove\("active"\)/);
+  assert.match(audioSource, /lastStatsTime = 0/);
+});
+test("mic feedback strength slider and value label are mapped for event registration", () => {
+  assert.match(stateSource, /micFeedbackStrength: document\.getElementById\("micFeedbackStrength"\)/);
+  assert.match(stateSource, /micFeedbackStrengthText: document\.getElementById\("micFeedbackStrengthText"\)/);
+  assert.match(outputSource, /el\.micFeedbackStrength\.addEventListener\("input"/);
+});
+test("track loudness normalization and manual output level share the protected output path", () => {
+  assert.match(stateSource, /normalizeTrackVolume: loadBool\(STORAGE\.normalizeTrackVolume, true\)/);
+  assert.match(stateSource, /outputLevelDb: Math\.max\(-12, Math\.min\(0/);
+  assert.match(indexSource, /id="outputLevelDb" min="-12" max="0"/);
+  assert.match(audioSource, /const canBoost = state\.clippingProtection !== false && state\.speakerSettings\?\.multipleOutputEnabled !== true/);
+  assert.match(outputSource, /function setClippingProtection\(enabled\)[\s\S]*?resetTrackLoudnessNormalization\(\)/);
+  assert.match(audioSource, /channelNormalizeNode\.connect\(trackLoudnessAnalyser\)/);
+  assert.match(audioSource, /trackLoudnessAnalyser\.connect\(trackLoudnessGainNode\)/);
+  assert.match(audioSource, /trackLoudnessGainNode\.connect\(masterGain\)/);
+  assert.match(audioSource, /finalMixGainNode\.connect\(outputLevelGainNode\)/);
+  assert.match(audioSource, /outputLevelGainNode\.connect\(playbackPrebufferDelayNode\)/);
+  assert.match(indexSource, /id="normalizeTrackVolume"/);
+  assert.match(indexSource, /id="outputLevelDb"/);
+});
+test("visualizer FPS uses rendered frame intervals and updates the label every two seconds", () => {
+  assert.match(uiSource, /renderedFrameDeltaMs = visualizerLastRenderedAt[\s\S]*?now - visualizerLastRenderedAt/);
+  assert.match(uiSource, /now - visualizerDisplayUpdateAt >= 2000/);
+  assert.match(uiSource, /visualizerFrameTime = visualizerFrameTime \* 0\.8 \+ renderedFrameDeltaMs \* 0\.2/);
+});
+test("speaker output action buttons have a responsive gap and clear ON/OFF states", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(styleSource, /\.speakerDeviceActions\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 8px/);
+  assert.match(outputSource, /複数出力：/);
+  assert.match(outputSource, /toggle\.setAttribute\("aria-pressed"/);
 });

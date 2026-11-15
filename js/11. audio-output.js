@@ -1635,7 +1635,8 @@
     const toggle = document.getElementById("multipleOutputToggle");
     if (!toggle) return;
     const enabled = isMultipleOutputEnabled();
-    toggle.textContent = "複数出力: " + (enabled ? "ON" : "OFF");
+    toggle.textContent = "複数出力：" + (enabled ? "ON" : "OFF");
+    toggle.title = enabled ? "複数スピーカー出力はONです" : "複数スピーカー出力はOFFです";
     toggle.classList.toggle("active", enabled);
     toggle.setAttribute("aria-pressed", String(enabled));
   }
@@ -1648,6 +1649,7 @@
       return true;
     }
     if (!next) {
+      resetTrackLoudnessNormalization();
       state.speakerSettings.multipleOutputEnabled = false;
       state.mainOutputDeviceId = "";
       syncExternalOutputSafety();
@@ -1660,6 +1662,7 @@
       toast("複数出力をOFFにしました。デバイスの既定スピーカーだけを使用します");
       return true;
     }
+    resetTrackLoudnessNormalization();
     state.speakerSettings.multipleOutputEnabled = true;
     syncExternalOutputSafety();
     saveState();
@@ -2626,6 +2629,7 @@
 
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
+    resetTrackLoudnessNormalization();
     saveState();
 
     // 音声グラフの実際の構成に合わせ、L/R合成後のメイン出力経路だけを切り替える。
