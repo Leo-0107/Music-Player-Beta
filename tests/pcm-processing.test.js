@@ -3321,3 +3321,55 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
   assert.equal(routeUpdates, 6);
   assert.match(sandbox.el.dModeDesc.textContent, /通常の左右ステレオ/);
 });
+
+
+test("seek during pending PCM startup restarts from the requested frame", async () => {
+  const { Engine } = createEngineClass();
+  const engine = new Engine();
+  engine.sourceUrl = "blob:pcm-seek-during-startup";
+  engine.buffer = makeMonoBuffer(48000, 2);
+  engine.paused = true;
+  engine.playRequested = true;
+  engine.pcmSampleRate = 48000;
+  let startedFrame = null;
+  engine.startPcmSession = async frame => {
+    startedFrame = frame;
+    return { started: true };
+  };
+
+  const result = await engine.seek(0.75);
+  assert.equal(result, true);
+  assert.equal(startedFrame, 36000);
+  assert.equal(engine.paused, false);
+  assert.equal(engine.playRequested, true);
+});
+
+test("unsupported settings during pending playback startup preserve the play request on native fallback", async () => {
+  const start = audioSource.indexOf("function applyPitchAndRate()");
+  const end = audioSource.indexOf("\\n  // --- 経過時間", start);
+  assert.ok(start >= 0 && end > start, "audio.js applyPitchAndRate function must exist");
+  const functionSource = audioSource.slice(start, end);
+  let fallbackResume = null;
+  const sandbox = {
+    invalidateBufferedPcmProcessing() {},
+    ensureGraph() {},
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: {
+      playRequested: true,
+      updateProcessingSettings() { return Promise.resolve(true); }
+    },
+    canUseBufferedPlayback: () => false,
+    switchBufferedPlaybackToMediaElement(error, resume) {
+      fallbackResume = resume;
+      return Promise.resolve(true);
+    },
+    audio: { paused: true },
+    currentRate: 1.5,
+    state: { pitchSemitones: 12 },
+    el: { rateText: { textContent: "" }, pitchText: { textContent: "" } },
+    updateMediaSessionPosition() {}
+  };
+  vm.runInNewContext(functionSource + "\\nthis.applyPitchAndRate = applyPitchAndRate;", sandbox);
+  sandbox.applyPitchAndRate();
+  assert.equal(fallbackResume, true);
+});
