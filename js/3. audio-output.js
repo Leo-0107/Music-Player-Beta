@@ -812,6 +812,15 @@
     return !!defaultPhysical && areSameOutputDevice(device, defaultPhysical);
   }
 
+  function isCurrentMainOutputDevice(device, outputs = latestEnumeratedOutputDevices) {
+    if (!device) return false;
+    const mainId = getMainOutputIdentity();
+    if (mainId === "default") return isDefaultOutputDevice(device, outputs);
+    if (device.deviceId === mainId) return true;
+    const mainDevice = outputs.find(item => item?.deviceId === mainId);
+    return !!mainDevice && areSameOutputDevice(device, mainDevice);
+  }
+
   function getNewlyConnectedOutputDevice(outputs, knownIds) {
     const newlyConnected = outputs.filter(device =>
       device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default" &&
@@ -1188,8 +1197,8 @@
     const visibleRoutes = [...state.outputRoutes]
       .map((route, index) => ({ route, index }))
       .filter(({ route }) => {
-        if (!route?.deviceId || route.deviceId === mainId) return false;
-        return !(mainId === "default" && isDefaultOutputDevice(route, latestEnumeratedOutputDevices));
+        if (!route?.deviceId || isCurrentMainOutputDevice(route, latestEnumeratedOutputDevices)) return false;
+        return true;
       })
       .sort((a, b) => {
         const aDisconnected = !!a.route?.deviceId && disconnectedOutputDeviceIds.has(a.route.deviceId);
@@ -2029,8 +2038,8 @@
     const normalized = deviceId || "default";
     const mainId = getMainOutputIdentity();
 
-    if (normalized === mainId || isDefaultOutputDevice(device, latestEnumeratedOutputDevices)) {
-      toast("現在の既定スピーカーはすでにメイン出力です");
+    if (normalized === mainId || isCurrentMainOutputDevice(device, latestEnumeratedOutputDevices)) {
+      toast("現在のメインスピーカーはすでに選択されています");
       return false;
     }
     if (hasAdditionalOutput(normalized)) {
@@ -2366,7 +2375,7 @@
       el.outputDeviceAddList.innerHTML = "";
 
       const physicalOutputs = outputs
-        .filter(d => d.deviceId && d.deviceId !== "default" && !isDefaultOutputDevice(d, outputs))
+        .filter(d => d.deviceId && d.deviceId !== "default" && !isCurrentMainOutputDevice(d, outputs))
         .sort((a, b) => {
           const priorityDiff = getOutputDevicePriority(a) - getOutputDevicePriority(b);
           if (priorityDiff !== 0) return priorityDiff;
@@ -2515,8 +2524,6 @@
       }
     });
   }
-
-  let lastSystemDefaultOutputDeviceId = null;
 
   let lastSystemDefaultOutputDeviceId = null;
   let hasOutputDeviceBaseline = false;
