@@ -648,7 +648,10 @@
   };
 
   // 複数出力がOFFの間は、アプリ独自の保存先を使わずOS既定の出力先に従う。
-  if (state.speakerSettings.multipleOutputEnabled !== true) state.mainOutputDeviceId = "";
+  if (state.speakerSettings.multipleOutputEnabled !== true) {
+    state.mainOutputDeviceId = "";
+    state.speakerSettings.outputRoutingBlocked = false;
+  }
 
   const el = {
     shell: document.getElementById("shell"),
