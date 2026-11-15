@@ -1087,9 +1087,11 @@
         newMain = {
           deviceId: selectedRoute.deviceId,
           label: selectedRoute.label,
+          groupId: selectedRoute.groupId || "",
           left: Number.isFinite(Number(selectedRoute.left)) ? Number(selectedRoute.left) : 1,
           right: Number.isFinite(Number(selectedRoute.right)) ? Number(selectedRoute.right) : 1,
-          delayMs: clampSpeakerDelay(selectedRoute.delayMs)
+          delayMs: clampSpeakerDelay(selectedRoute.delayMs),
+          channelMode: selectedRoute.channelMode || state.speakerSettings?.channelMode || "stereo"
         };
 
         const selectedRuntime = additionalOutputRuntimes.get(selectedRoute.deviceId);
