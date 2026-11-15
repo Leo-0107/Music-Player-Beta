@@ -3399,6 +3399,8 @@ test("multiple speaker output is opt-in and defaults to OFF", () => {
   assert.match(stateSource, /multipleOutputEnabled:\s*false/);
   assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
   assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力: OFF/);
+  assert.match(outputSource, /const normalized = isMultipleOutputEnabled\\(\\) \\? requestedId : ""/);
+  assert.match(outputSource, /複数出力ONで使用/);
 });
 
 test("OS default output resolves to the named physical speaker without an ambiguous label match", () => {
