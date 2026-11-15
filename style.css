@@ -3362,3 +3362,18 @@ body.theme-light .bottomNav::before {
   background: transparent; border-color: transparent;
   color: var(--text); filter: none;
 }
+
+
+/* v7.4.82: make the bottom player/navigation boundary and tab divisions easier to distinguish */
+.bottomNav {
+  border-top-color: color-mix(in srgb, var(--line) 72%, var(--text) 28%);
+}
+.navTab:not(:last-child) {
+  border-right: 1px solid color-mix(in srgb, var(--line) 70%, var(--text) 30%);
+}
+body.theme-light .bottomNav {
+  border-top-color: rgba(24, 32, 44, .2);
+}
+body.theme-light .navTab:not(:last-child) {
+  border-right-color: rgba(24, 32, 44, .14);
+}

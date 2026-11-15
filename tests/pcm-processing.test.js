@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.81";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 81;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 81;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.81"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.81-r81'));
-  assert.ok(indexSource.includes("7.4.81-r81"));
-  assert.ok(controllerSource.includes("7.4.81-r81"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.81-r81"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.82";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 82;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 82;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.82"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.82-r82'));
+  assert.ok(indexSource.includes("7.4.82-r82"));
+  assert.ok(controllerSource.includes("7.4.82-r82"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.82-r82"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -68,10 +68,14 @@ test("settings and menu category headings are represented only by their back tit
   assert.ok(styleSource.includes(".settingsCategoryView > .settingsBackButton.settingsCategoryTitle"));
 });
 
-test("home 2D spectrum and peak meter use the selected accent colour", () => {
-  assert.ok(uiSource.includes('const accentColor = document.body.style.getPropertyValue("--accent") || "#35D977"'));
-  assert.ok(uiSource.includes("ctx.fillStyle = accentColor;"));
-  assert.ok(uiSource.includes("meterGradient.addColorStop(0, accentColor)"));
+test("2D spectrum and stereo peak meters retain their original rainbow colours", () => {
+  assert.ok(uiSource.includes("const hue = (i / Math.max(1, bars - 1)) * 280 + 120;"));
+  assert.ok(uiSource.includes('ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;'));
+  assert.ok(uiSource.includes('ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.25)`;'));
+  assert.ok(uiSource.includes('meterGradient.addColorStop(0, "#35D977")'));
+  assert.ok(uiSource.includes('meterGradient.addColorStop(0.58, "#d7df28")'));
+  assert.ok(uiSource.includes('meterGradient.addColorStop(1, "#ff3b30")'));
+  assert.ok(!uiSource.includes('const accentColor = document.body.style.getPropertyValue("--accent")'));
 });
 
 test("settings and menu category back labels follow the selected category", () => {
@@ -135,14 +139,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.81-r81"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.81-r81"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.81-r81"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.81-r81"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.82-r82"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.82-r82"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.82-r82"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.82-r82"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.81-r81"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.82-r82"));
 });
 
 
@@ -3726,11 +3730,14 @@ test("playback prebuffer slider applies the new delay only after the range chang
   assert.match(handlers, /addEventListener\("change"[\s\S]*?setPlaybackPrebufferMs\(event\.target\.value\)/);
 });
 
-test("manual playback prebuffer limit is 5000ms and the DelayNode supports that range", () => {
+test("manual playback prebuffer limit is 5000ms while the range slider remains 500ms", () => {
   assert.match(audioSource, /const MAX_PLAYBACK_PREBUFFER_MS = 5000;/);
   assert.match(audioSource, /createDelay\(MAX_PLAYBACK_PREBUFFER_MS \/ 1000 \+ 0\.1\)/);
-  assert.match(uiSource, /Math\.min\(5000, Math\.round\(value\)\)/);
-  assert.match(indexSource, /id="playbackPrebufferSlider" min="0" max="5000"/);
+  assert.match(uiSource, /const MAX_PLAYBACK_PREBUFFER_SLIDER_MS = 500;/);
+  assert.match(uiSource, /Math\.min\(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, Math\.round\(Number\(event\.target\.value\) \|\| 0\)\)/);
+  assert.match(uiSource, /playbackPrebufferSlider\.value = String\(Math\.min\(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, value\)\)/);
+  assert.match(uiSource, /playbackPrebufferNumber\.value = String\(value\)/);
+  assert.match(indexSource, /id="playbackPrebufferSlider" min="0" max="500"/);
   assert.match(indexSource, /id="playbackPrebufferNumber" min="0" max="5000"/);
 
   const start = audioSource.indexOf("function setPlaybackPrebufferMs(value)");
@@ -3783,4 +3790,33 @@ test("left-right pan offsets remain effective in 4D, 8D, and 16D orbit modes", (
     assert.ok(Math.abs(panner.positionX.value - (baseX + 0.45)) < 1e-12,
       `${mode} pan offset must be added to the orbit's horizontal position`);
   }
+});
+
+
+test("menu detail keeps the menu title and category back row visible", () => {
+  const openStart = uiSource.indexOf("function openMenuDetail(");
+  const openEnd = uiSource.indexOf("\n  const MENU_CATEGORIES", openStart);
+  assert.ok(openStart >= 0 && openEnd > openStart);
+  const openSource = uiSource.slice(openStart, openEnd);
+  assert.match(openSource, /mainMenuList\) el\.mainMenuList\.style\.display = "flex"/);
+  assert.match(openSource, /menuCategoryView\) menuCategoryView\.hidden = false/);
+  assert.match(openSource, /menuCategoryCards\) menuCategoryCards\.hidden = true/);
+  assert.ok(openSource.includes('node.hidden = true'));
+  assert.match(openSource, /sideTitle\) el\.sideTitle\.textContent = "メニュー"/);
+  assert.match(openSource, /btnSideBack\) el\.btnSideBack\.style\.display = "none"/);
+  const backStart = uiSource.indexOf("if (btnMenuCategoryBack) {");
+  const backEnd = uiSource.indexOf("\n  if (btnSettingsCategoryBack)", backStart);
+  assert.ok(backStart >= 0 && backEnd > backStart);
+  const backSource = uiSource.slice(backStart, backEnd);
+  assert.match(backSource, /if \(menuDetailOpen\)[\s\S]*?menuDetailOpen = false/);
+  assert.match(backSource, /menuCategoryCards\.hidden = false/);
+  assert.ok(backSource.includes('node.hidden = false'));
+  assert.match(backSource, /menuCategoryView\) menuCategoryView\.hidden = true/);
+});
+
+test("bottom navigation has visible separators between tabs and from the mini-player", () => {
+  const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(cssSource, /\.bottomNav\s*\{[\s\S]*?border-top-color: color-mix\(in srgb, var\(--line\) 72%, var\(--text\) 28%\)/);
+  assert.match(cssSource, /\.navTab:not\(:last-child\)\s*\{\s*border-right: 1px solid color-mix/);
+  assert.match(cssSource, /body\.theme-light \.navTab:not\(:last-child\)/);
 });

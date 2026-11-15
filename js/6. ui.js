@@ -336,6 +336,7 @@
     });
   }
 
+  const MAX_PLAYBACK_PREBUFFER_SLIDER_MS = 500;
   const playbackPrebufferSlider = document.getElementById("playbackPrebufferSlider");
   const playbackPrebufferNumber = document.getElementById("playbackPrebufferNumber");
   const playbackPrebufferValueText = document.getElementById("playbackPrebufferValueText");
@@ -351,14 +352,14 @@
   })();
   const initialPlaybackPrebufferMs = setPlaybackPrebufferMs(savedPlaybackPrebufferMs);
   function syncPlaybackPrebufferControls(value) {
-    if (playbackPrebufferSlider) playbackPrebufferSlider.value = String(value);
+    if (playbackPrebufferSlider) playbackPrebufferSlider.value = String(Math.min(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, value));
     if (playbackPrebufferNumber) playbackPrebufferNumber.value = String(value);
     if (playbackPrebufferValueText) playbackPrebufferValueText.textContent = value + "ms";
   }
   syncPlaybackPrebufferControls(initialPlaybackPrebufferMs);
   if (playbackPrebufferSlider) {
     playbackPrebufferSlider.addEventListener("input", event => {
-      const previewValue = Math.max(0, Math.min(5000, Math.round(Number(event.target.value) || 0)));
+      const previewValue = Math.max(0, Math.min(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, Math.round(Number(event.target.value) || 0)));
       syncPlaybackPrebufferControls(previewValue);
     });
     playbackPrebufferSlider.addEventListener("change", event => {
@@ -1159,7 +1160,6 @@ function updateSpatialAudioFromClock(isPlaying) {
     }
 
     const now = performance.now();
-    const accentColor = document.body.style.getPropertyValue("--accent") || "#35D977";
     if (isPlaying || waveDecayActive) {
       requestAnimationFrame(drawWave);
     } else {
@@ -1290,13 +1290,11 @@ function updateSpatialAudioFromClock(isPlaying) {
           const x = waveLeft + i * (waveWidth / bars);
           const barHeight = Math.max(1, height * level);
           const y = height - barHeight;
-          ctx.save();
-          ctx.fillStyle = accentColor;
-          ctx.globalAlpha = 0.82;
+          const hue = (i / Math.max(1, bars - 1)) * 280 + 120;
+          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;
           ctx.fillRect(x, y, barWidth, barHeight);
-          ctx.globalAlpha = 0.24;
+          ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.25)`;
           ctx.fillRect(x, Math.max(0, y - 4), barWidth, 3);
-          ctx.restore();
         }
         const calcRms = (data) => {
           if (!data || !data.length) return 0;
@@ -1325,9 +1323,9 @@ function updateSpatialAudioFromClock(isPlaying) {
           const trackH = Math.max(1, trackBottom - trackTop);
           const fillH = trackH * Math.min(1, Math.max(0, level));
           const meterGradient = ctx.createLinearGradient(0, trackBottom, 0, trackTop);
-          meterGradient.addColorStop(0, accentColor);
-          meterGradient.addColorStop(0.58, accentColor);
-          meterGradient.addColorStop(1, accentColor);
+          meterGradient.addColorStop(0, "#35D977");
+          meterGradient.addColorStop(0.58, "#d7df28");
+          meterGradient.addColorStop(1, "#ff3b30");
           ctx.fillStyle = "rgba(255,255,255,.08)";
           ctx.fillRect(x, trackTop, meterW, trackH);
           if (document.body.classList.contains("theme-light")) {
@@ -1398,12 +1396,16 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   function resetSidebarView() {
     if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
     if (menuCategoryView) menuCategoryView.hidden = true;
     if (menuCategoryHome) menuCategoryHome.hidden = false;
     activeMenuCategoryTitle = "";
     menuDetailOpen = false;
     if (menuCategoryTitle) menuCategoryTitle.textContent = "";
-    if (menuCategoryCards) menuCategoryCards.innerHTML = "";
+    if (menuCategoryCards) {
+      menuCategoryCards.hidden = false;
+      menuCategoryCards.innerHTML = "";
+    }
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
     if (el.sideTitle) {
@@ -1425,9 +1427,12 @@ function updateSpatialAudioFromClock(isPlaying) {
       }
       document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
       if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+      document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
       if (menuCategoryHome) menuCategoryHome.hidden = true;
       if (menuCategoryView) menuCategoryView.hidden = false;
+      if (menuCategoryCards) menuCategoryCards.hidden = false;
       menuDetailOpen = false;
+      if (el.btnSideBack) el.btnSideBack.style.display = "none";
       if (el.sideTitle) el.sideTitle.textContent = "メニュー";
       animateUiEntry(menuCategoryView);
     });
@@ -1549,9 +1554,11 @@ function updateSpatialAudioFromClock(isPlaying) {
   }
 
   function openMenuDetail(secId, title, categoryTitle) {
-    if (el.mainMenuList) el.mainMenuList.style.display = "none";
+    if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = true; });
     if (menuCategoryHome) menuCategoryHome.hidden = true;
-    if (menuCategoryView) menuCategoryView.hidden = true;
+    if (menuCategoryView) menuCategoryView.hidden = false;
+    if (menuCategoryCards) menuCategoryCards.hidden = true;
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(secId);
     if (target) {
@@ -1560,8 +1567,9 @@ function updateSpatialAudioFromClock(isPlaying) {
     }
     activeMenuCategoryTitle = categoryTitle || activeMenuCategoryTitle;
     menuDetailOpen = true;
-    if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
-    if (el.sideTitle) el.sideTitle.textContent = "← " + activeMenuCategoryTitle;
+    if (el.btnSideBack) el.btnSideBack.style.display = "none";
+    if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+    animateUiEntry(menuCategoryView);
   }
 
   const MENU_CATEGORIES = {
@@ -1630,7 +1638,11 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (!category || !menuCategoryHome || !menuCategoryView || !menuCategoryCards) return;
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
     menuCategoryTitle.textContent = category.title;
+    menuCategoryCards.hidden = false;
+    if (el.btnSideBack) el.btnSideBack.style.display = "none";
+    if (el.sideTitle) el.sideTitle.textContent = "メニュー";
     const menuBack = document.getElementById("btnMenuCategoryBack");
     if (menuBack) menuBack.textContent = "← " + category.title;
     activeMenuCategoryTitle = category.title;
@@ -1759,10 +1771,25 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   if (btnMenuCategoryBack) {
     btnMenuCategoryBack.addEventListener("click", () => {
+      if (menuDetailOpen) {
+        document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+        menuDetailOpen = false;
+        if (menuCategoryCards) menuCategoryCards.hidden = false;
+        document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
+        if (el.btnSideBack) el.btnSideBack.style.display = "none";
+        if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+        animateUiEntry(menuCategoryView);
+        return;
+      }
       if (menuCategoryView) menuCategoryView.hidden = true;
       if (menuCategoryHome) menuCategoryHome.hidden = false;
       if (menuCategoryTitle) menuCategoryTitle.textContent = "";
-      if (menuCategoryCards) menuCategoryCards.innerHTML = "";
+      if (menuCategoryCards) {
+        menuCategoryCards.hidden = false;
+        menuCategoryCards.innerHTML = "";
+      }
+      activeMenuCategoryTitle = "";
+      if (el.sideTitle) el.sideTitle.textContent = "メニュー";
     });
   }
 
