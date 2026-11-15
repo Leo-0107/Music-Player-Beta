@@ -1159,6 +1159,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     }
 
     const now = performance.now();
+    const accentColor = document.body.style.getPropertyValue("--accent") || "#35D977";
     if (isPlaying || waveDecayActive) {
       requestAnimationFrame(drawWave);
     } else {
@@ -1289,11 +1290,13 @@ function updateSpatialAudioFromClock(isPlaying) {
           const x = waveLeft + i * (waveWidth / bars);
           const barHeight = Math.max(1, height * level);
           const y = height - barHeight;
-          const hue = (i / Math.max(1, bars - 1)) * 280 + 120;
-          ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.8)`;
+          ctx.save();
+          ctx.fillStyle = accentColor;
+          ctx.globalAlpha = 0.82;
           ctx.fillRect(x, y, barWidth, barHeight);
-          ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.25)`;
+          ctx.globalAlpha = 0.24;
           ctx.fillRect(x, Math.max(0, y - 4), barWidth, 3);
+          ctx.restore();
         }
         const calcRms = (data) => {
           if (!data || !data.length) return 0;
@@ -1322,9 +1325,9 @@ function updateSpatialAudioFromClock(isPlaying) {
           const trackH = Math.max(1, trackBottom - trackTop);
           const fillH = trackH * Math.min(1, Math.max(0, level));
           const meterGradient = ctx.createLinearGradient(0, trackBottom, 0, trackTop);
-          meterGradient.addColorStop(0, "#35D977");
-          meterGradient.addColorStop(0.58, "#d7df28");
-          meterGradient.addColorStop(1, "#ff3b30");
+          meterGradient.addColorStop(0, accentColor);
+          meterGradient.addColorStop(0.58, accentColor);
+          meterGradient.addColorStop(1, accentColor);
           ctx.fillStyle = "rgba(255,255,255,.08)";
           ctx.fillRect(x, trackTop, meterW, trackH);
           if (document.body.classList.contains("theme-light")) {
