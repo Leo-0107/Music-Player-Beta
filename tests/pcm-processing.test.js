@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.79";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 79;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 79;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.79"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.79-r79'));
-  assert.ok(indexSource.includes("7.4.79-r79"));
-  assert.ok(controllerSource.includes("7.4.79-r79"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.79-r79"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.80";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 80;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 80;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.80"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.80-r79'));
+  assert.ok(indexSource.includes("7.4.80-r80"));
+  assert.ok(controllerSource.includes("7.4.80-r80"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.80-r80"));
 });
 
 test("settings and menu category back labels follow the selected category", () => {
@@ -43,11 +43,13 @@ test("settings and menu category back labels follow the selected category", () =
 });
 
 test("settings detail header uses one category back title and no duplicate title", () => {
-  assert.ok(indexSource.includes('class="settingsBackButton settingsDetailBackTitle" id="btnSettingsDetailBack"'));
+  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsDetailBackTitle" id="btnSettingsDetailBack"'));
   assert.ok(!indexSource.includes('id="settingsDetailPanelTitle"'));
   assert.ok(indexSource.includes('aria-label="設定項目"'));
   assert.ok(uiSource.includes('btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle'));
   assert.ok(!uiSource.includes("settingsDetailPanelTitle"));
+  assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;"));
+  assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;"));
 });
 
 test("settings icons retain full colour and bottom navigation uses frosted glass styling", () => {
@@ -57,6 +59,8 @@ test("settings icons retain full colour and bottom navigation uses frosted glass
   assert.ok(cssSource.includes("backdrop-filter: blur(24px) saturate(1.55)"));
   assert.ok(cssSource.includes("body.theme-light .bottomNav"));
   assert.ok(cssSource.includes(".settingsDetailBackTitle"));
+  assert.ok(cssSource.includes(".settingsCategoryTitle {\n  font-size: 1rem;\n  font-weight: 700;\n  padding: 4px 2px 2px;"));
+  assert.ok(cssSource.includes("font: inherit;\n  font-size: 1rem;\n  font-weight: 700;"));
 });
 
 test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
@@ -93,14 +97,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.79-r79"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.79-r79"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.79-r79"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.79-r79"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.80-r80"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.80-r80"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.80-r80"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.80-r80"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.79-r79"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.80-r80"));
 });
 
 
