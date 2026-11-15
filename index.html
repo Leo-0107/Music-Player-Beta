@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.76</title>
+<title>Music Player v7.4.77</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css?v=7.4.76-r76">
 <style id="responsive-song-list-fix">
@@ -321,7 +321,6 @@
             <button class="btn small waveOption" data-wave="a8" type="button"><span class="waveOptionName">デュアル・オシロスコープ</span><span class="waveOptionDescription">左右の音の関係を一つの軌跡として描く</span></button>
             <div class="field waveParticleField">
               <label>粒子数（選択中の表示モード）: <span id="waveParticleCountText">0</span></label>
-              <div class="settingsHelpText">選択中の波形モードで使う粒子数を調整します。粒子に対応していないモードでは変化しません。値を増やすと描画負荷が高くなる場合があります。</div>
               <input type="range" id="waveParticleCount" min="0" max="1200" step="10" value="0">
             </div>
           </div>
@@ -454,10 +453,10 @@
       <div class="panelSection" id="visualizerDetailSection">
         <div class="sectionCard">
           <div class="sectionTitle">ビジュアライザー詳細</div>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerLowPerformance"><span><strong>描画を軽くする</strong><small>波形・ビジュアライザーの描画量を抑え、動作が重いときの負荷を減らします。表示の細かさが変わる場合があります。</small></span></label>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowFps"><span><strong>描画速度（FPS）を表示</strong><small>1秒間に画面を何回描画できているかの目安です。数値が高いほど動きが滑らかです。</small></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerLowPerformance"><span><strong>描画を軽くする</strong></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowFps"><span><strong>描画速度（FPS）を表示</strong></span></label>
           <div id="visualizerFps" hidden style="font-size:.8rem;color:var(--muted);">FPS: --</div>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowLoad"><span><strong>描画負荷を表示</strong><small>波形表示の処理負荷を確認するための情報です。機器や表示モードによって変化します。</small></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowLoad"><span><strong>描画負荷を表示</strong></span></label>
           <div id="visualizerLoad" hidden style="font-size:.8rem;color:var(--muted);">描画負荷: --</div>
         </div>
       </div>
@@ -468,10 +467,10 @@
             <button class="btn small danger" id="btnResetStats">統計データをリセット</button>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-            <div class="statsMetric"><span>再生回数</span><strong id="statPlays">0</strong><small>再生として記録された回数</small></div>
-            <div class="statsMetric"><span>ライブラリの曲数</span><strong id="statSongs">0</strong><small>登録されている曲数</small></div>
-            <div class="statsMetric"><span>累計再生時間</span><strong id="statTotalPlayback">0分0秒</strong><small>これまでの再生時間</small></div>
-            <div class="statsMetric"><span>途中から再生した回数</span><strong id="statPartialPlays">0</strong><small>曲の途中から再生した回数</small></div>
+            <div class="statsMetric"><span>再生回数</span><strong id="statPlays">0</strong></div>
+            <div class="statsMetric"><span>ライブラリの曲数</span><strong id="statSongs">0</strong></div>
+            <div class="statsMetric"><span>累計再生時間</span><strong id="statTotalPlayback">0分0秒</strong></div>
+            <div class="statsMetric"><span>途中から再生した回数</span><strong id="statPartialPlays">0</strong></div>
           </div>
           <div id="storageUsageStatus" role="status" aria-live="polite" style="margin:8px 0 12px; color:var(--muted); font-size:.78rem;">保存領域を確認しています...</div>
           <canvas id="playHistoryChart" style="width:100%; height:180px;"></canvas>
@@ -688,27 +687,27 @@
     <div id="settingsCategoryHome" class="settingsCategoryHome">
       <button class="settingsCategoryCard" data-settings-category="playback">
         <span class="settingsIcon">▶️</span>
-        <span class="settingsCardText"><strong>再生</strong><small>再生速度・音質・スリープタイマーなど</small></span>
+        <span class="settingsCardText"><strong>再生</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="audio">
         <span class="settingsIcon">🔊</span>
-        <span class="settingsCardText"><strong>音声</strong><small>出力・入力・音響遅延など</small></span>
+        <span class="settingsCardText"><strong>音声</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="display">
         <span class="settingsIcon">🖥️</span>
-        <span class="settingsCardText"><strong>表示</strong><small>波形・ビジュアライザー・レイアウト・テーマ</small></span>
+        <span class="settingsCardText"><strong>表示</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="history">
         <span class="settingsIcon">📊</span>
-        <span class="settingsCardText"><strong>履歴</strong><small>再生履歴・統計</small></span>
+        <span class="settingsCardText"><strong>履歴</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="other">
         <span class="settingsIcon">⚙️</span>
-        <span class="settingsCardText"><strong>その他</strong><small>再生キュー・データ管理</small></span>
+        <span class="settingsCardText"><strong>その他</strong></span>
         <span class="settingsArrow">›</span>
       </button>
     </div>
@@ -738,7 +737,6 @@
   <div class="panelSection" id="diagnosticsSection">
     <div class="sectionCard">
       <div class="sectionTitle">エラーログ一覧</div>
-      <div class="settingsHelpText">アプリで記録された診断ログを新しい順に表示します。通知を閉じても、ここに保存されたログは残ります。</div>
       <div id="mpDiagnosticsLogList" class="mpDiagnosticsLogList" aria-live="polite"></div>
       <div class="mpDiagnosticsLogActions">
         <button class="btn small" id="mpDiagnosticsCopy" type="button">診断情報をコピー</button>
@@ -835,7 +833,6 @@
       <button class="btn small" id="btnPlaylistTrackPlay">▶ 再生</button>
     </div>
     <button class="btn small ghost playlistTrackAddBtn" id="btnPlaylistTrackAdd">＋一覧から追加</button>
-    <div class="playlistTrackHint">曲を長押しすると順番を入れ替えできます</div>
     <div class="bottomSheetList" id="playlistTrackList"></div>
   </div>
 </div>
@@ -880,8 +877,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.76";
-  const BUILD_REVISION = 76;
+  const APP_VERSION = "v7.4.77";
+  const BUILD_REVISION = 77;
   const BUILD_COMMIT_ID = "5b2f4e67894f213eb7a59aa6c0f348adc32c2dd1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
