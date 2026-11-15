@@ -21,3 +21,5 @@ The numeric prefixes group files by responsibility. They describe module organiz
 | `13. sw.js` | Service Worker implementation |
 
 The root-level `sw.js` remains the browser's Service Worker entry point and imports `js/13. sw.js`.
+
+Keep this map in sync with runtime URLs, Worker and AudioWorklet URLs, Service Worker caching, and regression-test paths when modules are renamed.
