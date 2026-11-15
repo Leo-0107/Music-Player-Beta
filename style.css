@@ -3376,7 +3376,7 @@ body.theme-light .bottomNav::before {
 }
 
 
-/* v7.4.83: make the bottom player/navigation boundary and tab divisions easier to distinguish */
+/* v7.4.84: make the bottom player/navigation boundary and tab divisions easier to distinguish */
 .bottomNav {
   border-top-color: color-mix(in srgb, var(--line) 72%, var(--text) 28%);
 }
@@ -3389,3 +3389,17 @@ body.theme-light .bottomNav {
 body.theme-light .navTab:not(:last-child) {
   border-right-color: rgba(24, 32, 44, .14);
 }
+
+
+/* v7.4.84: settings search, editable EQ values and custom theme background */
+.eqBands { display:flex; justify-content:space-between; align-items:stretch; gap:8px; }
+.eqBandFrequency { display:block; margin-top:4px; color:var(--muted); font-size:.75rem; text-align:center; }
+.eqNumberInput { width:100%; min-width:0; margin-top:8px; padding:6px 3px !important; text-align:center; font-size:.78rem; font-variant-numeric:tabular-nums; }
+.settingsSearchResultCard .settingsCardText small { display:block; margin-top:3px; color:var(--muted); font-size:.76rem; font-weight:400; line-height:1.35; }
+.settingsSearchEmpty { grid-column:1 / -1; padding:18px 12px; color:var(--muted); text-align:center; background:var(--panel2); border:1px solid var(--line); border-radius:14px; }
+.customThemeBackgroundActions { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.customThemeBackgroundActions .settingsHelpText { flex:1 1 150px; }
+.customThemeBackgroundField input[type="file"] { min-width:0; }
+.networkStatus.isOffline { color:var(--accent); }
+.networkStatus.isChecking { color:var(--muted); }
+@media (max-width:520px) { .eqBands { gap:5px; } .eqNumberInput { font-size:.72rem; padding-left:1px !important; padding-right:1px !important; } }
