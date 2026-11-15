@@ -490,6 +490,22 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
 let mainOutputUsesDirectSink = false;
 let mainOutputUsesNativeDestination = false;
 
+  function failClosedMainOutputRouting(targetDeviceId = state.mainOutputDeviceId || "") {
+    if (typeof muteAllAppOutputsForRoutingFailure === "function") {
+      muteAllAppOutputsForRoutingFailure(targetDeviceId);
+      return;
+    }
+    if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+    state.speakerSettings.outputRoutingBlocked = true;
+    state.mainOutputDeviceId = String(targetDeviceId || "");
+    if (mainOutputDirectGainNode?.gain) mainOutputDirectGainNode.gain.value = 0;
+    if (outputBridgeAudio) {
+      outputBridgeAudio.volume = 0;
+      try { outputBridgeAudio.pause(); } catch (e) {}
+    }
+    saveState();
+  }
+
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
@@ -771,11 +787,11 @@ let mainOutputUsesNativeDestination = false;
                 outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
               }
             }).catch(fallbackError => {
-              muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || "");
+              failClosedMainOutputRouting(state.mainOutputDeviceId || "");
               console.warn("Music Player output bridge fallback unavailable:", fallbackError);
             });
           } else if (state.mainOutputDeviceId) {
-            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+            failClosedMainOutputRouting(state.mainOutputDeviceId);
           } else if (outputBridgeAudio) {
             outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
           }
@@ -792,11 +808,11 @@ let mainOutputUsesNativeDestination = false;
                 outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
               }
             }).catch(error => {
-              muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+              failClosedMainOutputRouting(state.mainOutputDeviceId);
               console.warn("Music Player output device restore failed:", error);
             });
           } else {
-            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+            failClosedMainOutputRouting(state.mainOutputDeviceId);
           }
         }
       }
