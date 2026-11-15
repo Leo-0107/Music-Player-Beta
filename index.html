@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.78</title>
+<title>Music Player v7.4.79</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css?v=7.4.78-r78">
 <style id="responsive-song-list-fix">
@@ -841,10 +841,9 @@
 
 <div class="settingsDetailOverlay" id="settingsDetailOverlay" hidden>
   <div class="settingsDetailBackdrop" id="settingsDetailBackdrop"></div>
-  <section class="settingsDetailPanel" role="dialog" aria-modal="true" aria-labelledby="settingsDetailPanelTitle">
+  <section class="settingsDetailPanel" role="dialog" aria-modal="true" aria-label="設定項目">
     <header class="settingsDetailHeader">
-      <button class="settingsBackButton" id="btnSettingsDetailBack" type="button">← 設定</button>
-      <div class="settingsDetailPanelTitle" id="settingsDetailPanelTitle">設定</div>
+      <button class="settingsBackButton settingsDetailBackTitle" id="btnSettingsDetailBack" type="button">← 設定</button>
       <button class="settingsDetailClose" id="btnCloseSettingsDetail" type="button" aria-label="閉じる">✕</button>
     </header>
     <div class="settingsDetailBody" id="settingsDetailPanelBody"></div>
@@ -868,8 +867,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.78";
-  const BUILD_REVISION = 78;
+  const APP_VERSION = "v7.4.79";
+  const BUILD_REVISION = 79;
   const BUILD_COMMIT_ID = "5b2f4e67894f213eb7a59aa6c0f348adc32c2dd1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
