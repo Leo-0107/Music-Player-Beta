@@ -3172,7 +3172,6 @@ body.theme-light #btnSettingsAddMusic:hover {
   padding: 13px 14px;
 }
 .settingsIcon {
-  filter: grayscale(.72);
   opacity: .88;
   transition: opacity .16s ease, transform .16s ease;
 }
