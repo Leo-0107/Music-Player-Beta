@@ -1649,6 +1649,7 @@
       return true;
     }
     if (!next) {
+      resetTrackLoudnessNormalization();
       state.speakerSettings.multipleOutputEnabled = false;
       state.mainOutputDeviceId = "";
       syncExternalOutputSafety();
@@ -1661,6 +1662,7 @@
       toast("複数出力をOFFにしました。デバイスの既定スピーカーだけを使用します");
       return true;
     }
+    resetTrackLoudnessNormalization();
     state.speakerSettings.multipleOutputEnabled = true;
     syncExternalOutputSafety();
     saveState();
