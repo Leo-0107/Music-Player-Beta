@@ -498,6 +498,7 @@ let mainOutputUsesNativeDestination = false;
     if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
     state.speakerSettings.outputRoutingBlocked = true;
     state.mainOutputDeviceId = String(targetDeviceId || "");
+    try { window.setYouTubeOutputRoutingBlocked?.(true); } catch (e) {}
     if (mainOutputDirectGainNode?.gain) mainOutputDirectGainNode.gain.value = 0;
     if (outputBridgeAudio) {
       outputBridgeAudio.volume = 0;
