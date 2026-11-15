@@ -3167,6 +3167,8 @@ test("binaural mode keeps the HRTF source fixed in front while 3D mode follows t
   assert.equal(panner.positionZ.value, -1.5);
 
   assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
+  assert.match(audioSource, /panner3DNode\.refDistance\s*=\s*1\.25/);
+  assert.match(audioSource, /panner3DNode\.rolloffFactor\s*=\s*0\.18/);
 });
 
 
