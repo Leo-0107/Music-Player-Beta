@@ -3108,6 +3108,7 @@ test("clipping protection toggles the main output through the limiter without di
   const sandbox = {
     state: { clippingProtection: false },
     saveState() { saveCount++; },
+    resetTrackLoudnessNormalization() {},
     audioCtx: {},
     channelMerger,
     limiterNode,
