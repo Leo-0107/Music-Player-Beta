@@ -2762,7 +2762,7 @@ test("repeated EQ scheduling debounces to one PCM settings handoff", async () =>
 test("PCM settings changed during initial startup are deferred without cancelling the startup queue", async () => {
   const cancelCalls = [];
   const invalidateStart = audioSource.indexOf("function invalidateBufferedPcmProcessing()");
-  const invalidateEnd = audioSource.indexOf("\\n  function applyPitchAndRate", invalidateStart);
+  const invalidateEnd = audioSource.indexOf("\n  function applyPitchAndRate", invalidateStart);
   assert.ok(invalidateStart >= 0 && invalidateEnd > invalidateStart,
     "PCM invalidation helper must exist");
   const invalidateSource = audioSource.slice(invalidateStart, invalidateEnd);
@@ -2775,7 +2775,7 @@ test("PCM settings changed during initial startup are deferred without cancellin
     bufferedPlaybackEngine: engineStub,
     audio: { paused: true }
   };
-  vm.runInNewContext(invalidateSource + "\\nthis.invalidateBufferedPcmProcessing = invalidateBufferedPcmProcessing;", audioSandbox);
+  vm.runInNewContext(invalidateSource + "\nthis.invalidateBufferedPcmProcessing = invalidateBufferedPcmProcessing;", audioSandbox);
   audioSandbox.invalidateBufferedPcmProcessing();
   assert.deepEqual(cancelCalls, [], "startup queue must remain alive while play is requested");
   engineStub.playRequested = false;
