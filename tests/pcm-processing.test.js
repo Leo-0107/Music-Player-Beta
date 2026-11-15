@@ -3842,6 +3842,7 @@ test("track loudness normalization and manual output level share the protected o
   assert.match(stateSource, /outputLevelDb: Math\.max\(-12, Math\.min\(0/);
   assert.match(indexSource, /id="outputLevelDb" min="-12" max="0"/);
   assert.match(audioSource, /const canBoost = state\.clippingProtection !== false && state\.speakerSettings\?\.multipleOutputEnabled !== true/);
+  assert.match(outputSource, /function setClippingProtection\(enabled\)[\s\S]*?resetTrackLoudnessNormalization\(\)/);
   assert.match(audioSource, /channelNormalizeNode\.connect\(trackLoudnessAnalyser\)/);
   assert.match(audioSource, /trackLoudnessAnalyser\.connect\(trackLoudnessGainNode\)/);
   assert.match(audioSource, /trackLoudnessGainNode\.connect\(masterGain\)/);
