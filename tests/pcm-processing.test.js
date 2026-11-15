@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, "..");
 const engineSource = fs.readFileSync(path.join(root, "js/10. buffered-playback-engine.js"), "utf8");
 const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-worker.js"), "utf8");
 const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
+const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -2753,4 +2754,129 @@ test("repeated EQ scheduling debounces to one PCM settings handoff", async () =>
   await Promise.resolve();
   assert.equal(updateCount, 1);
   assert.equal(engine.pcmSettingsTimer, null);
+});
+
+
+test("2D spatial mode selects the direct stereo route and disables the 3D branch", () => {
+  const start = audioSource.indexOf("function updateSpatialAudioRouting()");
+  const end = audioSource.indexOf("\n  function setDMode", start);
+  assert.ok(start >= 0 && end > start, "spatial routing function must exist");
+  const routingSource = audioSource.slice(start, end);
+  const makeParam = () => ({
+    calls: [],
+    cancelScheduledValues(time) { this.calls.push(["cancel", time]); },
+    setTargetAtTime(value, time, constant) { this.calls.push(["target", value, time, constant]); }
+  });
+  const directGain = makeParam();
+  const spatialGain = makeParam();
+  const sandbox = {
+    state: { dMode: "2D" },
+    audioCtx: { currentTime: 3.5 },
+    panner3DNode: {},
+    spatialDirectGainNode: { gain: directGain },
+    spatial3DGainNode: { gain: spatialGain }
+  };
+  vm.runInNewContext(routingSource + "\nthis.updateSpatialAudioRouting = updateSpatialAudioRouting;", sandbox);
+
+  sandbox.updateSpatialAudioRouting();
+  assert.deepEqual(directGain.calls[1], ["target", 1, 3.5, 0.02]);
+  assert.deepEqual(spatialGain.calls[1], ["target", 0, 3.5, 0.02]);
+
+  sandbox.state.dMode = "3D";
+  sandbox.updateSpatialAudioRouting();
+  assert.deepEqual(directGain.calls[3], ["target", 0, 3.5, 0.02]);
+  assert.deepEqual(spatialGain.calls[3], ["target", 1, 3.5, 0.02]);
+});
+
+test("PCM insertion boundary traverses the shared stereo output and optional clipping limiter", () => {
+  const orderedMarkers = [
+    "audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;",
+    "spatialDirectGainNode.connect(channelNormalizeNode);",
+    "channelNormalizeNode.connect(masterGain);",
+    "masterGain.connect(finalMixGainNode);",
+    "finalMixGainNode.connect(playbackPrebufferDelayNode);",
+    "playbackPrebufferDelayNode.connect(speakerBusNode);",
+    "speakerBusNode.connect(channelSplitter);",
+    "leftGainNode.connect(channelMerger, 0, 0);",
+    "rightGainNode.connect(channelMerger, 0, 1);",
+    "channelMerger.connect(limiterNode);",
+    "limiterNode.connect(analyser);"
+  ];
+  const positions = orderedMarkers.map(marker => audioSource.indexOf(marker));
+  assert.ok(positions.every(position => position >= 0), "all shared output stages must exist");
+  for (let i = 1; i < positions.length; i++) {
+    assert.ok(positions[i] > positions[i - 1], "PCM audio must traverse the shared output stages in order");
+  }
+  assert.match(audioSource, /if \(state\.clippingProtection\)\s*\{\s*channelMerger\.connect\(limiterNode\)/);
+});
+
+test("clipping protection toggles the main output through the limiter without disturbing additional speaker routing", () => {
+  const start = outputSource.indexOf("function setClippingProtection(");
+  const end = outputSource.indexOf("\n  if (el.btnClippingProtection)", start);
+  assert.ok(start >= 0 && end > start, "clipping protection function must exist");
+  const functionSource = outputSource.slice(start, end);
+
+  const makeNode = name => ({
+    name,
+    connections: new Set(),
+    connect(target) { this.connections.add(target); },
+    disconnect(target) {
+      if (target) this.connections.delete(target);
+      else this.connections.clear();
+    }
+  });
+  const channelMerger = makeNode("channelMerger");
+  const limiterNode = makeNode("limiterNode");
+  const outputSplitter = makeNode("outputSplitter");
+  const analyser = makeNode("analyser");
+  const speakerBusNode = makeNode("speakerBusNode");
+  const additionalSplitter = makeNode("additionalSplitter");
+  const finalMixGainNode = makeNode("finalMixGainNode");
+  speakerBusNode.connect(additionalSplitter);
+
+  let saveCount = 0;
+  const ui = {
+    textContent: "",
+    active: null,
+    classList: { toggle(name, value) { if (name === "active") ui.active = value; } }
+  };
+  const sandbox = {
+    state: { clippingProtection: false },
+    saveState() { saveCount++; },
+    audioCtx: {},
+    channelMerger,
+    limiterNode,
+    outputSplitter,
+    analyser,
+    speakerBusNode,
+    finalMixGainNode,
+    el: { btnClippingProtection: ui },
+    console: { error() {} }
+  };
+  vm.runInNewContext(functionSource + "\nthis.setClippingProtection = setClippingProtection;", sandbox);
+
+  sandbox.setClippingProtection(true);
+  assert.equal(channelMerger.connections.has(limiterNode), true);
+  assert.equal(channelMerger.connections.has(outputSplitter), false);
+  assert.equal(limiterNode.connections.has(outputSplitter), true);
+  assert.equal(limiterNode.connections.has(analyser), true);
+  assert.equal(ui.textContent, "音割れ防止: ON");
+  assert.equal(ui.active, true);
+
+  sandbox.setClippingProtection(false);
+  assert.equal(channelMerger.connections.has(limiterNode), false);
+  assert.equal(channelMerger.connections.has(outputSplitter), true);
+  assert.equal(channelMerger.connections.has(analyser), true);
+  assert.equal(limiterNode.connections.has(outputSplitter), false);
+  assert.equal(limiterNode.connections.has(analyser), false);
+  assert.equal(ui.textContent, "音割れ防止: OFF");
+  assert.equal(ui.active, false);
+
+  sandbox.setClippingProtection(true);
+  sandbox.setClippingProtection(true);
+  assert.equal(channelMerger.connections.has(limiterNode), true);
+  assert.equal(channelMerger.connections.size, 1);
+  assert.equal(speakerBusNode.connections.has(additionalSplitter), true);
+  assert.equal(limiterNode.connections.has(speakerBusNode), false);
+  assert.equal(saveCount, 4);
 });
