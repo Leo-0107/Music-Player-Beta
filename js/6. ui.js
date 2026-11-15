@@ -11,17 +11,41 @@
   }
 
   const networkStatusElement = document.getElementById("networkStatus");
-  function updateNetworkStatus() {
+  let networkProbeSequence = 0;
+  function renderNetworkStatus(status) {
     if (!networkStatusElement) return;
-    const online = navigator.onLine !== false;
-    networkStatusElement.textContent = online ? "オンライン" : "オフライン";
-    networkStatusElement.classList.toggle("isOnline", online);
-    networkStatusElement.classList.toggle("isOffline", !online);
-    networkStatusElement.title = online ? "ネットワーク接続あり" : "ネットワーク接続なし";
+    const labels = { online: "オンライン", offline: "オフライン", checking: "接続確認中" };
+    networkStatusElement.textContent = labels[status] || labels.checking;
+    networkStatusElement.classList.toggle("isOnline", status === "online");
+    networkStatusElement.classList.toggle("isOffline", status === "offline");
+    networkStatusElement.classList.toggle("isChecking", status === "checking");
+    networkStatusElement.title = status === "online" ? "アプリの配信元へ接続できます" :
+      status === "offline" ? "アプリの配信元へ接続できません" : "ネットワーク接続を確認しています";
+  }
+  async function updateNetworkStatus() {
+    const sequence = ++networkProbeSequence;
+    if (navigator.onLine === false) { renderNetworkStatus("offline"); return; }
+    if (document.visibilityState === "hidden") return;
+    renderNetworkStatus("checking");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const probeUrl = new URL("./index.html?mp-network-check=" + Date.now(), document.baseURI);
+      const response = await fetch(probeUrl.href, {
+        method: "HEAD", cache: "no-store", credentials: "same-origin",
+        redirect: "manual", signal: controller.signal
+      });
+      const reachable = response.ok || response.status === 405 || response.type === "opaqueredirect";
+      if (sequence === networkProbeSequence) renderNetworkStatus(reachable ? "online" : "offline");
+    } catch {
+      if (sequence === networkProbeSequence) renderNetworkStatus("offline");
+    } finally { window.clearTimeout(timeoutId); }
   }
   updateNetworkStatus();
   window.addEventListener("online", updateNetworkStatus);
-  window.addEventListener("offline", updateNetworkStatus);
+  window.addEventListener("offline", () => { networkProbeSequence++; renderNetworkStatus("offline"); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") updateNetworkStatus(); });
+  window.setInterval(updateNetworkStatus, 15000);
 
   function renderAll(){
     renderSongList();
@@ -1451,12 +1475,7 @@ function updateSpatialAudioFromClock(isPlaying) {
 
 
   if (el.settingsSearch) {
-    el.settingsSearch.addEventListener("input", e => {
-      const q=(e.target.value||"").trim().toLowerCase();
-      document.querySelectorAll(".settingsCard").forEach(card=>{
-        card.hidden = !!q && !card.textContent.toLowerCase().includes(q);
-      });
-    });
+    el.settingsSearch.addEventListener("input", event => applySettingsSearch(event.target.value));
   }
 
   const SETTINGS_CATEGORIES = {
@@ -1510,6 +1529,67 @@ function updateSpatialAudioFromClock(isPlaying) {
   const settingsCategoryCards = document.getElementById("settingsCategoryCards");
   const settingsCategoryTitle = document.getElementById("settingsCategoryTitle");
   const btnSettingsCategoryBack = document.getElementById("btnSettingsCategoryBack");
+
+  function applySettingsSearch(rawQuery) {
+    if (!settingsCategoryHome || !settingsCategoryView || !settingsCategoryCards) return;
+    const query = String(rawQuery || "").trim().toLocaleLowerCase("ja");
+    if (!query) {
+      settingsCategoryView.hidden = true;
+      settingsCategoryHome.hidden = false;
+      if (settingsCategoryTitle) {
+        settingsCategoryTitle.textContent = "";
+        settingsCategoryTitle.hidden = false;
+      }
+      settingsCategoryCards.innerHTML = "";
+      settingsCategoryCards.hidden = false;
+      activeSettingsCategoryTitle = "設定";
+      if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← 設定";
+      return;
+    }
+    const results = [];
+    Object.entries(SETTINGS_CATEGORIES).forEach(([key, category]) => {
+      const categoryMatches = String(category.title || "").toLocaleLowerCase("ja").includes(query);
+      category.items.forEach(([sectionId, icon, title, description = ""]) => {
+        const searchable = [category.title, title, description, sectionId, key].join(" ").toLocaleLowerCase("ja");
+        if (categoryMatches || searchable.includes(query)) results.push({ sectionId, icon, title, description, categoryTitle: category.title });
+      });
+    });
+    settingsCategoryHome.hidden = true;
+    settingsCategoryView.hidden = false;
+    if (settingsCategoryTitle) {
+      settingsCategoryTitle.textContent = "検索結果（" + results.length + "件）";
+      settingsCategoryTitle.hidden = false;
+    }
+    activeSettingsCategoryTitle = "検索結果";
+    if (btnSettingsCategoryBack) {
+      btnSettingsCategoryBack.hidden = false;
+      btnSettingsCategoryBack.textContent = "← 設定";
+    }
+    settingsCategoryCards.hidden = false;
+    settingsCategoryCards.innerHTML = "";
+    if (!results.length) {
+      const empty = document.createElement("div");
+      empty.className = "settingsSearchEmpty";
+      empty.textContent = "一致する設定項目がありません";
+      settingsCategoryCards.appendChild(empty);
+      return;
+    }
+    results.forEach(result => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "settingsCard settingsSearchResultCard";
+      card.innerHTML = `
+        <span class="settingsIcon">${result.icon}</span>
+        <span class="settingsCardText">
+          <strong>${result.title}</strong>
+          <small>${result.categoryTitle} ・ ${result.description}</small>
+        </span>
+        <span class="settingsArrow">›</span>
+      `;
+      card.addEventListener("click", () => openSettingsDetail(result.sectionId, result.title));
+      settingsCategoryCards.appendChild(card);
+    });
+  }
 
   const menuSettingsMirror = document.getElementById("menuSettingsMirror");
   const menuCategoryHome = document.getElementById("menuCategoryHome");
@@ -1754,14 +1834,14 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (el.settingsSearch) el.settingsSearch.value = "";
 
     settingsCategoryCards.innerHTML = "";
-    category.items.forEach(([secId, icon, title]) => {
+    category.items.forEach(([secId, icon, title, description = ""]) => {
       const card = document.createElement("button");
       card.type = "button";
       card.className = "settingsCard";
       card.dataset.settingsSection = secId;
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
-        <span class="settingsCardText"><strong>${title}</strong></span>
+        <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
         <span class="settingsArrow">›</span>
       `;
       card.addEventListener("click", () => openSettingsDetail(secId, title));
@@ -2065,6 +2145,7 @@ function updateSpatialAudioFromClock(isPlaying) {
 
       updateAppLoadingProgress(82, "保存データベースを確認しています...");
       await initDB();
+      await restoreCustomThemeBackground();
       updateAppLoadingProgress(92, "プレイリストと再生状態を復元しています...");
       await reloadPlaylistFromDB();
       restoreLastPlaybackMemory();

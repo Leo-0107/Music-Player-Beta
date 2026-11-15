@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 83;
+  const BUILD_REVISION = 84;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1336,6 +1336,24 @@ let mainOutputUsesNativeDestination = false;
     });
   }
 
+  let customThemeBackgroundObjectUrl = null;
+  function updateCustomThemeBackgroundStatus(hasImage) {
+    if (el.customThemeBackgroundStatus) el.customThemeBackgroundStatus.textContent = hasImage ? "背景画像を保存済みです" : "背景画像は設定されていません";
+    if (el.btnClearCustomThemeBackground) el.btnClearCustomThemeBackground.disabled = !hasImage;
+  }
+  function setCustomThemeBackgroundBlob(blob) {
+    if (customThemeBackgroundObjectUrl) {
+      URL.revokeObjectURL(customThemeBackgroundObjectUrl);
+      customThemeBackgroundObjectUrl = null;
+    }
+    if (blob instanceof Blob && /^image\/(png|jpeg|webp|avif)$/i.test(blob.type)) customThemeBackgroundObjectUrl = URL.createObjectURL(blob);
+    updateCustomThemeBackgroundStatus(!!customThemeBackgroundObjectUrl);
+  }
+  async function restoreCustomThemeBackground() {
+    const blob = await loadCustomThemeBackground();
+    setCustomThemeBackgroundBlob(blob);
+    applyTheme();
+  }
   function applyTheme(){
     const safeAccent = /^#[0-9a-f]{6}$/i.test(String(state.accentColor || "")) ? state.accentColor : "#35D977";
     state.accentColor = safeAccent;
@@ -1377,7 +1395,16 @@ let mainOutputUsesNativeDestination = false;
       const computedText = adjustColorLightness(text || "#ffffff", baseLText);
       const computedMuted = adjustColorLightness(text || "#ffffff", Math.round(baseLText * 0.65));
 
-      document.body.style.background = `linear-gradient(${dir || "180deg"}, ${computedC1} 0%, ${computedC2} 100%)`;
+      if (customThemeBackgroundObjectUrl) {
+        document.body.style.backgroundColor = computedC2;
+        document.body.style.backgroundImage =
+          `linear-gradient(${dir || "180deg"}, color-mix(in srgb, ${computedC1} 48%, transparent), color-mix(in srgb, ${computedC2} 48%, transparent)), url("${customThemeBackgroundObjectUrl}")`;
+        document.body.style.backgroundSize = "cover, cover";
+        document.body.style.backgroundPosition = "center, center";
+        document.body.style.backgroundRepeat = "no-repeat, no-repeat";
+      } else {
+        document.body.style.background = `linear-gradient(${dir || "180deg"}, ${computedC1} 0%, ${computedC2} 100%)`;
+      }
       document.body.style.backgroundAttachment = "fixed";
       document.body.style.color = computedText;
       
@@ -1395,6 +1422,37 @@ let mainOutputUsesNativeDestination = false;
     if (typeof updateArtwork === "function") updateArtwork(state.currentSong);
   }
 
+  if (el.customThemeBackgroundInput) {
+    el.customThemeBackgroundInput.addEventListener("change", async () => {
+      const file = el.customThemeBackgroundInput.files?.[0];
+      el.customThemeBackgroundInput.value = "";
+      if (!file) return;
+      const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
+      if (!allowedTypes.has(file.type)) { toast("PNG・JPEG・WebP・AVIF画像を選択してください"); return; }
+      if (file.size > 8 * 1024 * 1024) { toast("背景画像は8MB以下にしてください"); return; }
+      const saved = await saveCustomThemeBackground(file);
+      if (!saved) { toast("背景画像を端末内へ保存できませんでした。保存領域を確認してください"); return; }
+      setCustomThemeBackgroundBlob(file);
+      applyTheme();
+      toast("カスタム背景画像を保存しました");
+    });
+  }
+  if (el.btnClearCustomThemeBackground) {
+    el.btnClearCustomThemeBackground.addEventListener("click", async () => {
+      if (!customThemeBackgroundObjectUrl) return;
+      const removed = await deleteCustomThemeBackground();
+      if (!removed) { toast("背景画像を削除できませんでした"); return; }
+      setCustomThemeBackgroundBlob(null);
+      applyTheme();
+      toast("カスタム背景画像を削除しました");
+    });
+  }
+  window.addEventListener("pagehide", event => {
+    if (!event.persisted && customThemeBackgroundObjectUrl) {
+      URL.revokeObjectURL(customThemeBackgroundObjectUrl);
+      customThemeBackgroundObjectUrl = null;
+    }
+  });
   if (el.accentColorInput) {
     el.accentColorInput.addEventListener("input", () => {
       const nextAccent = String(el.accentColorInput.value || "").trim();
@@ -1506,22 +1564,39 @@ let mainOutputUsesNativeDestination = false;
       vBand.innerHTML = `
         <div class="vVal" id="eqVal_${idx}">${gainVal > 0 ? "+" + gainVal.toFixed(1) : gainVal.toFixed(1)}dB</div>
         <div class="vTrack">
-          <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}">
+          <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}" aria-label="${lbl} イコライザー調整">
         </div>
-        <span style="font-size:.75rem; color:var(--muted); margin-top:4px">${lbl}</span>
+        <input type="number" class="eqNumberInput" id="eqNumber_${idx}" min="-12" max="12" step="0.5" value="${gainVal.toFixed(1)}" inputmode="decimal" aria-label="${lbl} の数値（dB）">
+        <span class="eqBandFrequency">${lbl}</span>
       `;
       const slider = vBand.querySelector(".vSlider");
-
-      slider.addEventListener("input", () => {
+      const numberInput = vBand.querySelector(".eqNumberInput");
+      const commitBandValue = (value, formatNumber = true) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return false;
+        const nextValue = Math.max(-12, Math.min(12, Math.round(parsed * 2) / 2));
         invalidateBufferedPcmProcessing();
-        if(eqAnimId) cancelAnimationFrame(eqAnimId);
-        const v = Number(slider.value);
+        if (eqAnimId) cancelAnimationFrame(eqAnimId);
         state.eqState.preset = "Custom";
-        state.eqState.gains[idx] = v;
+        state.eqState.gains[idx] = nextValue;
+        if (slider) slider.value = String(nextValue);
+        if (numberInput && formatNumber) numberInput.value = nextValue.toFixed(1);
         updatePresetButtonsUI();
         applyEqGains(0.05);
         updateEqUIValues();
         saveState();
+        return true;
+      };
+      slider.addEventListener("input", () => commitBandValue(slider.value));
+      numberInput.addEventListener("input", () => {
+        if (numberInput.value.trim() === "") return;
+        const parsed = Number(numberInput.value);
+        if (!Number.isFinite(parsed) || parsed < -12 || parsed > 12) return;
+        commitBandValue(parsed, false);
+      });
+      numberInput.addEventListener("change", () => {
+        const parsed = numberInput.value.trim() === "" ? state.eqState.gains[idx] : Number(numberInput.value);
+        commitBandValue(Number.isFinite(parsed) ? parsed : 0, true);
       });
       el.eqBands.appendChild(vBand);
     });
@@ -1538,8 +1613,10 @@ let mainOutputUsesNativeDestination = false;
   function updateEqUIValues(){
     state.eqState.gains.forEach((g, idx) => {
       const slider = document.getElementById(`eqSlider_${idx}`);
+      const numberInput = document.getElementById(`eqNumber_${idx}`);
       const valDisp = document.getElementById(`eqVal_${idx}`);
       if(slider) slider.value = g;
+      if(numberInput && document.activeElement !== numberInput) numberInput.value = Number(g).toFixed(1);
       if(valDisp) valDisp.textContent = (g > 0 ? "+" + g.toFixed(1) : g.toFixed(1)) + "dB";
     });
   }
@@ -1780,7 +1857,7 @@ let mainOutputUsesNativeDestination = false;
           if (sleepTimerId) clearTimeout(sleepTimerId);
           if (sleepIntervalId) clearInterval(sleepIntervalId);
 
-          location.reload();
+          deleteCustomThemeBackground().finally(() => location.reload());
         },
         "初期化"
       );
