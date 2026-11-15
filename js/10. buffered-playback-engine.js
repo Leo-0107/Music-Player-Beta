@@ -1531,9 +1531,12 @@ class BufferedPlaybackEngine {
         throw new Error("Compressed source exceeds the PCM memory budget");
       }
 
-      const durationHint = Number(state.currentSong?.duration) || 0;
+      const durationHint = Number(state.currentSong?.duration);
+      if (!Number.isFinite(durationHint) || durationHint <= 0) {
+        throw new Error("Track duration is unavailable; PCM memory use cannot be estimated safely");
+      }
       const sampleRateHint = Math.max(48000, Number(audioCtx?.sampleRate) || 48000);
-      const estimatedBytes = durationHint > 0 ? durationHint * sampleRateHint * 2 * 4 : 0;
+      const estimatedBytes = durationHint * sampleRateHint * 2 * 4;
       // decodeAudioData receives a copy so the original compressed payload remains
       // intact; budget for both compressed copies and the decoded stereo PCM peak.
       const estimatedPeakBytes = compressed.byteLength * 2 + estimatedBytes;
@@ -1764,7 +1767,14 @@ class BufferedPlaybackEngine {
     ensureGraph();
     await resumeAudioCtx();
     if (!this.buffer) this.dispatch("waiting");
-    await this.prepare();
+    try {
+      await this.prepare();
+    } catch (error) {
+      // Pause, source replacement, or fallback may supersede preparation.
+      // Do not surface a stale decode failure as a new playback failure.
+      if (requestId !== this.playRequestId || !this.playRequested) return;
+      throw error;
+    }
     if (requestId !== this.playRequestId || !this.playRequested) return;
     if (!this.buffer) throw new Error("PCM decoding did not produce audio");
     if (this.offset >= this.buffer.duration) this.offset = 0;
@@ -1919,6 +1929,9 @@ class BufferedPlaybackEngine {
 
   releaseForFallback() {
     this.offset = this.currentTime;
+    // Invalidate an in-flight decode so a completed result cannot be retained
+    // by an engine that has already switched back to native media playback.
+    this.generation++;
     this.disposePcmOutputController();
     this.disposeProcessorWorker();
     this.playRequestId++;
