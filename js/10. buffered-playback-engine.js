@@ -1248,6 +1248,7 @@ class BufferedPlaybackEngine {
     this.pcmSampleRate = 0;
     this.pcmPlaybackGeneration = 0;
     this.pcmSettingsTimer = null;
+    this.pendingProcessingSettingsUpdate = false;
   }
 
   get readyState() {
@@ -1704,7 +1705,14 @@ class BufferedPlaybackEngine {
   }
 
   async updateProcessingSettings() {
-    if (this.paused || !this.playRequested || !this.buffer) return false;
+    if (!this.playRequested || !this.buffer) return false;
+    if (this.paused) {
+      // Settings changed while the initial PCM session is still being prepared.
+      // Keep its queue alive and apply the latest settings immediately after startup.
+      this.pendingProcessingSettingsUpdate = true;
+      return false;
+    }
+    this.pendingProcessingSettingsUpdate = false;
     if (typeof canUseBufferedPlayback === "function" && !canUseBufferedPlayback()) {
       throw new Error("Playback rate and pitch combination is outside the PCM path range");
     }
@@ -1731,7 +1739,12 @@ class BufferedPlaybackEngine {
   }
 
   scheduleProcessingSettingsUpdate(delay = 120) {
-    if (this.paused || !this.playRequested || !this.buffer) return false;
+    if (!this.playRequested || !this.buffer) return false;
+    if (this.paused) {
+      // EQ changes during startup are folded into the same deferred handoff.
+      this.pendingProcessingSettingsUpdate = true;
+      return true;
+    }
     if (this.pcmSettingsTimer !== null) clearTimeout(this.pcmSettingsTimer);
     this.pcmSettingsTimer = setTimeout(() => {
       this.pcmSettingsTimer = null;
@@ -1765,6 +1778,12 @@ class BufferedPlaybackEngine {
     this.dispatch("play");
     this.dispatch("playing");
     this.dispatch("timeupdate");
+    if (this.pendingProcessingSettingsUpdate) {
+      this.pendingProcessingSettingsUpdate = false;
+      this.updateProcessingSettings().catch(error => {
+        this.handlePcmPlaybackError(error, this.pcmOutputController?.currentFrame, this.pcmPlaybackGeneration);
+      });
+    }
   }
 
   startSource(offset) {
@@ -1809,6 +1828,7 @@ class BufferedPlaybackEngine {
     const wasPlaying = !this.paused;
     this.playRequestId++;
     this.playRequested = false;
+    this.pendingProcessingSettingsUpdate = false;
     this.pcmPlaybackGeneration++;
     if (this.pcmSettingsTimer !== null) clearTimeout(this.pcmSettingsTimer);
     this.pcmSettingsTimer = null;
@@ -1903,6 +1923,7 @@ class BufferedPlaybackEngine {
     this.disposeProcessorWorker();
     this.playRequestId++;
     this.playRequested = false;
+    this.pendingProcessingSettingsUpdate = false;
     this.paused = true;
     this.stopSource();
     this.stopTimeUpdates();
