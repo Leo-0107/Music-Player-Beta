@@ -28,7 +28,7 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.4.83";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 83"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 82;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 83;"));
   assert.ok(manifestSource.includes("Music Player v7.4.83"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.83-r83'));
   assert.ok(indexSource.includes("7.4.83-r83"));
@@ -3851,6 +3851,7 @@ test("visualizer FPS uses rendered frame intervals and updates the label every t
   assert.match(uiSource, /visualizerFrameTime = visualizerFrameTime \* 0\.8 \+ renderedFrameDeltaMs \* 0\.2/);
 });
 test("speaker output action buttons have a responsive gap and clear ON/OFF states", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.match(styleSource, /\.speakerDeviceActions\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 8px/);
   assert.match(outputSource, /複数出力：/);
   assert.match(outputSource, /toggle\.setAttribute\("aria-pressed"/);
