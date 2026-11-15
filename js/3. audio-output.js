@@ -1139,6 +1139,7 @@
 
       state.mainOutputDeviceId = normalized;
       state.speakerSettings.outputRoutingBlocked = false;
+      syncExternalOutputSafety();
       if (mainOutputDirectGainNode?.gain) {
         mainOutputDirectGainNode.gain.setTargetAtTime(state.speakerSettings?.mainEnabled === false ? 0 : 1, audioCtx?.currentTime || 0, 0.01);
       }
@@ -1590,6 +1591,7 @@
     if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
     state.speakerSettings.outputRoutingBlocked = true;
     state.mainOutputDeviceId = String(targetDeviceId || "");
+    syncExternalOutputSafety();
     if (mainOutputDirectGainNode?.gain && audioCtx) {
       const now = audioCtx.currentTime;
       try {
@@ -1620,6 +1622,15 @@
     return true;
   }
 
+  function syncExternalOutputSafety() {
+    const mainId = state.mainOutputDeviceId || "";
+    const shouldMuteYouTube = state.speakerSettings?.outputRoutingBlocked === true ||
+      (!!mainId && !isDefaultOutputDevice({ deviceId: mainId }, latestEnumeratedOutputDevices));
+    try { window.setYouTubeOutputRoutingBlocked?.(shouldMuteYouTube); } catch (e) {}
+    return shouldMuteYouTube;
+  }
+  window.syncExternalOutputSafety = syncExternalOutputSafety;
+
   function updateMultipleOutputToggleUI() {
     const toggle = document.getElementById("multipleOutputToggle");
     if (!toggle) return;
@@ -1639,6 +1650,7 @@
     if (!next) {
       state.speakerSettings.multipleOutputEnabled = false;
       state.mainOutputDeviceId = "";
+      syncExternalOutputSafety();
       saveState();
       const switched = await setMainOutputDevice("", { failClosed: true });
       await syncAdditionalOutputRuntimes();
@@ -1649,6 +1661,7 @@
       return true;
     }
     state.speakerSettings.multipleOutputEnabled = true;
+    syncExternalOutputSafety();
     saveState();
     updateMultipleOutputToggleUI();
     await syncAdditionalOutputRuntimes();
@@ -2600,6 +2613,7 @@
     hasOutputDeviceBaseline = outputs.some(device => device?.kind === "audiooutput");
     const defaultPhysical = getDefaultPhysicalOutput(outputs);
     lastSystemDefaultOutputDeviceId = defaultPhysical?.deviceId || "";
+    syncExternalOutputSafety();
     updateOutputDeviceName();
     renderAdditionalOutputSpeakers();
   }).catch(error => {
