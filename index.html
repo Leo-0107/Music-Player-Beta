@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.83</title>
+<title>Music Player v7.4.84</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.83-r83">
+<link rel="stylesheet" href="style.css?v=7.4.84-r84">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -352,7 +352,8 @@
             <div class="sectionTitle" style="margin:0;">周波数バンド</div>
             <button class="btn small ghost" id="btnEqReset">リセット</button>
           </div>
-          <div id="eqBands" style="display:flex; justify-content:space-between; gap:8px;"></div>
+          <div class="settingsHelpText">各バンドはスライダーまたは数値入力で −12〜+12 dB（0.5 dB刻み）に調整できます。</div>
+          <div id="eqBands" class="eqBands"></div>
         </div>
       </div>
 
@@ -508,7 +509,16 @@
           </div>
         </div>
         <div class="sectionCard" id="customThemeArea" style="display:none;">
-          <div class="sectionTitle">カスタムカラー設定</div>
+          <div class="sectionTitle">カスタムテーマ設定</div>
+          <div class="field customThemeBackgroundField">
+            <label for="customThemeBackgroundInput">背景画像</label>
+            <input type="file" id="customThemeBackgroundInput" accept="image/png,image/jpeg,image/webp,image/avif" aria-label="カスタムテーマの背景画像を選択">
+            <div class="customThemeBackgroundActions">
+              <span id="customThemeBackgroundStatus" class="settingsHelpText" aria-live="polite">背景画像は設定されていません</span>
+              <button class="btn small ghost" id="btnClearCustomThemeBackground" type="button" disabled>画像を削除</button>
+            </div>
+            <div class="settingsHelpText">PNG・JPEG・WebP・AVIF、最大8MB。画像はこの端末内に保存され、カスタムテーマ使用時に表示されます。</div>
+          </div>
           <div class="field">
             <label>背景色 1</label>
             <div class="colorPickerGrid" id="gridColor1"></div>
@@ -693,7 +703,7 @@
   <div class="settingsHome">
     <div class="settingsTitleRow">
       <div class="sectionTitle">設定</div>
-      <input type="search" id="settingsSearch" placeholder="設定項目を検索..." aria-label="設定項目を検索">
+      <input type="search" id="settingsSearch" placeholder="設定名・説明で検索..." aria-label="設定名や説明から項目を検索">
     </div>
 
     <div id="settingsCategoryHome" class="settingsCategoryHome">
@@ -888,8 +898,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.83";
-  const BUILD_REVISION = 83
+  const APP_VERSION = "v7.4.84";
+  const BUILD_REVISION = 84
   const BUILD_COMMIT_ID = "db4aa1b56ff07882c0f31adad4508dfe2e2e08c9";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1264,7 +1274,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.83-r83"></script>
+<script src="js/1. ctrl.js?v=7.4.84-r84"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
