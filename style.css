@@ -3266,7 +3266,7 @@ body.theme-light #btnSettingsAddMusic:hover {
 }
 
 
-/* v7.4.79: restore full-colour category icons and refine frosted bottom navigation */
+/* v7.4.80: match settings detail back title to the category heading */
 .settingsIcon {
   filter: none !important;
   opacity: 1;
@@ -3317,15 +3317,14 @@ body.theme-light .bottomNav::before {
   width: 100%;
   min-width: 0;
   min-height: 40px;
-  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--text);
   text-align: left;
+  font: inherit;
   font-size: 1rem;
   font-weight: 700;
-  line-height: 1.35;
 }
 .settingsDetailBackTitle:hover,
 .settingsDetailBackTitle:active {
