@@ -737,11 +737,16 @@ let mainOutputUsesNativeDestination = false;
       // 明示的な出力機器を指定していない場合は、OS標準のdestinationへ直接出力する。
       if (state.speakerSettings?.outputRoutingBlocked === true) {
         mainOutputUsesDirectSink = false;
-        mainOutputUsesNativeDestination = false;
-        ensureOutputBridge();
-        if (outputBridgeAudio) {
-          outputBridgeAudio.volume = 0;
-          try { outputBridgeAudio.pause(); } catch (e) {}
+        mainOutputUsesNativeDestination = isAndroidStandalonePwa() && !state.mainOutputDeviceId;
+        if (mainOutputUsesNativeDestination) {
+          analyser.connect(mainOutputDirectGainNode);
+          mainOutputDirectGainNode.connect(audioCtx.destination);
+        } else {
+          ensureOutputBridge();
+          if (outputBridgeAudio) {
+            outputBridgeAudio.volume = 0;
+            try { outputBridgeAudio.pause(); } catch (e) {}
+          }
         }
       } else if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
         mainOutputUsesDirectSink = false;
