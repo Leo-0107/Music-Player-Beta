@@ -417,28 +417,6 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     if (!url) return false;
     console.warn("Music Player PCM playback fallback:", error || "unsupported playback settings");
     mediaElement.src = url;
-    const seekPosition = Math.max(0, Number(position) || 0);
-    if (seekPosition > 0) {
-      const applySeek = () => {
-        if (mediaElement.readyState < 1) return false;
-        try { mediaElement.currentTime = seekPosition; return true; } catch (e) { return false; }
-      };
-      if (!applySeek()) {
-        await new Promise(resolve => {
-          let settled = false;
-          const finish = () => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            mediaElement.removeEventListener("loadedmetadata", onMetadata);
-            resolve();
-          };
-          const onMetadata = () => { applySeek(); finish(); };
-          const timer = setTimeout(finish, 3000);
-          mediaElement.addEventListener("loadedmetadata", onMetadata, { once: true });
-        });
-      }
-    }
     mediaElement.playbackRate = currentRate;
     mediaElement.preservesPitch = true;
     setGraphInputNode(sourceNode, filters?.[0] || null);
@@ -448,6 +426,46 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
       playbackPrebufferDelayNode.delayTime.setTargetAtTime(playbackPrebufferMs / 1000, now, 0.025);
     }
     updatePitchShiftNode();
+
+    const seekPosition = Math.max(0, Number(position) || 0);
+    if (seekPosition > 0) {
+      const applySeek = () => {
+        if (mediaElement.readyState < 1) return false;
+        try {
+          mediaElement.currentTime = seekPosition;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+      let seekRestored = applySeek();
+      if (!seekRestored) {
+        seekRestored = await new Promise(resolve => {
+          let settled = false;
+          let timer = null;
+          const finish = result => {
+            if (settled) return;
+            settled = true;
+            if (timer !== null) clearTimeout(timer);
+            if (result) mediaElement.removeEventListener("loadedmetadata", onMetadata);
+            resolve(!!result);
+          };
+          const onMetadata = () => {
+            const restored = mediaElement.src === url && applySeek();
+            mediaElement.removeEventListener("loadedmetadata", onMetadata);
+            if (!settled) finish(restored);
+          };
+          mediaElement.addEventListener("loadedmetadata", onMetadata);
+          timer = setTimeout(() => finish(applySeek()), 3000);
+          if (applySeek()) finish(true);
+        });
+      }
+      if (!seekRestored) {
+        console.warn("Music Player fallback is waiting for metadata; playback remains paused until the saved position can be restored.");
+        return false;
+      }
+    }
+
     if (shouldResume) await mediaElement.play();
     return true;
   }
