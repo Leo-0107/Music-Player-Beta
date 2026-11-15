@@ -628,7 +628,7 @@
     micFeedbackProtection: true,
     micFeedbackStrength: Math.max(0, Math.min(1, loadNum(STORAGE.micFeedbackStrength, 1))),
     normalizeTrackVolume: loadBool(STORAGE.normalizeTrackVolume, true),
-    outputLevelDb: Math.max(-12, Math.min(3, loadNum(STORAGE.outputLevelDb, 0))),
+    outputLevelDb: Math.max(-12, Math.min(0, loadNum(STORAGE.outputLevelDb, 0))),
     speakerPairSwap: loadBool(STORAGE.speakerPairSwap, false),
     visualizerSettings: loadJSON(STORAGE.visualizerSettings, { lowPerformanceMode:false, showFps:false, showLoad:false }),
     visualizerModeSettings: loadJSON(STORAGE.visualizerModeSettings, {}),
