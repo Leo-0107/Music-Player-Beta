@@ -465,13 +465,19 @@
           case "play":
             return async () => {
               if (typeof canUseBufferedPlayback === "function" && !canUseBufferedPlayback()) {
-                await switchBufferedPlaybackToMediaElement(new Error("現在の速度・ピッチ設定はPCM経路の対応範囲外です"), false);
+                const switched = await switchBufferedPlaybackToMediaElement(new Error("現在の速度・ピッチ設定はPCM経路の対応範囲外です"), false);
+                if (!switched) {
+                  throw new Error("フォールバックの再生位置を復元できなかったため、再生を保留しました。位置復元後にもう一度再生してください。");
+                }
                 return mediaElement.play();
               }
               try {
                 return await bufferedPlaybackEngine.play();
               } catch (error) {
-                await switchBufferedPlaybackToMediaElement(error, false);
+                const switched = await switchBufferedPlaybackToMediaElement(error, false);
+                if (!switched) {
+                  throw new Error("フォールバックの再生位置を復元できなかったため、再生を保留しました。位置復元後にもう一度再生してください。");
+                }
                 return mediaElement.play();
               }
             };
