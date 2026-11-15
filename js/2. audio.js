@@ -1072,7 +1072,7 @@ let mainOutputUsesNativeDestination = false;
     // While audible PCM output is active, leave its scheduled tail intact.
     // applyPitchAndRate/applyEqGains will request a frame-aligned Worker handoff.
     if (bufferedPlaybackMode && bufferedPlaybackEngine &&
-        audio.paused &&
+        audio.paused && !bufferedPlaybackEngine.playRequested &&
         typeof bufferedPlaybackEngine.cancelProcessedPcmQueue === "function") {
       bufferedPlaybackEngine.cancelProcessedPcmQueue();
     }
