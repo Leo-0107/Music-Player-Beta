@@ -3042,3 +3042,61 @@ test("binaural mode keeps the HRTF source fixed in front while 3D mode follows t
 
   assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
 });
+
+
+test("4D, 8D, and 16D spatial modes update HRTF position from elapsed time", () => {
+  const start = audioSource.indexOf("function updateSpatialAudio(dt)");
+  const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
+  assert.ok(start >= 0 && end > start, "spatial position update function must exist");
+  const positionSource = audioSource.slice(start, end);
+  const initialAngle = 0.37;
+  const deltaSeconds = 0.24;
+  const t = initialAngle + 1.5 * deltaSeconds;
+  const cases = [
+    {
+      mode: "4D",
+      expected: [
+        Math.sin(t * 0.4) * 2.5,
+        Math.sin(t * 0.8) * 1.2,
+        Math.cos(t * 0.4) * 2.5
+      ]
+    },
+    {
+      mode: "8D",
+      expected: [Math.sin(t) * 3.2, 0, Math.cos(t) * 3.2]
+    },
+    {
+      mode: "16D",
+      expected: [
+        Math.sin(t * 1.2) * 3.5,
+        Math.sin(t * 2.4) * 1.8,
+        Math.cos(t * 0.7) * 3.5
+      ]
+    }
+  ];
+
+  for (const item of cases) {
+    const panner = {
+      positionX: { value: 0 },
+      positionY: { value: 0 },
+      positionZ: { value: 0 }
+    };
+    const sandbox = {
+      audioCtx: {},
+      panner3DNode: panner,
+      audio: { paused: false },
+      state: { dMode: item.mode, panValue: 0 },
+      spatialAngle: initialAngle
+    };
+    vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
+    sandbox.updateSpatialAudio(deltaSeconds);
+    const actual = [panner.positionX.value, panner.positionY.value, panner.positionZ.value];
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(
+        Math.abs(actual[axis] - item.expected[axis]) < 1e-12,
+        `${item.mode} axis ${axis} expected ${item.expected[axis]}, got ${actual[axis]}`
+      );
+    }
+    assert.equal(sandbox.spatialAngle, t);
+  }
+});
