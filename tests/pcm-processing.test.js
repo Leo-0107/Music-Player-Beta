@@ -2759,6 +2759,66 @@ test("repeated EQ scheduling debounces to one PCM settings handoff", async () =>
 });
 
 
+test("PCM settings changed during initial startup are deferred without cancelling the startup queue", async () => {
+  const cancelCalls = [];
+  const invalidateStart = audioSource.indexOf("function invalidateBufferedPcmProcessing()");
+  const invalidateEnd = audioSource.indexOf("\\n  function applyPitchAndRate", invalidateStart);
+  assert.ok(invalidateStart >= 0 && invalidateEnd > invalidateStart,
+    "PCM invalidation helper must exist");
+  const invalidateSource = audioSource.slice(invalidateStart, invalidateEnd);
+  const engineStub = {
+    playRequested: true,
+    cancelProcessedPcmQueue() { cancelCalls.push("cancel"); }
+  };
+  const audioSandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engineStub,
+    audio: { paused: true }
+  };
+  vm.runInNewContext(invalidateSource + "\\nthis.invalidateBufferedPcmProcessing = invalidateBufferedPcmProcessing;", audioSandbox);
+  audioSandbox.invalidateBufferedPcmProcessing();
+  assert.deepEqual(cancelCalls, [], "startup queue must remain alive while play is requested");
+  engineStub.playRequested = false;
+  audioSandbox.invalidateBufferedPcmProcessing();
+  assert.deepEqual(cancelCalls, ["cancel"], "idle paused queue may still be invalidated");
+
+  const { Engine } = createEngineClass(MockWorker, {
+    canUseBufferedPlayback: () => true,
+    ensureGraph() {},
+    resumeAudioCtx: async () => {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "blob:startup-settings-test";
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine.paused = true;
+  engine.playRequested = true;
+
+  assert.equal(await engine.updateProcessingSettings(), false);
+  assert.equal(engine.pendingProcessingSettingsUpdate, true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(), true);
+  assert.equal(engine.pendingProcessingSettingsUpdate, true);
+
+  const originalUpdate = engine.updateProcessingSettings.bind(engine);
+  let postStartupHandoffs = 0;
+  engine.updateProcessingSettings = async () => {
+    postStartupHandoffs++;
+    return true;
+  };
+  engine.prepare = async () => engine.buffer;
+  engine.startPcmSession = async () => {
+    await originalUpdate();
+    return { started: true };
+  };
+  engine.startTimeUpdates = () => {};
+  engine.dispatch = () => {};
+
+  await engine.play();
+  assert.equal(engine.paused, false);
+  assert.equal(engine.pendingProcessingSettingsUpdate, false);
+  assert.equal(postStartupHandoffs, 1,
+    "latest settings must be handed off after the initial PCM session starts");
+});
+
 test("2D spatial mode selects the direct stereo route and disables the 3D branch", () => {
   const start = audioSource.indexOf("function updateSpatialAudioRouting()");
   const end = audioSource.indexOf("\n  function setDMode", start);
