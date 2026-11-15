@@ -3466,7 +3466,7 @@ test("additional output runtime synchronization is fail-closed while multiple ou
 
 test("automatic new-speaker switch disables all saved additional routes and selects only the new output", async () => {
   const start = outputSource.indexOf("  async function switchToExclusiveOutputDevice");
-  const end = outputSource.indexOf("\n  function updateMultipleOutputToggleUI", start);
+  const end = outputSource.indexOf("\n  function syncExternalOutputSafety", start);
   assert.ok(start >= 0 && end > start, "exclusive output switch helper must exist");
   const functionSource = outputSource.slice(start, end);
   const routes = [{ deviceId: "old-main", enabled: true }, { deviceId: "old-extra", enabled: true }];
@@ -3502,6 +3502,7 @@ test("routing failure mutes the main sink and bridge and persists a blocked stat
   const sandbox = {
     state: { speakerSettings: { multipleOutputEnabled: true }, mainOutputDeviceId: "old" },
     mainOutputDirectGainNode: { gain: directGain }, audioCtx: { currentTime: 1 }, outputBridgeAudio: bridge,
+    syncExternalOutputSafety() {},
     stopAllAdditionalOutputRuntimes() { stopped++; }, saveState() { saved++; }
   };
   vm.runInNewContext(functionSource + "\nthis.muteAllAppOutputsForRoutingFailure = muteAllAppOutputsForRoutingFailure;", sandbox);
