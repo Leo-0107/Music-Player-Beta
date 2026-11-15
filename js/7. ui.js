@@ -44,6 +44,7 @@
       drawWave._wave3DLastSampleTime = -1;
     }
     lastFrameTime = performance.now();
+    if (typeof drawWave === "function") drawWave._lastSpatialAudioTime = audioCtx?.currentTime;
     waveTimeDisplayElapsed = WAVE_TIME_UPDATE_INTERVAL;
     if (typeof drawWave === "function") drawWave._wave3DPauseFade = 1;
     startWaveAnimation();
@@ -1133,7 +1134,19 @@ function drawNewWaveVisualizer(ctx, width, height, dt, isPlaying, lowPerformance
       }
     }
 
-function drawWave() {
+function updateSpatialAudioFromClock(isPlaying) {
+    const currentAudioTime = audioCtx?.currentTime;
+    if (!Number.isFinite(currentAudioTime)) return;
+
+    const previousAudioTime = drawWave._lastSpatialAudioTime;
+    drawWave._lastSpatialAudioTime = currentAudioTime;
+    const deltaSeconds = isPlaying && Number.isFinite(previousAudioTime)
+      ? Math.max(0, currentAudioTime - previousAudioTime)
+      : 0;
+    updateSpatialAudio(deltaSeconds);
+  }
+
+  function drawWave() {
     const pageVisible = document.visibilityState === "visible";
     const isPlaying = !audio.paused && pageVisible;
     if (!pageVisible) {
@@ -1156,6 +1169,11 @@ function drawWave() {
       if (now - lastLowPerfFrame < 33) return;
       drawWave._lastLowPerfFrame = now;
     }
+
+    // 空間音響は描画FPSではなくAudioContextの時計で進める。
+    // 低負荷モードや描画キャンバスの状態に左右されないよう、描画処理より先に更新する。
+    updateSpatialAudioFromClock(isPlaying);
+
     if (visualizerCfg.showFps || visualizerCfg.showLoad) {
       visualizerFrameTime = visualizerFrameTime * 0.8 + Math.max(1, dt * 1000) * 0.2;
       if (visualizerCfg.showFps && el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / visualizerFrameTime));
@@ -1183,8 +1201,6 @@ function drawWave() {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-
-    updateSpatialAudio(isPlaying ? dt : 0);
 
     if (!analyser || !analyserData) {
       if (state.waveMode === "2d") {
@@ -1335,6 +1351,10 @@ function drawWave() {
       requestAnimationFrame(drawWave);
     }
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") isWaveAnimating = false;
+  });
 
   function requestWaveStaticFrame() {
     if (document.visibilityState !== "visible" || !el.wave || isWaveAnimating) return;

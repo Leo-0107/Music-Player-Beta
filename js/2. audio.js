@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 67;
+  const BUILD_REVISION = 68;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -381,26 +381,21 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   }
   let playbackPrebufferMs = readPlaybackPrebufferMs();
   let playbackPrebufferDelayNode = null;
-  let activeGraphInputNode = null;
-  let activeGraphInputTarget = null;
+  let graphInputOwnership = null;
+
+  function getGraphInputOwnership() {
+    if (!graphInputOwnership) graphInputOwnership = new PcmGraphInputOwnership();
+    return graphInputOwnership;
+  }
 
   function setGraphInputNode(node, target = null) {
     if (node && !target) target = filters?.[0] || null;
-    if (activeGraphInputNode === node && activeGraphInputTarget === (node ? target : null)) return true;
-    if (activeGraphInputNode && activeGraphInputTarget) {
-      try { activeGraphInputNode.disconnect(activeGraphInputTarget); } catch (e) {}
-    }
-    activeGraphInputNode = node || null;
-    activeGraphInputTarget = node ? target : null;
-    if (node && target) {
-      try { node.connect(target); return true; }
-      catch (error) {
-        activeGraphInputNode = null;
-        activeGraphInputTarget = null;
-        throw error;
-      }
-    }
-    return !node;
+    if (!node) return getGraphInputOwnership().set(null, null);
+    return getGraphInputOwnership().set(node, target);
+  }
+
+  function clearGraphInputNode(expectedNode, expectedTarget = null) {
+    return getGraphInputOwnership().clear(expectedNode, expectedTarget);
   }
 
   function canUseBufferedPlayback() {
@@ -422,28 +417,6 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     if (!url) return false;
     console.warn("Music Player PCM playback fallback:", error || "unsupported playback settings");
     mediaElement.src = url;
-    const seekPosition = Math.max(0, Number(position) || 0);
-    if (seekPosition > 0) {
-      const applySeek = () => {
-        if (mediaElement.readyState < 1) return false;
-        try { mediaElement.currentTime = seekPosition; return true; } catch (e) { return false; }
-      };
-      if (!applySeek()) {
-        await new Promise(resolve => {
-          let settled = false;
-          const finish = () => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            mediaElement.removeEventListener("loadedmetadata", onMetadata);
-            resolve();
-          };
-          const onMetadata = () => { applySeek(); finish(); };
-          const timer = setTimeout(finish, 3000);
-          mediaElement.addEventListener("loadedmetadata", onMetadata, { once: true });
-        });
-      }
-    }
     mediaElement.playbackRate = currentRate;
     mediaElement.preservesPitch = true;
     setGraphInputNode(sourceNode, filters?.[0] || null);
@@ -453,6 +426,46 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
       playbackPrebufferDelayNode.delayTime.setTargetAtTime(playbackPrebufferMs / 1000, now, 0.025);
     }
     updatePitchShiftNode();
+
+    const seekPosition = Math.max(0, Number(position) || 0);
+    if (seekPosition > 0) {
+      const applySeek = () => {
+        if (mediaElement.readyState < 1) return false;
+        try {
+          mediaElement.currentTime = seekPosition;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+      let seekRestored = applySeek();
+      if (!seekRestored) {
+        seekRestored = await new Promise(resolve => {
+          let settled = false;
+          let timer = null;
+          const finish = result => {
+            if (settled) return;
+            settled = true;
+            if (timer !== null) clearTimeout(timer);
+            if (result) mediaElement.removeEventListener("loadedmetadata", onMetadata);
+            resolve(!!result);
+          };
+          const onMetadata = () => {
+            const restored = mediaElement.src === url && applySeek();
+            mediaElement.removeEventListener("loadedmetadata", onMetadata);
+            if (!settled) finish(restored);
+          };
+          mediaElement.addEventListener("loadedmetadata", onMetadata);
+          timer = setTimeout(() => finish(applySeek()), 3000);
+          if (applySeek()) finish(true);
+        });
+      }
+      if (!seekRestored) {
+        console.warn("Music Player fallback is waiting for metadata; playback remains paused until the saved position can be restored.");
+        return false;
+      }
+    }
+
     if (shouldResume) await mediaElement.play();
     return true;
   }
@@ -617,6 +630,9 @@ let mainOutputUsesNativeDestination = false;
       const pitchProcessedGainNode = audioCtx.createGain();
       const pitchRouteNode = audioCtx.createGain();
       audioCtx._musicPlayerPitchRoute = pitchRouteNode;
+      // Stable PCM insertion boundary: processed PCM already contains EQ/pitch,
+      // so it enters here before the shared spatial and output graph.
+      audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;
       audioCtx._musicPlayerPitchBypassGain = pitchBypassGainNode;
       audioCtx._musicPlayerPitchProcessedGain = pitchProcessedGainNode;
       pitchBypassGainNode.gain.value = 1;
@@ -760,8 +776,8 @@ let mainOutputUsesNativeDestination = false;
       syncAdditionalOutputRuntimes().catch(() => {});
     } catch(e) {
       audioGraphReady = false;
-      activeGraphInputNode = null;
-      activeGraphInputTarget = null;
+      graphInputOwnership?.reset();
+      if (audioCtx) audioCtx._musicPlayerPostDspInputNode = null;
       // 途中まで構築した経路を切り離し、次回は同じ sourceNode から組み直す。
       // sourceNode 自体は破棄・再生成しない（同じ audio 要素への二重生成を防ぐ）。
       try { sourceNode?.disconnect(); } catch (ignore) {}
@@ -1052,16 +1068,39 @@ let mainOutputUsesNativeDestination = false;
     return node;
   }
 
+  function invalidateBufferedPcmProcessing() {
+    // While audible PCM output is active, leave its scheduled tail intact.
+    // applyPitchAndRate/applyEqGains will request a frame-aligned Worker handoff.
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        audio.paused && !bufferedPlaybackEngine.playRequested &&
+        typeof bufferedPlaybackEngine.cancelProcessedPcmQueue === "function") {
+      bufferedPlaybackEngine.cancelProcessedPcmQueue();
+    }
+  }
+
   function applyPitchAndRate(){
+    invalidateBufferedPcmProcessing();
     ensureGraph();
     if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
-      switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), !audio.paused).catch(error => {
+      switchBufferedPlaybackToMediaElement(
+        new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"),
+        !audio.paused || !!bufferedPlaybackEngine?.playRequested
+      ).catch(error => {
         console.warn("Music Player playback fallback failed:", error);
       });
     } else {
       audio.playbackRate = currentRate;
       audio.preservesPitch = true;
-      updatePitchShiftNode();
+      if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+          typeof bufferedPlaybackEngine.updateProcessingSettings === "function") {
+        bufferedPlaybackEngine.updateProcessingSettings().catch(error => {
+          switchBufferedPlaybackToMediaElement(error, !audio.paused).catch(fallbackError => {
+            console.warn("Music Player playback fallback failed:", fallbackError);
+          });
+        });
+      } else {
+        updatePitchShiftNode();
+      }
     }
     if (el.rateText) el.rateText.textContent = `${currentRate.toFixed(2)}x`;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
@@ -1300,6 +1339,7 @@ let mainOutputUsesNativeDestination = false;
       const slider = vBand.querySelector(".vSlider");
 
       slider.addEventListener("input", () => {
+        invalidateBufferedPcmProcessing();
         if(eqAnimId) cancelAnimationFrame(eqAnimId);
         const v = Number(slider.value);
         state.eqState.preset = "Custom";
@@ -1331,6 +1371,7 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function animateEqPreset(targetGains) {
+    invalidateBufferedPcmProcessing();
     if(eqAnimId) cancelAnimationFrame(eqAnimId);
     
     const startGains = [...state.eqState.gains];
@@ -1374,6 +1415,10 @@ let mainOutputUsesNativeDestination = false;
         }
       }
     });
+    if (bufferedPlaybackMode && bufferedPlaybackEngine &&
+        typeof bufferedPlaybackEngine.scheduleProcessingSettingsUpdate === "function") {
+      bufferedPlaybackEngine.scheduleProcessingSettingsUpdate();
+    }
   }
 
   if (el.btnEqReset) {
