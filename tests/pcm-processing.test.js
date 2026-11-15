@@ -3552,10 +3552,13 @@ test("YouTube iframe audio is muted on custom output routing and prior mute stat
   assert.ok(start >= 0 && end > start, "YouTube output safety helper must exist");
   const helperSource = youtubeSource.slice(start, end);
   let muted = false;
+  let volume = 72;
   const sandbox = {
     youtubePlayerReady: true,
     youtubePlayer: {
       isMuted() { return muted; },
+      getVolume() { return volume; },
+      setVolume(value) { volume = value; },
       mute() { muted = true; },
       unMute() { muted = false; }
     },
@@ -3566,12 +3569,17 @@ test("YouTube iframe audio is muted on custom output routing and prior mute stat
   vm.runInNewContext(helperSource + "\nthis.setYouTubeOutputRoutingBlocked = setYouTubeOutputRoutingBlocked;", sandbox);
   sandbox.setYouTubeOutputRoutingBlocked(true);
   assert.equal(muted, true);
+  assert.equal(volume, 0);
   sandbox.setYouTubeOutputRoutingBlocked(false);
   assert.equal(muted, false);
+  assert.equal(volume, 72);
 
   muted = true;
+  volume = 45;
   sandbox.youtubeOutputMuteApplied = false;
   sandbox.setYouTubeOutputRoutingBlocked(true);
+  assert.equal(volume, 0);
   sandbox.setYouTubeOutputRoutingBlocked(false);
   assert.equal(muted, true);
+  assert.equal(volume, 45);
 });
