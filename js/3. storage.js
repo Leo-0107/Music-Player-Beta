@@ -186,13 +186,12 @@
       };
 
       try {
-        const req = indexedDB.open(dbName, 1);
+        const req = indexedDB.open(dbName, 2);
 
         req.onupgradeneeded = e => {
           const d = e.target.result;
-          if (!d.objectStoreNames.contains("tracks")) {
-            d.createObjectStore("tracks", { keyPath: "name" });
-          }
+          if (!d.objectStoreNames.contains("tracks")) d.createObjectStore("tracks", { keyPath: "name" });
+          if (!d.objectStoreNames.contains("appSettings")) d.createObjectStore("appSettings", { keyPath: "key" });
         };
 
         req.onblocked = () => finish(reject, new Error("blocked"));
@@ -218,7 +217,7 @@
   async function initDB() {
     if (db) {
       try {
-        if (db.objectStoreNames.contains("tracks")) return true;
+        if (db.objectStoreNames.contains("tracks") && db.objectStoreNames.contains("appSettings")) return true;
       } catch {}
       try { db.close(); } catch {}
       db = null;
@@ -252,6 +251,40 @@
     return false;
   }
 
+  function saveCustomThemeBackground(blob) {
+    return new Promise(resolve => {
+      if (!db || !blob || !db.objectStoreNames.contains("appSettings")) return resolve(false);
+      try {
+        const tx = db.transaction("appSettings", "readwrite");
+        tx.objectStore("appSettings").put({ key: "customThemeBackground", blob, updatedAt: Date.now() });
+        tx.oncomplete = () => { updateStorageUsageStatus(); resolve(true); };
+        tx.onerror = tx.onabort = () => resolve(false);
+      } catch { resolve(false); }
+    });
+  }
+  function loadCustomThemeBackground() {
+    return new Promise(resolve => {
+      if (!db || !db.objectStoreNames.contains("appSettings")) return resolve(null);
+      try {
+        const tx = db.transaction("appSettings", "readonly");
+        const request = tx.objectStore("appSettings").get("customThemeBackground");
+        request.onsuccess = () => resolve(request.result?.blob instanceof Blob ? request.result.blob : null);
+        request.onerror = () => resolve(null);
+        tx.onabort = () => resolve(null);
+      } catch { resolve(null); }
+    });
+  }
+  function deleteCustomThemeBackground() {
+    return new Promise(resolve => {
+      if (!db || !db.objectStoreNames.contains("appSettings")) return resolve(false);
+      try {
+        const tx = db.transaction("appSettings", "readwrite");
+        tx.objectStore("appSettings").delete("customThemeBackground");
+        tx.oncomplete = () => { updateStorageUsageStatus(); resolve(true); };
+        tx.onerror = tx.onabort = () => resolve(false);
+      } catch { resolve(false); }
+    });
+  }
   async function updateStorageUsageStatus() {
     const status = document.getElementById("storageUsageStatus");
     if (!status) return;
