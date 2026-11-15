@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.4.60-r69";
+const CACHE_NAME = "music-player-app-v7.4.60-r70";
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
   "./sw.js",
@@ -6,18 +6,18 @@ const APP_SHELL = [
   "./style.css",
   "./manifest.json",
   "./js/1. ctrl.js",
-  "./js/2. audio.js",
-  "./js/3. audio-output.js",
-  "./js/10. buffered-playback-engine.js",
-  "./js/11. pcm-processing-worker.js",
-  "./js/4. state.js",
-  "./js/5. storage.js",
-  "./js/6. library.js",
-  "./js/7. ui.js",
-  "./js/8. sw.js",
-  "./js/9. youtube.js",
-  "./js/pitch-worklet.js",
-  "./js/speaker-delay-worklet.js"
+  "./js/7. audio.js",
+  "./js/11. audio-output.js",
+  "./js/9. buffered-playback-engine.js",
+  "./js/10. pcm-processing-worker.js",
+  "./js/2. state.js",
+  "./js/3. storage.js",
+  "./js/4. library.js",
+  "./js/6. ui.js",
+  "./js/13. sw.js",
+  "./js/5. youtube.js",
+  "./js/8. pitch-worklet.js",
+  "./js/12. speaker-delay-worklet.js"
 ];
 
 self.addEventListener("install", event => {

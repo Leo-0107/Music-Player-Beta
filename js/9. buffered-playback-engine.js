@@ -105,7 +105,7 @@ class ProcessedPcmRingBuffer {
 class PcmProcessingWorkerSession {
   constructor(options = {}) {
     const WorkerConstructor = options.WorkerClass || Worker;
-    const workerUrl = options.workerUrl || new URL("js/11. pcm-processing-worker.js", document.baseURI);
+    const workerUrl = options.workerUrl || new URL("js/10. pcm-processing-worker.js", document.baseURI);
     if (typeof WorkerConstructor !== "function") throw new Error("Web Worker is unavailable");
     this.worker = new WorkerConstructor(workerUrl);
     this.requests = new Map();
@@ -1277,7 +1277,7 @@ class BufferedPlaybackEngine {
   async ensureProcessorWorker(settings = {}) {
     if (this.processorWorker && this.processorReady) return this.processorReady;
     if (typeof Worker !== "function") throw new Error("Web Worker is unavailable");
-    const worker = new Worker(new URL("js/11. pcm-processing-worker.js", document.baseURI));
+    const worker = new Worker(new URL("js/10. pcm-processing-worker.js", document.baseURI));
     this.processorWorker = worker;
     const failWorker = error => {
       for (const pending of this.processorRequests.values()) pending.reject(error);

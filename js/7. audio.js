@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 69;
+  const BUILD_REVISION = 70;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -28,7 +28,7 @@
   let rightDisplayLevel = 0;
   let waveDecayActive = false;
   let disconnectedOutputDeviceIds = new Set();
-  // OS既定出力IDは js/3. audio-output.js 側で一元管理する。
+  // OS既定出力IDは js/11. audio-output.js 側で一元管理する。
   let knownPhysicalOutputDeviceIds = new Set();
   let pendingOutputDeviceRefresh = false;
   let playbackIntent = loadStr(STORAGE.lastPlayback, "") === "playing";
@@ -859,7 +859,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/pitch-worklet.js", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 
