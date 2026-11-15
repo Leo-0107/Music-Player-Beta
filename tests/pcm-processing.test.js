@@ -26,11 +26,11 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.76";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 76;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 76;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.76"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.76-r76'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.77";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 77;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 77;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.77"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.77-r77'));
   assert.ok(indexSource.includes("7.4.76-r76"));
   assert.ok(controllerSource.includes("7.4.76-r76"));
   assert.ok(rootServiceWorkerSource.includes("7.4.76-r76"));
