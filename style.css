@@ -3147,3 +3147,121 @@ body.theme-light #btnSettingsAddMusic:hover {
   gap: 8px;
   margin-top: 12px;
 }
+
+
+/* Refined navigation and setting cards */
+.settingsCategoryCard,
+.settingsCard,
+.menuQuickCategoryCard,
+.menuQuickActionCard {
+  position: relative;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 86%, var(--panel2));
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,.045);
+  transition: transform .16s ease, border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
+}
+.settingsCategoryCard,
+.menuQuickCategoryCard {
+  padding: 13px 14px;
+}
+.settingsCard,
+.menuQuickActionCard {
+  padding: 13px 14px;
+}
+.settingsIcon {
+  filter: grayscale(.72);
+  opacity: .88;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.settingsCategoryCard:hover,
+.settingsCard:hover,
+.menuQuickCategoryCard:hover,
+.menuQuickActionCard:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: var(--panel2);
+  box-shadow: 0 5px 14px rgba(0,0,0,.075);
+}
+.settingsCategoryCard:hover .settingsIcon,
+.settingsCard:hover .settingsIcon,
+.menuQuickCategoryCard:hover .settingsIcon,
+.menuQuickActionCard:hover .settingsIcon {
+  opacity: 1;
+  transform: scale(1.035);
+}
+.settingsCategoryCard:active,
+.settingsCard:active,
+.menuQuickCategoryCard:active,
+.menuQuickActionCard:active {
+  transform: scale(.99);
+  box-shadow: none;
+}
+.settingsCategoryCard:focus-visible,
+.settingsCard:focus-visible,
+.menuQuickCategoryCard:focus-visible,
+.menuQuickActionCard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.bottomNav {
+  border-top-color: color-mix(in srgb, var(--line) 82%, transparent);
+}
+.navTab {
+  position: relative;
+  transition: color .16s ease, background-color .16s ease;
+}
+.navTab::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 22px;
+  height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform .18s ease;
+}
+.navTab.active::before {
+  transform: translateX(-50%) scaleX(1);
+}
+.navTab .icon {
+  transition: transform .16s ease;
+}
+.navTab.active .icon {
+  transform: translateY(-1px);
+}
+.navTab.navTap {
+  animation: navTabTap .2s ease-out;
+}
+@keyframes navTabTap {
+  0% { background: transparent; }
+  45% { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  100% { background: transparent; }
+}
+.uiEnter {
+  animation: uiEnter .19s ease-out both;
+}
+@keyframes uiEnter {
+  from { opacity: .72; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settingsCategoryCard,
+  .settingsCard,
+  .menuQuickCategoryCard,
+  .menuQuickActionCard,
+  .navTab,
+  .navTab::before,
+  .navTab .icon {
+    transition: none !important;
+    animation: none !important;
+  }
+  .uiEnter {
+    animation: none !important;
+  }
+}
