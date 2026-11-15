@@ -211,12 +211,12 @@
   }
 
   function outputLevelDbToGain(value) {
-    const db = Math.max(-12, Math.min(3, Number(value) || 0));
+    const db = Math.max(-12, Math.min(0, Number(value) || 0));
     return Math.pow(10, db / 20);
   }
   function applyOutputLevelDb(value, persist = true) {
     const parsed = Number(value);
-    state.outputLevelDb = Math.max(-12, Math.min(3, Number.isFinite(parsed) ? parsed : 0));
+    state.outputLevelDb = Math.max(-12, Math.min(0, Number.isFinite(parsed) ? parsed : 0));
     if (el.outputLevelDb) el.outputLevelDb.value = String(state.outputLevelDb);
     if (el.outputLevelDbText) {
       const db = state.outputLevelDb;
@@ -252,7 +252,9 @@
     const rms = Math.sqrt(energy / trackLoudnessData.length);
     if (!Number.isFinite(rms) || rms < 0.008) return;
     trackLoudnessRms = trackLoudnessRms > 0 ? trackLoudnessRms * 0.82 + rms * 0.18 : rms;
-    const targetGain = Math.max(0.5, Math.min(1.8, 0.12 / trackLoudnessRms));
+    const canBoost = state.clippingProtection !== false && state.speakerSettings?.multipleOutputEnabled !== true;
+    const maxGain = canBoost ? 1.8 : 1;
+    const targetGain = Math.max(0.5, Math.min(maxGain, 0.12 / trackLoudnessRms));
     trackLoudnessGainNode.gain.setTargetAtTime(targetGain, now, 1.6);
   }
   if (el.outputLevelDb) {
