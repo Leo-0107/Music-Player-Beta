@@ -2939,3 +2939,71 @@ test("audio proxy does not start MediaElement playback when fallback cannot rest
   assert.equal(nativePlayCalls, 1);
   assert.equal(fallbackCalls, 3);
 });
+
+
+test("audio proxy routes local audio to PCM while local video and YouTube stay on the native media element", () => {
+  const start = stateSource.indexOf("const audio = new Proxy(mediaElement, {");
+  const end = stateSource.indexOf("\n  });", start) + 6;
+  assert.ok(start >= 0 && end > start, "audio compatibility proxy must exist");
+  const proxySource = stateSource.slice(start, end);
+
+  const createHarness = mediaType => {
+    const mediaElement = {
+      src: "",
+      removedAttributes: [],
+      loadCalls: 0,
+      removeAttribute(name) {
+        this.removedAttributes.push(name);
+        if (name === "src") this.src = "";
+      },
+      load() { this.loadCalls++; }
+    };
+    const engine = {
+      sourceUrl: "",
+      clearCalls: 0,
+      setSource(url) { this.sourceUrl = url; },
+      clear() { this.clearCalls++; this.sourceUrl = ""; }
+    };
+    const graphCalls = [];
+    const sandbox = {
+      mediaElement,
+      bufferedPlaybackMode: false,
+      bufferedPlaybackEngine: engine,
+      playbackPrebufferMs: 100,
+      state: { currentSong: { mediaType } },
+      setGraphInputNode(...args) { graphCalls.push(args); },
+      setPlaybackPrebufferMs(value) { sandbox.prebufferValue = value; },
+      sourceNode: { id: "native-source" },
+      filters: [{ id: "eq" }]
+    };
+    vm.runInNewContext(proxySource + "\nthis.audio = audio;", sandbox);
+    return { sandbox, mediaElement, engine, graphCalls };
+  };
+
+  const localAudio = createHarness("audio");
+  localAudio.sandbox.audio.src = "blob:local-audio";
+  assert.equal(localAudio.sandbox.bufferedPlaybackMode, true);
+  assert.equal(localAudio.sandbox.audio.src, "blob:local-audio");
+  assert.equal(localAudio.engine.sourceUrl, "blob:local-audio");
+  assert.deepEqual(localAudio.mediaElement.removedAttributes, ["src"]);
+  assert.equal(localAudio.mediaElement.loadCalls, 1);
+  assert.equal(localAudio.graphCalls[0][0], null);
+  assert.equal(localAudio.sandbox.prebufferValue, 100);
+
+  const localVideo = createHarness("video");
+  localVideo.sandbox.audio.src = "blob:local-video";
+  assert.equal(localVideo.sandbox.bufferedPlaybackMode, false);
+  assert.equal(localVideo.sandbox.audio.src, "blob:local-video");
+  assert.equal(localVideo.mediaElement.src, "blob:local-video");
+  assert.equal(localVideo.engine.clearCalls, 1);
+  assert.equal(localVideo.graphCalls[0][0], localVideo.sandbox.sourceNode);
+  assert.equal(localVideo.graphCalls[0][1], localVideo.sandbox.filters[0]);
+
+  const youtube = createHarness("youtube");
+  youtube.sandbox.audio.src = "";
+  assert.equal(youtube.sandbox.bufferedPlaybackMode, false);
+  assert.equal(youtube.sandbox.audio.src, "");
+  assert.equal(youtube.engine.clearCalls, 1);
+  assert.equal(youtube.graphCalls[0][0], youtube.sandbox.sourceNode);
+  assert.equal(youtube.graphCalls[0][1], youtube.sandbox.filters[0]);
+});
