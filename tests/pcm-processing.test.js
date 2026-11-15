@@ -2633,3 +2633,124 @@ test("MediaElement fallback timeout stays paused and restores the saved seek whe
   assert.equal(onMetadata, null);
   assert.equal(playCalls, 0);
 });
+
+
+test("rapid PCM rate, pitch, and EQ updates keep only the newest handoff active", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      this.messages = [];
+      workers.push(this);
+    }
+    postMessage(data, transfer) {
+      this.messages.push(data);
+      super.postMessage(data, transfer);
+    }
+  }
+
+  const appState = {
+    eqState: { gains: [0, 0, 0, 0, 0] },
+    pitchSemitones: 0,
+    currentSong: { duration: 1 }
+  };
+  const context = createMockOutputContext();
+  const routeNode = { connect() {}, disconnect() {} };
+  context._musicPlayerPostDspInputNode = routeNode;
+  let ownership;
+  let timerId = 0;
+  const { Engine, GraphInputOwnership } = createEngineClass(TrackingWorker, {
+    audioCtx: context,
+    state: appState,
+    setGraphInputNode(node, target) { return ownership.set(node, target); },
+    clearGraphInputNode(node, target) { return ownership.clear(node, target); },
+    ensureGraph() {},
+    async resumeAudioCtx() {},
+    canUseBufferedPlayback() { return true; },
+    mediaElement: { dispatchEvent() { return true; } },
+    Event: class MockEvent { constructor(type) { this.type = type; } },
+    setInterval() { return ++timerId; },
+    clearInterval() {},
+    setTimeout() { return ++timerId; },
+    clearTimeout() {}
+  });
+  ownership = new GraphInputOwnership();
+  const engine = new Engine();
+  engine.sourceUrl = "blob:pcm-rapid-settings";
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine._readyState = 4;
+  await engine.play();
+
+  const settings = [
+    { rate: 1.05, pitch: 1, eq: [1, 0, 0, 0, 0] },
+    { rate: 1.1, pitch: 2, eq: [0, 1, 0, 0, 0] },
+    { rate: 1.15, pitch: 3, eq: [0, 0, 1, 0, 0] },
+    { rate: 1.2, pitch: 4, eq: [0, 0, 0, 1, 0] },
+    { rate: 1.25, pitch: 5, eq: [0, 0, 0, 0, 1] }
+  ];
+  const pending = [];
+  for (const setting of settings) {
+    appState.eqState.gains = setting.eq.slice();
+    appState.pitchSemitones = setting.pitch;
+    engine.setPlaybackRate(setting.rate);
+    pending.push(engine.updateProcessingSettings());
+  }
+
+  const results = await Promise.all(pending);
+  assert.equal(results.filter(Boolean).length, 1);
+  const latest = results[results.length - 1];
+  assert.ok(latest && latest.session);
+  assert.equal(engine.pcmOutputController.activeSession, latest.session);
+  assert.equal(latest.session.scheduler.playbackRate, 1.25);
+  assert.equal(engine.pcmOutputController.state, "running");
+
+  const latestInit = workers
+    .flatMap(worker => worker.messages.filter(message => message.type === "init"))
+    .filter(message =>
+      JSON.stringify(message.eqGains) === JSON.stringify([0, 0, 0, 0, 1]) &&
+      Math.abs(message.pitch - Math.pow(2, 5 / 12) / 1.25) < 1e-10
+    );
+  assert.ok(latestInit.length >= 1, "latest Worker must receive the newest EQ and compensated pitch");
+  assert.ok(workers.length >= settings.length + 1);
+
+  engine.pause();
+  engine.releaseForFallback();
+  assert.equal(engine.pcmOutputController, null);
+  assert.equal(ownership.activeNode, null);
+  assert.equal(workers.every(worker => worker.terminated), true);
+});
+
+test("repeated EQ scheduling debounces to one PCM settings handoff", async () => {
+  const timers = [];
+  const cleared = [];
+  let nextTimerId = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    setTimeout(callback, delay) {
+      const timer = { id: ++nextTimerId, callback, delay };
+      timers.push(timer);
+      return timer.id;
+    },
+    clearTimeout(id) { cleared.push(id); }
+  });
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine.paused = false;
+  engine.playRequested = true;
+  let updateCount = 0;
+  engine.updateProcessingSettings = async () => {
+    updateCount++;
+    return true;
+  };
+
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(timers.length, 3);
+  assert.deepEqual(cleared, [1, 2]);
+  assert.equal(engine.pcmSettingsTimer, 3);
+
+  timers[2].callback();
+  await Promise.resolve();
+  assert.equal(updateCount, 1);
+  assert.equal(engine.pcmSettingsTimer, null);
+});
