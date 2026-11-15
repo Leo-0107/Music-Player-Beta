@@ -45,9 +45,6 @@ jobs:
           node --check "js/1. ctrl.js"
           node --check "js/11. pcm-processing-worker.js"
           node --check tests/pcm-processing.test.js
-          for file in "js/5. storage.js" "js/4. state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/6. library.js" "js/7. ui.js" "js/9. youtube.js"; do
-            node --check "$file"
-          done
           {
             printf '(() => {\n'
             cat "js/5. storage.js" "js/4. state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/6. library.js" "js/7. ui.js" "js/9. youtube.js"
