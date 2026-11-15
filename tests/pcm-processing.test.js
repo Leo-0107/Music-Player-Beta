@@ -3801,6 +3801,7 @@ test("menu detail keeps the menu title and category back row visible", () => {
   assert.match(openSource, /mainMenuList\) el\.mainMenuList\.style\.display = "flex"/);
   assert.match(openSource, /menuCategoryView\) menuCategoryView\.hidden = false/);
   assert.match(openSource, /menuCategoryCards\) menuCategoryCards\.hidden = true/);
+  assert.ok(openSource.includes('node.hidden = true'));
   assert.match(openSource, /sideTitle\) el\.sideTitle\.textContent = "メニュー"/);
   assert.match(openSource, /btnSideBack\) el\.btnSideBack\.style\.display = "none"/);
   const backStart = uiSource.indexOf("if (btnMenuCategoryBack) {");
@@ -3809,6 +3810,7 @@ test("menu detail keeps the menu title and category back row visible", () => {
   const backSource = uiSource.slice(backStart, backEnd);
   assert.match(backSource, /if \(menuDetailOpen\)[\s\S]*?menuDetailOpen = false/);
   assert.match(backSource, /menuCategoryCards\.hidden = false/);
+  assert.ok(backSource.includes('node.hidden = false'));
   assert.match(backSource, /menuCategoryView\) menuCategoryView\.hidden = true/);
 });
 

@@ -1396,6 +1396,7 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   function resetSidebarView() {
     if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
     if (menuCategoryView) menuCategoryView.hidden = true;
     if (menuCategoryHome) menuCategoryHome.hidden = false;
     activeMenuCategoryTitle = "";
@@ -1426,6 +1427,7 @@ function updateSpatialAudioFromClock(isPlaying) {
       }
       document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
       if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+      document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
       if (menuCategoryHome) menuCategoryHome.hidden = true;
       if (menuCategoryView) menuCategoryView.hidden = false;
       if (menuCategoryCards) menuCategoryCards.hidden = false;
@@ -1553,6 +1555,7 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   function openMenuDetail(secId, title, categoryTitle) {
     if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = true; });
     if (menuCategoryHome) menuCategoryHome.hidden = true;
     if (menuCategoryView) menuCategoryView.hidden = false;
     if (menuCategoryCards) menuCategoryCards.hidden = true;
@@ -1635,6 +1638,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (!category || !menuCategoryHome || !menuCategoryView || !menuCategoryCards) return;
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
     menuCategoryTitle.textContent = category.title;
     menuCategoryCards.hidden = false;
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
@@ -1771,6 +1775,7 @@ function updateSpatialAudioFromClock(isPlaying) {
         document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
         menuDetailOpen = false;
         if (menuCategoryCards) menuCategoryCards.hidden = false;
+        document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
         if (el.btnSideBack) el.btnSideBack.style.display = "none";
         if (el.sideTitle) el.sideTitle.textContent = "メニュー";
         animateUiEntry(menuCategoryView);
