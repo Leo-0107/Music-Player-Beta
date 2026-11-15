@@ -3642,6 +3642,7 @@ test("manual playback prebuffer limit is 5000ms and the DelayNode supports that 
   const sandbox = {
     DEFAULT_PLAYBACK_PREBUFFER_MS: 100,
     MAX_PLAYBACK_PREBUFFER_MS: 5000,
+    PLAYBACK_PREBUFFER_STORAGE_KEY: "mp_playback_prebuffer_ms_v1",
     playbackPrebufferMs: 100,
     localStorage: { setItem(key, value) { stored.push([key, value]); } },
     audioCtx: { currentTime: 3 },
