@@ -1353,11 +1353,7 @@ function updateSpatialAudioFromClock(isPlaying) {
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") {
-      isWaveAnimating = false;
-      return;
-    }
-    if (!audio.paused) startWaveAnimation();
+    if (document.visibilityState !== "visible") isWaveAnimating = false;
   });
 
   function requestWaveStaticFrame() {
