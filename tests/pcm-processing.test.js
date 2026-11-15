@@ -26,14 +26,32 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.77";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 77;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 77;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.77"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.77-r77'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.78";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 78;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 78;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.78"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.78-r78'));
   assert.ok(indexSource.includes("7.4.77-r77"));
   assert.ok(controllerSource.includes("7.4.77-r77"));
   assert.ok(rootServiceWorkerSource.includes("7.4.77-r77"));
+});
+
+test("settings and menu category back labels follow the selected category", () => {
+  assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + category.title'));
+  assert.ok(uiSource.includes('menuBack.textContent = "← " + category.title'));
+  assert.ok(!uiSource.includes('btnSettingsCategoryBack.textContent = "← 設定"'));
+  assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
+});
+
+test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
+  const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(uiSource.includes("animateUiEntry(activePanel)"));
+  assert.ok(uiSource.includes("animateUiEntry(settingsCategoryView)"));
+  assert.ok(uiSource.includes("animateUiEntry(target)"));
+  assert.ok(cssSource.includes("@keyframes navTabTap"));
+  assert.ok(cssSource.includes("@keyframes uiEnter"));
+  assert.ok(cssSource.includes("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(cssSource.includes(".settingsCategoryCard:hover"));
 });
 
 test("nonessential explanatory UI copy and section help controls are removed", () => {
