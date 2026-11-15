@@ -1367,6 +1367,17 @@ function updateSpatialAudioFromClock(isPlaying) {
     requestAnimationFrame(drawWave);
   }
 
+  function animateUiEntry(node) {
+    if (!node) return;
+    node.classList.remove("uiEnter");
+    void node.offsetWidth;
+    node.classList.add("uiEnter");
+  }
+
+  let activeMenuCategoryTitle = "";
+  let menuDetailOpen = false;
+  let activeSettingsCategoryTitle = "設定";
+
   function openSidebar() {
     state.menuOpen = true;
     if (el.sidebar) el.sidebar.classList.add("open");
@@ -1386,6 +1397,8 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (el.mainMenuList) el.mainMenuList.style.display = "flex";
     if (menuCategoryView) menuCategoryView.hidden = true;
     if (menuCategoryHome) menuCategoryHome.hidden = false;
+    activeMenuCategoryTitle = "";
+    menuDetailOpen = false;
     if (menuCategoryTitle) menuCategoryTitle.textContent = "";
     if (menuCategoryCards) menuCategoryCards.innerHTML = "";
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
@@ -1402,7 +1415,19 @@ function updateSpatialAudioFromClock(isPlaying) {
 
 
   if (el.btnSideBack) {
-    el.btnSideBack.addEventListener("click", resetSidebarView);
+    el.btnSideBack.addEventListener("click", () => {
+      if (!menuDetailOpen) {
+        resetSidebarView();
+        return;
+      }
+      document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
+      if (el.mainMenuList) el.mainMenuList.style.display = "flex";
+      if (menuCategoryHome) menuCategoryHome.hidden = true;
+      if (menuCategoryView) menuCategoryView.hidden = false;
+      menuDetailOpen = false;
+      if (el.sideTitle) el.sideTitle.textContent = "メニュー";
+      animateUiEntry(menuCategoryView);
+    });
   }
 
 
@@ -1520,15 +1545,20 @@ function updateSpatialAudioFromClock(isPlaying) {
     }
   }
 
-  function openMenuDetail(secId, title) {
+  function openMenuDetail(secId, title, categoryTitle) {
     if (el.mainMenuList) el.mainMenuList.style.display = "none";
     if (menuCategoryHome) menuCategoryHome.hidden = true;
     if (menuCategoryView) menuCategoryView.hidden = true;
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     const target = document.getElementById(secId);
-    if (target) target.classList.add("active");
+    if (target) {
+      target.classList.add("active");
+      animateUiEntry(target);
+    }
+    activeMenuCategoryTitle = categoryTitle || activeMenuCategoryTitle;
+    menuDetailOpen = true;
     if (el.btnSideBack) el.btnSideBack.style.display = "inline-block";
-    if (el.sideTitle) el.sideTitle.textContent = "←メニュー";
+    if (el.sideTitle) el.sideTitle.textContent = "← " + activeMenuCategoryTitle;
   }
 
   const MENU_CATEGORIES = {
@@ -1598,6 +1628,11 @@ function updateSpatialAudioFromClock(isPlaying) {
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
     menuCategoryTitle.textContent = category.title;
+    const menuBack = document.getElementById("btnMenuCategoryBack");
+    if (menuBack) menuBack.textContent = "← " + category.title;
+    activeMenuCategoryTitle = category.title;
+    menuDetailOpen = false;
+    animateUiEntry(menuCategoryView);
     menuCategoryCards.innerHTML = "";
 
     category.items.forEach(item => {
@@ -1620,7 +1655,7 @@ function updateSpatialAudioFromClock(isPlaying) {
           openMenuAction(targetId);
           return;
         }
-        openMenuDetail(targetId, title);
+        openMenuDetail(targetId, title, category.title);
       });
       menuCategoryCards.appendChild(card);
     });
@@ -1644,12 +1679,12 @@ function updateSpatialAudioFromClock(isPlaying) {
       settingsDetailOverlay.classList.remove("open");
       settingsDetailOverlay.hidden = true;
     }
-    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = "設定";
+    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = activeSettingsCategoryTitle;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
     if (btnSettingsCategoryBack) {
       btnSettingsCategoryBack.hidden = false;
-      btnSettingsCategoryBack.textContent = "← 設定";
+      btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle;
     }
   }
 
@@ -1672,6 +1707,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "←";
     target.classList.add("active");
     settingsDetailPanelBody.appendChild(target);
+    animateUiEntry(target);
     settingsDetailOverlay.hidden = false;
     settingsDetailOverlay.classList.remove("open");
     void settingsDetailOverlay.offsetWidth;
@@ -1689,6 +1725,9 @@ function updateSpatialAudioFromClock(isPlaying) {
     settingsCategoryHome.hidden = true;
     settingsCategoryView.hidden = false;
     settingsCategoryTitle.textContent = category.title;
+    activeSettingsCategoryTitle = category.title;
+    if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← " + category.title;
+    animateUiEntry(settingsCategoryView);
     if (el.settingsSearch) el.settingsSearch.value = "";
 
     settingsCategoryCards.innerHTML = "";
@@ -1744,7 +1783,7 @@ function updateSpatialAudioFromClock(isPlaying) {
         settingsCategoryCards.hidden = false;
       }
       btnSettingsCategoryBack.hidden = false;
-      btnSettingsCategoryBack.textContent = "← 設定";
+      btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle;
     });
   }
 
@@ -1835,6 +1874,11 @@ function updateSpatialAudioFromClock(isPlaying) {
       if (ytEl) ytEl.style.display = target === "youtube" ? "flex" : "none";
       if (plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
       if (setEl) setEl.style.display = target === "settings" ? "block" : "none";
+      const activePanel = ({ home: homeEl, youtube: ytEl, playlist: plEl, settings: setEl })[target];
+      animateUiEntry(activePanel);
+      tab.classList.remove("navTap");
+      void tab.offsetWidth;
+      tab.classList.add("navTap");
     });
   });
 

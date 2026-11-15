@@ -26,14 +26,31 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.77";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 77;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 77;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.77"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.77-r77'));
-  assert.ok(indexSource.includes("7.4.77-r77"));
-  assert.ok(controllerSource.includes("7.4.77-r77"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.77-r77"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.78";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 78;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 78;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.78"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.78-r78'));
+  assert.ok(indexSource.includes("7.4.78-r78"));
+  assert.ok(controllerSource.includes("7.4.78-r78"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.78-r78"));
+});
+
+test("settings and menu category back labels follow the selected category", () => {
+  assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + category.title'));
+  assert.ok(uiSource.includes('menuBack.textContent = "← " + category.title'));
+  assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
+});
+
+test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
+  const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(uiSource.includes("animateUiEntry(activePanel)"));
+  assert.ok(uiSource.includes("animateUiEntry(settingsCategoryView)"));
+  assert.ok(uiSource.includes("animateUiEntry(target)"));
+  assert.ok(cssSource.includes("@keyframes navTabTap"));
+  assert.ok(cssSource.includes("@keyframes uiEnter"));
+  assert.ok(cssSource.includes("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(cssSource.includes(".settingsCategoryCard:hover"));
 });
 
 test("nonessential explanatory UI copy and section help controls are removed", () => {
@@ -59,14 +76,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.77-r77"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.77-r77"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.77-r77"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.77-r77"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.78-r78"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.78-r78"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.78-r78"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.78-r78"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.77-r77"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.78-r78"));
 });
 
 
