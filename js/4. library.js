@@ -842,6 +842,7 @@
     setPlaybackIntent(true);
     recordPartialPlayIfNeeded();
     state.currentSong = song;
+    resetTrackLoudnessNormalization();
     hasCountedCurrentSong = false;
     silenceTimer = 0;
     try {

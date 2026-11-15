@@ -1635,7 +1635,8 @@
     const toggle = document.getElementById("multipleOutputToggle");
     if (!toggle) return;
     const enabled = isMultipleOutputEnabled();
-    toggle.textContent = "複数出力: " + (enabled ? "ON" : "OFF");
+    toggle.textContent = "複数出力：" + (enabled ? "ON" : "OFF");
+    toggle.title = enabled ? "複数スピーカー出力はONです" : "複数スピーカー出力はOFFです";
     toggle.classList.toggle("active", enabled);
     toggle.setAttribute("aria-pressed", String(enabled));
   }

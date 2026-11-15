@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 82;
+  const BUILD_REVISION = 83
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -199,6 +199,8 @@
     localStorage.setItem(STORAGE.micMonitorVolume, String(currentMicMonitorVolumeTarget));
     localStorage.setItem(STORAGE.micFeedbackProtection, "true");
     localStorage.setItem(STORAGE.micFeedbackStrength, String(state.micFeedbackStrength));
+    localStorage.setItem(STORAGE.normalizeTrackVolume, String(state.normalizeTrackVolume !== false));
+    localStorage.setItem(STORAGE.outputLevelDb, String(state.outputLevelDb));
     localStorage.setItem(STORAGE.speakerPairSwap, "false");
     localStorage.setItem(STORAGE.visualizerSettings, JSON.stringify(state.visualizerSettings || {}));
     localStorage.setItem(STORAGE.visualizerModeSettings, JSON.stringify(state.visualizerModeSettings || {}));
@@ -206,6 +208,64 @@
     localStorage.setItem(STORAGE.mainOutputDevice, state.mainOutputDeviceId || "");
     localStorage.setItem(STORAGE.speakerSettings, JSON.stringify(state.speakerSettings || {}));
     localStorage.setItem(STORAGE.playlistSettings, JSON.stringify(state.playlistSettings || {}));
+  }
+
+  function outputLevelDbToGain(value) {
+    const db = Math.max(-12, Math.min(3, Number(value) || 0));
+    return Math.pow(10, db / 20);
+  }
+  function applyOutputLevelDb(value, persist = true) {
+    const parsed = Number(value);
+    state.outputLevelDb = Math.max(-12, Math.min(3, Number.isFinite(parsed) ? parsed : 0));
+    if (el.outputLevelDb) el.outputLevelDb.value = String(state.outputLevelDb);
+    if (el.outputLevelDbText) {
+      const db = state.outputLevelDb;
+      el.outputLevelDbText.textContent = (db > 0 ? "+" : "") + db.toFixed(1) + " dB";
+    }
+    if (outputLevelGainNode && audioCtx) outputLevelGainNode.gain.setTargetAtTime(outputLevelDbToGain(state.outputLevelDb), audioCtx.currentTime, 0.08);
+    if (persist) saveState();
+  }
+  function resetTrackLoudnessNormalization() {
+    trackLoudnessRms = 0;
+    lastTrackLoudnessUpdateAt = 0;
+    if (trackLoudnessGainNode && audioCtx) {
+      const now = audioCtx.currentTime;
+      trackLoudnessGainNode.gain.cancelScheduledValues(now);
+      trackLoudnessGainNode.gain.setTargetAtTime(1, now, 0.12);
+    }
+  }
+  function updateTrackLoudnessNormalization() {
+    if (state.normalizeTrackVolume === false) {
+      if (trackLoudnessGainNode && audioCtx && Math.abs(trackLoudnessGainNode.gain.value - 1) > 0.01) resetTrackLoudnessNormalization();
+      return;
+    }
+    if (!trackLoudnessAnalyser || !trackLoudnessData || !trackLoudnessGainNode || !audioCtx || audio.paused || !state.currentSong || Number(audio.currentTime) < 1.5) return;
+    const now = audioCtx.currentTime;
+    if (now - lastTrackLoudnessUpdateAt < 0.45) return;
+    lastTrackLoudnessUpdateAt = now;
+    trackLoudnessAnalyser.getFloatTimeDomainData(trackLoudnessData);
+    let energy = 0;
+    for (let i = 0; i < trackLoudnessData.length; i++) {
+      const sample = trackLoudnessData[i] || 0;
+      energy += sample * sample;
+    }
+    const rms = Math.sqrt(energy / trackLoudnessData.length);
+    if (!Number.isFinite(rms) || rms < 0.008) return;
+    trackLoudnessRms = trackLoudnessRms > 0 ? trackLoudnessRms * 0.82 + rms * 0.18 : rms;
+    const targetGain = Math.max(0.5, Math.min(1.8, 0.12 / trackLoudnessRms));
+    trackLoudnessGainNode.gain.setTargetAtTime(targetGain, now, 1.6);
+  }
+  if (el.outputLevelDb) {
+    applyOutputLevelDb(state.outputLevelDb, false);
+    el.outputLevelDb.addEventListener("input", () => applyOutputLevelDb(el.outputLevelDb.value));
+  }
+  if (el.normalizeTrackVolume) {
+    el.normalizeTrackVolume.checked = state.normalizeTrackVolume !== false;
+    el.normalizeTrackVolume.addEventListener("change", () => {
+      state.normalizeTrackVolume = !!el.normalizeTrackVolume.checked;
+      resetTrackLoudnessNormalization();
+      saveState();
+    });
   }
 
   function setWaveMode(mode) {
@@ -609,6 +669,8 @@ let mainOutputUsesNativeDestination = false;
 
       masterGain = audioCtx.createGain();
       masterGain.gain.value = currentVolumeTarget;
+      trackLoudnessGainNode = audioCtx.createGain();
+      trackLoudnessGainNode.gain.value = 1;
       audio.volume = Math.min(1.0, Math.max(0.0, currentVolumeTarget));
 
       micReferenceAnalyser = audioCtx.createAnalyser();
@@ -621,6 +683,8 @@ let mainOutputUsesNativeDestination = false;
       micGainNode.gain.value = currentMicMonitorVolumeTarget;
       finalMixGainNode = audioCtx.createGain();
       finalMixGainNode.gain.value = 1;
+      outputLevelGainNode = audioCtx.createGain();
+      outputLevelGainNode.gain.value = outputLevelDbToGain(state.outputLevelDb);
 
       // --- DynamicsCompressorNode (最終クリッピング保護) ---
       // masterGain は最大2.0倍まで許可されているため、-1dB/4:1では
@@ -633,6 +697,10 @@ let mainOutputUsesNativeDestination = false;
       limiterNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
       limiterNode.release.setValueAtTime(0.2, audioCtx.currentTime);
 
+      trackLoudnessAnalyser = audioCtx.createAnalyser();
+      trackLoudnessAnalyser.fftSize = 4096;
+      trackLoudnessAnalyser.smoothingTimeConstant = 0;
+      trackLoudnessData = new Float32Array(trackLoudnessAnalyser.fftSize);
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
@@ -701,7 +769,9 @@ let mainOutputUsesNativeDestination = false;
       // パイプライン: 空間処理ルート -> 2ch正規化 -> L/R個別ゲイン -> masterGain -> (limiter) -> analyser -> destination
       // マスター音量・マイクを含む2chミックスを、各スピーカーの個別L/R調整より前で分岐する。
       // メイン側のL/R音量変更が登録スピーカーへ影響しないようにする。
-      channelNormalizeNode.connect(masterGain);
+      channelNormalizeNode.connect(trackLoudnessAnalyser);
+      trackLoudnessAnalyser.connect(trackLoudnessGainNode);
+      trackLoudnessGainNode.connect(masterGain);
       masterGain.connect(micReferenceAnalyser);
       masterGain.connect(finalMixGainNode);
 
@@ -719,7 +789,8 @@ let mainOutputUsesNativeDestination = false;
       // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
       playbackPrebufferDelayNode = audioCtx.createDelay(MAX_PLAYBACK_PREBUFFER_MS / 1000 + 0.1);
       playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
-      finalMixGainNode.connect(playbackPrebufferDelayNode);
+      finalMixGainNode.connect(outputLevelGainNode);
+      outputLevelGainNode.connect(playbackPrebufferDelayNode);
       playbackPrebufferDelayNode.connect(speakerBusNode);
 
       speakerBusNode.connect(channelSplitter);
@@ -1619,6 +1690,7 @@ let mainOutputUsesNativeDestination = false;
     state.playlist = [];
     state.playlistOrder = [];
     state.currentSong = null;
+    resetTrackLoudnessNormalization();
     state.queue = [];
     state.favorites = [];
     state.playlists = {};
@@ -1637,6 +1709,15 @@ let mainOutputUsesNativeDestination = false;
     updateTitleTextAndScroll(el.nowTitle, "未再生");
     updateTitleTextAndScroll(el.nowSub, "ファイルをドロップまたは選択してください");
     updateTitleTextAndScroll(el.miniTitle, "停止中");
+    if (el.timeNow) el.timeNow.textContent = "0:00";
+    if (el.timeAll) el.timeAll.textContent = "0:00";
+    if (el.miniTimeNow) el.miniTimeNow.textContent = "0:00";
+    if (el.miniTimeAll) el.miniTimeAll.textContent = "0:00";
+    if (el.progress) el.progress.value = "0";
+    if (el.miniProgress) el.miniProgress.value = "0";
+    if (el.btnFav) { el.btnFav.textContent = "☆"; el.btnFav.classList.remove("active"); }
+    try { if ("mediaSession" in navigator) { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = "paused"; } } catch (e) {}
+    lastStatsTime = 0;
     updatePlayPauseUI();
     saveState();
     renderAll();
@@ -1683,6 +1764,8 @@ let mainOutputUsesNativeDestination = false;
             STORAGE.speakerSettings,
             STORAGE.outputRoutes,
             STORAGE.micFeedbackStrength,
+            STORAGE.normalizeTrackVolume,
+            STORAGE.outputLevelDb,
             STORAGE.speakerPairSwap,
             STORAGE.visualizerSettings,
             STORAGE.visualizerModeSettings,

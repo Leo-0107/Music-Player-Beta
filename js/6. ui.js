@@ -164,6 +164,7 @@
   audio.addEventListener("seeked", () => trackPlaybackEvent("seeked"));
 
   audio.addEventListener("timeupdate", () => {
+    updateTrackLoudnessNormalization();
     const statsNow = performance.now();
     if (playbackStats.lastTimeUpdateAt && !playbackStats.seekInProgress &&
         document.visibilityState === "visible" && !audio.paused) {
@@ -510,6 +511,8 @@
   let waveViewLastX = 0;
   let waveViewLastY = 0;
   let visualizerFrameTime = 16.67;
+  let visualizerLastRenderedAt = 0;
+  let visualizerDisplayUpdateAt = 0;
 
   const visualizerPerformanceStats = {
     windowStartedAt: 0,
@@ -1165,8 +1168,6 @@ function updateSpatialAudioFromClock(isPlaying) {
     } else {
       isWaveAnimating = false;
     }
-    const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
-    lastFrameTime = now;
     const visualizerCfg = state.visualizerSettings || {};
     const lowPerformance = !!visualizerCfg.lowPerformanceMode;
     if (lowPerformance) {
@@ -1174,17 +1175,24 @@ function updateSpatialAudioFromClock(isPlaying) {
       if (now - lastLowPerfFrame < 33) return;
       drawWave._lastLowPerfFrame = now;
     }
+    const renderedFrameDeltaMs = visualizerLastRenderedAt ? Math.max(1, now - visualizerLastRenderedAt) : 16.67;
+    visualizerLastRenderedAt = now;
+    const dt = Math.min(renderedFrameDeltaMs / 1000, 0.1);
+    lastFrameTime = now;
 
     // 空間音響は描画FPSではなくAudioContextの時計で進める。
     // 低負荷モードや描画キャンバスの状態に左右されないよう、描画処理より先に更新する。
     updateSpatialAudioFromClock(isPlaying);
 
     if (visualizerCfg.showFps || visualizerCfg.showLoad) {
-      visualizerFrameTime = visualizerFrameTime * 0.8 + Math.max(1, dt * 1000) * 0.2;
-      if (visualizerCfg.showFps && el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / visualizerFrameTime));
-      if (visualizerCfg.showLoad && el.visualizerLoad) {
-        const load = Math.max(0, Math.min(100, Math.round((visualizerFrameTime / 16.67) * 100)));
-        el.visualizerLoad.textContent = "描画負荷: " + (load < 45 ? "低" : load < 80 ? "中" : "高");
+      visualizerFrameTime = visualizerFrameTime * 0.8 + renderedFrameDeltaMs * 0.2;
+      if (!visualizerDisplayUpdateAt || now - visualizerDisplayUpdateAt >= 2000) {
+        visualizerDisplayUpdateAt = now;
+        if (visualizerCfg.showFps && el.visualizerFps) el.visualizerFps.textContent = "FPS: " + Math.max(1, Math.round(1000 / visualizerFrameTime));
+        if (visualizerCfg.showLoad && el.visualizerLoad) {
+          const load = Math.max(0, Math.min(100, Math.round((visualizerFrameTime / 16.67) * 100)));
+          el.visualizerLoad.textContent = "描画負荷: " + (load < 45 ? "低" : load < 80 ? "中" : "高");
+        }
       }
     }
 
@@ -1353,6 +1361,8 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (!isWaveAnimating && document.visibilityState === "visible" && (!audio.paused || force)) {
       isWaveAnimating = true;
       lastFrameTime = performance.now();
+      visualizerLastRenderedAt = 0;
+      visualizerDisplayUpdateAt = 0;
       requestAnimationFrame(drawWave);
     }
   }

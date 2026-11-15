@@ -546,6 +546,9 @@
   let micFeedbackHighSimilarityFrames = 0;
   let micFeedbackStableFrames = 0;
   let finalMixGainNode = null;
+  let outputLevelGainNode = null;
+  let trackLoudnessGainNode = null, trackLoudnessAnalyser = null, trackLoudnessData = null;
+  let trackLoudnessRms = 0, lastTrackLoudnessUpdateAt = 0;
   let waveOutputSplitter = null, waveLeftOutputAnalyser = null, waveRightOutputAnalyser = null;
   let waveLeftOutputData = null, waveRightOutputData = null;
   let micMonitorRequestId = 0;
@@ -624,6 +627,8 @@
     micMonitorVolume: currentMicMonitorVolumeTarget,
     micFeedbackProtection: true,
     micFeedbackStrength: Math.max(0, Math.min(1, loadNum(STORAGE.micFeedbackStrength, 1))),
+    normalizeTrackVolume: loadBool(STORAGE.normalizeTrackVolume, true),
+    outputLevelDb: Math.max(-12, Math.min(3, loadNum(STORAGE.outputLevelDb, 0))),
     speakerPairSwap: loadBool(STORAGE.speakerPairSwap, false),
     visualizerSettings: loadJSON(STORAGE.visualizerSettings, { lowPerformanceMode:false, showFps:false, showLoad:false }),
     visualizerModeSettings: loadJSON(STORAGE.visualizerModeSettings, {}),
@@ -746,6 +751,11 @@
     micMonitorVolume: document.getElementById("micMonitorVolume"),
     micMonitorVolumeText: document.getElementById("micMonitorVolumeText"),
     btnMicFeedbackProtection: document.getElementById("btnMicFeedbackProtection"),
+    micFeedbackStrength: document.getElementById("micFeedbackStrength"),
+    micFeedbackStrengthText: document.getElementById("micFeedbackStrengthText"),
+    normalizeTrackVolume: document.getElementById("normalizeTrackVolume"),
+    outputLevelDb: document.getElementById("outputLevelDb"),
+    outputLevelDbText: document.getElementById("outputLevelDbText"),
     micMonitorLatencyText: document.getElementById("micMonitorLatencyText"),
     micFeedbackStatus: document.getElementById("micFeedbackStatus"),
     waveParticleCount: document.getElementById("waveParticleCount"),

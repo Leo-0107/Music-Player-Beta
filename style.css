@@ -1122,6 +1122,12 @@ kbd {
 }
 
 
+.speakerOutputControls { display: grid; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.speakerOutputLevel { margin-top: 0; }
+.speakerOutputLevel input[type="range"] { width: 100%; }
+.speakerOutputControls .settingCheckRow { align-items: flex-start; }
+.speakerOutputControls .settingCheckRow small { display: block; margin-top: 3px; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+
 /* 出力スピーカー + L/R個別音量 */
 .speakerPanel {
   margin-top: 12px;
@@ -1139,14 +1145,19 @@ kbd {
 }
 .speakerNameLine strong { color: var(--text); }
 .speakerDeviceActions {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  justify-content: stretch;
   margin-top: 10px;
 }
-.speakerDeviceActions .btn {
-  width: 100%;
-  max-width: 260px;
+.speakerDeviceActions .btn { width: 100%; min-width: 0; max-width: none; white-space: normal; }
+.speakerDeviceActions #multipleOutputToggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel2));
+  color: var(--accent);
 }
+.speakerDeviceActions #multipleOutputToggle[aria-pressed="false"] { border-color: var(--line); color: var(--muted); }
 .speakerDelayField {
   margin-top: 10px;
 }
@@ -1943,6 +1954,7 @@ body.output-device-modal-open .sidebar {
   .speakerSectionHeader {
     flex-direction: column;
   }
+  .speakerSectionHeader .speakerDeviceActions { width: 100%; flex: 1 1 auto; }
   .speakerSectionHeader .speakerDeviceActions {
     width: 100%;
     flex: 0 0 auto;
@@ -3364,7 +3376,7 @@ body.theme-light .bottomNav::before {
 }
 
 
-/* v7.4.82: make the bottom player/navigation boundary and tab divisions easier to distinguish */
+/* v7.4.83: make the bottom player/navigation boundary and tab divisions easier to distinguish */
 .bottomNav {
   border-top-color: color-mix(in srgb, var(--line) 72%, var(--text) 28%);
 }
