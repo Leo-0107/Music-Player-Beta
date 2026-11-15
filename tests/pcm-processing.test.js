@@ -15,6 +15,7 @@ const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "
 const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
 const uiSource = fs.readFileSync(path.join(root, "js/7. ui.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const youtubeSource = fs.readFileSync(path.join(root, "js/9. youtube.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -3542,4 +3543,35 @@ test("multi-output ON suppresses a saved route that aliases the current main spe
   assert.equal(saved, 1);
   assert.equal(disconnected, 1);
   assert.equal(created, 0);
+});
+
+
+test("YouTube iframe audio is muted on custom output routing and prior mute state is preserved", () => {
+  const start = youtubeSource.indexOf("  function setYouTubeOutputRoutingBlocked(blocked) {");
+  const end = youtubeSource.indexOf("\n  window.setYouTubeOutputRoutingBlocked", start);
+  assert.ok(start >= 0 && end > start, "YouTube output safety helper must exist");
+  const helperSource = youtubeSource.slice(start, end);
+  let muted = false;
+  const sandbox = {
+    youtubePlayerReady: true,
+    youtubePlayer: {
+      isMuted() { return muted; },
+      mute() { muted = true; },
+      unMute() { muted = false; }
+    },
+    youtubeOutputRoutingBlocked: false,
+    youtubeOutputMuteApplied: false,
+    youtubeWasMutedBeforeRoutingBlock: false
+  };
+  vm.runInNewContext(helperSource + "\nthis.setYouTubeOutputRoutingBlocked = setYouTubeOutputRoutingBlocked;", sandbox);
+  sandbox.setYouTubeOutputRoutingBlocked(true);
+  assert.equal(muted, true);
+  sandbox.setYouTubeOutputRoutingBlocked(false);
+  assert.equal(muted, false);
+
+  muted = true;
+  sandbox.youtubeOutputMuteApplied = false;
+  sandbox.setYouTubeOutputRoutingBlocked(true);
+  sandbox.setYouTubeOutputRoutingBlocked(false);
+  assert.equal(muted, true);
 });
