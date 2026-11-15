@@ -3513,3 +3513,33 @@ test("routing failure mutes the main sink and bridge and persists a blocked stat
   assert.equal(stopped, 1);
   assert.equal(saved, 1);
 });
+
+
+test("multi-output ON suppresses a saved route that aliases the current main speaker", async () => {
+  const start = outputSource.indexOf("  async function syncAdditionalOutputRuntimes()");
+  const end = outputSource.indexOf("\n  async function startOutputBridge", start);
+  const functionSource = outputSource.slice(start, end);
+  const route = { deviceId: "speaker-alias", enabled: true };
+  let saved = 0, disconnected = 0, created = 0;
+  const sandbox = {
+    audioCtx: {}, analyser: {},
+    state: { speakerSettings: { multipleOutputEnabled: true, outputRoutingBlocked: false }, outputRoutes: [route] },
+    isMultipleOutputEnabled: () => true,
+    async enumerateAudioOutputs() { return [{ kind: "audiooutput", deviceId: "default" }, { kind: "audiooutput", deviceId: "speaker-alias" }]; },
+    isCurrentMainOutputDevice: () => true,
+    saveState() { saved++; },
+    additionalOutputRuntimes: new Map(),
+    applyPairedSpeakerRouting() {},
+    async updateDisconnectedOutputDeviceIds() {},
+    disconnectedOutputDeviceIds: new Set(),
+    disconnectAdditionalOutputRuntime() { disconnected++; },
+    async createAdditionalOutputRuntime() { created++; },
+    applyAllSpeakerDelayNodes() {}
+  };
+  vm.runInNewContext(functionSource + "\nthis.syncAdditionalOutputRuntimes = syncAdditionalOutputRuntimes;", sandbox);
+  await sandbox.syncAdditionalOutputRuntimes();
+  assert.equal(route.enabled, false);
+  assert.equal(saved, 1);
+  assert.equal(disconnected, 1);
+  assert.equal(created, 0);
+});
