@@ -8,6 +8,12 @@ on:
     branches:
       - main
     paths:
+      - "index.html"
+      - "manifest.json"
+      - "sw.js"
+      - "js/8. sw.js"
+      - "js/pitch-worklet.js"
+      - "js/speaker-delay-worklet.js"
       - "js/1. ctrl.js"
       - "js/2. audio.js"
       - "js/3. audio-output.js"
@@ -43,8 +49,13 @@ jobs:
       - name: Check runtime JavaScript and the exact combined application bundle
         run: |
           node --check "js/1. ctrl.js"
+          node --check sw.js
+          node --check "js/8. sw.js"
           node --check "js/11. pcm-processing-worker.js"
+          node --check "js/pitch-worklet.js"
+          node --check "js/speaker-delay-worklet.js"
           node --check tests/pcm-processing.test.js
+          node -e "JSON.parse(require('node:fs').readFileSync('manifest.json', 'utf8'))"
           {
             printf '(() => {\n'
             cat "js/5. storage.js" "js/4. state.js" "js/2. audio.js" "js/3. audio-output.js" "js/10. buffered-playback-engine.js" "js/6. library.js" "js/7. ui.js" "js/9. youtube.js"
