@@ -1664,7 +1664,6 @@ function updateSpatialAudioFromClock(isPlaying) {
   let activeSettingsDetail = null;
   const settingsDetailOverlay = document.getElementById("settingsDetailOverlay");
   const settingsDetailPanelBody = document.getElementById("settingsDetailPanelBody");
-  const settingsDetailPanelTitle = document.getElementById("settingsDetailPanelTitle");
   const btnSettingsDetailBack = document.getElementById("btnSettingsDetailBack");
   const btnCloseSettingsDetail = document.getElementById("btnCloseSettingsDetail");
   const settingsDetailBackdrop = document.getElementById("settingsDetailBackdrop");
@@ -1679,7 +1678,7 @@ function updateSpatialAudioFromClock(isPlaying) {
       settingsDetailOverlay.classList.remove("open");
       settingsDetailOverlay.hidden = true;
     }
-    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = activeSettingsCategoryTitle;
+    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
     if (btnSettingsCategoryBack) {
@@ -1703,8 +1702,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     settingsCategoryCards.hidden = true;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
     if (btnSettingsCategoryBack) btnSettingsCategoryBack.hidden = true;
-    if (settingsDetailPanelTitle) settingsDetailPanelTitle.textContent = title || "設定";
-    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "←";
+    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle;
     target.classList.add("active");
     settingsDetailPanelBody.appendChild(target);
     animateUiEntry(target);
