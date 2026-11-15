@@ -1962,6 +1962,15 @@
       stopAllAdditionalOutputRuntimes();
       return;
     }
+    const currentOutputs = await enumerateAudioOutputs();
+    let disabledMainAliases = false;
+    for (const route of state.outputRoutes) {
+      if (route?.deviceId && route.enabled !== false && isCurrentMainOutputDevice(route, currentOutputs)) {
+        route.enabled = false;
+        disabledMainAliases = true;
+      }
+    }
+    if (disabledMainAliases) saveState();
     const validIds = new Set(state.outputRoutes.map(route => route.deviceId).filter(Boolean));
 
     for (const [deviceId, runtime] of additionalOutputRuntimes) {
