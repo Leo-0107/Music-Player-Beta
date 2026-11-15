@@ -1923,6 +1923,7 @@ class BufferedPlaybackEngine {
     this.disposeProcessorWorker();
     this.playRequestId++;
     this.playRequested = false;
+    this.pendingProcessingSettingsUpdate = false;
     this.paused = true;
     this.stopSource();
     this.stopTimeUpdates();
