@@ -49,17 +49,6 @@ jobs:
       - name: Check runtime JavaScript and the exact combined application bundle
         run: |
           node --check "js/1. ctrl.js"
-          node --check "js/2. state.js"
-          node --check "js/3. storage.js"
-          node --check "js/4. library.js"
-          node --check "js/5. youtube.js"
-          node --check "js/6. ui.js"
-          node --check "js/7. audio.js"
-          node --check "js/8. pitch-worklet.js"
-          node --check "js/9. buffered-playback-engine.js"
-          node --check "js/10. pcm-processing-worker.js"
-          node --check "js/11. audio-output.js"
-          node --check "js/12. speaker-delay-worklet.js"
           node --check sw.js
           node --check "js/13. sw.js"
           node --check "js/10. pcm-processing-worker.js"
