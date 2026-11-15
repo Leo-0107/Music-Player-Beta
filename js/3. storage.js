@@ -14,6 +14,7 @@
     favOnly: "mp_favonly_v12",
     themeMode: "mp_thememode_v12",
     customTheme: "mp_custtheme_v12",
+    accentColor: "mp_accent_color_v1",
     playlists: "mp_playlists_v12",
     playlistOrder: "mp_playlist_order_v12",
     crossfade: "mp_crossfade_v12",

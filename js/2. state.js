@@ -604,6 +604,7 @@
     favOnly: loadBool(STORAGE.favOnly, false),
     search: "",
     themeMode: loadStr(STORAGE.themeMode, "system"),
+    accentColor: loadStr(STORAGE.accentColor, "#35D977"),
     customTheme: loadJSON(STORAGE.customTheme, { 
       c1: "#1d3557", l1: 100, 
       c2: "#121212", l2: 100, 
@@ -724,6 +725,8 @@
     btnThemeDark: document.getElementById("btnThemeDark"),
     btnThemeLight: document.getElementById("btnThemeLight"),
     btnThemeCustom: document.getElementById("btnThemeCustom"),
+    accentColorInput: document.getElementById("accentColorInput"),
+    btnResetAccentColor: document.getElementById("btnResetAccentColor"),
     customThemeArea: document.getElementById("customThemeArea"),
     gridColor1: document.getElementById("gridColor1"),
     gridColor2: document.getElementById("gridColor2"),

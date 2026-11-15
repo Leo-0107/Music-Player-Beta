@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 80;
+  const BUILD_REVISION = 81;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -185,6 +185,7 @@
     localStorage.setItem(STORAGE.favOnly, String(state.favOnly));
     localStorage.setItem(STORAGE.themeMode, state.themeMode);
     localStorage.setItem(STORAGE.customTheme, JSON.stringify(state.customTheme));
+    localStorage.setItem(STORAGE.accentColor, state.accentColor || "#35D977");
     localStorage.setItem(STORAGE.playlists, JSON.stringify(state.playlists));
     localStorage.setItem(STORAGE.playlistOrder, JSON.stringify(state.playlistOrder || []));
     localStorage.setItem(STORAGE.crossfade, String(state.crossfade));
@@ -1263,6 +1264,13 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function applyTheme(){
+    const safeAccent = /^#[0-9a-f]{6}$/i.test(String(state.accentColor || "")) ? state.accentColor : "#35D977";
+    state.accentColor = safeAccent;
+    const accentRgb = safeAccent.slice(1).match(/.{2}/g).map(value => parseInt(value, 16) / 255).map(value => value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2));
+    const accentLuminance = 0.2126 * accentRgb[0] + 0.7152 * accentRgb[1] + 0.0722 * accentRgb[2];
+    document.body.style.setProperty("--accent", safeAccent);
+    document.body.style.setProperty("--accent-contrast", accentLuminance > 0.42 ? "#07120a" : "#ffffff");
+    if (el.accentColorInput && el.accentColorInput.value.toLowerCase() !== safeAccent.toLowerCase()) el.accentColorInput.value = safeAccent;
     document.body.classList.remove("theme-light");
     [el.btnThemeSystem, el.btnThemeDark, el.btnThemeLight, el.btnThemeCustom].forEach(b => b?.classList.remove("active"));
     if (el.customThemeArea) el.customThemeArea.style.display = "none";
@@ -1270,6 +1278,7 @@ let mainOutputUsesNativeDestination = false;
     document.body.style.removeProperty("--text");
     document.body.style.removeProperty("--muted");
     document.body.style.removeProperty("--bottom-nav-bg");
+    document.body.style.removeProperty("--bg");
 
     let activeMode = state.themeMode;
     if(activeMode === "system"){
@@ -1302,6 +1311,7 @@ let mainOutputUsesNativeDestination = false;
       document.body.style.setProperty("--text", computedText);
       document.body.style.setProperty("--muted", computedMuted);
       document.body.style.setProperty("--bottom-nav-bg", computedC2);
+      document.body.style.setProperty("--bg", computedC2);
     } else {
       document.body.style.background = "";
       document.body.style.color = "";
@@ -1310,6 +1320,23 @@ let mainOutputUsesNativeDestination = false;
 
     // テーマ切替後も、ジャケット未設定時のキャンバス色を現在のテーマに合わせて再描画する。
     if (typeof updateArtwork === "function") updateArtwork(state.currentSong);
+  }
+
+  if (el.accentColorInput) {
+    el.accentColorInput.addEventListener("input", () => {
+      const nextAccent = String(el.accentColorInput.value || "").trim();
+      if (!/^#[0-9a-f]{6}$/i.test(nextAccent)) return;
+      state.accentColor = nextAccent;
+      saveState();
+      applyTheme();
+    });
+  }
+  if (el.btnResetAccentColor) {
+    el.btnResetAccentColor.addEventListener("click", () => {
+      state.accentColor = "#35D977";
+      saveState();
+      applyTheme();
+    });
   }
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -1642,6 +1669,7 @@ let mainOutputUsesNativeDestination = false;
             STORAGE.favOnly,
             STORAGE.themeMode,
             STORAGE.customTheme,
+            STORAGE.accentColor,
             STORAGE.crossfade,
             STORAGE.silenceSkip,
             STORAGE.dMode,
