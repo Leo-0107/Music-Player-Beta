@@ -1572,7 +1572,37 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
   assert.equal(engine.buffer, null);
 });
 
-test("PCM preparation checks actual compressed-plus-decoded peak when duration is unknown", async () => {
+test("PCM preparation refuses an unknown duration before allocating decoded audio", async () => {
+  const compressed = new ArrayBuffer(100);
+  let decodeCalls = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() {
+        decodeCalls++;
+        throw new Error("decode must not run without a duration estimate");
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: null
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/audio";
+
+  await assert.rejects(
+    () => engine.prepare(),
+    /duration is unavailable; PCM memory use cannot be estimated safely/
+  );
+  assert.equal(decodeCalls, 0);
+  assert.equal(engine.buffer, null);
+});
+
+test("PCM preparation checks actual compressed-plus-decoded peak if duration metadata underestimates", async () => {
   const compressed = new ArrayBuffer(100);
   let decodeCalls = 0;
   const samples = new Float32Array(101);
@@ -1594,13 +1624,13 @@ test("PCM preparation checks actual compressed-plus-decoded peak when duration i
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: null
+      currentSong: { duration: 0.001 }
     },
     ensureGraph() {}
   });
   const engine = new Engine();
   engine.sourceUrl = "https://music-player.invalid/audio";
-  engine.maxPcmBytes = 1000;
+  engine.maxPcmBytes = 700;
 
   await assert.rejects(
     () => engine.prepare(),
@@ -1608,6 +1638,41 @@ test("PCM preparation checks actual compressed-plus-decoded peak when duration i
   );
   assert.equal(decodeCalls, 1);
   assert.equal(engine.buffer, null);
+});
+
+test("fallback invalidates an in-flight decode without surfacing a stale play failure", async () => {
+  let finishDecode;
+  let markDecodeStarted;
+  const decodeStarted = new Promise(resolve => { markDecodeStarted = resolve; });
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(100) }),
+    audioCtx: {
+      sampleRate: 48000,
+      decodeAudioData() {
+        markDecodeStarted();
+        return new Promise(resolve => { finishDecode = resolve; });
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { duration: 1 }
+    },
+    ensureGraph() {},
+    resumeAudioCtx: async () => {},
+    canUseBufferedPlayback: () => true
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "blob:pcm-fallback-race";
+  const playRequest = engine.play();
+  await decodeStarted;
+  engine.releaseForFallback();
+  finishDecode({});
+  await playRequest;
+
+  assert.equal(engine.buffer, null);
+  assert.equal(engine.playRequested, false);
+  assert.equal(engine.paused, true);
 });
 
 
