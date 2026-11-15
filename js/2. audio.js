@@ -1082,7 +1082,10 @@ let mainOutputUsesNativeDestination = false;
     invalidateBufferedPcmProcessing();
     ensureGraph();
     if (bufferedPlaybackMode && !canUseBufferedPlayback()) {
-      switchBufferedPlaybackToMediaElement(new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"), !audio.paused).catch(error => {
+      switchBufferedPlaybackToMediaElement(
+        new Error("速度・ピッチの組み合わせがPCM経路の対応範囲外です"),
+        !audio.paused || !!bufferedPlaybackEngine?.playRequested
+      ).catch(error => {
         console.warn("Music Player playback fallback failed:", error);
       });
     } else {
