@@ -3146,7 +3146,7 @@ test("spatial audio updates before visualizer canvas checks and restarts after p
     "spatial updates must not depend on a visible, non-zero canvas");
   assert.match(drawSource, /if \(lowPerformance\)[\s\S]*?return;[\s\S]*?updateSpatialAudioFromClock\(isPlaying\)/,
     "low-performance frame throttling must occur before the clock-based update, not shorten its elapsed time");
-  assert.match(uiSource, /document\.addEventListener\("visibilitychange",\s*\(\)\s*=>\s*\{\s*if \(document\.visibilityState !== "visible"\)\s*\{\s*isWaveAnimating = false;\s*return;\s*\}\s*if \(!audio\.paused\) startWaveAnimation\(\);/);
+  assert.match(uiSource, /document\.addEventListener\("visibilitychange",\s*\(\)\s*=>\s*\{\s*if \(document\.visibilityState !== "visible"\) isWaveAnimating = false;/);\n  assert.match(audioSource, /document\.visibilityState === "visible" && !audio\.paused\)\s*\{\s*lastFrameTime = performance\.now\(\);\s*startWaveAnimation\(\);/);
   assert.match(uiSource, /drawWave\._lastSpatialAudioTime = audioCtx\?\.currentTime/);
 });
 
