@@ -3331,6 +3331,8 @@ test("seek during pending PCM startup restarts from the requested frame", async 
   engine.paused = true;
   engine.playRequested = true;
   engine.pcmSampleRate = 48000;
+  engine.startTimeUpdates = () => {};
+  engine.stopTimeUpdates = () => {};
   let startedFrame = null;
   engine.startPcmSession = async frame => {
     startedFrame = frame;
@@ -3342,7 +3344,6 @@ test("seek during pending PCM startup restarts from the requested frame", async 
   assert.equal(startedFrame, 36000);
   assert.equal(engine.paused, false);
   assert.equal(engine.playRequested, true);
-  engine.pause();
 });
 
 test("unsupported settings during pending playback startup preserve the play request on native fallback", async () => {
