@@ -3182,21 +3182,21 @@ test("4D, 8D, and 16D spatial modes update HRTF position from elapsed time", () 
     {
       mode: "4D",
       expected: [
-        Math.sin(t * 0.4) * 2.5,
-        Math.sin(t * 0.8) * 1.2,
-        Math.cos(t * 0.4) * 2.5
+        Math.sin(t * 0.55) * 2.5,
+        Math.sin(t * 1.1) * 1.35,
+        Math.cos(t * 0.55) * 2.0
       ]
     },
     {
       mode: "8D",
-      expected: [Math.sin(t) * 3.2, 0, Math.cos(t) * 3.2]
+      expected: [Math.sin(t * 0.95) * 2.6, 0, Math.cos(t * 0.95) * 2.6]
     },
     {
       mode: "16D",
       expected: [
-        Math.sin(t * 1.2) * 3.5,
-        Math.sin(t * 2.4) * 1.8,
-        Math.cos(t * 0.7) * 3.5
+        Math.sin(t * 0.72) * 2.45,
+        (Math.sin(t * 0.72 * 1.618) + 0.35 * Math.sin(t * 0.72 * 0.5)) * 1.05,
+        Math.cos(t * 0.72 * 0.7071) * 2.45
       ]
     }
   ];
