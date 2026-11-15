@@ -30,7 +30,7 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   assert.ok(indexSource.includes("const BUILD_REVISION = 80;"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 80;"));
   assert.ok(manifestSource.includes("Music Player v7.4.80"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.80-r79'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.80-r80'));
   assert.ok(indexSource.includes("7.4.80-r80"));
   assert.ok(controllerSource.includes("7.4.80-r80"));
   assert.ok(rootServiceWorkerSource.includes("7.4.80-r80"));
