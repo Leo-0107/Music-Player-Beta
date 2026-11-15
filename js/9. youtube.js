@@ -60,9 +60,39 @@
   const youtubeItems = new Map();
   let youtubePlayer = null;
   let youtubePlayerReady = false;
+  let youtubeOutputRoutingBlocked = false;
+  let youtubeOutputMuteApplied = false;
+  let youtubeWasMutedBeforeRoutingBlock = false;
+  let youtubeWasVolumeBeforeRoutingBlock = 100;
   let youtubeApiPromise = null;
   let currentYoutubeItem = null;
   let pendingPlayId = null;
+
+  function setYouTubeOutputRoutingBlocked(blocked) {
+    youtubeOutputRoutingBlocked = !!blocked;
+    if (!youtubePlayerReady || !youtubePlayer) return;
+    if (youtubeOutputRoutingBlocked) {
+      if (!youtubeOutputMuteApplied) {
+        youtubeWasMutedBeforeRoutingBlock = !!youtubePlayer.isMuted?.();
+        const previousVolume = Number(youtubePlayer.getVolume?.());
+        youtubeWasVolumeBeforeRoutingBlock = Number.isFinite(previousVolume) ? previousVolume : 100;
+        youtubeOutputMuteApplied = true;
+      }
+      try {
+        youtubePlayer.setVolume?.(0);
+        youtubePlayer.mute?.();
+      } catch (e) {}
+      return;
+    }
+    if (youtubeOutputMuteApplied) {
+      youtubeOutputMuteApplied = false;
+      try { youtubePlayer.setVolume?.(youtubeWasVolumeBeforeRoutingBlock); } catch (e) {}
+      if (!youtubeWasMutedBeforeRoutingBlock) {
+        try { youtubePlayer.unMute?.(); } catch (e) {}
+      }
+    }
+  }
+  window.setYouTubeOutputRoutingBlocked = setYouTubeOutputRoutingBlocked;
 
   function isYoutubePlaybackContextActive() {
     const youtubeTab = document.querySelector('.navTab[data-target="youtube"]');
@@ -521,6 +551,8 @@
           events: {
             onReady: event => {
               youtubePlayerReady = true;
+              window.syncExternalOutputSafety?.();
+              if (youtubeOutputRoutingBlocked) setYouTubeOutputRoutingBlocked(true);
               const active = currentYoutubeItem;
               if (pendingPlayId && active && pendingPlayId === active.id && isYoutubeSong(state.currentSong)) {
                 if (!isYoutubePlaybackContextActive()) {

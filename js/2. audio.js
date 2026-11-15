@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 68;
+  const BUILD_REVISION = 69;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -490,6 +490,23 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
 let mainOutputUsesDirectSink = false;
 let mainOutputUsesNativeDestination = false;
 
+  function failClosedMainOutputRouting(targetDeviceId = state.mainOutputDeviceId || "") {
+    if (typeof muteAllAppOutputsForRoutingFailure === "function") {
+      muteAllAppOutputsForRoutingFailure(targetDeviceId);
+      return;
+    }
+    if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+    state.speakerSettings.outputRoutingBlocked = true;
+    state.mainOutputDeviceId = String(targetDeviceId || "");
+    try { window.setYouTubeOutputRoutingBlocked?.(true); } catch (e) {}
+    if (mainOutputDirectGainNode?.gain) mainOutputDirectGainNode.gain.value = 0;
+    if (outputBridgeAudio) {
+      outputBridgeAudio.volume = 0;
+      try { outputBridgeAudio.pause(); } catch (e) {}
+    }
+    saveState();
+  }
+
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
@@ -528,8 +545,9 @@ let mainOutputUsesNativeDestination = false;
         panner3DNode = audioCtx.createPanner();
         panner3DNode.panningModel = 'HRTF';
         panner3DNode.distanceModel = 'inverse';
-        panner3DNode.refDistance = 1;
-        panner3DNode.rolloffFactor = 0.35;
+        panner3DNode.refDistance = 1.25;
+        // HRTF移動中の距離減衰を抑え、位置変化による音量低下で定位が埋もれないようにする。
+        panner3DNode.rolloffFactor = 0.18;
         panner3DNode.maxDistance = 10000;
         if (audioCtx.listener) {
           const listener = audioCtx.listener;
@@ -729,12 +747,25 @@ let mainOutputUsesNativeDestination = false;
       // メイン出力は対応ブラウザではAudioContext.setSinkId()を優先する。
       // MediaStreamDestination + HTMLMediaElement はフォールバックとして残す。
       mainOutputDirectGainNode = audioCtx.createGain();
-      mainOutputDirectGainNode.gain.value = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+      mainOutputDirectGainNode.gain.value = state.speakerSettings?.outputRoutingBlocked === true || state.speakerSettings?.mainEnabled === false ? 0 : 1;
 
       // Androidのホーム画面追加PWAでは、AudioContext.setSinkId()を使うと
       // Chromeのスタンドアロン音声経路で出力が途切れたり音が不安定になる場合がある。
       // 明示的な出力機器を指定していない場合は、OS標準のdestinationへ直接出力する。
-      if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
+      if (state.speakerSettings?.outputRoutingBlocked === true) {
+        mainOutputUsesDirectSink = false;
+        mainOutputUsesNativeDestination = isAndroidStandalonePwa() && !state.mainOutputDeviceId;
+        if (mainOutputUsesNativeDestination) {
+          analyser.connect(mainOutputDirectGainNode);
+          mainOutputDirectGainNode.connect(audioCtx.destination);
+        } else {
+          ensureOutputBridge();
+          if (outputBridgeAudio) {
+            outputBridgeAudio.volume = 0;
+            try { outputBridgeAudio.pause(); } catch (e) {}
+          }
+        }
+      } else if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
         mainOutputUsesDirectSink = false;
         mainOutputUsesNativeDestination = true;
         analyser.connect(mainOutputDirectGainNode);
@@ -751,17 +782,39 @@ let mainOutputUsesNativeDestination = false;
           try { mainOutputDirectGainNode.disconnect(); } catch (e) {}
           ensureOutputBridge();
           if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-            outputBridgeAudio.setSinkId(state.mainOutputDeviceId || "").catch(() => {});
+            outputBridgeAudio.volume = 0;
+            outputBridgeAudio.setSinkId(state.mainOutputDeviceId || "").then(() => {
+              if (state.speakerSettings?.outputRoutingBlocked !== true) {
+                outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+              }
+            }).catch(fallbackError => {
+              failClosedMainOutputRouting(state.mainOutputDeviceId || "");
+              console.warn("Music Player output bridge fallback unavailable:", fallbackError);
+            });
+          } else if (state.mainOutputDeviceId) {
+            failClosedMainOutputRouting(state.mainOutputDeviceId);
+          } else if (outputBridgeAudio) {
+            outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
           }
           applyAllSpeakerDelayNodes();
           console.warn("Music Player direct AudioContext output unavailable:", error);
         });
       } else {
         ensureOutputBridge();
-        if (state.mainOutputDeviceId && outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-          outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(error => {
-            console.warn("Music Player output device restore failed:", error);
-          });
+        if (state.mainOutputDeviceId) {
+          if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+            outputBridgeAudio.volume = 0;
+            outputBridgeAudio.setSinkId(state.mainOutputDeviceId).then(() => {
+              if (state.speakerSettings?.outputRoutingBlocked !== true) {
+                outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+              }
+            }).catch(error => {
+              failClosedMainOutputRouting(state.mainOutputDeviceId);
+              console.warn("Music Player output device restore failed:", error);
+            });
+          } else {
+            failClosedMainOutputRouting(state.mainOutputDeviceId);
+          }
         }
       }
 
@@ -1106,7 +1159,7 @@ let mainOutputUsesNativeDestination = false;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
     updateMediaSessionPosition();
   }
-  // --- 経過時間（dt）ベースの回転更新 ---
+  // --- 経過時間（dt）ベースの空間軌道更新 ---
   function updateSpatialAudio(dt) {
     if (!audioCtx || !panner3DNode || audio.paused || state.dMode === "2D") return;
     const rotationSpeed = 1.5; // ラジアン/秒
@@ -1126,17 +1179,35 @@ let mainOutputUsesNativeDestination = false;
 
     switch (state.dMode) {
       case "3D":
-        // YouTubeの動画で聞くような自然な前方定位：HRTFで左右の位置だけを連続的に変える。
+        // 前方定位を保ち、左右位置だけを連続的に変える。
         x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
-      case "BINAURAL":
-        // 固定バイノーラル：HRTFで音源を正面の一定位置へ固定する。
-        x = 0; y = 0; z = -1.5; setPos(x, y, z); break;
-      case "4D":
-        x = Math.sin(t * 0.4) * 2.5; y = Math.sin(t * 0.8) * 1.2; z = Math.cos(t * 0.4) * 2.5; setPos(x, y, z); break;
-      case "8D":
-        x = Math.sin(t) * 3.2; y = 0; z = Math.cos(t) * 3.2; setPos(x, y, z); break;
-      case "16D":
-        x = Math.sin(t * 1.2) * 3.5; y = Math.sin(t * 2.4) * 1.8; z = Math.cos(t * 0.7) * 3.5; setPos(x, y, z); break;
+      case "4D": {
+        // 4D：楕円軌道で前後左右を周回し、1周につき上下2回の起伏を作る。
+        const phase = t * 0.55;
+        x = Math.sin(phase) * 2.5;
+        y = Math.sin(phase * 2) * 1.35;
+        z = Math.cos(phase) * 2.0;
+        setPos(x, y, z);
+        break;
+      }
+      case "8D": {
+        // 8D：高さをほぼ固定し、頭の周囲を水平面で明確に一周する。
+        const phase = t * 0.95;
+        x = Math.sin(phase) * 2.6;
+        y = 0;
+        z = Math.cos(phase) * 2.6;
+        setPos(x, y, z);
+        break;
+      }
+      case "16D": {
+        // 16D：3軸を異なる周期で動かす非同期Lissajous軌道。
+        const phase = t * 0.72;
+        x = Math.sin(phase) * 2.45;
+        y = (Math.sin(phase * 1.618) + 0.35 * Math.sin(phase * 0.5)) * 1.05;
+        z = Math.cos(phase * 0.7071) * 2.45;
+        setPos(x, y, z);
+        break;
+      }
       case "2D":
       default:
         setPos(0, 0, 0); break;
@@ -1156,20 +1227,21 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function setDMode(mode) {
-    state.dMode = mode;
+    // 旧バージョンで保存されたBINAURALは、統合後の3Dとして扱う。
+    const nextMode = mode === "BINAURAL" ? "3D" : mode;
+    state.dMode = nextMode;
     saveState();
     const descriptions = {
       "2D": "2D：通常の左右ステレオで再生します。",
-      "3D": "3D：音が前方にあるような立体感を加えます。",
-      "BINAURAL": "バイノーラル：音を正面に定位させ、ヘッドホン向けの立体感を加えます。",
-      "4D": "4D：音が前後左右や上下にゆっくり移動します。",
-      "8D": "8D：音が周囲を回るように移動します。",
-      "16D": "16D：音が上下も交えて複雑に周回します。"
+      "3D": "3D：HRTF方式で音源の方向を表現し、左右パンにも対応します。ヘッドホン推奨。",
+      "4D": "4D：楕円軌道で前後左右を周回しながら、上下にも動きます。ヘッドホン推奨。",
+      "8D": "8D：頭の周囲を水平面で一周し続けます。ヘッドホン推奨。",
+      "16D": "16D：前後左右・上下を異なる周期で移動する複合的な立体軌道です。ヘッドホン推奨。"
     };
-    if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
+    if (el.dModeDesc) el.dModeDesc.textContent = descriptions[nextMode] || descriptions["2D"];
     if (el.dModeBtns) {
       el.dModeBtns.querySelectorAll("button").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.d === mode);
+        btn.classList.toggle("active", btn.dataset.d === nextMode);
       });
     }
     if (mode === "2D" && panner3DNode) {

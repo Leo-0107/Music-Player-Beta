@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.4.60</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.60-r68">
+<link rel="stylesheet" href="style.css?v=7.4.60-r69">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -248,8 +248,7 @@
           <div class="sectionTitle">立体音響</div>
           <div class="modeOptionList" id="dModeBtns">
             <button class="btn small modeOption" data-d="2D" type="button"><span class="modeOptionName">2D</span><span class="modeOptionDescription">通常の左右ステレオで再生</span></button>
-            <button class="btn small modeOption" data-d="3D" type="button"><span class="modeOptionName">3D</span><span class="modeOptionDescription">音が前方にあるような立体感</span></button>
-            <button class="btn small modeOption" data-d="BINAURAL" type="button"><span class="modeOptionName">バイノーラル</span><span class="modeOptionDescription">ヘッドホン向けの立体的な聞こえ方</span></button>
+            <button class="btn small modeOption" data-d="3D" type="button"><span class="modeOptionName">3D</span><span class="modeOptionDescription">HRTF方式で方向を表現（ヘッドホン推奨）</span></button>
             <button class="btn small modeOption" data-d="4D" type="button"><span class="modeOptionName">4D</span><span class="modeOptionDescription">音が前後左右や上下にゆっくり移動</span></button>
             <button class="btn small modeOption" data-d="8D" type="button"><span class="modeOptionName">8D</span><span class="modeOptionDescription">音が周囲を回るように移動</span></button>
             <button class="btn small modeOption" data-d="16D" type="button"><span class="modeOptionName">16D</span><span class="modeOptionDescription">音が上下も交えて複雑に周回</span></button>
@@ -367,9 +366,10 @@
           <div class="speakerSectionHeader">
             <div>
               <div class="sectionTitle" style="margin-bottom:4px;">スピーカー</div>
-              <div class="speakerSectionHint">音を出す先を管理します。メイン出力の切り替え、複数機器への同時出力、左右チャンネルの音量・割り当て、出力遅延を個別に設定できます。</div>
+              <div class="speakerSectionHint">通常はデバイス側で指定されているスピーカーだけを使用します。複数出力をONにすると、登録した機器への同時出力が可能になります。</div>
             </div>
             <div class="speakerDeviceActions">
+              <button class="btn small ghost" id="multipleOutputToggle" type="button" aria-pressed="false">複数出力: OFF</button>
               <button class="btn small" id="btnOpenSpeakerAdd" type="button">＋ 同時出力する機器を追加</button>
             </div>
           </div>
@@ -881,7 +881,7 @@
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
   const APP_VERSION = "v7.4.60";
-  const BUILD_REVISION = 68;
+  const BUILD_REVISION = 69;
   const BUILD_COMMIT_ID = "5b2f4e67894f213eb7a59aa6c0f348adc32c2dd1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1256,7 +1256,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.60-r68"></script>
+<script src="js/1. ctrl.js?v=7.4.60-r69"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {

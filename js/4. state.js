@@ -584,6 +584,10 @@
   function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
   function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
   function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
+  function loadSpatialMode(){
+    const savedMode = loadStr(STORAGE.dMode, "3D");
+    return savedMode === "BINAURAL" ? "3D" : savedMode;
+  }
 
   const state = {
     playlist: [],
@@ -611,7 +615,7 @@
     playlistOrder: loadJSON(STORAGE.playlistOrder, []),
     crossfade: loadBool(STORAGE.crossfade, true),
     silenceSkip: loadBool(STORAGE.silenceSkip, true),
-    dMode: loadStr(STORAGE.dMode, "3D"),
+    dMode: loadSpatialMode(),
     waveMode: loadStr(STORAGE.waveMode, "2d"),
     waveParticleCount: Math.max(0, Math.min(1200, Math.round(loadNum(STORAGE.waveParticleCount, 0)))),
     clippingProtection: loadBool(STORAGE.clippingProtection, true),
@@ -632,7 +636,7 @@
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
-    speakerSettings: Object.assign({ mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
+    speakerSettings: Object.assign({ multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
@@ -642,6 +646,12 @@
     homeLayout: loadStr(STORAGE.homeLayout, "default"),
     menuOpen: false
   };
+
+  // 複数出力がOFFの間は、アプリ独自の保存先を使わずOS既定の出力先に従う。
+  if (state.speakerSettings.multipleOutputEnabled !== true) {
+    state.mainOutputDeviceId = "";
+    state.speakerSettings.outputRoutingBlocked = false;
+  }
 
   const el = {
     shell: document.getElementById("shell"),

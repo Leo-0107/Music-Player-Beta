@@ -1,6 +1,10 @@
   // 出力先の切替直後に発生する一時的な音声経路の不安定化を防ぐ。
   // 再生位置・再生速度・ピッチは変更せず、最終ミックスだけをごく短時間フェードアウトしてから復帰させる。
 
+  function isMultipleOutputEnabled() {
+    return state.speakerSettings?.multipleOutputEnabled === true;
+  }
+
   async function runOutputTransition(task) {
     const previous = outputTransitionPromise;
     let release;
@@ -59,7 +63,7 @@
     outputBridgeAudio.style.opacity = "0";
     outputBridgeAudio.style.pointerEvents = "none";
     outputBridgeAudio.srcObject = outputStreamDestination.stream;
-    outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+    outputBridgeAudio.volume = state.speakerSettings?.outputRoutingBlocked === true || state.speakerSettings?.mainEnabled === false ? 0 : 1;
     document.body.appendChild(outputBridgeAudio);
   }
 
@@ -329,7 +333,8 @@
       }
 
       const allEntries = getUnifiedSpeakerEntries().filter(entry =>
-        !entry.disconnected && (entry.selected || entry.route?.enabled !== false)
+        !entry.disconnected &&
+        (entry.selected || (isMultipleOutputEnabled() && state.speakerSettings?.outputRoutingBlocked !== true && entry.route?.enabled !== false))
       );
       if (!allEntries.length) throw new Error("no-speakers");
 
@@ -763,22 +768,72 @@
     return state.mainOutputDeviceId || "";
   }
 
-  function getOutputDeviceLabel(device, fallback = "音声出力デバイス") {
-    return device?.label || fallback;
+  let latestEnumeratedOutputDevices = [];
+
+  function normalizeDefaultOutputLabel(label) {
+    return String(label || "").replace(/^default\s*[-:]\s*/i, "").trim();
   }
 
-  // default出力と物理出力が同じ機器かを、deviceIdまたはgroupIdで判定する。
-  // labelは同名の別機器を誤認する可能性があるため比較に使わない。
   function areSameOutputDevice(a, b) {
     if (!a || !b) return false;
-
     const aId = String(a.deviceId || "");
     const bId = String(b.deviceId || "");
     if (aId && bId && aId === bId) return true;
-
     const aGroupId = String(a.groupId || "");
     const bGroupId = String(b.groupId || "");
     return !!aGroupId && !!bGroupId && aGroupId === bGroupId;
+  }
+
+  function getDefaultPhysicalOutput(outputs = latestEnumeratedOutputDevices) {
+    const defaultDevice = outputs.find(device => device?.kind === "audiooutput" && device.deviceId === "default");
+    if (!defaultDevice) return null;
+    const physical = outputs.filter(device =>
+      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
+    );
+    const identityMatch = physical.find(device => areSameOutputDevice(defaultDevice, device));
+    if (identityMatch) return identityMatch;
+    const defaultLabel = normalizeDefaultOutputLabel(defaultDevice.label);
+    if (!defaultLabel) return null;
+    const labelMatches = physical.filter(device => normalizeDefaultOutputLabel(device.label) === defaultLabel);
+    return labelMatches.length === 1 ? labelMatches[0] : null;
+  }
+
+  function getDefaultOutputLabel(outputs = latestEnumeratedOutputDevices) {
+    const physical = getDefaultPhysicalOutput(outputs);
+    if (physical?.label?.trim()) return physical.label.trim();
+    const defaultDevice = outputs.find(device => device?.kind === "audiooutput" && device.deviceId === "default");
+    return normalizeDefaultOutputLabel(defaultDevice?.label) || "既定のスピーカー";
+  }
+
+  function isDefaultOutputDevice(device, outputs = latestEnumeratedOutputDevices) {
+    if (!device) return false;
+    if (!device.deviceId || device.deviceId === "default") return true;
+    const defaultPhysical = getDefaultPhysicalOutput(outputs);
+    return !!defaultPhysical && areSameOutputDevice(device, defaultPhysical);
+  }
+
+  function isCurrentMainOutputDevice(device, outputs = latestEnumeratedOutputDevices) {
+    if (!device) return false;
+    const mainId = getMainOutputIdentity();
+    if (mainId === "default") return isDefaultOutputDevice(device, outputs);
+    if (device.deviceId === mainId) return true;
+    const mainDevice = outputs.find(item => item?.deviceId === mainId);
+    return !!mainDevice && areSameOutputDevice(device, mainDevice);
+  }
+
+  function getNewlyConnectedOutputDevice(outputs, knownIds) {
+    const newlyConnected = outputs.filter(device =>
+      device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default" &&
+      !knownIds.has(device.deviceId)
+    );
+    if (!newlyConnected.length) return null;
+    const defaultPhysical = getDefaultPhysicalOutput(outputs);
+    return newlyConnected.find(device => defaultPhysical && areSameOutputDevice(device, defaultPhysical)) || newlyConnected[0];
+  }
+
+  function getOutputDeviceLabel(device, fallback = "音声出力デバイス") {
+    if (device?.deviceId === "default") return getDefaultOutputLabel(latestEnumeratedOutputDevices);
+    return device?.label || fallback;
   }
 
   let recentlyGrantedOutputDevice = null;
@@ -800,11 +855,14 @@
         recentlyGrantedOutputDevice = null;
       }
 
+      latestEnumeratedOutputDevices = outputs.slice();
       return outputs;
     } catch (e) {
-      return recentlyGrantedOutputDevice?.deviceId && Date.now() < recentlyGrantedOutputDeviceUntil
+      const fallbackOutputs = recentlyGrantedOutputDevice?.deviceId && Date.now() < recentlyGrantedOutputDeviceUntil
         ? [recentlyGrantedOutputDevice]
         : [];
+      latestEnumeratedOutputDevices = fallbackOutputs.slice();
+      return fallbackOutputs;
     }
   }
 
@@ -908,15 +966,20 @@
     try {
       const outputs = await enumerateAudioOutputs();
       const sinkId = state.mainOutputDeviceId || "";
-      const current = outputs.find(d => d.deviceId === sinkId);
-      if (current?.label) {
+      const current = outputs.find(device => device.deviceId === sinkId);
+      if (!sinkId) {
+        const label = getDefaultOutputLabel(outputs);
+        state.speakerSettings.mainOutputLabel = label;
+        el.outputDeviceName.textContent = label;
+        saveState();
+      } else if (current?.label) {
         state.speakerSettings.mainOutputLabel = current.label;
         el.outputDeviceName.textContent = current.label;
         saveState();
-      } else if (sinkId && state.speakerSettings.mainOutputLabel) {
+      } else if (state.speakerSettings.mainOutputLabel) {
         el.outputDeviceName.textContent = state.speakerSettings.mainOutputLabel + "（未接続）";
       } else {
-        el.outputDeviceName.textContent = "既定のスピーカー";
+        el.outputDeviceName.textContent = "選択したスピーカー（未接続）";
       }
     } catch (e) {
       el.outputDeviceName.textContent = state.speakerSettings.mainOutputLabel || "既定のスピーカー";
@@ -941,9 +1004,13 @@
     document.body.classList.remove("output-device-modal-open");
   }
 
-  async function setMainOutputDevice(deviceId) {
+  async function setMainOutputDevice(deviceId, options = {}) {
     ensureGraph();
-    const normalized = deviceId || "";
+    const requestedId = deviceId || "";
+    const normalized = isMultipleOutputEnabled() ? requestedId : "";
+    if (requestedId && !isMultipleOutputEnabled()) {
+      toast("複数出力がOFFのため、デバイスの既定スピーカーを使用します");
+    }
     const previousId = mainOutputUsesDirectSink
       ? (audioCtx?.sinkId || state.mainOutputDeviceId || "")
       : (outputBridgeAudio?.sinkId || state.mainOutputDeviceId || "");
@@ -987,6 +1054,16 @@
         }
 
         ensureOutputBridge();
+        if (!normalized && outputBridgeAudio && typeof outputBridgeAudio.setSinkId !== "function") {
+          mainOutputUsesDirectSink = false;
+          mainOutputUsesNativeDestination = false;
+          if (wasPlaying) {
+            try { await audioCtx?.resume(); } catch (ignore) {}
+            await outputBridgeAudio.play();
+          }
+          applyAllSpeakerDelayNodes();
+          return;
+        }
         if (!outputBridgeAudio || typeof outputBridgeAudio.setSinkId !== "function") {
           throw new Error("No supported audio output routing API");
         }
@@ -1010,9 +1087,11 @@
         newMain = {
           deviceId: selectedRoute.deviceId,
           label: selectedRoute.label,
+          groupId: selectedRoute.groupId || "",
           left: Number.isFinite(Number(selectedRoute.left)) ? Number(selectedRoute.left) : 1,
           right: Number.isFinite(Number(selectedRoute.right)) ? Number(selectedRoute.right) : 1,
-          delayMs: clampSpeakerDelay(selectedRoute.delayMs)
+          delayMs: clampSpeakerDelay(selectedRoute.delayMs),
+          channelMode: selectedRoute.channelMode || state.speakerSettings?.channelMode || "stereo"
         };
 
         const selectedRuntime = additionalOutputRuntimes.get(selectedRoute.deviceId);
@@ -1028,15 +1107,15 @@
       } else {
         const outputs = await enumerateAudioOutputs();
         const current = outputs.find(device => device.deviceId === normalized);
+        const defaultPhysical = getDefaultPhysicalOutput(outputs);
         newMain = {
           deviceId: normalized,
-          label:
-            current?.label ||
-            (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : "既定のスピーカー"),
+          label: current?.label || (normalized ? state.speakerSettings.mainOutputLabel || "選択したスピーカー" : getDefaultOutputLabel(outputs)),
+          groupId: current?.groupId || (!normalized ? defaultPhysical?.groupId || "" : ""),
           left: currentLeftVolumeTarget,
           right: currentRightVolumeTarget,
           delayMs: getMainOutputDelay(),
-        channelMode: state.speakerSettings?.channelMode || "stereo"
+          channelMode: state.speakerSettings?.channelMode || "stereo"
         };
       }
 
@@ -1059,6 +1138,12 @@
       state.speakerSettings.mainOutputGroupId = newMain.groupId || "";
 
       state.mainOutputDeviceId = normalized;
+      state.speakerSettings.outputRoutingBlocked = false;
+      syncExternalOutputSafety();
+      if (mainOutputDirectGainNode?.gain) {
+        mainOutputDirectGainNode.gain.setTargetAtTime(state.speakerSettings?.mainEnabled === false ? 0 : 1, audioCtx?.currentTime || 0, 0.01);
+      }
+      if (outputBridgeAudio) outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
       applyPairedSpeakerRouting();
       saveState();
       await syncAdditionalOutputRuntimes();
@@ -1070,6 +1155,12 @@
       renderOutputDevicePicker();
       return true;
     } catch (e) {
+      if (options?.failClosed === true) {
+        muteAllAppOutputsForRoutingFailure(normalized);
+        toast("出力先を確定できなかったため、音漏れ防止のためアプリの音声出力を停止しました");
+        renderAdditionalOutputSpeakers();
+        return false;
+      }
       try {
         if (mainOutputUsesDirectSink && typeof audioCtx?.setSinkId === "function") {
           await audioCtx.setSinkId(previousId);
@@ -1110,11 +1201,28 @@
 
   function getUnifiedSpeakerEntries() {
     const mainId = getMainOutputIdentity();
+    const visibleRoutes = [...state.outputRoutes]
+      .map((route, index) => ({ route, index }))
+      .filter(({ route }) => {
+        if (!route?.deviceId || isCurrentMainOutputDevice(route, latestEnumeratedOutputDevices)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const aDisconnected = !!a.route?.deviceId && disconnectedOutputDeviceIds.has(a.route.deviceId);
+        const bDisconnected = !!b.route?.deviceId && disconnectedOutputDeviceIds.has(b.route.deviceId);
+        if (aDisconnected !== bDisconnected) return aDisconnected ? 1 : -1;
+        if (!aDisconnected && !bDisconnected) {
+          const aAdded = Number(a.route?.addedAt) || 0;
+          const bAdded = Number(b.route?.addedAt) || 0;
+          if (aAdded !== bAdded) return bAdded - aAdded;
+        }
+        return a.index - b.index;
+      });
     return [
       {
         selected: true,
         deviceId: mainId === "default" ? "" : mainId,
-        label: state.speakerSettings?.mainOutputLabel || "既定のスピーカー",
+        label: mainId === "default" ? getDefaultOutputLabel(latestEnumeratedOutputDevices) : (state.speakerSettings?.mainOutputLabel || "選択したスピーカー"),
         disconnected: mainId !== "default" && disconnectedOutputDeviceIds.has(mainId),
         left: currentLeftVolumeTarget,
         right: currentRightVolumeTarget,
@@ -1126,40 +1234,21 @@
           ? state.speakerSettings.rightChannel
           : (state.speakerSettings?.channelMode === "left" ? "left" : "right")
       },
-      ...[...state.outputRoutes]
-        .map((route, index) => ({ route, index }))
-        .sort((a, b) => {
-          const aDisconnected = !!a.route?.deviceId && disconnectedOutputDeviceIds.has(a.route.deviceId);
-          const bDisconnected = !!b.route?.deviceId && disconnectedOutputDeviceIds.has(b.route.deviceId);
-          if (aDisconnected !== bDisconnected) return aDisconnected ? 1 : -1;
-          if (!aDisconnected && !bDisconnected) {
-            const aAdded = Number(a.route?.addedAt) || 0;
-            const bAdded = Number(b.route?.addedAt) || 0;
-            if (aAdded !== bAdded) return bAdded - aAdded;
-          }
-          return a.index - b.index;
-        })
-        .map(({ route, index }) => ({
-        selected: false,
-        route,
-        index,
-        deviceId: route.deviceId,
-        label: route.label,
+      ...visibleRoutes.map(({ route, index }) => ({
+        selected: false, route, index, deviceId: route.deviceId, label: route.label,
         disconnected: !!route.deviceId && disconnectedOutputDeviceIds.has(route.deviceId),
         left: Number.isFinite(Number(route.left)) ? Number(route.left) : 1,
         right: Number.isFinite(Number(route.right)) ? Number(route.right) : 1,
         delayMs: clampSpeakerDelay(route.delayMs),
-        leftChannel: ["left", "right", "off"].includes(route.leftChannel)
-          ? route.leftChannel
-          : (route.channelMode === "right" ? "right" : "left"),
-        rightChannel: ["left", "right", "off"].includes(route.rightChannel)
-          ? route.rightChannel
-          : (route.channelMode === "left" ? "left" : "right")
+        leftChannel: ["left", "right", "off"].includes(route.leftChannel) ? route.leftChannel : (route.channelMode === "right" ? "right" : "left"),
+        rightChannel: ["left", "right", "off"].includes(route.rightChannel) ? route.rightChannel : (route.channelMode === "left" ? "left" : "right")
       }))
     ];
   }
 
   function getAdditionalOutputStatus(route) {
+    if (state.speakerSettings?.outputRoutingBlocked === true) return "出力先未確定・停止中";
+    if (!isMultipleOutputEnabled()) return "複数出力OFF";
     if (route?.enabled === false) return "停止中";
     const runtime = additionalOutputRuntimes.get(route?.deviceId);
     if (!runtime) return "接続待ち";
@@ -1208,6 +1297,15 @@
   }
 
   async function testSpeakerOutput(entry) {
+    if (!entry || entry.disconnected) return false;
+    if (!entry.selected && (!isMultipleOutputEnabled() || state.speakerSettings?.outputRoutingBlocked === true)) {
+      toast("複数出力が有効なときだけ追加スピーカーをテストできます");
+      return false;
+    }
+    if (state.speakerSettings?.outputRoutingBlocked === true) {
+      toast("出力先が未確定のため、音声出力を停止しています");
+      return false;
+    }
     try {
       ensureGraph();
       if (!audioCtx) return;
@@ -1300,7 +1398,9 @@
 
       const status = document.createElement("small");
       status.className = "speakerRuntimeStatus";
-      status.textContent = entry.selected ? (state.speakerSettings?.mainEnabled !== false ? "出力中" : "出力OFF") : getAdditionalOutputStatus(entry.route);
+      status.textContent = entry.selected
+        ? (state.speakerSettings?.outputRoutingBlocked === true ? "出力停止中" : (state.speakerSettings?.mainEnabled !== false ? "出力中" : "出力OFF"))
+        : getAdditionalOutputStatus(entry.route);
       status.style.marginRight = "8px";
 
       if (entry.selected) {
@@ -1464,10 +1564,16 @@
     if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
     state.speakerSettings.mainEnabled = state.speakerSettings.mainEnabled === false;
     const enabled = state.speakerSettings.mainEnabled;
+    const outputEnabled = enabled && state.speakerSettings?.outputRoutingBlocked !== true;
     if (mainOutputDirectGainNode) {
-      mainOutputDirectGainNode.gain.setTargetAtTime(enabled ? 1 : 0, audioCtx?.currentTime || 0, 0.005);
+      mainOutputDirectGainNode.gain.setTargetAtTime(outputEnabled ? 1 : 0, audioCtx?.currentTime || 0, 0.005);
     }
-    if (outputBridgeAudio) outputBridgeAudio.volume = enabled ? 1 : 0;
+    if (outputBridgeAudio) {
+      outputBridgeAudio.volume = outputEnabled ? 1 : 0;
+      if (!outputEnabled) {
+        try { outputBridgeAudio.pause(); } catch (e) {}
+      }
+    }
     saveState();
     renderAdditionalOutputSpeakers();
     toast(enabled ? "メイン出力をONにしました" : "メイン出力をOFFにしました");
@@ -1475,6 +1581,98 @@
 
   function getMainOutputIdentity() {
     return getCurrentMainOutputSinkId() || "default";
+  }
+
+  function stopAllAdditionalOutputRuntimes() {
+    for (const deviceId of additionalOutputRuntimes.keys()) disconnectAdditionalOutputRuntime(deviceId);
+  }
+
+  function muteAllAppOutputsForRoutingFailure(targetDeviceId = state.mainOutputDeviceId || "") {
+    if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+    state.speakerSettings.outputRoutingBlocked = true;
+    state.mainOutputDeviceId = String(targetDeviceId || "");
+    syncExternalOutputSafety();
+    if (mainOutputDirectGainNode?.gain && audioCtx) {
+      const now = audioCtx.currentTime;
+      try {
+        mainOutputDirectGainNode.gain.cancelScheduledValues(now);
+        mainOutputDirectGainNode.gain.setValueAtTime(0, now);
+      } catch (e) {}
+    }
+    if (outputBridgeAudio) {
+      outputBridgeAudio.volume = 0;
+      try { outputBridgeAudio.pause(); } catch (e) {}
+    }
+    stopAllAdditionalOutputRuntimes();
+    saveState();
+  }
+
+  async function switchToExclusiveOutputDevice(device, outputs = latestEnumeratedOutputDevices) {
+    if (!isMultipleOutputEnabled() || !device?.deviceId) return false;
+    for (const route of state.outputRoutes) route.enabled = false;
+    saveState();
+    const targetId = isDefaultOutputDevice(device, outputs) ? "" : device.deviceId;
+    const switched = await setMainOutputDevice(targetId, { failClosed: true });
+    if (!switched) return false;
+    for (const route of state.outputRoutes) route.enabled = false;
+    stopAllAdditionalOutputRuntimes();
+    saveState();
+    await syncAdditionalOutputRuntimes();
+    renderAdditionalOutputSpeakers();
+    return true;
+  }
+
+  function syncExternalOutputSafety() {
+    const mainId = state.mainOutputDeviceId || "";
+    const shouldMuteYouTube = state.speakerSettings?.outputRoutingBlocked === true ||
+      (!!mainId && !isDefaultOutputDevice({ deviceId: mainId }, latestEnumeratedOutputDevices));
+    try { window.setYouTubeOutputRoutingBlocked?.(shouldMuteYouTube); } catch (e) {}
+    return shouldMuteYouTube;
+  }
+  window.syncExternalOutputSafety = syncExternalOutputSafety;
+
+  function updateMultipleOutputToggleUI() {
+    const toggle = document.getElementById("multipleOutputToggle");
+    if (!toggle) return;
+    const enabled = isMultipleOutputEnabled();
+    toggle.textContent = "複数出力: " + (enabled ? "ON" : "OFF");
+    toggle.classList.toggle("active", enabled);
+    toggle.setAttribute("aria-pressed", String(enabled));
+  }
+
+  async function setMultipleOutputEnabled(enabled) {
+    if (!state.speakerSettings || typeof state.speakerSettings !== "object") state.speakerSettings = {};
+    const next = !!enabled;
+    if (next === isMultipleOutputEnabled()) {
+      updateMultipleOutputToggleUI();
+      return true;
+    }
+    if (!next) {
+      state.speakerSettings.multipleOutputEnabled = false;
+      state.mainOutputDeviceId = "";
+      syncExternalOutputSafety();
+      saveState();
+      const switched = await setMainOutputDevice("", { failClosed: true });
+      await syncAdditionalOutputRuntimes();
+      updateMultipleOutputToggleUI();
+      renderAdditionalOutputSpeakers();
+      if (!switched) return false;
+      toast("複数出力をOFFにしました。デバイスの既定スピーカーだけを使用します");
+      return true;
+    }
+    state.speakerSettings.multipleOutputEnabled = true;
+    syncExternalOutputSafety();
+    saveState();
+    updateMultipleOutputToggleUI();
+    await syncAdditionalOutputRuntimes();
+    if (state.speakerSettings.outputRoutingBlocked !== true && !audio.paused) await startOutputBridge();
+    renderAdditionalOutputSpeakers();
+    if (state.speakerSettings.outputRoutingBlocked === true) {
+      toast("複数出力をONにしましたが、出力先が未確定のため音声出力は停止中です");
+      return false;
+    }
+    toast("複数出力をONにしました");
+    return true;
   }
 
   function hasAdditionalOutput(deviceId) {
@@ -1500,6 +1698,11 @@
 
     route.enabled = route.enabled === false;
     saveState();
+    if (!isMultipleOutputEnabled() || state.speakerSettings?.outputRoutingBlocked === true) {
+      renderAdditionalOutputSpeakers();
+      toast("設定は保存しました。実際の出力には複数出力をONにしてください");
+      return;
+    }
 
     await runOutputTransition(async () => {
       if (route.enabled) {
@@ -1587,6 +1790,7 @@
   }
 
   async function createAdditionalOutputRuntime(route) {
+    if (!isMultipleOutputEnabled() || state.speakerSettings?.outputRoutingBlocked === true) return null;
     if (!audioCtx || !analyser || !route?.deviceId) return null;
     if (additionalOutputRuntimes.has(route.deviceId)) return additionalOutputRuntimes.get(route.deviceId);
     if (!("setSinkId" in HTMLMediaElement.prototype) || !audioCtx.createMediaStreamDestination) return null;
@@ -1730,6 +1934,13 @@
         state.speakerSettings.mainOutputGroupId = match.groupId || mainSaved.groupId || "";
       }
     }
+    const resolvedMainId = state.mainOutputDeviceId || "default";
+    const resolvedMainDevice = resolvedMainId === "default" ? getDefaultPhysicalOutput(devices) : physical.find(device => device.deviceId === resolvedMainId);
+    for (const route of state.outputRoutes) {
+      if (route?.deviceId && (route.deviceId === resolvedMainId || (resolvedMainDevice && areSameOutputDevice(route, resolvedMainDevice)))) {
+        route.enabled = false;
+      }
+    }
     saveState();
   }
 
@@ -1762,6 +1973,19 @@
 
   async function syncAdditionalOutputRuntimes() {
     if (!audioCtx || !analyser) return;
+    if (!isMultipleOutputEnabled() || state.speakerSettings?.outputRoutingBlocked === true) {
+      stopAllAdditionalOutputRuntimes();
+      return;
+    }
+    const currentOutputs = await enumerateAudioOutputs();
+    let disabledMainAliases = false;
+    for (const route of state.outputRoutes) {
+      if (route?.deviceId && route.enabled !== false && isCurrentMainOutputDevice(route, currentOutputs)) {
+        route.enabled = false;
+        disabledMainAliases = true;
+      }
+    }
+    if (disabledMainAliases) saveState();
     const validIds = new Set(state.outputRoutes.map(route => route.deviceId).filter(Boolean));
 
     for (const [deviceId, runtime] of additionalOutputRuntimes) {
@@ -1789,24 +2013,34 @@
   }
 
   async function startOutputBridge() {
-    if (outputBridgeAudio) {
-      try {
-        if (outputBridgeAudio.paused) await outputBridgeAudio.play();
-      } catch (e) {}
+    if (state.speakerSettings?.outputRoutingBlocked === true) {
+      if (outputBridgeAudio) {
+        outputBridgeAudio.volume = 0;
+        try { outputBridgeAudio.pause(); } catch (e) {}
+      }
+      stopAllAdditionalOutputRuntimes();
+      return;
     }
-
+    if (outputBridgeAudio) {
+      if (mainOutputUsesDirectSink || mainOutputUsesNativeDestination || state.speakerSettings?.mainEnabled === false) {
+        if (!outputBridgeAudio.paused) {
+          try { outputBridgeAudio.pause(); } catch (e) {}
+        }
+      } else if (outputBridgeAudio.paused) {
+        try { await outputBridgeAudio.play(); } catch (e) {}
+      }
+    }
+    if (!isMultipleOutputEnabled()) {
+      stopAllAdditionalOutputRuntimes();
+      return;
+    }
     let speakerStatusChanged = false;
     for (const [deviceId, runtime] of additionalOutputRuntimes.entries()) {
       const route = state.outputRoutes.find(item => item.deviceId === deviceId);
-
-      // 「未使用」にした追加スピーカーは、バックグラウンド復帰や再生再開でも再生対象へ戻さない。
-      if (route?.enabled === false) {
-        if (!runtime.audio.paused) {
-          try { runtime.audio.pause(); } catch (e) {}
-        }
+      if (route?.enabled === false || !route) {
+        disconnectAdditionalOutputRuntime(deviceId);
         continue;
       }
-
       try {
         if (!runtime.connected && speakerBusNode) {
           speakerBusNode.connect(runtime.splitter);
@@ -1823,10 +2057,7 @@
         runtime.playError = nextError;
       }
     }
-
-    if (speakerStatusChanged && typeof renderAdditionalOutputSpeakers === "function") {
-      renderAdditionalOutputSpeakers();
-    }
+    if (speakerStatusChanged && typeof renderAdditionalOutputSpeakers === "function") renderAdditionalOutputSpeakers();
   }
 
   async function addAdditionalOutputSpeaker(device) {
@@ -1835,8 +2066,8 @@
     const normalized = deviceId || "default";
     const mainId = getMainOutputIdentity();
 
-    if (normalized === mainId) {
-      toast("現在のスピーカーはすでにメイン出力です");
+    if (normalized === mainId || isCurrentMainOutputDevice(device, latestEnumeratedOutputDevices)) {
+      toast("現在のメインスピーカーはすでに選択されています");
       return false;
     }
     if (hasAdditionalOutput(normalized)) {
@@ -1859,13 +2090,22 @@
       addedAt: Date.now()
     };
 
+    if (!isMultipleOutputEnabled() || state.speakerSettings?.outputRoutingBlocked === true) {
+      state.outputRoutes.push(route);
+      saveState();
+      renderAdditionalOutputSpeakers();
+      renderOutputDeviceAddPicker();
+      closeOutputDeviceAddModal();
+      toast("スピーカーを登録しました。音を出すには複数出力をONにしてください");
+      return true;
+    }
+
     // 接続に成功してから登録する。失敗した機器を「登録スピーカー」として保存しない。
     const runtime = await createAdditionalOutputRuntime(route);
     if (!runtime) {
       toast("スピーカーを追加できませんでした");
       return false;
     }
-
     state.outputRoutes.push(route);
     saveState();
     renderAdditionalOutputSpeakers();
@@ -1877,8 +2117,7 @@
   }
 
   function outputDeviceIsDefaultPhysical(device, outputs) {
-    const defaultDevice = outputs.find(d => d.deviceId === "default");
-    return !!defaultDevice && areSameOutputDevice(defaultDevice, device);
+    return isDefaultOutputDevice(device, outputs);
   }
 
   function getOutputDevicePriority(device) {
@@ -1895,7 +2134,6 @@
 
       el.outputDeviceList.innerHTML = "";
 
-      const defaultDevice = outputs.find(d => d.deviceId === "default") || { deviceId: "", label: "既定のスピーカー" };
       const physicalOutputs = outputs
         .filter(d => d.deviceId && d.deviceId !== "default")
         .sort((a, b) => {
@@ -1903,12 +2141,10 @@
           if (priorityDiff !== 0) return priorityDiff;
           return String(a.label || "").localeCompare(String(b.label || ""), "ja");
         });
-      const defaultPhysical = physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device));
-
+      const defaultPhysical = getDefaultPhysicalOutput(outputs);
       const list = [
-        ...(defaultPhysical ? [defaultPhysical] : []),
-        ...physicalOutputs.filter(device => !defaultPhysical || !areSameOutputDevice(defaultDevice, device)),
-        { deviceId: "", label: "既定のスピーカー" }
+        { deviceId: "", label: getDefaultOutputLabel(outputs) },
+        ...physicalOutputs.filter(device => !isDefaultOutputDevice(device, outputs))
       ];
 
       const seen = new Set();
@@ -1942,8 +2178,10 @@
         const mainBtn = document.createElement("button");
         mainBtn.className = "btn small";
         mainBtn.type = "button";
-        mainBtn.textContent = isMain ? "使用中" : "使用する";
-        mainBtn.disabled = isMain;
+        mainBtn.textContent = isMain
+          ? "使用中"
+          : (!isMultipleOutputEnabled() && device.deviceId ? "複数出力ONで使用" : "使用する");
+        mainBtn.disabled = isMain || (!isMultipleOutputEnabled() && !!device.deviceId);
         mainBtn.addEventListener("click", async () => {
           await setMainOutputDevice(device.deviceId || "");
           closeOutputDeviceModal();
@@ -2167,7 +2405,7 @@
       el.outputDeviceAddList.innerHTML = "";
 
       const physicalOutputs = outputs
-        .filter(d => d.deviceId && d.deviceId !== "default")
+        .filter(d => d.deviceId && d.deviceId !== "default" && !isCurrentMainOutputDevice(d, outputs))
         .sort((a, b) => {
           const priorityDiff = getOutputDevicePriority(a) - getOutputDevicePriority(b);
           if (priorityDiff !== 0) return priorityDiff;
@@ -2249,6 +2487,17 @@
     openOutputDeviceModal();
   }
 
+  const multipleOutputToggle = document.getElementById("multipleOutputToggle");
+  if (multipleOutputToggle) {
+    multipleOutputToggle.addEventListener("click", () => {
+      setMultipleOutputEnabled(!isMultipleOutputEnabled()).catch(error => {
+        console.error("Music Player multiple-output setting failed:", error);
+        toast("複数出力の設定を変更できませんでした");
+      });
+    });
+    updateMultipleOutputToggleUI();
+  }
+
   if (el.btnOpenSpeakerAdd) el.btnOpenSpeakerAdd.addEventListener("click", openOutputDeviceAddModal);
 
   const requestOutputPermissionFromUser = () => {
@@ -2307,6 +2556,7 @@
   }
 
   let lastSystemDefaultOutputDeviceId = null;
+  let hasOutputDeviceBaseline = false;
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
@@ -2316,43 +2566,35 @@
       }
       const outputs = await enumerateAudioOutputs();
       await rebindStoredOutputRoutes(outputs);
-
       const physicalOutputs = outputs.filter(device =>
         device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
       );
-      knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
-
-      const defaultDevice = outputs.find(device => device.deviceId === "default");
-      const defaultPhysical = defaultDevice
-        ? physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device))
+      const newlyConnectedOutput = hasOutputDeviceBaseline
+        ? getNewlyConnectedOutputDevice(outputs, knownPhysicalOutputDeviceIds)
         : null;
-      const nextDefaultId = defaultPhysical?.deviceId || "";
+      knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
+      hasOutputDeviceBaseline = true;
 
-      // OS側の既定出力が実際に変わった場合だけ、新しい機器へメイン出力を切り替える。
-      // 切替成功後は追加出力をすべて解除し、新しい既定出力1台だけから再生する。
-      if (
-        lastSystemDefaultOutputDeviceId !== null &&
-        nextDefaultId !== lastSystemDefaultOutputDeviceId
-      ) {
-        const switched = await setMainOutputDevice(nextDefaultId);
-        if (switched) {
-          for (const runtime of additionalOutputRuntimes.values()) {
-            try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
-            try { runtime.audio.pause(); } catch (e) {}
-            try { runtime.audio.srcObject = null; } catch (e) {}
-            try { runtime.audio.remove(); } catch (e) {}
-          }
-          additionalOutputRuntimes.clear();
-          state.outputRoutes = [];
-          saveState();
-          applyPairedSpeakerRouting();
-          await syncAdditionalOutputRuntimes();
-          renderAdditionalOutputSpeakers();
+      const defaultPhysical = getDefaultPhysicalOutput(outputs);
+      const nextDefaultId = defaultPhysical?.deviceId || "";
+      const defaultChanged = lastSystemDefaultOutputDeviceId !== null &&
+        nextDefaultId !== lastSystemDefaultOutputDeviceId;
+
+      if (isMultipleOutputEnabled() && newlyConnectedOutput) {
+        await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
+      } else if (defaultChanged) {
+        if (isMultipleOutputEnabled()) {
+          await switchToExclusiveOutputDevice(
+            defaultPhysical || { deviceId: "default", label: getDefaultOutputLabel(outputs) },
+            outputs
+          );
+        } else {
+          await setMainOutputDevice("", { failClosed: true });
         }
       }
+
       lastSystemDefaultOutputDeviceId = nextDefaultId;
       pendingOutputDeviceRefresh = false;
-
       await updateOutputDeviceName();
       await updateDisconnectedOutputDeviceIds();
       await renderOutputDevicePicker();
@@ -2368,11 +2610,12 @@
       device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
     );
     knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
-    const defaultDevice = outputs.find(device => device.deviceId === "default");
-    const defaultPhysical = defaultDevice
-      ? physicalOutputs.find(device => areSameOutputDevice(defaultDevice, device))
-      : null;
+    hasOutputDeviceBaseline = outputs.some(device => device?.kind === "audiooutput");
+    const defaultPhysical = getDefaultPhysicalOutput(outputs);
     lastSystemDefaultOutputDeviceId = defaultPhysical?.deviceId || "";
+    syncExternalOutputSafety();
+    updateOutputDeviceName();
+    renderAdditionalOutputSpeakers();
   }).catch(error => {
     console.warn("Music Player output device discovery failed:", error);
   });

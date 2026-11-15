@@ -14,6 +14,8 @@ const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
 const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
 const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
 const uiSource = fs.readFileSync(path.join(root, "js/7. ui.js"), "utf8");
+const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const youtubeSource = fs.readFileSync(path.join(root, "js/9. youtube.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -3135,38 +3137,41 @@ test("audio proxy routes local audio to PCM while local video and YouTube stay o
 });
 
 
-test("binaural mode keeps the HRTF source fixed in front while 3D mode follows the pan setting", () => {
+test("3D mode uses HRTF positioning and follows the pan setting", () => {
   const start = audioSource.indexOf("function updateSpatialAudio(dt)");
   const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
   assert.ok(start >= 0 && end > start, "spatial position update function must exist");
   const positionSource = audioSource.slice(start, end);
-  const panner = {
-    positionX: { value: 0 },
-    positionY: { value: 0 },
-    positionZ: { value: 0 }
-  };
+  const panner = { positionX: { value: 0 }, positionY: { value: 0 }, positionZ: { value: 0 } };
   const sandbox = {
-    audioCtx: {},
-    panner3DNode: panner,
-    audio: { paused: false },
-    state: { dMode: "BINAURAL", panValue: 0.5 },
-    spatialAngle: 0
+    audioCtx: {}, panner3DNode: panner, audio: { paused: false },
+    state: { dMode: "3D", panValue: 0.25 }, spatialAngle: 0
   };
   vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
-
-  sandbox.updateSpatialAudio(1);
-  assert.equal(panner.positionX.value, 0);
-  assert.equal(panner.positionY.value, 0);
-  assert.equal(panner.positionZ.value, -1.5);
-
-  sandbox.state.dMode = "3D";
-  sandbox.state.panValue = 0.25;
   sandbox.updateSpatialAudio(1);
   assert.equal(panner.positionX.value, 0.45);
   assert.equal(panner.positionY.value, 0);
   assert.equal(panner.positionZ.value, -1.5);
-
   assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
+  assert.doesNotMatch(positionSource, /case ["']BINAURAL["']/);
+});
+
+test("legacy BINAURAL spatial mode is migrated to 3D on load", () => {
+  const start = stateSource.indexOf("function loadSpatialMode()");
+  const end = stateSource.indexOf("\n  const state =", start);
+  assert.ok(start >= 0 && end > start, "spatial mode migration helper must exist");
+  const helperSource = stateSource.slice(start, end);
+  let savedMode = "BINAURAL";
+  const sandbox = {
+    STORAGE: { dMode: "stored-spatial-mode" },
+    loadStr(key, fallback) { return savedMode === undefined ? fallback : savedMode; }
+  };
+  vm.runInNewContext(helperSource + "\nthis.loadSpatialMode = loadSpatialMode;", sandbox);
+  assert.equal(sandbox.loadSpatialMode(), "3D");
+  savedMode = "4D";
+  assert.equal(sandbox.loadSpatialMode(), "4D");
+  savedMode = undefined;
+  assert.equal(sandbox.loadSpatialMode(), "3D");
 });
 
 
@@ -3182,21 +3187,21 @@ test("4D, 8D, and 16D spatial modes update HRTF position from elapsed time", () 
     {
       mode: "4D",
       expected: [
-        Math.sin(t * 0.4) * 2.5,
-        Math.sin(t * 0.8) * 1.2,
-        Math.cos(t * 0.4) * 2.5
+        Math.sin(t * 0.55) * 2.5,
+        Math.sin(t * 1.1) * 1.35,
+        Math.cos(t * 0.55) * 2.0
       ]
     },
     {
       mode: "8D",
-      expected: [Math.sin(t) * 3.2, 0, Math.cos(t) * 3.2]
+      expected: [Math.sin(t * 0.95) * 2.6, 0, Math.cos(t * 0.95) * 2.6]
     },
     {
       mode: "16D",
       expected: [
-        Math.sin(t * 1.2) * 3.5,
-        Math.sin(t * 2.4) * 1.8,
-        Math.cos(t * 0.7) * 3.5
+        Math.sin(t * 0.72) * 2.45,
+        (Math.sin(t * 0.72 * 1.618) + 0.35 * Math.sin(t * 0.72 * 0.5)) * 1.05,
+        Math.cos(t * 0.72 * 0.7071) * 2.45
       ]
     }
   ];
@@ -3287,7 +3292,7 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
     positionY: { value: 2 },
     positionZ: { value: 3 }
   };
-  const buttons = ["2D", "3D", "BINAURAL", "4D", "8D", "16D"].map(mode => ({
+  const buttons = ["2D", "3D", "4D", "8D", "16D"].map(mode => ({
     dataset: { d: mode },
     classList: { active: false, toggle(name, value) { if (name === "active") this.active = value; } }
   }));
@@ -3306,12 +3311,15 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
   };
   vm.runInNewContext(setterSource + "\nthis.setDMode = setDMode;", sandbox);
 
-  for (const mode of ["4D", "8D", "16D", "BINAURAL", "3D", "2D"]) {
+  for (const mode of ["4D", "8D", "16D", "3D", "2D"]) {
     sandbox.setDMode(mode);
     assert.equal(sandbox.state.dMode, mode);
     assert.equal(sandbox.spatialAngle, 12.345);
     assert.equal(buttons.find(button => button.dataset.d === mode).classList.active, true);
   }
+  sandbox.setDMode("BINAURAL");
+  assert.equal(sandbox.state.dMode, "3D");
+  assert.equal(buttons.find(button => button.dataset.d === "3D").classList.active, true);
 
   assert.deepEqual(
     [panner.positionX.value, panner.positionY.value, panner.positionZ.value],
@@ -3319,7 +3327,7 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
   );
   assert.equal(saveCount, 6);
   assert.equal(routeUpdates, 6);
-  assert.match(sandbox.el.dModeDesc.textContent, /通常の左右ステレオ/);
+  assert.match(sandbox.el.dModeDesc.textContent, /HRTF方式/);
 });
 
 
@@ -3374,4 +3382,205 @@ test("unsupported settings during pending playback startup preserve the play req
   vm.runInNewContext(functionSource + "\nthis.applyPitchAndRate = applyPitchAndRate;", sandbox);
   sandbox.applyPitchAndRate();
   assert.equal(fallbackResume, true);
+});
+
+
+test("multiple speaker output is opt-in and defaults to OFF", () => {
+  const start = outputSource.indexOf("function isMultipleOutputEnabled()");
+  const end = outputSource.indexOf("\n  }", start) + 4;
+  assert.ok(start >= 0 && end > start, "multiple-output preference helper must exist");
+  const helperSource = outputSource.slice(start, end);
+  const sandbox = { state: { speakerSettings: {} } };
+  vm.runInNewContext(helperSource + "\nthis.isMultipleOutputEnabled = isMultipleOutputEnabled;", sandbox);
+  assert.equal(sandbox.isMultipleOutputEnabled(), false);
+  sandbox.state.speakerSettings.multipleOutputEnabled = false;
+  assert.equal(sandbox.isMultipleOutputEnabled(), false);
+  sandbox.state.speakerSettings.multipleOutputEnabled = true;
+  assert.equal(sandbox.isMultipleOutputEnabled(), true);
+  assert.match(stateSource, /multipleOutputEnabled:\s*false/);
+  assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
+  assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力: OFF/);
+  assert.ok(outputSource.includes('const normalized = isMultipleOutputEnabled() ? requestedId : ""'));
+  assert.match(outputSource, /複数出力ONで使用/);
+});
+
+test("OS default output resolves to the named physical speaker without an ambiguous label match", () => {
+  const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
+  const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
+  assert.ok(start >= 0 && end > start, "default-output identity helpers must exist");
+  const helperSource = outputSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(helperSource + "\nthis.getDefaultPhysicalOutput = getDefaultPhysicalOutput; this.getDefaultOutputLabel = getDefaultOutputLabel; this.isDefaultOutputDevice = isDefaultOutputDevice; this.getNewlyConnectedOutputDevice = getNewlyConnectedOutputDevice;", sandbox);
+  const outputs = [
+    { kind: "audiooutput", deviceId: "default", label: "Default - Speaker", groupId: "internal-speaker" },
+    { kind: "audiooutput", deviceId: "speaker-1", label: "Speaker", groupId: "internal-speaker" },
+    { kind: "audiooutput", deviceId: "headphones-1", label: "Bluetooth Headphones", groupId: "headphones" }
+  ];
+  assert.equal(sandbox.getDefaultPhysicalOutput(outputs).deviceId, "speaker-1");
+  assert.equal(sandbox.getDefaultOutputLabel(outputs), "Speaker");
+  assert.equal(sandbox.isDefaultOutputDevice(outputs[1], outputs), true);
+  assert.equal(sandbox.getNewlyConnectedOutputDevice(outputs, new Set(["speaker-1"])).deviceId, "headphones-1");
+  const ambiguous = [
+    { kind: "audiooutput", deviceId: "default", label: "Default - Speaker", groupId: "" },
+    { kind: "audiooutput", deviceId: "speaker-a", label: "Speaker", groupId: "" },
+    { kind: "audiooutput", deviceId: "speaker-b", label: "Speaker", groupId: "" }
+  ];
+  assert.equal(sandbox.getDefaultPhysicalOutput(ambiguous), null);
+  assert.equal(sandbox.getDefaultOutputLabel(ambiguous), "Speaker");
+});
+
+test("newly connected output selection prefers the new OS-default physical device", () => {
+  const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
+  const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
+  const helperSource = outputSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(helperSource + "\nthis.getNewlyConnectedOutputDevice = getNewlyConnectedOutputDevice;", sandbox);
+  const outputs = [
+    { kind: "audiooutput", deviceId: "default", label: "Default - USB Speaker", groupId: "usb-speaker" },
+    { kind: "audiooutput", deviceId: "old", label: "Old Speaker", groupId: "old" },
+    { kind: "audiooutput", deviceId: "usb", label: "USB Speaker", groupId: "usb-speaker" },
+    { kind: "audiooutput", deviceId: "new-headphones", label: "Headphones", groupId: "new-headphones" }
+  ];
+  assert.equal(sandbox.getNewlyConnectedOutputDevice(outputs, new Set(["old"])).deviceId, "usb");
+});
+
+test("additional output runtime synchronization is fail-closed while multiple output is OFF", async () => {
+  const start = outputSource.indexOf("  async function syncAdditionalOutputRuntimes()");
+  const end = outputSource.indexOf("\n  async function startOutputBridge", start);
+  assert.ok(start >= 0 && end > start, "additional-output sync function must exist");
+  const functionSource = outputSource.slice(start, end);
+  let stopped = 0;
+  let created = 0;
+  const sandbox = {
+    audioCtx: {}, analyser: {},
+    state: { speakerSettings: { multipleOutputEnabled: false }, outputRoutes: [{ deviceId: "extra", enabled: true }] },
+    isMultipleOutputEnabled: () => false,
+    stopAllAdditionalOutputRuntimes() { stopped++; },
+    createAdditionalOutputRuntime() { created++; }
+  };
+  vm.runInNewContext(functionSource + "\nthis.syncAdditionalOutputRuntimes = syncAdditionalOutputRuntimes;", sandbox);
+  await sandbox.syncAdditionalOutputRuntimes();
+  assert.equal(stopped, 1);
+  assert.equal(created, 0);
+});
+
+test("automatic new-speaker switch disables all saved additional routes and selects only the new output", async () => {
+  const start = outputSource.indexOf("  async function switchToExclusiveOutputDevice");
+  const end = outputSource.indexOf("\n  function syncExternalOutputSafety", start);
+  assert.ok(start >= 0 && end > start, "exclusive output switch helper must exist");
+  const functionSource = outputSource.slice(start, end);
+  const routes = [{ deviceId: "old-main", enabled: true }, { deviceId: "old-extra", enabled: true }];
+  let selectedId = null, failClosed = false, saved = 0, stopped = 0, synced = 0;
+  const sandbox = {
+    state: { speakerSettings: { multipleOutputEnabled: true }, outputRoutes: routes },
+    isMultipleOutputEnabled: () => true,
+    isDefaultOutputDevice: () => false,
+    saveState() { saved++; },
+    async setMainOutputDevice(id, options) { selectedId = id; failClosed = options.failClosed; return true; },
+    stopAllAdditionalOutputRuntimes() { stopped++; },
+    async syncAdditionalOutputRuntimes() { synced++; },
+    renderAdditionalOutputSpeakers() {}
+  };
+  vm.runInNewContext(functionSource + "\nthis.switchToExclusiveOutputDevice = switchToExclusiveOutputDevice;", sandbox);
+  assert.equal(await sandbox.switchToExclusiveOutputDevice({ deviceId: "new-speaker" }, []), true);
+  assert.equal(selectedId, "new-speaker");
+  assert.equal(failClosed, true);
+  assert.deepEqual(routes.map(route => route.enabled), [false, false]);
+  assert.equal(stopped, 1);
+  assert.equal(synced, 1);
+  assert.equal(saved, 2);
+});
+
+test("routing failure mutes the main sink and bridge and persists a blocked state", () => {
+  const start = outputSource.indexOf("  function muteAllAppOutputsForRoutingFailure");
+  const end = outputSource.indexOf("\n  async function switchToExclusiveOutputDevice", start);
+  assert.ok(start >= 0 && end > start, "routing failure mute helper must exist");
+  const functionSource = outputSource.slice(start, end);
+  let saved = 0, stopped = 0;
+  const directGain = { value: 1, cancelScheduledValues() {}, setValueAtTime(value) { this.value = value; } };
+  const bridge = { volume: 1, paused: false, pause() { this.paused = true; } };
+  const sandbox = {
+    state: { speakerSettings: { multipleOutputEnabled: true }, mainOutputDeviceId: "old" },
+    mainOutputDirectGainNode: { gain: directGain }, audioCtx: { currentTime: 1 }, outputBridgeAudio: bridge,
+    syncExternalOutputSafety() {},
+    stopAllAdditionalOutputRuntimes() { stopped++; }, saveState() { saved++; }
+  };
+  vm.runInNewContext(functionSource + "\nthis.muteAllAppOutputsForRoutingFailure = muteAllAppOutputsForRoutingFailure;", sandbox);
+  sandbox.muteAllAppOutputsForRoutingFailure("new-speaker");
+  assert.equal(sandbox.state.speakerSettings.outputRoutingBlocked, true);
+  assert.equal(sandbox.state.mainOutputDeviceId, "new-speaker");
+  assert.equal(directGain.value, 0);
+  assert.equal(bridge.volume, 0);
+  assert.equal(bridge.paused, true);
+  assert.equal(stopped, 1);
+  assert.equal(saved, 1);
+});
+
+
+test("multi-output ON suppresses a saved route that aliases the current main speaker", async () => {
+  const start = outputSource.indexOf("  async function syncAdditionalOutputRuntimes()");
+  const end = outputSource.indexOf("\n  async function startOutputBridge", start);
+  const functionSource = outputSource.slice(start, end);
+  const route = { deviceId: "speaker-alias", enabled: true };
+  let saved = 0, disconnected = 0, created = 0;
+  const sandbox = {
+    audioCtx: {}, analyser: {},
+    state: { speakerSettings: { multipleOutputEnabled: true, outputRoutingBlocked: false }, outputRoutes: [route] },
+    isMultipleOutputEnabled: () => true,
+    async enumerateAudioOutputs() { return [{ kind: "audiooutput", deviceId: "default" }, { kind: "audiooutput", deviceId: "speaker-alias" }]; },
+    isCurrentMainOutputDevice: () => true,
+    saveState() { saved++; },
+    additionalOutputRuntimes: new Map(),
+    applyPairedSpeakerRouting() {},
+    async updateDisconnectedOutputDeviceIds() {},
+    disconnectedOutputDeviceIds: new Set(),
+    disconnectAdditionalOutputRuntime() { disconnected++; },
+    async createAdditionalOutputRuntime() { created++; },
+    applyAllSpeakerDelayNodes() {}
+  };
+  vm.runInNewContext(functionSource + "\nthis.syncAdditionalOutputRuntimes = syncAdditionalOutputRuntimes;", sandbox);
+  await sandbox.syncAdditionalOutputRuntimes();
+  assert.equal(route.enabled, false);
+  assert.equal(saved, 1);
+  assert.equal(disconnected, 1);
+  assert.equal(created, 0);
+});
+
+
+test("YouTube iframe audio is muted on custom output routing and prior mute state is preserved", () => {
+  const start = youtubeSource.indexOf("  function setYouTubeOutputRoutingBlocked(blocked) {");
+  const end = youtubeSource.indexOf("\n  window.setYouTubeOutputRoutingBlocked", start);
+  assert.ok(start >= 0 && end > start, "YouTube output safety helper must exist");
+  const helperSource = youtubeSource.slice(start, end);
+  let muted = false;
+  let volume = 72;
+  const sandbox = {
+    youtubePlayerReady: true,
+    youtubePlayer: {
+      isMuted() { return muted; },
+      getVolume() { return volume; },
+      setVolume(value) { volume = value; },
+      mute() { muted = true; },
+      unMute() { muted = false; }
+    },
+    youtubeOutputRoutingBlocked: false,
+    youtubeOutputMuteApplied: false,
+    youtubeWasMutedBeforeRoutingBlock: false
+  };
+  vm.runInNewContext(helperSource + "\nthis.setYouTubeOutputRoutingBlocked = setYouTubeOutputRoutingBlocked;", sandbox);
+  sandbox.setYouTubeOutputRoutingBlocked(true);
+  assert.equal(muted, true);
+  assert.equal(volume, 0);
+  sandbox.setYouTubeOutputRoutingBlocked(false);
+  assert.equal(muted, false);
+  assert.equal(volume, 72);
+
+  muted = true;
+  volume = 45;
+  sandbox.youtubeOutputMuteApplied = false;
+  sandbox.setYouTubeOutputRoutingBlocked(true);
+  assert.equal(volume, 0);
+  sandbox.setYouTubeOutputRoutingBlocked(false);
+  assert.equal(muted, true);
+  assert.equal(volume, 45);
 });
