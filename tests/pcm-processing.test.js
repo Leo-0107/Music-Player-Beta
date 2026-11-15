@@ -3007,3 +3007,38 @@ test("audio proxy routes local audio to PCM while local video and YouTube stay o
   assert.equal(youtube.graphCalls[0][0], youtube.sandbox.sourceNode);
   assert.equal(youtube.graphCalls[0][1], youtube.sandbox.filters[0]);
 });
+
+
+test("binaural mode keeps the HRTF source fixed in front while 3D mode follows the pan setting", () => {
+  const start = audioSource.indexOf("function updateSpatialAudio(dt)");
+  const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
+  assert.ok(start >= 0 && end > start, "spatial position update function must exist");
+  const positionSource = audioSource.slice(start, end);
+  const panner = {
+    positionX: { value: 0 },
+    positionY: { value: 0 },
+    positionZ: { value: 0 }
+  };
+  const sandbox = {
+    audioCtx: {},
+    panner3DNode: panner,
+    audio: { paused: false },
+    state: { dMode: "BINAURAL", panValue: 0.5 },
+    spatialAngle: 0
+  };
+  vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
+
+  sandbox.updateSpatialAudio(1);
+  assert.equal(panner.positionX.value, 0);
+  assert.equal(panner.positionY.value, 0);
+  assert.equal(panner.positionZ.value, -1.5);
+
+  sandbox.state.dMode = "3D";
+  sandbox.state.panValue = 0.25;
+  sandbox.updateSpatialAudio(1);
+  assert.equal(panner.positionX.value, 0.45);
+  assert.equal(panner.positionY.value, 0);
+  assert.equal(panner.positionZ.value, -1.5);
+
+  assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
+});
