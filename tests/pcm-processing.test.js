@@ -3346,7 +3346,7 @@ test("seek during pending PCM startup restarts from the requested frame", async 
 
 test("unsupported settings during pending playback startup preserve the play request on native fallback", async () => {
   const start = audioSource.indexOf("function applyPitchAndRate()");
-  const end = audioSource.indexOf("\\n  // --- 経過時間", start);
+  const end = audioSource.indexOf("\n  // --- 経過時間", start);
   assert.ok(start >= 0 && end > start, "audio.js applyPitchAndRate function must exist");
   const functionSource = audioSource.slice(start, end);
   let fallbackResume = null;
@@ -3369,7 +3369,7 @@ test("unsupported settings during pending playback startup preserve the play req
     el: { rateText: { textContent: "" }, pitchText: { textContent: "" } },
     updateMediaSessionPosition() {}
   };
-  vm.runInNewContext(functionSource + "\\nthis.applyPitchAndRate = applyPitchAndRate;", sandbox);
+  vm.runInNewContext(functionSource + "\nthis.applyPitchAndRate = applyPitchAndRate;", sandbox);
   sandbox.applyPitchAndRate();
   assert.equal(fallbackResume, true);
 });
