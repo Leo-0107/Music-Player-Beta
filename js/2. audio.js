@@ -1129,9 +1129,6 @@ let mainOutputUsesNativeDestination = false;
       case "3D":
         // 前方定位を保ち、左右位置だけを連続的に変える。
         x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
-      case "BINAURAL":
-        // 固定バイノーラル：音源を正面の一定位置へ固定する。
-        x = 0; y = 0; z = -1.5; setPos(x, y, z); break;
       case "4D": {
         // 4D：楕円軌道で前後左右を周回し、1周につき上下2回の起伏を作る。
         const phase = t * 0.55;
@@ -1178,20 +1175,21 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function setDMode(mode) {
-    state.dMode = mode;
+    // 旧バージョンで保存されたBINAURALは、統合後の3Dとして扱う。
+    const nextMode = mode === "BINAURAL" ? "3D" : mode;
+    state.dMode = nextMode;
     saveState();
     const descriptions = {
       "2D": "2D：通常の左右ステレオで再生します。",
-      "3D": "3D：音が前方にあるような立体感を加えます。",
-      "BINAURAL": "バイノーラル：音を正面に定位させ、ヘッドホン向けの立体感を加えます。",
+      "3D": "3D：HRTF方式で音源の方向を表現し、左右パンにも対応します。ヘッドホン推奨。",
       "4D": "4D：楕円軌道で前後左右を周回しながら、上下にも動きます。ヘッドホン推奨。",
       "8D": "8D：頭の周囲を水平面で一周し続けます。ヘッドホン推奨。",
       "16D": "16D：前後左右・上下を異なる周期で移動する複合的な立体軌道です。ヘッドホン推奨。"
     };
-    if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
+    if (el.dModeDesc) el.dModeDesc.textContent = descriptions[nextMode] || descriptions["2D"];
     if (el.dModeBtns) {
       el.dModeBtns.querySelectorAll("button").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.d === mode);
+        btn.classList.toggle("active", btn.dataset.d === nextMode);
       });
     }
     if (mode === "2D" && panner3DNode) {
