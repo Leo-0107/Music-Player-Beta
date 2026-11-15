@@ -7,7 +7,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.4.60</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.60-r70">
+<link rel="stylesheet" href="style.css?v=7.4.60-r71">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -238,9 +238,9 @@
           <div class="field" style="margin-top:12px;">
             <label for="playbackPrebufferSlider">音声先行バッファ: <span id="playbackPrebufferValueText">100ms</span></label>
             <div class="settingsHelpText">音声を指定時間だけ遅らせて出力し、出力前に余裕を作ります。値を大きくすると実際の音もその分遅れて聞こえます。CPU処理の遅れによる音切れを完全に防ぐものではありません。</div>
-            <input type="range" id="playbackPrebufferSlider" min="0" max="500" step="1" value="100" aria-label="音声先行バッファ時間">
-            <label for="playbackPrebufferNumber" class="customRateLabel">数値で指定（0〜500ms）</label>
-            <input type="number" id="playbackPrebufferNumber" min="0" max="500" step="1" value="100" inputmode="numeric" aria-label="音声先行バッファ時間を数値で指定">
+            <input type="range" id="playbackPrebufferSlider" min="0" max="5000" step="1" value="100" aria-label="音声先行バッファ時間">
+            <label for="playbackPrebufferNumber" class="customRateLabel">数値で指定（0〜5000ms）</label>
+            <input type="number" id="playbackPrebufferNumber" min="0" max="5000" step="1" value="100" inputmode="numeric" aria-label="音声先行バッファ時間を数値で指定">
           </div>
           
         </div>
@@ -881,7 +881,7 @@
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
   const APP_VERSION = "v7.4.60";
-  const BUILD_REVISION = 70;
+  const BUILD_REVISION = 71;
   const BUILD_COMMIT_ID = "5b2f4e67894f213eb7a59aa6c0f348adc32c2dd1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1256,7 +1256,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.60-r70"></script>
+<script src="js/1. ctrl.js?v=7.4.60-r71"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {

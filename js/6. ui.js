@@ -344,7 +344,7 @@
       const raw = localStorage.getItem("mp_playback_prebuffer_ms_v1");
       if (raw === null || raw === "") return 100;
       const value = Number(raw);
-      return Number.isFinite(value) ? Math.max(0, Math.min(500, Math.round(value))) : 100;
+      return Number.isFinite(value) ? Math.max(0, Math.min(5000, Math.round(value))) : 100;
     } catch (e) {
       return 100;
     }
@@ -358,6 +358,10 @@
   syncPlaybackPrebufferControls(initialPlaybackPrebufferMs);
   if (playbackPrebufferSlider) {
     playbackPrebufferSlider.addEventListener("input", event => {
+      const previewValue = Math.max(0, Math.min(5000, Math.round(Number(event.target.value) || 0)));
+      syncPlaybackPrebufferControls(previewValue);
+    });
+    playbackPrebufferSlider.addEventListener("change", event => {
       const value = setPlaybackPrebufferMs(event.target.value);
       syncPlaybackPrebufferControls(value);
     });

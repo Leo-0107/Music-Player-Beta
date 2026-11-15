@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 70;
+  const BUILD_REVISION = 71;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -369,12 +369,13 @@
 
 const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   const DEFAULT_PLAYBACK_PREBUFFER_MS = 100;
+  const MAX_PLAYBACK_PREBUFFER_MS = 5000;
   function readPlaybackPrebufferMs() {
     try {
       const raw = localStorage.getItem(PLAYBACK_PREBUFFER_STORAGE_KEY);
       if (raw === null || raw === "") return DEFAULT_PLAYBACK_PREBUFFER_MS;
       const stored = Number(raw);
-      return Number.isFinite(stored) ? Math.max(0, Math.min(500, Math.round(stored))) : DEFAULT_PLAYBACK_PREBUFFER_MS;
+      return Number.isFinite(stored) ? Math.max(0, Math.min(MAX_PLAYBACK_PREBUFFER_MS, Math.round(stored))) : DEFAULT_PLAYBACK_PREBUFFER_MS;
     } catch (e) {
       return DEFAULT_PLAYBACK_PREBUFFER_MS;
     }
@@ -473,7 +474,7 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
   function setPlaybackPrebufferMs(value) {
     let next = Number(value);
     if (!Number.isFinite(next)) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
-    next = Math.max(0, Math.min(500, Math.round(next)));
+    next = Math.max(0, Math.min(MAX_PLAYBACK_PREBUFFER_MS, Math.round(next)));
     if (Math.abs(next - DEFAULT_PLAYBACK_PREBUFFER_MS) <= 8) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
     playbackPrebufferMs = next;
     try { localStorage.setItem(PLAYBACK_PREBUFFER_STORAGE_KEY, String(next)); } catch (e) {}
@@ -715,7 +716,7 @@ let mainOutputUsesNativeDestination = false;
       speakerBusNode = audioCtx.createGain();
       // 先行バッファはメイン出力と追加スピーカーに共通するバスの手前へ置く。
       // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
-      playbackPrebufferDelayNode = audioCtx.createDelay(0.6);
+      playbackPrebufferDelayNode = audioCtx.createDelay(MAX_PLAYBACK_PREBUFFER_MS / 1000 + 0.1);
       playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
       finalMixGainNode.connect(playbackPrebufferDelayNode);
       playbackPrebufferDelayNode.connect(speakerBusNode);
@@ -1162,6 +1163,7 @@ let mainOutputUsesNativeDestination = false;
   // --- 経過時間（dt）ベースの空間軌道更新 ---
   function updateSpatialAudio(dt) {
     if (!audioCtx || !panner3DNode || audio.paused || state.dMode === "2D") return;
+    const panOffset = Math.max(-1, Math.min(1, Number(state.panValue) || 0)) * 1.8;
     const rotationSpeed = 1.5; // ラジアン/秒
     spatialAngle += rotationSpeed * dt;
     const t = spatialAngle;
@@ -1180,14 +1182,14 @@ let mainOutputUsesNativeDestination = false;
     switch (state.dMode) {
       case "3D":
         // 前方定位を保ち、左右位置だけを連続的に変える。
-        x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
+        x = panOffset; y = 0; z = -1.5; setPos(x, y, z); break;
       case "4D": {
         // 4D：楕円軌道で前後左右を周回し、1周につき上下2回の起伏を作る。
         const phase = t * 0.55;
         x = Math.sin(phase) * 2.5;
         y = Math.sin(phase * 2) * 1.35;
         z = Math.cos(phase) * 2.0;
-        setPos(x, y, z);
+        setPos(x + panOffset, y, z);
         break;
       }
       case "8D": {
@@ -1196,7 +1198,7 @@ let mainOutputUsesNativeDestination = false;
         x = Math.sin(phase) * 2.6;
         y = 0;
         z = Math.cos(phase) * 2.6;
-        setPos(x, y, z);
+        setPos(x + panOffset, y, z);
         break;
       }
       case "16D": {
@@ -1205,7 +1207,7 @@ let mainOutputUsesNativeDestination = false;
         x = Math.sin(phase) * 2.45;
         y = (Math.sin(phase * 1.618) + 0.35 * Math.sin(phase * 0.5)) * 1.05;
         z = Math.cos(phase * 0.7071) * 2.45;
-        setPos(x, y, z);
+        setPos(x + panOffset, y, z);
         break;
       }
       case "2D":
