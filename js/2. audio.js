@@ -1186,7 +1186,7 @@ let mainOutputUsesNativeDestination = false;
       "BINAURAL": "バイノーラル：音を正面に定位させ、ヘッドホン向けの立体感を加えます。",
       "4D": "4D：楕円軌道で前後左右を周回しながら、上下にも動きます。ヘッドホン推奨。",
       "8D": "8D：頭の周囲を水平面で一周し続けます。ヘッドホン推奨。",
-      "16D": "16D：音が上下も交えて複雑に周回します。"
+      "16D": "16D：前後左右・上下を異なる周期で移動する複合的な立体軌道です。ヘッドホン推奨。"
     };
     if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
     if (el.dModeBtns) {
