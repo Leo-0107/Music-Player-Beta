@@ -8,14 +8,43 @@ const vm = require("node:vm");
 const { test } = require("node:test");
 
 const root = path.resolve(__dirname, "..");
-const engineSource = fs.readFileSync(path.join(root, "js/10. buffered-playback-engine.js"), "utf8");
-const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-worker.js"), "utf8");
-const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
-const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
-const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
-const uiSource = fs.readFileSync(path.join(root, "js/7. ui.js"), "utf8");
+const engineSource = fs.readFileSync(path.join(root, "js/9. buffered-playback-engine.js"), "utf8");
+const workerSource = fs.readFileSync(path.join(root, "js/10. pcm-processing-worker.js"), "utf8");
+const audioSource = fs.readFileSync(path.join(root, "js/7. audio.js"), "utf8");
+const outputSource = fs.readFileSync(path.join(root, "js/11. audio-output.js"), "utf8");
+const stateSource = fs.readFileSync(path.join(root, "js/2. state.js"), "utf8");
+const uiSource = fs.readFileSync(path.join(root, "js/6. ui.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const youtubeSource = fs.readFileSync(path.join(root, "js/9. youtube.js"), "utf8");
+const youtubeSource = fs.readFileSync(path.join(root, "js/5. youtube.js"), "utf8");
+
+const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8");
+const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
+const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+
+test("JavaScript files are numbered and grouped by responsibility with all paths synchronized", () => {
+  const expectedFiles = [
+    "1. ctrl.js", "2. state.js", "3. storage.js", "4. library.js",
+    "5. youtube.js", "6. ui.js", "7. audio.js", "8. pitch-worklet.js",
+    "9. buffered-playback-engine.js", "10. pcm-processing-worker.js",
+    "11. audio-output.js", "12. speaker-delay-worklet.js", "13. sw.js"
+  ].sort();
+  const actualFiles = fs.readdirSync(path.join(root, "js"))
+    .filter(file => file.endsWith(".js"))
+    .sort();
+  assert.deepEqual(actualFiles, expectedFiles, "every JavaScript module must have its assigned number");
+  for (const file of expectedFiles) {
+    assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
+  }
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.60-r70"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.60-r70"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.60-r70"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.60-r70"));
+  assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
+  assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
+  assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.60-r70"));
+});
+
 
 function createWorkerScope(host) {
   const self = {
