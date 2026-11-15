@@ -12,6 +12,7 @@ const engineSource = fs.readFileSync(path.join(root, "js/10. buffered-playback-e
 const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-worker.js"), "utf8");
 const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
 const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
+const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -2879,4 +2880,62 @@ test("clipping protection toggles the main output through the limiter without di
   assert.equal(speakerBusNode.connections.has(additionalSplitter), true);
   assert.equal(limiterNode.connections.has(speakerBusNode), false);
   assert.equal(saveCount, 4);
+});
+
+
+test("audio proxy does not start MediaElement playback when fallback cannot restore the saved position", async () => {
+  const start = stateSource.indexOf("const audio = new Proxy(mediaElement, {");
+  const end = stateSource.indexOf("\n  });", start) + 6;
+  assert.ok(start >= 0 && end > start, "audio compatibility proxy must exist");
+  const proxySource = stateSource.slice(start, end);
+
+  let nativePlayCalls = 0;
+  let fallbackCalls = 0;
+  let fallbackReady = false;
+  let canUsePcm = true;
+  const mediaElement = {
+    async play() { nativePlayCalls++; return "native-played"; },
+    pause() {},
+    removeAttribute() {},
+    load() {}
+  };
+  const engine = {
+    async play() { throw new Error("simulated PCM startup failure"); }
+  };
+  const sandbox = {
+    mediaElement,
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    canUseBufferedPlayback() { return canUsePcm; },
+    async switchBufferedPlaybackToMediaElement() {
+      fallbackCalls++;
+      return fallbackReady;
+    },
+    state: { currentSong: { mediaType: "audio" } },
+    setGraphInputNode() {},
+    setPlaybackPrebufferMs() {},
+    sourceNode: {},
+    filters: [{}]
+  };
+  vm.runInNewContext(proxySource + "\nthis.audio = audio;", sandbox);
+
+  await assert.rejects(
+    () => sandbox.audio.play(),
+    /フォールバックの再生位置を復元できなかったため/
+  );
+  assert.equal(nativePlayCalls, 0);
+  assert.equal(fallbackCalls, 1);
+
+  canUsePcm = false;
+  await assert.rejects(
+    () => sandbox.audio.play(),
+    /フォールバックの再生位置を復元できなかったため/
+  );
+  assert.equal(nativePlayCalls, 0);
+  assert.equal(fallbackCalls, 2);
+
+  fallbackReady = true;
+  assert.equal(await sandbox.audio.play(), "native-played");
+  assert.equal(nativePlayCalls, 1);
+  assert.equal(fallbackCalls, 3);
 });
