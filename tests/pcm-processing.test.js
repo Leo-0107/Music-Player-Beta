@@ -3126,7 +3126,12 @@ test("spatial audio rotation uses AudioContext time rather than visualizer frame
   sandbox.audioCtx.currentTime = 15.15;
   sandbox.updateSpatialAudioFromClock(true);
 
-  assert.deepEqual(calls, [0, 0.05000000000000071, 0.05000000000000071, 0, 0.05000000000000071]);
+  const expected = [0, 0.05, 0.05, 0, 0.05];
+  assert.equal(calls.length, expected.length);
+  calls.forEach((value, index) => {
+    assert.ok(Math.abs(value - expected[index]) < 1e-9,
+      `spatial delta ${index} expected ${expected[index]}, got ${value}`);
+  });
 });
 
 test("spatial audio updates before visualizer canvas checks and restarts after page visibility returns", () => {
