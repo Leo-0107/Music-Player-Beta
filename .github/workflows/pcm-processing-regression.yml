@@ -1,0 +1,44 @@
+name: PCM processing regression tests
+
+on:
+  push:
+    branches:
+      - main15/pcm-worker-protocol-hardening
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "js/10. buffered-playback-engine.js"
+      - "js/11. pcm-processing-worker.js"
+      - "js/2. audio.js"
+      - "tests/pcm-processing.test.js"
+      - ".github/workflows/pcm-processing-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pcm-processing:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check "js/10. buffered-playback-engine.js"
+          node --check "js/11. pcm-processing-worker.js"
+          node --check "js/2. audio.js"
+          node --check tests/pcm-processing.test.js
+
+      - name: Run PCM processing and fallback regression tests
+        run: node --test tests/pcm-processing.test.js
