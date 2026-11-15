@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.83";'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.84";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 83"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 83;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.83"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.83-r83'));
-  assert.ok(indexSource.includes("7.4.83-r83"));
-  assert.ok(controllerSource.includes("7.4.83-r83"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.83-r83"));
+  assert.ok(manifestSource.includes("Music Player v7.4.84"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.84-r84'));
+  assert.ok(indexSource.includes("7.4.84-r84"));
+  assert.ok(controllerSource.includes("7.4.84-r84"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.84-r84"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -139,14 +139,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.83-r83"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.83-r83"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.83-r83"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.83-r83"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.84-r84"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.84-r84"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.84-r84"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.84-r84"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.83-r83"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.84-r84"));
 });
 
 
@@ -3862,4 +3862,49 @@ test("speaker output action buttons have a responsive gap and clear ON/OFF state
   assert.match(styleSource, /\.speakerDeviceActions\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 8px/);
   assert.match(outputSource, /複数出力：/);
   assert.match(outputSource, /toggle\.setAttribute\("aria-pressed"/);
+});
+
+
+test("settings search covers category names, setting descriptions, and displays global results", () => {
+  assert.match(uiSource, /function applySettingsSearch\(rawQuery\)/);
+  assert.match(uiSource, /category\.items\.forEach\(\(\[sectionId, icon, title, description = ""\]\)/);
+  assert.match(uiSource, /categoryMatches \|\| searchable\.includes\(query\)/);
+  assert.match(uiSource, /settingsSearchResultCard/);
+  assert.match(uiSource, /一致する設定項目がありません/);
+});
+
+test("equalizer bands support synchronized numeric input and slider values", () => {
+  assert.match(audioSource, /id="eqNumber_\$\{idx\}"/);
+  assert.match(audioSource, /class="eqNumberInput"/);
+  assert.match(audioSource, /numberInput\.addEventListener\("input"/);
+  assert.match(audioSource, /numberInput\.addEventListener\("change"/);
+  assert.match(audioSource, /Math\.max\(-12, Math\.min\(12, Math\.round\(parsed \* 2\) \/ 2\)\)/);
+  assert.match(audioSource, /numberInput\.value = Number\(g\)\.toFixed\(1\)/);
+});
+
+test("custom theme background image is validated and stored in IndexedDB", () => {
+  const storageSource = fs.readFileSync(path.join(root, "js/3. storage.js"), "utf8");
+  assert.match(storageSource, /indexedDB\.open\(dbName, 2\)/);
+  assert.match(storageSource, /createObjectStore\("appSettings", \{ keyPath: "key" \}\)/);
+  assert.match(storageSource, /function saveCustomThemeBackground\(blob\)/);
+  assert.match(storageSource, /function loadCustomThemeBackground\(\)/);
+  assert.match(storageSource, /function deleteCustomThemeBackground\(\)/);
+  assert.match(indexSource, /id="customThemeBackgroundInput"/);
+  assert.match(indexSource, /accept="image\/png,image\/jpeg,image\/webp,image\/avif"/);
+  assert.match(audioSource, /file\.size > 8 \* 1024 \* 1024/);
+  assert.match(audioSource, /saveCustomThemeBackground\(file\)/);
+  assert.match(audioSource, /backgroundImage =[\s\S]*?customThemeBackgroundObjectUrl/);
+  assert.match(uiSource, /await restoreCustomThemeBackground\(\)/);
+});
+
+test("network status probes the app origin and uses the accent colour while offline", () => {
+  assert.match(uiSource, /method: "HEAD"[\s\S]*?cache: "no-store"/);
+  assert.match(uiSource, /window\.setInterval\(updateNetworkStatus, 15000\)/);
+  assert.match(uiSource, /navigator\.onLine === false/);
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(styleSource, /\.networkStatus\.isOffline \{ color:var\(--accent\); \}/);
+});
+
+test("theme background image is removed when settings are reset", () => {
+  assert.match(audioSource, /deleteCustomThemeBackground\(\)\.finally\(\(\) => location\.reload\(\)\)/);
 });
