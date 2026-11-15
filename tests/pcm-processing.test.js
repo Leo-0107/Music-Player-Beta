@@ -11,6 +11,9 @@ const root = path.resolve(__dirname, "..");
 const engineSource = fs.readFileSync(path.join(root, "js/10. buffered-playback-engine.js"), "utf8");
 const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-worker.js"), "utf8");
 const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
+const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
+const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
+const uiSource = fs.readFileSync(path.join(root, "js/7. ui.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -2419,4 +2422,837 @@ test("audio graph exposes and clears the stable post-DSP PCM insertion boundary"
   assert.ok(boundary >= 0, "post-DSP input boundary must be exposed");
   assert.ok(spatialRoute > boundary, "PCM boundary must precede spatial processing");
   assert.match(audioSource, /if \(audioCtx\) audioCtx\._musicPlayerPostDspInputNode = null;/);
+});
+
+
+test("MediaElement fallback preserves the PCM position and resumes through the existing Web Audio graph", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  const events = [];
+  const mediaElement = {
+    readyState: 1,
+    currentTime: 0,
+    playbackRate: 1,
+    preservesPitch: false,
+    src: "",
+    async play() { events.push("play"); return true; },
+    addEventListener() {},
+    removeEventListener() {}
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-fallback-test",
+    currentTime: 12.5,
+    paused: false,
+    released: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const graphInput = { node: null, target: null };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1.25,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() { events.push("ensureGraph"); },
+    setGraphInputNode(node, target) { graphInput.node = node; graphInput.target = target; },
+    updatePitchShiftNode() { events.push("updatePitchShiftNode"); },
+    sourceNode: { name: "media-element-source" },
+    console: { warn() {} },
+    setTimeout,
+    clearTimeout
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  const switched = await sandbox.runFallback(new Error("simulated PCM failure"), true);
+
+  assert.equal(switched, true);
+  assert.equal(sandbox.bufferedPlaybackMode, false);
+  assert.equal(engine.released, true);
+  assert.equal(mediaElement.src, "blob:pcm-fallback-test");
+  assert.equal(mediaElement.currentTime, 12.5);
+  assert.equal(mediaElement.playbackRate, 1.25);
+  assert.equal(mediaElement.preservesPitch, true);
+  assert.equal(graphInput.node, sandbox.sourceNode);
+  assert.equal(graphInput.target, sandbox.filters[0]);
+  assert.deepEqual(events, ["ensureGraph", "updatePitchShiftNode", "play"]);
+});
+
+test("MediaElement fallback keeps a paused PCM session paused", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 1,
+    currentTime: 0,
+    playbackRate: 1,
+    async play() { playCalls++; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-paused-fallback",
+    currentTime: 4,
+    paused: true,
+    releaseForFallback() { this.released = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1,
+    filters: [],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout,
+    clearTimeout
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  assert.equal(await sandbox.runFallback(new Error("paused fallback"), false), true);
+  assert.equal(playCalls, 0);
+  assert.equal(mediaElement.currentTime, 4);
+  assert.equal(mediaElement.src, "blob:pcm-paused-fallback");
+});
+
+
+test("MediaElement fallback waits for delayed metadata before restoring seek and resuming", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let onMetadata = null;
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 0,
+    currentTime: 0,
+    playbackRate: 1,
+    src: "",
+    async play() { playCalls++; },
+    addEventListener(type, callback) { if (type === "loadedmetadata") onMetadata = callback; },
+    removeEventListener(type, callback) { if (type === "loadedmetadata" && onMetadata === callback) onMetadata = null; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-delayed-metadata",
+    currentTime: 18.25,
+    paused: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1.5,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout() { return 1; },
+    clearTimeout() {}
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  const resultPromise = sandbox.runFallback(new Error("metadata delayed"), true);
+  assert.equal(typeof onMetadata, "function");
+  mediaElement.readyState = 1;
+  onMetadata();
+
+  assert.equal(await resultPromise, true);
+  assert.equal(mediaElement.currentTime, 18.25);
+  assert.equal(mediaElement.playbackRate, 1.5);
+  assert.equal(playCalls, 1);
+  assert.equal(onMetadata, null);
+});
+
+test("MediaElement fallback timeout stays paused and restores the saved seek when metadata arrives later", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let onMetadata = null;
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 0,
+    currentTime: 0,
+    playbackRate: 1,
+    src: "",
+    async play() { playCalls++; },
+    addEventListener(type, callback) { if (type === "loadedmetadata") onMetadata = callback; },
+    removeEventListener(type, callback) { if (type === "loadedmetadata" && onMetadata === callback) onMetadata = null; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-metadata-timeout",
+    currentTime: 31.75,
+    paused: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout(callback) { queueMicrotask(callback); return 1; },
+    clearTimeout() {},
+    queueMicrotask
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  assert.equal(await sandbox.runFallback(new Error("metadata timeout"), true), false);
+  assert.equal(playCalls, 0);
+  assert.equal(mediaElement.currentTime, 0);
+  assert.equal(typeof onMetadata, "function");
+
+  mediaElement.readyState = 1;
+  onMetadata();
+  assert.equal(mediaElement.currentTime, 31.75);
+  assert.equal(onMetadata, null);
+  assert.equal(playCalls, 0);
+});
+
+
+test("rapid PCM rate, pitch, and EQ updates keep only the newest handoff active", async () => {
+  const workers = [];
+  class TrackingWorker extends MockWorker {
+    constructor() {
+      super();
+      this.messages = [];
+      workers.push(this);
+    }
+    postMessage(data, transfer) {
+      this.messages.push(data);
+      super.postMessage(data, transfer);
+    }
+  }
+
+  const appState = {
+    eqState: { gains: [0, 0, 0, 0, 0] },
+    pitchSemitones: 0,
+    currentSong: { duration: 1 }
+  };
+  const context = createMockOutputContext();
+  const routeNode = { connect() {}, disconnect() {} };
+  context._musicPlayerPostDspInputNode = routeNode;
+  let ownership;
+  let timerId = 0;
+  const { Engine, GraphInputOwnership } = createEngineClass(TrackingWorker, {
+    audioCtx: context,
+    state: appState,
+    setGraphInputNode(node, target) { return ownership.set(node, target); },
+    clearGraphInputNode(node, target) { return ownership.clear(node, target); },
+    ensureGraph() {},
+    async resumeAudioCtx() {},
+    canUseBufferedPlayback() { return true; },
+    mediaElement: { dispatchEvent() { return true; } },
+    Event: class MockEvent { constructor(type) { this.type = type; } },
+    setInterval() { return ++timerId; },
+    clearInterval() {},
+    setTimeout() { return ++timerId; },
+    clearTimeout() {}
+  });
+  ownership = new GraphInputOwnership();
+  const engine = new Engine();
+  engine.sourceUrl = "blob:pcm-rapid-settings";
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine._readyState = 4;
+  await engine.play();
+
+  const settings = [
+    { rate: 1.05, pitch: 1, eq: [1, 0, 0, 0, 0] },
+    { rate: 1.1, pitch: 2, eq: [0, 1, 0, 0, 0] },
+    { rate: 1.15, pitch: 3, eq: [0, 0, 1, 0, 0] },
+    { rate: 1.2, pitch: 4, eq: [0, 0, 0, 1, 0] },
+    { rate: 1.25, pitch: 5, eq: [0, 0, 0, 0, 1] }
+  ];
+  const pending = [];
+  for (const setting of settings) {
+    appState.eqState.gains = setting.eq.slice();
+    appState.pitchSemitones = setting.pitch;
+    engine.setPlaybackRate(setting.rate);
+    pending.push(engine.updateProcessingSettings());
+  }
+
+  const results = await Promise.all(pending);
+  assert.equal(results.filter(Boolean).length, 1);
+  const latest = results[results.length - 1];
+  assert.ok(latest && latest.session);
+  assert.equal(engine.pcmOutputController.activeSession, latest.session);
+  assert.equal(latest.session.scheduler.playbackRate, 1.25);
+  assert.equal(engine.pcmOutputController.state, "running");
+
+  const latestInit = workers
+    .flatMap(worker => worker.messages.filter(message => message.type === "init"))
+    .filter(message =>
+      JSON.stringify(message.eqGains) === JSON.stringify([0, 0, 0, 0, 1]) &&
+      Math.abs(message.pitch - Math.pow(2, 5 / 12) / 1.25) < 1e-10
+    );
+  assert.ok(latestInit.length >= 1, "latest Worker must receive the newest EQ and compensated pitch");
+  assert.ok(workers.length >= settings.length + 1);
+
+  engine.pause();
+  engine.releaseForFallback();
+  assert.equal(engine.pcmOutputController, null);
+  assert.equal(ownership.activeNode, null);
+  assert.equal(workers.every(worker => worker.terminated), true);
+});
+
+test("repeated EQ scheduling debounces to one PCM settings handoff", async () => {
+  const timers = [];
+  const cleared = [];
+  let nextTimerId = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    setTimeout(callback, delay) {
+      const timer = { id: ++nextTimerId, callback, delay };
+      timers.push(timer);
+      return timer.id;
+    },
+    clearTimeout(id) { cleared.push(id); }
+  });
+  const engine = new Engine();
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine.paused = false;
+  engine.playRequested = true;
+  let updateCount = 0;
+  engine.updateProcessingSettings = async () => {
+    updateCount++;
+    return true;
+  };
+
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(120), true);
+  assert.equal(timers.length, 3);
+  assert.deepEqual(cleared, [1, 2]);
+  assert.equal(engine.pcmSettingsTimer, 3);
+
+  timers[2].callback();
+  await Promise.resolve();
+  assert.equal(updateCount, 1);
+  assert.equal(engine.pcmSettingsTimer, null);
+});
+
+
+test("PCM settings changed during initial startup are deferred without cancelling the startup queue", async () => {
+  const cancelCalls = [];
+  const invalidateStart = audioSource.indexOf("function invalidateBufferedPcmProcessing()");
+  const invalidateEnd = audioSource.indexOf("\n  function applyPitchAndRate", invalidateStart);
+  assert.ok(invalidateStart >= 0 && invalidateEnd > invalidateStart,
+    "PCM invalidation helper must exist");
+  const invalidateSource = audioSource.slice(invalidateStart, invalidateEnd);
+  const engineStub = {
+    playRequested: true,
+    cancelProcessedPcmQueue() { cancelCalls.push("cancel"); }
+  };
+  const audioSandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engineStub,
+    audio: { paused: true }
+  };
+  vm.runInNewContext(invalidateSource + "\nthis.invalidateBufferedPcmProcessing = invalidateBufferedPcmProcessing;", audioSandbox);
+  audioSandbox.invalidateBufferedPcmProcessing();
+  assert.deepEqual(cancelCalls, [], "startup queue must remain alive while play is requested");
+  engineStub.playRequested = false;
+  audioSandbox.invalidateBufferedPcmProcessing();
+  assert.deepEqual(cancelCalls, ["cancel"], "idle paused queue may still be invalidated");
+
+  const { Engine } = createEngineClass(MockWorker, {
+    canUseBufferedPlayback: () => true,
+    ensureGraph() {},
+    resumeAudioCtx: async () => {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "blob:startup-settings-test";
+  engine.buffer = makeMonoBuffer(48000, 1);
+  engine.paused = true;
+  engine.playRequested = true;
+
+  assert.equal(await engine.updateProcessingSettings(), false);
+  assert.equal(engine.pendingProcessingSettingsUpdate, true);
+  assert.equal(engine.scheduleProcessingSettingsUpdate(), true);
+  assert.equal(engine.pendingProcessingSettingsUpdate, true);
+
+  const originalUpdate = engine.updateProcessingSettings.bind(engine);
+  let postStartupHandoffs = 0;
+  engine.updateProcessingSettings = async () => {
+    postStartupHandoffs++;
+    return true;
+  };
+  engine.prepare = async () => engine.buffer;
+  engine.startPcmSession = async () => {
+    await originalUpdate();
+    return { started: true };
+  };
+  engine.startTimeUpdates = () => {};
+  engine.dispatch = () => {};
+
+  await engine.play();
+  assert.equal(engine.paused, false);
+  assert.equal(engine.pendingProcessingSettingsUpdate, false);
+  assert.equal(postStartupHandoffs, 1,
+    "latest settings must be handed off after the initial PCM session starts");
+});
+
+test("2D spatial mode selects the direct stereo route and disables the 3D branch", () => {
+  const start = audioSource.indexOf("function updateSpatialAudioRouting()");
+  const end = audioSource.indexOf("\n  function setDMode", start);
+  assert.ok(start >= 0 && end > start, "spatial routing function must exist");
+  const routingSource = audioSource.slice(start, end);
+  const makeParam = () => ({
+    calls: [],
+    cancelScheduledValues(time) { this.calls.push(["cancel", time]); },
+    setTargetAtTime(value, time, constant) { this.calls.push(["target", value, time, constant]); }
+  });
+  const directGain = makeParam();
+  const spatialGain = makeParam();
+  const sandbox = {
+    state: { dMode: "2D" },
+    audioCtx: { currentTime: 3.5 },
+    panner3DNode: {},
+    spatialDirectGainNode: { gain: directGain },
+    spatial3DGainNode: { gain: spatialGain }
+  };
+  vm.runInNewContext(routingSource + "\nthis.updateSpatialAudioRouting = updateSpatialAudioRouting;", sandbox);
+
+  sandbox.updateSpatialAudioRouting();
+  assert.deepEqual(directGain.calls[1], ["target", 1, 3.5, 0.02]);
+  assert.deepEqual(spatialGain.calls[1], ["target", 0, 3.5, 0.02]);
+
+  sandbox.state.dMode = "3D";
+  sandbox.updateSpatialAudioRouting();
+  assert.deepEqual(directGain.calls[3], ["target", 0, 3.5, 0.02]);
+  assert.deepEqual(spatialGain.calls[3], ["target", 1, 3.5, 0.02]);
+});
+
+test("PCM insertion boundary traverses the shared stereo output and optional clipping limiter", () => {
+  const orderedMarkers = [
+    "audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;",
+    "spatialDirectGainNode.connect(channelNormalizeNode);",
+    "channelNormalizeNode.connect(masterGain);",
+    "masterGain.connect(finalMixGainNode);",
+    "finalMixGainNode.connect(playbackPrebufferDelayNode);",
+    "playbackPrebufferDelayNode.connect(speakerBusNode);",
+    "speakerBusNode.connect(channelSplitter);",
+    "leftGainNode.connect(channelMerger, 0, 0);",
+    "rightGainNode.connect(channelMerger, 0, 1);",
+    "channelMerger.connect(limiterNode);",
+    "limiterNode.connect(analyser);"
+  ];
+  const positions = orderedMarkers.map(marker => audioSource.indexOf(marker));
+  assert.ok(positions.every(position => position >= 0), "all shared output stages must exist");
+  for (let i = 1; i < positions.length; i++) {
+    assert.ok(positions[i] > positions[i - 1], "PCM audio must traverse the shared output stages in order");
+  }
+  assert.match(audioSource, /if \(state\.clippingProtection\)\s*\{\s*channelMerger\.connect\(limiterNode\)/);
+});
+
+test("clipping protection toggles the main output through the limiter without disturbing additional speaker routing", () => {
+  const start = outputSource.indexOf("function setClippingProtection(");
+  const end = outputSource.indexOf("\n  if (el.btnClippingProtection)", start);
+  assert.ok(start >= 0 && end > start, "clipping protection function must exist");
+  const functionSource = outputSource.slice(start, end);
+
+  const makeNode = name => ({
+    name,
+    connections: new Set(),
+    connect(target) { this.connections.add(target); },
+    disconnect(target) {
+      if (target) this.connections.delete(target);
+      else this.connections.clear();
+    }
+  });
+  const channelMerger = makeNode("channelMerger");
+  const limiterNode = makeNode("limiterNode");
+  const outputSplitter = makeNode("outputSplitter");
+  const analyser = makeNode("analyser");
+  const speakerBusNode = makeNode("speakerBusNode");
+  const additionalSplitter = makeNode("additionalSplitter");
+  const finalMixGainNode = makeNode("finalMixGainNode");
+  speakerBusNode.connect(additionalSplitter);
+
+  let saveCount = 0;
+  const ui = {
+    textContent: "",
+    active: null,
+    classList: { toggle(name, value) { if (name === "active") ui.active = value; } }
+  };
+  const sandbox = {
+    state: { clippingProtection: false },
+    saveState() { saveCount++; },
+    audioCtx: {},
+    channelMerger,
+    limiterNode,
+    outputSplitter,
+    analyser,
+    speakerBusNode,
+    finalMixGainNode,
+    el: { btnClippingProtection: ui },
+    console: { error() {} }
+  };
+  vm.runInNewContext(functionSource + "\nthis.setClippingProtection = setClippingProtection;", sandbox);
+
+  sandbox.setClippingProtection(true);
+  assert.equal(channelMerger.connections.has(limiterNode), true);
+  assert.equal(channelMerger.connections.has(outputSplitter), false);
+  assert.equal(limiterNode.connections.has(outputSplitter), true);
+  assert.equal(limiterNode.connections.has(analyser), true);
+  assert.equal(ui.textContent, "音割れ防止: ON");
+  assert.equal(ui.active, true);
+
+  sandbox.setClippingProtection(false);
+  assert.equal(channelMerger.connections.has(limiterNode), false);
+  assert.equal(channelMerger.connections.has(outputSplitter), true);
+  assert.equal(channelMerger.connections.has(analyser), true);
+  assert.equal(limiterNode.connections.has(outputSplitter), false);
+  assert.equal(limiterNode.connections.has(analyser), false);
+  assert.equal(ui.textContent, "音割れ防止: OFF");
+  assert.equal(ui.active, false);
+
+  sandbox.setClippingProtection(true);
+  sandbox.setClippingProtection(true);
+  assert.equal(channelMerger.connections.has(limiterNode), true);
+  assert.equal(channelMerger.connections.size, 1);
+  assert.equal(speakerBusNode.connections.has(additionalSplitter), true);
+  assert.equal(limiterNode.connections.has(speakerBusNode), false);
+  assert.equal(saveCount, 4);
+});
+
+
+test("audio proxy does not start MediaElement playback when fallback cannot restore the saved position", async () => {
+  const start = stateSource.indexOf("const audio = new Proxy(mediaElement, {");
+  const end = stateSource.indexOf("\n  });", start) + 6;
+  assert.ok(start >= 0 && end > start, "audio compatibility proxy must exist");
+  const proxySource = stateSource.slice(start, end);
+
+  let nativePlayCalls = 0;
+  let fallbackCalls = 0;
+  let fallbackReady = false;
+  let canUsePcm = true;
+  const mediaElement = {
+    async play() { nativePlayCalls++; return "native-played"; },
+    pause() {},
+    removeAttribute() {},
+    load() {}
+  };
+  const engine = {
+    async play() { throw new Error("simulated PCM startup failure"); }
+  };
+  const sandbox = {
+    mediaElement,
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    canUseBufferedPlayback() { return canUsePcm; },
+    async switchBufferedPlaybackToMediaElement() {
+      fallbackCalls++;
+      return fallbackReady;
+    },
+    state: { currentSong: { mediaType: "audio" } },
+    setGraphInputNode() {},
+    setPlaybackPrebufferMs() {},
+    sourceNode: {},
+    filters: [{}]
+  };
+  vm.runInNewContext(proxySource + "\nthis.audio = audio;", sandbox);
+
+  await assert.rejects(
+    () => sandbox.audio.play(),
+    /フォールバックの再生位置を復元できなかったため/
+  );
+  assert.equal(nativePlayCalls, 0);
+  assert.equal(fallbackCalls, 1);
+
+  canUsePcm = false;
+  await assert.rejects(
+    () => sandbox.audio.play(),
+    /フォールバックの再生位置を復元できなかったため/
+  );
+  assert.equal(nativePlayCalls, 0);
+  assert.equal(fallbackCalls, 2);
+
+  fallbackReady = true;
+  assert.equal(await sandbox.audio.play(), "native-played");
+  assert.equal(nativePlayCalls, 1);
+  assert.equal(fallbackCalls, 3);
+});
+
+
+test("audio proxy routes local audio to PCM while local video and YouTube stay on the native media element", () => {
+  const start = stateSource.indexOf("const audio = new Proxy(mediaElement, {");
+  const end = stateSource.indexOf("\n  });", start) + 6;
+  assert.ok(start >= 0 && end > start, "audio compatibility proxy must exist");
+  const proxySource = stateSource.slice(start, end);
+
+  const createHarness = mediaType => {
+    const mediaElement = {
+      src: "",
+      removedAttributes: [],
+      loadCalls: 0,
+      removeAttribute(name) {
+        this.removedAttributes.push(name);
+        if (name === "src") this.src = "";
+      },
+      load() { this.loadCalls++; }
+    };
+    const engine = {
+      sourceUrl: "",
+      clearCalls: 0,
+      setSource(url) { this.sourceUrl = url; },
+      clear() { this.clearCalls++; this.sourceUrl = ""; }
+    };
+    const graphCalls = [];
+    const sandbox = {
+      mediaElement,
+      bufferedPlaybackMode: false,
+      bufferedPlaybackEngine: engine,
+      playbackPrebufferMs: 100,
+      state: { currentSong: { mediaType } },
+      setGraphInputNode(...args) { graphCalls.push(args); },
+      setPlaybackPrebufferMs(value) { sandbox.prebufferValue = value; },
+      sourceNode: { id: "native-source" },
+      filters: [{ id: "eq" }]
+    };
+    vm.runInNewContext(proxySource + "\nthis.audio = audio;", sandbox);
+    return { sandbox, mediaElement, engine, graphCalls };
+  };
+
+  const localAudio = createHarness("audio");
+  localAudio.sandbox.audio.src = "blob:local-audio";
+  assert.equal(localAudio.sandbox.bufferedPlaybackMode, true);
+  assert.equal(localAudio.sandbox.audio.src, "blob:local-audio");
+  assert.equal(localAudio.engine.sourceUrl, "blob:local-audio");
+  assert.deepEqual(localAudio.mediaElement.removedAttributes, ["src"]);
+  assert.equal(localAudio.mediaElement.loadCalls, 1);
+  assert.equal(localAudio.graphCalls[0][0], null);
+  assert.equal(localAudio.sandbox.prebufferValue, 100);
+
+  const localVideo = createHarness("video");
+  localVideo.sandbox.audio.src = "blob:local-video";
+  assert.equal(localVideo.sandbox.bufferedPlaybackMode, false);
+  assert.equal(localVideo.sandbox.audio.src, "blob:local-video");
+  assert.equal(localVideo.mediaElement.src, "blob:local-video");
+  assert.equal(localVideo.engine.clearCalls, 1);
+  assert.equal(localVideo.graphCalls[0][0], localVideo.sandbox.sourceNode);
+  assert.equal(localVideo.graphCalls[0][1], localVideo.sandbox.filters[0]);
+
+  const youtube = createHarness("youtube");
+  youtube.sandbox.audio.src = "";
+  assert.equal(youtube.sandbox.bufferedPlaybackMode, false);
+  assert.equal(youtube.sandbox.audio.src, "");
+  assert.equal(youtube.engine.clearCalls, 1);
+  assert.equal(youtube.graphCalls[0][0], youtube.sandbox.sourceNode);
+  assert.equal(youtube.graphCalls[0][1], youtube.sandbox.filters[0]);
+});
+
+
+test("binaural mode keeps the HRTF source fixed in front while 3D mode follows the pan setting", () => {
+  const start = audioSource.indexOf("function updateSpatialAudio(dt)");
+  const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
+  assert.ok(start >= 0 && end > start, "spatial position update function must exist");
+  const positionSource = audioSource.slice(start, end);
+  const panner = {
+    positionX: { value: 0 },
+    positionY: { value: 0 },
+    positionZ: { value: 0 }
+  };
+  const sandbox = {
+    audioCtx: {},
+    panner3DNode: panner,
+    audio: { paused: false },
+    state: { dMode: "BINAURAL", panValue: 0.5 },
+    spatialAngle: 0
+  };
+  vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
+
+  sandbox.updateSpatialAudio(1);
+  assert.equal(panner.positionX.value, 0);
+  assert.equal(panner.positionY.value, 0);
+  assert.equal(panner.positionZ.value, -1.5);
+
+  sandbox.state.dMode = "3D";
+  sandbox.state.panValue = 0.25;
+  sandbox.updateSpatialAudio(1);
+  assert.equal(panner.positionX.value, 0.45);
+  assert.equal(panner.positionY.value, 0);
+  assert.equal(panner.positionZ.value, -1.5);
+
+  assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
+});
+
+
+test("4D, 8D, and 16D spatial modes update HRTF position from elapsed time", () => {
+  const start = audioSource.indexOf("function updateSpatialAudio(dt)");
+  const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
+  assert.ok(start >= 0 && end > start, "spatial position update function must exist");
+  const positionSource = audioSource.slice(start, end);
+  const initialAngle = 0.37;
+  const deltaSeconds = 0.24;
+  const t = initialAngle + 1.5 * deltaSeconds;
+  const cases = [
+    {
+      mode: "4D",
+      expected: [
+        Math.sin(t * 0.4) * 2.5,
+        Math.sin(t * 0.8) * 1.2,
+        Math.cos(t * 0.4) * 2.5
+      ]
+    },
+    {
+      mode: "8D",
+      expected: [Math.sin(t) * 3.2, 0, Math.cos(t) * 3.2]
+    },
+    {
+      mode: "16D",
+      expected: [
+        Math.sin(t * 1.2) * 3.5,
+        Math.sin(t * 2.4) * 1.8,
+        Math.cos(t * 0.7) * 3.5
+      ]
+    }
+  ];
+
+  for (const item of cases) {
+    const panner = {
+      positionX: { value: 0 },
+      positionY: { value: 0 },
+      positionZ: { value: 0 }
+    };
+    const sandbox = {
+      audioCtx: {},
+      panner3DNode: panner,
+      audio: { paused: false },
+      state: { dMode: item.mode, panValue: 0 },
+      spatialAngle: initialAngle
+    };
+    vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
+    sandbox.updateSpatialAudio(deltaSeconds);
+    const actual = [panner.positionX.value, panner.positionY.value, panner.positionZ.value];
+    for (let axis = 0; axis < 3; axis++) {
+      assert.ok(
+        Math.abs(actual[axis] - item.expected[axis]) < 1e-12,
+        `${item.mode} axis ${axis} expected ${item.expected[axis]}, got ${actual[axis]}`
+      );
+    }
+    assert.equal(sandbox.spatialAngle, t);
+  }
+});
+
+
+test("spatial audio rotation uses AudioContext time rather than visualizer frame time", () => {
+  const start = uiSource.indexOf("function updateSpatialAudioFromClock(isPlaying)");
+  const end = uiSource.indexOf("\n  function drawWave()", start);
+  assert.ok(start >= 0 && end > start, "AudioContext-clock spatial update helper must exist");
+  const helperSource = uiSource.slice(start, end);
+  const calls = [];
+  const sandbox = {
+    audioCtx: { currentTime: 10 },
+    drawWave: {},
+    updateSpatialAudio(dt) { calls.push(dt); }
+  };
+  vm.runInNewContext(helperSource + "\nthis.updateSpatialAudioFromClock = updateSpatialAudioFromClock;", sandbox);
+
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 10.05;
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 10.10;
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 15.10;
+  sandbox.updateSpatialAudioFromClock(false);
+  sandbox.audioCtx.currentTime = 15.15;
+  sandbox.updateSpatialAudioFromClock(true);
+
+  const expected = [0, 0.05, 0.05, 0, 0.05];
+  assert.equal(calls.length, expected.length);
+  calls.forEach((value, index) => {
+    assert.ok(Math.abs(value - expected[index]) < 1e-9,
+      `spatial delta ${index} expected ${expected[index]}, got ${value}`);
+  });
+});
+
+test("spatial audio updates before visualizer canvas checks and restarts after page visibility returns", () => {
+  const drawStart = uiSource.indexOf("function drawWave()");
+  const drawEnd = uiSource.indexOf("\n  function startWaveAnimation", drawStart);
+  assert.ok(drawStart >= 0 && drawEnd > drawStart, "drawWave function must exist");
+  const drawSource = uiSource.slice(drawStart, drawEnd);
+  const spatialUpdate = drawSource.indexOf("updateSpatialAudioFromClock(isPlaying)");
+  const missingCanvas = drawSource.indexOf("if (!el.wave) return;");
+  const zeroCanvas = drawSource.indexOf("if (!width || !height)");
+  assert.ok(spatialUpdate >= 0 && missingCanvas > spatialUpdate && zeroCanvas > spatialUpdate,
+    "spatial updates must not depend on a visible, non-zero canvas");
+  assert.match(drawSource, /if \(lowPerformance\)[\s\S]*?return;[\s\S]*?updateSpatialAudioFromClock\(isPlaying\)/,
+    "low-performance frame throttling must occur before the clock-based update, not shorten its elapsed time");
+  assert.match(uiSource, /document\.addEventListener\("visibilitychange",\s*\(\)\s*=>\s*\{\s*if \(document\.visibilityState !== "visible"\) isWaveAnimating = false;/);
+  assert.match(audioSource, /document\.visibilityState === "visible" && !audio\.paused\)\s*\{\s*lastFrameTime = performance\.now\(\);\s*startWaveAnimation\(\);/);
+  assert.match(uiSource, /drawWave\._lastSpatialAudioTime = audioCtx\?\.currentTime/);
+});
+
+
+test("spatial mode changes preserve the rotation phase and restore direct stereo in 2D", () => {
+  const start = audioSource.indexOf("function setDMode(mode)");
+  const end = audioSource.indexOf("\n  if (el.dModeBtns)", start);
+  assert.ok(start >= 0 && end > start, "spatial mode setter must exist");
+  const setterSource = audioSource.slice(start, end);
+  const panner = {
+    positionX: { value: 1 },
+    positionY: { value: 2 },
+    positionZ: { value: 3 }
+  };
+  const buttons = ["2D", "3D", "BINAURAL", "4D", "8D", "16D"].map(mode => ({
+    dataset: { d: mode },
+    classList: { active: false, toggle(name, value) { if (name === "active") this.active = value; } }
+  }));
+  let saveCount = 0;
+  let routeUpdates = 0;
+  const sandbox = {
+    state: { dMode: "3D", panValue: 0.25 },
+    spatialAngle: 12.345,
+    panner3DNode: panner,
+    saveState() { saveCount++; },
+    updateSpatialAudioRouting() { routeUpdates++; },
+    el: {
+      dModeDesc: { textContent: "" },
+      dModeBtns: { querySelectorAll() { return buttons; } }
+    }
+  };
+  vm.runInNewContext(setterSource + "\nthis.setDMode = setDMode;", sandbox);
+
+  for (const mode of ["4D", "8D", "16D", "BINAURAL", "3D", "2D"]) {
+    sandbox.setDMode(mode);
+    assert.equal(sandbox.state.dMode, mode);
+    assert.equal(sandbox.spatialAngle, 12.345);
+    assert.equal(buttons.find(button => button.dataset.d === mode).classList.active, true);
+  }
+
+  assert.deepEqual(
+    [panner.positionX.value, panner.positionY.value, panner.positionZ.value],
+    [0, 0, 0]
+  );
+  assert.equal(saveCount, 6);
+  assert.equal(routeUpdates, 6);
+  assert.match(sandbox.el.dModeDesc.textContent, /通常の左右ステレオ/);
 });
