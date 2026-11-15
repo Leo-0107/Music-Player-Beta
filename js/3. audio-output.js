@@ -1006,7 +1006,11 @@
 
   async function setMainOutputDevice(deviceId, options = {}) {
     ensureGraph();
-    const normalized = deviceId || "";
+    const requestedId = deviceId || "";
+    const normalized = isMultipleOutputEnabled() ? requestedId : "";
+    if (requestedId && !isMultipleOutputEnabled()) {
+      toast("複数出力がOFFのため、デバイスの既定スピーカーを使用します");
+    }
     const previousId = mainOutputUsesDirectSink
       ? (audioCtx?.sinkId || state.mainOutputDeviceId || "")
       : (outputBridgeAudio?.sinkId || state.mainOutputDeviceId || "");
@@ -2150,8 +2154,10 @@
         const mainBtn = document.createElement("button");
         mainBtn.className = "btn small";
         mainBtn.type = "button";
-        mainBtn.textContent = isMain ? "使用中" : "使用する";
-        mainBtn.disabled = isMain;
+        mainBtn.textContent = isMain
+          ? "使用中"
+          : (!isMultipleOutputEnabled() && device.deviceId ? "複数出力ONで使用" : "使用する");
+        mainBtn.disabled = isMain || (!isMultipleOutputEnabled() && !!device.deviceId);
         mainBtn.addEventListener("click", async () => {
           await setMainOutputDevice(device.deviceId || "");
           closeOutputDeviceModal();
