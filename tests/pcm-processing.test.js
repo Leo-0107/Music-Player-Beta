@@ -26,14 +26,52 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.80";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 80;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 80;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.80"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.80-r80'));
-  assert.ok(indexSource.includes("7.4.80-r80"));
-  assert.ok(controllerSource.includes("7.4.80-r80"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.80-r80"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.81";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 81;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 81;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.81"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.81-r81'));
+  assert.ok(indexSource.includes("7.4.81-r81"));
+  assert.ok(controllerSource.includes("7.4.81-r81"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.81-r81"));
+});
+
+test("accent colour is persisted and applied through shared theme tokens", () => {
+  const storageSource = fs.readFileSync(path.join(root, "js/3. storage.js"), "utf8");
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(storageSource.includes('accentColor: "mp_accent_color_v1"'));
+  assert.ok(stateSource.includes('accentColor: loadStr(STORAGE.accentColor, "#35D977")'));
+  assert.ok(audioSource.includes('localStorage.setItem(STORAGE.accentColor, state.accentColor || "#35D977")'));
+  assert.ok(audioSource.includes('document.body.style.setProperty("--accent", safeAccent)'));
+  assert.ok(audioSource.includes('STORAGE.accentColor,'));
+  assert.ok(indexSource.includes('id="accentColorInput"'));
+  assert.ok(indexSource.includes('id="btnResetAccentColor"'));
+  assert.ok(styleSource.includes('accent-color: var(--accent)'));
+  assert.ok(!/rgba\\(\\s*53,\\s*217,\\s*119,/.test(styleSource));
+  assert.ok(styleSource.includes('var(--accent-contrast, #07120a)'));
+});
+
+test("custom theme background is also applied to the sidebar surface", () => {
+  assert.ok(indexSource.includes('document.body.style.setProperty("--bg", c2)'));
+  assert.ok(audioSource.includes('document.body.style.setProperty("--bg", computedC2)'));
+  assert.ok(audioSource.includes('document.body.style.removeProperty("--bg")'));
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(styleSource.includes(".sidebar {"));
+  assert.ok(styleSource.includes("background: var(--bg);"));
+});
+
+test("settings and menu category headings are represented only by their back title", () => {
+  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsCategoryBackTitle" id="btnSettingsCategoryBack"'));
+  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsCategoryBackTitle" id="btnMenuCategoryBack"'));
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(styleSource.includes(".settingsCategoryView > div.settingsCategoryTitle { display: none !important; }"));
+  assert.ok(styleSource.includes(".settingsCategoryView > .settingsBackButton.settingsCategoryTitle"));
+});
+
+test("home 2D spectrum and peak meter use the selected accent colour", () => {
+  assert.ok(uiSource.includes('const accentColor = document.body.style.getPropertyValue("--accent") || "#35D977"'));
+  assert.ok(uiSource.includes("ctx.fillStyle = accentColor;"));
+  assert.ok(uiSource.includes("meterGradient.addColorStop(0, accentColor)"));
 });
 
 test("settings and menu category back labels follow the selected category", () => {
@@ -97,14 +135,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.80-r80"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.80-r80"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.80-r80"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.80-r80"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.81-r81"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.81-r81"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.81-r81"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.81-r81"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.80-r80"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.81-r81"));
 });
 
 
