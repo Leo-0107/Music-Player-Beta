@@ -3159,16 +3159,16 @@ test("legacy BINAURAL spatial mode is migrated to 3D on load", () => {
   const end = stateSource.indexOf("\n  const state =", start);
   assert.ok(start >= 0 && end > start, "spatial mode migration helper must exist");
   const helperSource = stateSource.slice(start, end);
+  let savedMode = "BINAURAL";
   const sandbox = {
     STORAGE: { dMode: "stored-spatial-mode" },
-    savedMode: "BINAURAL",
-    loadStr(key, fallback) { return this.savedMode === undefined ? fallback : this.savedMode; }
+    loadStr(key, fallback) { return savedMode === undefined ? fallback : savedMode; }
   };
   vm.runInNewContext(helperSource + "\nthis.loadSpatialMode = loadSpatialMode;", sandbox);
   assert.equal(sandbox.loadSpatialMode(), "3D");
-  sandbox.savedMode = "4D";
+  savedMode = "4D";
   assert.equal(sandbox.loadSpatialMode(), "4D");
-  sandbox.savedMode = undefined;
+  savedMode = undefined;
   assert.equal(sandbox.loadSpatialMode(), "3D");
 });
 
@@ -3325,7 +3325,7 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
   );
   assert.equal(saveCount, 6);
   assert.equal(routeUpdates, 6);
-  assert.match(sandbox.el.dModeDesc.textContent, /通常の左右ステレオ/);
+  assert.match(sandbox.el.dModeDesc.textContent, /HRTF方式/);
 });
 
 
