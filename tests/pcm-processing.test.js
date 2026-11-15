@@ -2523,3 +2523,113 @@ test("MediaElement fallback keeps a paused PCM session paused", async () => {
   assert.equal(mediaElement.currentTime, 4);
   assert.equal(mediaElement.src, "blob:pcm-paused-fallback");
 });
+
+
+test("MediaElement fallback waits for delayed metadata before restoring seek and resuming", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let onMetadata = null;
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 0,
+    currentTime: 0,
+    playbackRate: 1,
+    src: "",
+    async play() { playCalls++; },
+    addEventListener(type, callback) { if (type === "loadedmetadata") onMetadata = callback; },
+    removeEventListener(type, callback) { if (type === "loadedmetadata" && onMetadata === callback) onMetadata = null; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-delayed-metadata",
+    currentTime: 18.25,
+    paused: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1.5,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout() { return 1; },
+    clearTimeout() {}
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  const resultPromise = sandbox.runFallback(new Error("metadata delayed"), true);
+  assert.equal(typeof onMetadata, "function");
+  mediaElement.readyState = 1;
+  onMetadata();
+
+  assert.equal(await resultPromise, true);
+  assert.equal(mediaElement.currentTime, 18.25);
+  assert.equal(mediaElement.playbackRate, 1.5);
+  assert.equal(playCalls, 1);
+  assert.equal(onMetadata, null);
+});
+
+test("MediaElement fallback timeout stays paused and restores the saved seek when metadata arrives later", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let onMetadata = null;
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 0,
+    currentTime: 0,
+    playbackRate: 1,
+    src: "",
+    async play() { playCalls++; },
+    addEventListener(type, callback) { if (type === "loadedmetadata") onMetadata = callback; },
+    removeEventListener(type, callback) { if (type === "loadedmetadata" && onMetadata === callback) onMetadata = null; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-metadata-timeout",
+    currentTime: 31.75,
+    paused: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout(callback) { queueMicrotask(callback); return 1; },
+    clearTimeout() {},
+    queueMicrotask
+  };
+
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  assert.equal(await sandbox.runFallback(new Error("metadata timeout"), true), false);
+  assert.equal(playCalls, 0);
+  assert.equal(mediaElement.currentTime, 0);
+  assert.equal(typeof onMetadata, "function");
+
+  mediaElement.readyState = 1;
+  onMetadata();
+  assert.equal(mediaElement.currentTime, 31.75);
+  assert.equal(onMetadata, null);
+  assert.equal(playCalls, 0);
+});
