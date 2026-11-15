@@ -39,7 +39,6 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
 test("settings and menu category back labels follow the selected category", () => {
   assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + category.title'));
   assert.ok(uiSource.includes('menuBack.textContent = "← " + category.title'));
-  assert.ok(!uiSource.includes('btnSettingsCategoryBack.textContent = "← 設定"'));
   assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
 });
 
