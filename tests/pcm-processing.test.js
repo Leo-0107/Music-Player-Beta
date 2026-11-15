@@ -35,14 +35,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.60-r70"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.60-r70"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.60-r70"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.60-r70"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.60-r71"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.60-r71"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.60-r71"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.60-r71"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.60-r70"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.60-r71"));
 });
 
 
@@ -3612,4 +3612,74 @@ test("YouTube iframe audio is muted on custom output routing and prior mute stat
   sandbox.setYouTubeOutputRoutingBlocked(false);
   assert.equal(muted, true);
   assert.equal(volume, 45);
+});
+
+
+test("playback prebuffer slider applies the new delay only after the range change is committed", () => {
+  const start = uiSource.indexOf("if (playbackPrebufferSlider) {");
+  const end = uiSource.indexOf("\n  if (playbackPrebufferNumber)", start);
+  assert.ok(start >= 0 && end > start, "prebuffer slider handlers must exist");
+  const handlers = uiSource.slice(start, end);
+  const inputHandler = handlers.slice(0, handlers.indexOf('addEventListener("change"'));
+  assert.match(inputHandler, /addEventListener\("input"[\s\S]*?syncPlaybackPrebufferControls\(previewValue\)/);
+  assert.doesNotMatch(inputHandler, /setPlaybackPrebufferMs/);
+  assert.match(handlers, /addEventListener\("change"[\s\S]*?setPlaybackPrebufferMs\(event\.target\.value\)/);
+});
+
+test("manual playback prebuffer limit is 5000ms and the DelayNode supports that range", () => {
+  assert.match(audioSource, /const MAX_PLAYBACK_PREBUFFER_MS = 5000;/);
+  assert.match(audioSource, /createDelay\(MAX_PLAYBACK_PREBUFFER_MS \/ 1000 \+ 0\.1\)/);
+  assert.match(uiSource, /Math\.min\(5000, Math\.round\(value\)\)/);
+  assert.match(indexSource, /id="playbackPrebufferSlider" min="0" max="5000"/);
+  assert.match(indexSource, /id="playbackPrebufferNumber" min="0" max="5000"/);
+
+  const start = audioSource.indexOf("function setPlaybackPrebufferMs(value)");
+  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
+  assert.ok(start >= 0 && end > start, "prebuffer setter must exist");
+  const setterSource = audioSource.slice(start, end);
+  const stored = [];
+  const delayCalls = [];
+  const sandbox = {
+    DEFAULT_PLAYBACK_PREBUFFER_MS: 100,
+    MAX_PLAYBACK_PREBUFFER_MS: 5000,
+    playbackPrebufferMs: 100,
+    localStorage: { setItem(key, value) { stored.push([key, value]); } },
+    audioCtx: { currentTime: 3 },
+    playbackPrebufferDelayNode: {
+      delayTime: {
+        cancelScheduledValues(time) { delayCalls.push(["cancel", time]); },
+        setTargetAtTime(value, time, constant) { delayCalls.push(["set", value, time, constant]); }
+      }
+    }
+  };
+  vm.runInNewContext(setterSource + "\nthis.setPlaybackPrebufferMs = setPlaybackPrebufferMs;", sandbox);
+  assert.equal(sandbox.setPlaybackPrebufferMs(9000), 5000);
+  assert.equal(sandbox.playbackPrebufferMs, 5000);
+  assert.deepEqual(stored.at(-1), ["mp_playback_prebuffer_ms_v1", "5000"]);
+  assert.deepEqual(delayCalls.at(-1), ["set", 5, 3, 0.025]);
+  assert.equal(sandbox.setPlaybackPrebufferMs(-20), 0);
+});
+
+test("left-right pan offsets remain effective in 4D, 8D, and 16D orbit modes", () => {
+  const start = audioSource.indexOf("function updateSpatialAudio(dt)");
+  const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
+  assert.ok(start >= 0 && end > start, "spatial position update function must exist");
+  const positionSource = audioSource.slice(start, end);
+  for (const mode of ["4D", "8D", "16D"]) {
+    const panner = { positionX: { value: 0 }, positionY: { value: 0 }, positionZ: { value: 0 } };
+    const sandbox = {
+      audioCtx: {}, panner3DNode: panner, audio: { paused: false },
+      state: { dMode: mode, panValue: 0.25 }, spatialAngle: 0.37
+    };
+    vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
+    sandbox.updateSpatialAudio(0.24);
+    const t = 0.37 + 1.5 * 0.24;
+    const baseX = mode === "4D"
+      ? Math.sin(t * 0.55) * 2.5
+      : mode === "8D"
+        ? Math.sin(t * 0.95) * 2.6
+        : Math.sin(t * 0.72) * 2.45;
+    assert.ok(Math.abs(panner.positionX.value - (baseX + 0.45)) < 1e-12,
+      `${mode} pan offset must be added to the orbit's horizontal position`);
+  }
 });
