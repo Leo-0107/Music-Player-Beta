@@ -13,6 +13,7 @@ const workerSource = fs.readFileSync(path.join(root, "js/11. pcm-processing-work
 const audioSource = fs.readFileSync(path.join(root, "js/2. audio.js"), "utf8");
 const outputSource = fs.readFileSync(path.join(root, "js/3. audio-output.js"), "utf8");
 const stateSource = fs.readFileSync(path.join(root, "js/4. state.js"), "utf8");
+const uiSource = fs.readFileSync(path.join(root, "js/7. ui.js"), "utf8");
 
 function createWorkerScope(host) {
   const self = {
@@ -3099,4 +3100,47 @@ test("4D, 8D, and 16D spatial modes update HRTF position from elapsed time", () 
     }
     assert.equal(sandbox.spatialAngle, t);
   }
+});
+
+
+test("spatial audio rotation uses AudioContext time rather than visualizer frame time", () => {
+  const start = uiSource.indexOf("function updateSpatialAudioFromClock(isPlaying)");
+  const end = uiSource.indexOf("\n  function drawWave()", start);
+  assert.ok(start >= 0 && end > start, "AudioContext-clock spatial update helper must exist");
+  const helperSource = uiSource.slice(start, end);
+  const calls = [];
+  const sandbox = {
+    audioCtx: { currentTime: 10 },
+    drawWave: {},
+    updateSpatialAudio(dt) { calls.push(dt); }
+  };
+  vm.runInNewContext(helperSource + "\nthis.updateSpatialAudioFromClock = updateSpatialAudioFromClock;", sandbox);
+
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 10.05;
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 10.10;
+  sandbox.updateSpatialAudioFromClock(true);
+  sandbox.audioCtx.currentTime = 15.10;
+  sandbox.updateSpatialAudioFromClock(false);
+  sandbox.audioCtx.currentTime = 15.15;
+  sandbox.updateSpatialAudioFromClock(true);
+
+  assert.deepEqual(calls, [0, 0.05000000000000071, 0.05000000000000071, 0, 0.05000000000000071]);
+});
+
+test("spatial audio updates before visualizer canvas checks and restarts after page visibility returns", () => {
+  const drawStart = uiSource.indexOf("function drawWave()");
+  const drawEnd = uiSource.indexOf("\n  function startWaveAnimation", drawStart);
+  assert.ok(drawStart >= 0 && drawEnd > drawStart, "drawWave function must exist");
+  const drawSource = uiSource.slice(drawStart, drawEnd);
+  const spatialUpdate = drawSource.indexOf("updateSpatialAudioFromClock(isPlaying)");
+  const missingCanvas = drawSource.indexOf("if (!el.wave) return;");
+  const zeroCanvas = drawSource.indexOf("if (!width || !height)");
+  assert.ok(spatialUpdate >= 0 && missingCanvas > spatialUpdate && zeroCanvas > spatialUpdate,
+    "spatial updates must not depend on a visible, non-zero canvas");
+  assert.match(drawSource, /if \(lowPerformance\)[\s\S]*?return;[\s\S]*?updateSpatialAudioFromClock\(isPlaying\)/,
+    "low-performance frame throttling must occur before the clock-based update, not shorten its elapsed time");
+  assert.match(uiSource, /document\.addEventListener\("visibilitychange",\s*\(\)\s*=>\s*\{\s*if \(document\.visibilityState === "visible" && !audio\.paused\)\s*\{\s*startWaveAnimation\(\);/);
+  assert.match(uiSource, /drawWave\._lastSpatialAudioTime = audioCtx\?\.currentTime/);
 });
