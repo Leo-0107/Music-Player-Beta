@@ -636,7 +636,7 @@
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
-    speakerSettings: Object.assign({ mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
+    speakerSettings: Object.assign({ multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
@@ -646,6 +646,9 @@
     homeLayout: loadStr(STORAGE.homeLayout, "default"),
     menuOpen: false
   };
+
+  // 複数出力がOFFの間は、アプリ独自の保存先を使わずOS既定の出力先に従う。
+  if (state.speakerSettings.multipleOutputEnabled !== true) state.mainOutputDeviceId = "";
 
   const el = {
     shell: document.getElementById("shell"),
