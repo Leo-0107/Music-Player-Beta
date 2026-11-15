@@ -3135,40 +3135,41 @@ test("audio proxy routes local audio to PCM while local video and YouTube stay o
 });
 
 
-test("binaural mode keeps the HRTF source fixed in front while 3D mode follows the pan setting", () => {
+test("3D mode uses HRTF positioning and follows the pan setting", () => {
   const start = audioSource.indexOf("function updateSpatialAudio(dt)");
   const end = audioSource.indexOf("\n  function updateSpatialAudioRouting", start);
   assert.ok(start >= 0 && end > start, "spatial position update function must exist");
   const positionSource = audioSource.slice(start, end);
-  const panner = {
-    positionX: { value: 0 },
-    positionY: { value: 0 },
-    positionZ: { value: 0 }
-  };
+  const panner = { positionX: { value: 0 }, positionY: { value: 0 }, positionZ: { value: 0 } };
   const sandbox = {
-    audioCtx: {},
-    panner3DNode: panner,
-    audio: { paused: false },
-    state: { dMode: "BINAURAL", panValue: 0.5 },
-    spatialAngle: 0
+    audioCtx: {}, panner3DNode: panner, audio: { paused: false },
+    state: { dMode: "3D", panValue: 0.25 }, spatialAngle: 0
   };
   vm.runInNewContext(positionSource + "\nthis.updateSpatialAudio = updateSpatialAudio;", sandbox);
-
-  sandbox.updateSpatialAudio(1);
-  assert.equal(panner.positionX.value, 0);
-  assert.equal(panner.positionY.value, 0);
-  assert.equal(panner.positionZ.value, -1.5);
-
-  sandbox.state.dMode = "3D";
-  sandbox.state.panValue = 0.25;
   sandbox.updateSpatialAudio(1);
   assert.equal(panner.positionX.value, 0.45);
   assert.equal(panner.positionY.value, 0);
   assert.equal(panner.positionZ.value, -1.5);
-
   assert.match(audioSource, /panner3DNode\.panningModel\s*=\s*['"]HRTF['"]/);
-  assert.match(audioSource, /panner3DNode\.refDistance\s*=\s*1\.25/);
-  assert.match(audioSource, /panner3DNode\.rolloffFactor\s*=\s*0\.18/);
+  assert.doesNotMatch(positionSource, /case ["']BINAURAL["']/);
+});
+
+test("legacy BINAURAL spatial mode is migrated to 3D on load", () => {
+  const start = stateSource.indexOf("function loadSpatialMode()");
+  const end = stateSource.indexOf("\n  const state =", start);
+  assert.ok(start >= 0 && end > start, "spatial mode migration helper must exist");
+  const helperSource = stateSource.slice(start, end);
+  const sandbox = {
+    STORAGE: { dMode: "stored-spatial-mode" },
+    savedMode: "BINAURAL",
+    loadStr(key, fallback) { return this.savedMode === undefined ? fallback : this.savedMode; }
+  };
+  vm.runInNewContext(helperSource + "\nthis.loadSpatialMode = loadSpatialMode;", sandbox);
+  assert.equal(sandbox.loadSpatialMode(), "3D");
+  sandbox.savedMode = "4D";
+  assert.equal(sandbox.loadSpatialMode(), "4D");
+  sandbox.savedMode = undefined;
+  assert.equal(sandbox.loadSpatialMode(), "3D");
 });
 
 
@@ -3289,7 +3290,7 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
     positionY: { value: 2 },
     positionZ: { value: 3 }
   };
-  const buttons = ["2D", "3D", "BINAURAL", "4D", "8D", "16D"].map(mode => ({
+  const buttons = ["2D", "3D", "4D", "8D", "16D"].map(mode => ({
     dataset: { d: mode },
     classList: { active: false, toggle(name, value) { if (name === "active") this.active = value; } }
   }));
@@ -3308,12 +3309,15 @@ test("spatial mode changes preserve the rotation phase and restore direct stereo
   };
   vm.runInNewContext(setterSource + "\nthis.setDMode = setDMode;", sandbox);
 
-  for (const mode of ["4D", "8D", "16D", "BINAURAL", "3D", "2D"]) {
+  for (const mode of ["4D", "8D", "16D", "3D", "2D"]) {
     sandbox.setDMode(mode);
     assert.equal(sandbox.state.dMode, mode);
     assert.equal(sandbox.spatialAngle, 12.345);
     assert.equal(buttons.find(button => button.dataset.d === mode).classList.active, true);
   }
+  sandbox.setDMode("BINAURAL");
+  assert.equal(sandbox.state.dMode, "3D");
+  assert.equal(buttons.find(button => button.dataset.d === "3D").classList.active, true);
 
   assert.deepEqual(
     [panner.positionX.value, panner.positionY.value, panner.positionZ.value],
