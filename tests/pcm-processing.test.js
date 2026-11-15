@@ -26,11 +26,11 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.78";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 78;"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 78;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.78"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.78-r78'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.79";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 79;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 79;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.79"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.79-r79'));
   assert.ok(indexSource.includes("7.4.78-r78"));
   assert.ok(controllerSource.includes("7.4.78-r78"));
   assert.ok(rootServiceWorkerSource.includes("7.4.78-r78"));
@@ -40,6 +40,23 @@ test("settings and menu category back labels follow the selected category", () =
   assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + category.title'));
   assert.ok(uiSource.includes('menuBack.textContent = "← " + category.title'));
   assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
+});
+
+test("settings detail header uses one category back title and no duplicate title", () => {
+  assert.ok(indexSource.includes('class="settingsBackButton settingsDetailBackTitle" id="btnSettingsDetailBack"'));
+  assert.ok(!indexSource.includes('id="settingsDetailPanelTitle"'));
+  assert.ok(indexSource.includes('aria-label="設定項目"'));
+  assert.ok(uiSource.includes('btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle'));
+  assert.ok(!uiSource.includes("settingsDetailPanelTitle"));
+});
+
+test("settings icons retain full colour and bottom navigation uses frosted glass styling", () => {
+  const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(cssSource.includes(".settingsIcon {\n  filter: none !important;"));
+  assert.ok(!cssSource.includes("filter: grayscale(.72)"));
+  assert.ok(cssSource.includes("backdrop-filter: blur(24px) saturate(1.55)"));
+  assert.ok(cssSource.includes("body.theme-light .bottomNav"));
+  assert.ok(cssSource.includes(".settingsDetailBackTitle"));
 });
 
 test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
