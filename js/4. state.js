@@ -584,6 +584,10 @@
   function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
   function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
   function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
+  function loadSpatialMode(){
+    const savedMode = loadStr(STORAGE.dMode, "3D");
+    return savedMode === "BINAURAL" ? "3D" : savedMode;
+  }
 
   const state = {
     playlist: [],
@@ -611,7 +615,7 @@
     playlistOrder: loadJSON(STORAGE.playlistOrder, []),
     crossfade: loadBool(STORAGE.crossfade, true),
     silenceSkip: loadBool(STORAGE.silenceSkip, true),
-    dMode: loadStr(STORAGE.dMode, "3D"),
+    dMode: loadSpatialMode(),
     waveMode: loadStr(STORAGE.waveMode, "2d"),
     waveParticleCount: Math.max(0, Math.min(1200, Math.round(loadNum(STORAGE.waveParticleCount, 0)))),
     clippingProtection: loadBool(STORAGE.clippingProtection, true),
