@@ -1783,7 +1783,7 @@ function updateSpatialAudioFromClock(isPlaying) {
         settingsCategoryCards.hidden = false;
       }
       btnSettingsCategoryBack.hidden = false;
-      btnSettingsCategoryBack.textContent = "← 設定";
+      btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle;
     });
   }
 
