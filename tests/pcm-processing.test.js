@@ -2420,3 +2420,106 @@ test("audio graph exposes and clears the stable post-DSP PCM insertion boundary"
   assert.ok(spatialRoute > boundary, "PCM boundary must precede spatial processing");
   assert.match(audioSource, /if \(audioCtx\) audioCtx\._musicPlayerPostDspInputNode = null;/);
 });
+
+
+test("MediaElement fallback preserves the PCM position and resumes through the existing Web Audio graph", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  const events = [];
+  const mediaElement = {
+    readyState: 1,
+    currentTime: 0,
+    playbackRate: 1,
+    preservesPitch: false,
+    src: "",
+    async play() { events.push("play"); return true; },
+    addEventListener() {},
+    removeEventListener() {}
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-fallback-test",
+    currentTime: 12.5,
+    paused: false,
+    released: false,
+    releaseForFallback() { this.released = true; this.paused = true; }
+  };
+  const graphInput = { node: null, target: null };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1.25,
+    filters: [{}],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() { events.push("ensureGraph"); },
+    setGraphInputNode(node, target) { graphInput.node = node; graphInput.target = target; },
+    updatePitchShiftNode() { events.push("updatePitchShiftNode"); },
+    sourceNode: { name: "media-element-source" },
+    console: { warn() {} },
+    setTimeout,
+    clearTimeout
+  };
+
+  vm.runInNewContext(fallbackSource + "\\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  const switched = await sandbox.runFallback(new Error("simulated PCM failure"), true);
+
+  assert.equal(switched, true);
+  assert.equal(sandbox.bufferedPlaybackMode, false);
+  assert.equal(engine.released, true);
+  assert.equal(mediaElement.src, "blob:pcm-fallback-test");
+  assert.equal(mediaElement.currentTime, 12.5);
+  assert.equal(mediaElement.playbackRate, 1.25);
+  assert.equal(mediaElement.preservesPitch, true);
+  assert.equal(graphInput.node, sandbox.sourceNode);
+  assert.equal(graphInput.target, sandbox.filters[0]);
+  assert.deepEqual(events, ["ensureGraph", "updatePitchShiftNode", "play"]);
+});
+
+test("MediaElement fallback keeps a paused PCM session paused", async () => {
+  const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
+  const end = audioSource.indexOf("\\n  function setPlaybackPrebufferMs", start);
+  assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
+  const fallbackSource = audioSource.slice(start, end);
+
+  let playCalls = 0;
+  const mediaElement = {
+    readyState: 1,
+    currentTime: 0,
+    playbackRate: 1,
+    async play() { playCalls++; }
+  };
+  const engine = {
+    sourceUrl: "blob:pcm-paused-fallback",
+    currentTime: 4,
+    paused: true,
+    releaseForFallback() { this.released = true; }
+  };
+  const sandbox = {
+    bufferedPlaybackMode: true,
+    bufferedPlaybackEngine: engine,
+    mediaElement,
+    currentRate: 1,
+    filters: [],
+    audioCtx: null,
+    playbackPrebufferDelayNode: null,
+    playbackPrebufferMs: 100,
+    ensureGraph() {},
+    setGraphInputNode() {},
+    updatePitchShiftNode() {},
+    sourceNode: {},
+    console: { warn() {} },
+    setTimeout,
+    clearTimeout
+  };
+
+  vm.runInNewContext(fallbackSource + "\\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  assert.equal(await sandbox.runFallback(new Error("paused fallback"), false), true);
+  assert.equal(playCalls, 0);
+  assert.equal(mediaElement.currentTime, 4);
+  assert.equal(mediaElement.src, "blob:pcm-paused-fallback");
+});
