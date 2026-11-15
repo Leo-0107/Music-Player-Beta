@@ -3054,9 +3054,12 @@ test("PCM insertion boundary traverses the shared stereo output and optional cli
   const orderedMarkers = [
     "audioCtx._musicPlayerPostDspInputNode = pitchRouteNode;",
     "spatialDirectGainNode.connect(channelNormalizeNode);",
-    "channelNormalizeNode.connect(masterGain);",
+    "channelNormalizeNode.connect(trackLoudnessAnalyser);",
+    "trackLoudnessAnalyser.connect(trackLoudnessGainNode);",
+    "trackLoudnessGainNode.connect(masterGain);",
     "masterGain.connect(finalMixGainNode);",
-    "finalMixGainNode.connect(playbackPrebufferDelayNode);",
+    "finalMixGainNode.connect(outputLevelGainNode);",
+    "outputLevelGainNode.connect(playbackPrebufferDelayNode);",
     "playbackPrebufferDelayNode.connect(speakerBusNode);",
     "speakerBusNode.connect(channelSplitter);",
     "leftGainNode.connect(channelMerger, 0, 0);",
@@ -3532,7 +3535,7 @@ test("multiple speaker output is opt-in and defaults to OFF", () => {
   assert.equal(sandbox.isMultipleOutputEnabled(), true);
   assert.match(stateSource, /multipleOutputEnabled:\s*false/);
   assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
-  assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力: OFF/);
+  assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力：OFF/);
   assert.ok(outputSource.includes('const normalized = isMultipleOutputEnabled() ? requestedId : ""'));
   assert.match(outputSource, /複数出力ONで使用/);
 });
