@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 68;
+  const BUILD_REVISION = 69;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -730,12 +730,20 @@ let mainOutputUsesNativeDestination = false;
       // メイン出力は対応ブラウザではAudioContext.setSinkId()を優先する。
       // MediaStreamDestination + HTMLMediaElement はフォールバックとして残す。
       mainOutputDirectGainNode = audioCtx.createGain();
-      mainOutputDirectGainNode.gain.value = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+      mainOutputDirectGainNode.gain.value = state.speakerSettings?.outputRoutingBlocked === true || state.speakerSettings?.mainEnabled === false ? 0 : 1;
 
       // Androidのホーム画面追加PWAでは、AudioContext.setSinkId()を使うと
       // Chromeのスタンドアロン音声経路で出力が途切れたり音が不安定になる場合がある。
       // 明示的な出力機器を指定していない場合は、OS標準のdestinationへ直接出力する。
-      if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
+      if (state.speakerSettings?.outputRoutingBlocked === true) {
+        mainOutputUsesDirectSink = false;
+        mainOutputUsesNativeDestination = false;
+        ensureOutputBridge();
+        if (outputBridgeAudio) {
+          outputBridgeAudio.volume = 0;
+          try { outputBridgeAudio.pause(); } catch (e) {}
+        }
+      } else if (isAndroidStandalonePwa() && !state.mainOutputDeviceId) {
         mainOutputUsesDirectSink = false;
         mainOutputUsesNativeDestination = true;
         analyser.connect(mainOutputDirectGainNode);
@@ -752,17 +760,39 @@ let mainOutputUsesNativeDestination = false;
           try { mainOutputDirectGainNode.disconnect(); } catch (e) {}
           ensureOutputBridge();
           if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-            outputBridgeAudio.setSinkId(state.mainOutputDeviceId || "").catch(() => {});
+            outputBridgeAudio.volume = 0;
+            outputBridgeAudio.setSinkId(state.mainOutputDeviceId || "").then(() => {
+              if (state.speakerSettings?.outputRoutingBlocked !== true) {
+                outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+              }
+            }).catch(fallbackError => {
+              muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || "");
+              console.warn("Music Player output bridge fallback unavailable:", fallbackError);
+            });
+          } else if (state.mainOutputDeviceId) {
+            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+          } else if (outputBridgeAudio) {
+            outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
           }
           applyAllSpeakerDelayNodes();
           console.warn("Music Player direct AudioContext output unavailable:", error);
         });
       } else {
         ensureOutputBridge();
-        if (state.mainOutputDeviceId && outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-          outputBridgeAudio.setSinkId(state.mainOutputDeviceId).catch(error => {
-            console.warn("Music Player output device restore failed:", error);
-          });
+        if (state.mainOutputDeviceId) {
+          if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+            outputBridgeAudio.volume = 0;
+            outputBridgeAudio.setSinkId(state.mainOutputDeviceId).then(() => {
+              if (state.speakerSettings?.outputRoutingBlocked !== true) {
+                outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+              }
+            }).catch(error => {
+              muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+              console.warn("Music Player output device restore failed:", error);
+            });
+          } else {
+            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId);
+          }
         }
       }
 
