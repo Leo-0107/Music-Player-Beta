@@ -47,7 +47,7 @@ test("accent colour is persisted and applied through shared theme tokens", () =>
   assert.ok(indexSource.includes('id="accentColorInput"'));
   assert.ok(indexSource.includes('id="btnResetAccentColor"'));
   assert.ok(styleSource.includes('accent-color: var(--accent)'));
-  assert.ok(!/rgba\\(\\s*53,\\s*217,\\s*119,/.test(styleSource));
+  assert.ok(!styleSource.includes("rgba(53, 217, 119") && !styleSource.includes("rgba(53,217,119"));
   assert.ok(styleSource.includes('var(--accent-contrast, #07120a)'));
 });
 
