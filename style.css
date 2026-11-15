@@ -3265,3 +3265,79 @@ body.theme-light #btnSettingsAddMusic:hover {
     animation: none !important;
   }
 }
+
+
+/* v7.4.79: restore full-colour category icons and refine frosted bottom navigation */
+.settingsIcon {
+  filter: none !important;
+  opacity: 1;
+}
+.settingsCategoryCard .settingsIcon,
+.settingsCard .settingsIcon,
+.menuQuickCategoryCard .settingsIcon,
+.menuQuickActionCard .settingsIcon {
+  filter: none !important;
+  opacity: 1;
+}
+.bottomNav {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, .14);
+  backdrop-filter: blur(24px) saturate(1.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.55);
+}
+.bottomNav::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.24), transparent);
+}
+.navTab {
+  border-right: 0;
+  background: transparent;
+}
+.navTab.active {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+body.theme-light .bottomNav {
+  background: color-mix(in srgb, #ffffff 76%, transparent);
+  border-top-color: rgba(24,32,44,.10);
+  box-shadow: 0 -8px 26px rgba(24,32,44,.10);
+}
+body.theme-light .bottomNav::before {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent);
+}
+
+/* Settings detail: category back label takes the title's place */
+.settingsDetailHeader {
+  grid-template-columns: minmax(0, 1fr) 40px;
+}
+.settingsDetailBackTitle {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.settingsDetailBackTitle:hover,
+.settingsDetailBackTitle:active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+  filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottomNav,
+  .navTab {
+    transition: none !important;
+  }
+}
