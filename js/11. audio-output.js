@@ -2629,6 +2629,7 @@
 
   function setClippingProtection(enabled) {
     state.clippingProtection = !!enabled;
+    resetTrackLoudnessNormalization();
     saveState();
 
     // 音声グラフの実際の構成に合わせ、L/R合成後のメイン出力経路だけを切り替える。
