@@ -1869,6 +1869,7 @@ class BufferedPlaybackEngine {
     const max = this.buffer?.duration || Number(state.currentSong?.duration) || 0;
     next = Math.max(0, max > 0 ? Math.min(max, next) : next);
     const wasPlaying = !this.paused;
+    const shouldResume = wasPlaying || this.playRequested;
     const requestId = this.playRequestId;
     this.pcmPlaybackGeneration++;
     this.dispatch("seeking");
@@ -1877,11 +1878,11 @@ class BufferedPlaybackEngine {
       if (this.pcmSampleRate > 0 && wasPlaying) this.offset = frame / this.pcmSampleRate;
     } else {
       this.cancelProcessedPcmQueue();
-      if (wasPlaying) this.stopSource();
+      if (shouldResume) this.stopSource();
     }
     this.offset = next;
     this.ended = false;
-    if (wasPlaying && this.buffer) {
+    if (shouldResume && this.buffer) {
       const startFrame = Math.max(0, Math.min(this.buffer.length, Math.round(next * this.buffer.sampleRate)));
       return this.startPcmSession(startFrame).then(session => {
         if (!session || requestId !== this.playRequestId || !this.playRequested) return false;
