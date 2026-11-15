@@ -2424,7 +2424,7 @@ test("audio graph exposes and clears the stable post-DSP PCM insertion boundary"
 
 test("MediaElement fallback preserves the PCM position and resumes through the existing Web Audio graph", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2465,7 +2465,7 @@ test("MediaElement fallback preserves the PCM position and resumes through the e
     clearTimeout
   };
 
-  vm.runInNewContext(fallbackSource + "\\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
   const switched = await sandbox.runFallback(new Error("simulated PCM failure"), true);
 
   assert.equal(switched, true);
@@ -2482,7 +2482,7 @@ test("MediaElement fallback preserves the PCM position and resumes through the e
 
 test("MediaElement fallback keeps a paused PCM session paused", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2517,7 +2517,7 @@ test("MediaElement fallback keeps a paused PCM session paused", async () => {
     clearTimeout
   };
 
-  vm.runInNewContext(fallbackSource + "\\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
+  vm.runInNewContext(fallbackSource + "\nthis.runFallback = switchBufferedPlaybackToMediaElement;", sandbox);
   assert.equal(await sandbox.runFallback(new Error("paused fallback"), false), true);
   assert.equal(playCalls, 0);
   assert.equal(mediaElement.currentTime, 4);
