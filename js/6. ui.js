@@ -1406,37 +1406,6 @@ function updateSpatialAudioFromClock(isPlaying) {
   }
 
 
-  const settingsHelpText = {
-    optionsSection:"再生速度・ピッチ・シャッフルなど、再生動作に関する設定です。",
-    waveSection:"波形の表示モードや3D表示を変更します。3D視点はここから初期位置へ戻せます。",
-    visualizerDetailSection:"ビジュアライザーの表示負荷やFPS確認用の詳細設定です。",
-    eqSection:"5バンドのイコライザーとプリセットを調整します。",
-    speakerSection:"出力先、複数スピーカー、左右信号、遅延を設定します。",
-    playlistSection:"プレイリストの作成・曲順・再生設定を管理します。",
-    queueSection:"次に再生する曲の順番を確認・変更します。",
-    timerSection:"再生を自動停止するスリープタイマーを設定します。",
-    statsSection:"再生回数、再生時間、履歴などを確認します。",
-    themeSection:"アプリの外観テーマを設定します。"
-  };
-  function showSectionHelp(id){
-    const title = document.querySelector('[data-settings-section="'+id+'"] strong')?.textContent || "設定";
-    showInSiteConfirm(title+" の説明", settingsHelpText[id] || "この設定の詳細を表示します。", null, "閉じる");
-  }
-  function addSettingsControls(){
-    document.querySelectorAll(".panelSection[id]").forEach(sec => {
-      const title = sec.querySelector(".sectionTitle");
-      if(!title || sec.id === "homeSection") return;
-      if (!title.querySelector(".sectionHelpBtn")) {
-        const wrap=document.createElement("span"); wrap.style.cssText="float:right;display:flex;gap:5px;";
-        const help=document.createElement("button"); help.type="button"; help.className="btn small ghost sectionHelpBtn"; help.textContent="?";
-        help.title="この設定の説明";
-        help.addEventListener("click",e=>{e.stopPropagation();showSectionHelp(sec.id);});
-        wrap.appendChild(help);
-        title.appendChild(wrap);
-      }
-    });
-  }
-  addSettingsControls();
 
   if (el.settingsSearch) {
     el.settingsSearch.addEventListener("input", e => {
@@ -1516,7 +1485,7 @@ function updateSpatialAudioFromClock(isPlaying) {
         card.dataset.settingsCategory = key;
         card.innerHTML = `
           <span class="settingsIcon">${category.icon}</span>
-          <span class="settingsCardText"><strong>${category.title}</strong><small>${category.items.map(item => item[2]).join("・")}</small></span>
+          <span class="settingsCardText"><strong>${category.title}</strong></span>
           <span class="settingsArrow">›</span>
         `;
         settingsCategoryHome.appendChild(card);
@@ -1543,7 +1512,7 @@ function updateSpatialAudioFromClock(isPlaying) {
       settingsCard.className = "menuQuickCategoryCard";
       settingsCard.innerHTML = `
         <span class="settingsIcon">⚙️</span>
-        <span class="settingsCardText"><strong>詳細設定</strong><small>再生・音声・表示などの仕組みを変更</small></span>
+        <span class="settingsCardText"><strong>詳細設定</strong></span>
         <span class="settingsArrow">›</span>
       `;
       settingsCard.addEventListener("click", openSettingsFromMenu);
@@ -1636,14 +1605,13 @@ function updateSpatialAudioFromClock(isPlaying) {
       const targetId = item[1];
       const icon = item[2];
       const title = item[3];
-      const description = item[4] || "";
 
       const card = document.createElement("button");
       card.type = "button";
       card.className = "menuQuickActionCard";
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
-        <span class="settingsCardText"><strong>${title}</strong>${description ? `<small>${description}</small>` : ""}</span>
+        <span class="settingsCardText"><strong>${title}</strong></span>
         <span class="settingsArrow">${type === "click" ? "" : "›"}</span>
       `;
 
@@ -1724,14 +1692,14 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (el.settingsSearch) el.settingsSearch.value = "";
 
     settingsCategoryCards.innerHTML = "";
-    category.items.forEach(([secId, icon, title, description]) => {
+    category.items.forEach(([secId, icon, title]) => {
       const card = document.createElement("button");
       card.type = "button";
       card.className = "settingsCard";
       card.dataset.settingsSection = secId;
       card.innerHTML = `
         <span class="settingsIcon">${icon}</span>
-        <span class="settingsCardText"><strong>${title}</strong><small>${description}</small></span>
+        <span class="settingsCardText"><strong>${title}</strong></span>
         <span class="settingsArrow">›</span>
       `;
       card.addEventListener("click", () => openSettingsDetail(secId, title));

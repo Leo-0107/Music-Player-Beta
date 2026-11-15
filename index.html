@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.76</title>
+<title>Music Player v7.4.77</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.76-r76">
+<link rel="stylesheet" href="style.css?v=7.4.77-r77">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -216,28 +216,23 @@
           <div class="sectionTitle">再生速度・ピッチ</div>
           <div class="field">
             <label for="playbackRate">再生速度: <span id="rateText">1.00x</span></label>
-            <div class="settingsHelpText">曲の再生を速く／遅くします。1.00x が通常速度です。</div>
             <input type="range" id="playbackRate" min="0.1" max="2.0" step="0.05" value="1.0">
             <label class="customRateLabel" for="customRateInput">数値で指定（0.1〜10倍）</label>
             <input type="number" id="customRateInput" min="0.1" max="10" step="0.1" value="1.0" aria-label="再生速度を数値で指定">
           </div>
           <div class="field">
             <label for="pitchShift">ピッチ（音の高さ）: <span id="pitchText">0</span> 半音</label>
-            <div class="settingsHelpText">音の高さを変えます。再生速度とは別の設定です。0 は元の高さ、＋は高く、−は低くします。</div>
             <input type="range" id="pitchShift" min="-12" max="12" step="1" value="0">
           </div>
         </div>
         <div class="sectionCard">
           <div class="sectionTitle">再生機能</div>
           <button class="btn small" id="btnCrossfade" style="width:100%; margin-bottom:8px;" aria-label="曲の切り替え時に前後の曲を重ねて再生">クロスフェード: ON</button>
-          <div class="settingsHelpText">曲の終わりと次の曲の始まりを重ねて、切り替えを滑らかにします。</div>
           <button class="btn small" id="btnSilenceSkip" style="width:100%;">無音スキップ: ON</button>
-          <div class="settingsHelpText">曲の中の無音部分を自動で飛ばします。</div>
           <button class="btn small" id="btnClippingProtection" style="width:100%; margin-top:10px;">音割れ防止: ON</button>
-          <div class="settingsHelpText">音量が大きすぎるときの歪みを抑えます。音源や機器によって効果は異なります。</div>
           <div class="field" style="margin-top:12px;">
             <label for="playbackPrebufferSlider">音声先行バッファ: <span id="playbackPrebufferValueText">100ms</span></label>
-            <div class="settingsHelpText">音声を指定時間だけ遅らせて出力し、出力前に余裕を作ります。値を大きくすると実際の音もその分遅れて聞こえます。CPU処理の遅れによる音切れを完全に防ぐものではありません。</div>
+            <div class="settingsHelpText">設定値分だけ音声出力が遅れます。</div>
             <input type="range" id="playbackPrebufferSlider" min="0" max="5000" step="1" value="100" aria-label="音声先行バッファ時間">
             <label for="playbackPrebufferNumber" class="customRateLabel">数値で指定（0〜5000ms）</label>
             <input type="number" id="playbackPrebufferNumber" min="0" max="5000" step="1" value="100" inputmode="numeric" aria-label="音声先行バッファ時間を数値で指定">
@@ -253,7 +248,6 @@
             <button class="btn small modeOption" data-d="8D" type="button"><span class="modeOptionName">8D</span><span class="modeOptionDescription">音が周囲を回るように移動</span></button>
             <button class="btn small modeOption" data-d="16D" type="button"><span class="modeOptionName">16D</span><span class="modeOptionDescription">音が上下も交えて複雑に周回</span></button>
           </div>
-          <div class="modeOptionFootnote" id="dModeDesc">選択したモードは再生音に反映されます。効果の感じ方はヘッドホンやスピーカーによって異なります。</div>
           <div class="field" style="margin-top:10px;">
             <label>左右パン: <span id="pannerValText">中央</span></label>
             <input type="range" id="pannerSlider" min="-1" max="1" step="0.05" value="0">
@@ -279,7 +273,7 @@
             <input type="range" id="micMonitorVolume" min="0" max="2" step="0.01" value="1">
           </div>
           <div style="font-size:.82rem; color:var(--muted); margin-top:8px;">
-            ONにすると既定のマイクをリアルタイムでスピーカーへ出力します。ヘッドホンでの使用を推奨します。
+            スピーカー使用時はハウリングに注意してください（ヘッドホン推奨）。
           </div>
         </div>
       </div>
@@ -288,11 +282,11 @@
         <div class="sectionCard speakerPanel">
           <div class="sectionTitle">音響遅延補正</div>
           <div class="speakerSectionHint">
-            メイン出力と追加の出力機器で音が届くタイミングに差があるときに使います。測定対象を選び、実測した遅延差をもとに追加機器の出力タイミングを補正します。
+            出力機器間の音のズレを補正します。
           </div>
           <label class="settingCheckRow" style="margin-top:12px;">
             <input id="autoDelayEnabled" type="checkbox" checked>
-            <span><strong>自動遅延補正を有効にする</strong><small>無効にすると測定済みの補正値を保持したまま、出力への遅延補正だけを停止します。</small></span>
+            <span><strong>自動遅延補正を有効にする</strong><small>OFFで補正を停止します（測定値は保持）。</small></span>
           </label>
           <button class="btn small" id="btnAutoCalibrateSpeakers" type="button" style="width:100%; margin-top:10px;">スピーカーの遅延を測定</button>
           <button class="btn small" id="btnMeasureMicLatency" type="button" style="width:100%; margin-top:8px;">マイクで遅延を測定</button>
@@ -306,7 +300,6 @@
       <div class="panelSection" id="waveSection">
         <div class="sectionCard">
           <div class="sectionTitle">波形表示</div>
-          <div class="settingsHelpText">波形を選ぶと、再生音に合わせて動く表示が切り替わります。各項目の説明を参考に選んでください。</div>
           <button class="btn small ghost" id="btnWaveViewReset" type="button">3D波形の視点を初期位置に戻す</button>
           <div class="waveOptionList" id="waveModeSettingsBtns">
             <button class="btn small waveOption" data-wave="3d" type="button"><span class="waveOptionName">3Dスペクトログラム</span><span class="waveOptionDescription">時間と周波数の強さを奥行きのあるワイヤーフレーム地形で表示</span></button>
@@ -321,7 +314,6 @@
             <button class="btn small waveOption" data-wave="a8" type="button"><span class="waveOptionName">デュアル・オシロスコープ</span><span class="waveOptionDescription">左右の音の関係を一つの軌跡として描く</span></button>
             <div class="field waveParticleField">
               <label>粒子数（選択中の表示モード）: <span id="waveParticleCountText">0</span></label>
-              <div class="settingsHelpText">選択中の波形モードで使う粒子数を調整します。粒子に対応していないモードでは変化しません。値を増やすと描画負荷が高くなる場合があります。</div>
               <input type="range" id="waveParticleCount" min="0" max="1200" step="10" value="0">
             </div>
           </div>
@@ -366,7 +358,7 @@
           <div class="speakerSectionHeader">
             <div>
               <div class="sectionTitle" style="margin-bottom:4px;">スピーカー</div>
-              <div class="speakerSectionHint">通常はデバイス側で指定されているスピーカーだけを使用します。複数出力をONにすると、登録した機器への同時出力が可能になります。</div>
+              <div class="speakerSectionHint">ONで複数の機器から同時に再生します。</div>
             </div>
             <div class="speakerDeviceActions">
               <button class="btn small ghost" id="multipleOutputToggle" type="button" aria-pressed="false">複数出力: OFF</button>
@@ -386,7 +378,7 @@
             <strong id="speakerDelayMeasurementModalTitle">どのスピーカーの遅延を測定しますか？</strong>
             <button class="menuBtn" id="btnCloseSpeakerDelayMeasurement" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint" id="speakerDelayMeasurementHint">遅延を測定したい出力機器を選んでください。測定後、その機器の出力タイミングを補正します。</div>
+          <div class="outputDeviceModalHint" id="speakerDelayMeasurementHint">測定する出力機器を選択してください。</div>
           <div class="outputDeviceList" id="speakerDelayMeasurementList"></div>
         </div>
       </div>
@@ -397,10 +389,10 @@
             <strong id="outputDeviceModalTitle">スピーカーを選択</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">音楽の主な出力先（メイン出力）を選択します。別の機器にも同時に音を出したい場合は、次の「同時出力する機器を追加」を使ってください。</div>
+          <div class="outputDeviceModalHint">メインの出力先を選択します。</div>
           <div class="outputDeviceList" id="outputDeviceList"></div>
           <div class="outputDevicePermissionPanel">
-            <div class="outputDevicePermissionText">機器名が表示されない場合や切り替えできない場合は、ブラウザに出力機器の選択を許可してください。許可の確認画面が開いたら、使用する機器を選択します。</div>
+            <div class="outputDevicePermissionText">機器が表示されない場合は、ブラウザの機器選択を許可してください。</div>
             <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatusMain">出力機器の許可: 確認中...</div>
             <button class="btn small ghost" id="btnRequestOutputPermissionMain" type="button">ブラウザの機器選択を許可</button>
           </div>
@@ -420,7 +412,7 @@
             <strong id="outputDeviceAddModalTitle">同時出力する機器を追加</strong>
             <button class="menuBtn" id="btnCloseOutputDeviceAddModal" type="button" aria-label="閉じる">✕</button>
           </div>
-          <div class="outputDeviceModalHint">メイン出力とは別に、同時に音を出したい機器を選びます。追加後は機器ごとに使用状態・L/R音量・遅延を設定できます。</div>
+          <div class="outputDeviceModalHint">同時に再生する出力機器を選択します。</div>
           <div class="outputDeviceList" id="outputDeviceAddList"></div>
           <div class="outputDevicePermissionStatus" id="outputDevicePermissionStatus">ブラウザの機器選択許可を確認しています...</div>
           <button class="btn small ghost" id="btnRequestOutputPermission" type="button">ブラウザの機器選択を許可</button>
@@ -454,24 +446,24 @@
       <div class="panelSection" id="visualizerDetailSection">
         <div class="sectionCard">
           <div class="sectionTitle">ビジュアライザー詳細</div>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerLowPerformance"><span><strong>描画を軽くする</strong><small>波形・ビジュアライザーの描画量を抑え、動作が重いときの負荷を減らします。表示の細かさが変わる場合があります。</small></span></label>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowFps"><span><strong>描画速度（FPS）を表示</strong><small>1秒間に画面を何回描画できているかの目安です。数値が高いほど動きが滑らかです。</small></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerLowPerformance"><span><strong>描画を軽くする</strong></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowFps"><span><strong>描画速度（FPS）を表示</strong></span></label>
           <div id="visualizerFps" hidden style="font-size:.8rem;color:var(--muted);">FPS: --</div>
-          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowLoad"><span><strong>描画負荷を表示</strong><small>波形表示の処理負荷を確認するための情報です。機器や表示モードによって変化します。</small></span></label>
+          <label class="settingCheckRow"><input type="checkbox" id="visualizerShowLoad"><span><strong>描画負荷を表示</strong></span></label>
           <div id="visualizerLoad" hidden style="font-size:.8rem;color:var(--muted);">描画負荷: --</div>
         </div>
       </div>
       <div class="panelSection" id="statsSection">
         <div class="sectionCard">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
-            <div><div class="sectionTitle" style="margin:0;">再生の記録</div><small class="settingsHelpText">再生回数や再生時間、よく聴く曲を確認できます。</small></div>
+            <div class="sectionTitle" style="margin:0;">再生の記録</div>
             <button class="btn small danger" id="btnResetStats">統計データをリセット</button>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-            <div class="statsMetric"><span>再生回数</span><strong id="statPlays">0</strong><small>再生として記録された回数</small></div>
-            <div class="statsMetric"><span>ライブラリの曲数</span><strong id="statSongs">0</strong><small>登録されている曲数</small></div>
-            <div class="statsMetric"><span>累計再生時間</span><strong id="statTotalPlayback">0分0秒</strong><small>これまでの再生時間</small></div>
-            <div class="statsMetric"><span>途中から再生した回数</span><strong id="statPartialPlays">0</strong><small>曲の途中から再生した回数</small></div>
+            <div class="statsMetric"><span>再生回数</span><strong id="statPlays">0</strong></div>
+            <div class="statsMetric"><span>ライブラリの曲数</span><strong id="statSongs">0</strong></div>
+            <div class="statsMetric"><span>累計再生時間</span><strong id="statTotalPlayback">0分0秒</strong></div>
+            <div class="statsMetric"><span>途中から再生した回数</span><strong id="statPartialPlays">0</strong></div>
           </div>
           <div id="storageUsageStatus" role="status" aria-live="polite" style="margin:8px 0 12px; color:var(--muted); font-size:.78rem;">保存領域を確認しています...</div>
           <canvas id="playHistoryChart" style="width:100%; height:180px;"></canvas>
@@ -630,10 +622,8 @@
               <input id="youtubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..." aria-label="YouTube動画のURL">
               <button class="btn small" id="youtubeAddUrlBtn" type="button">追加</button>
             </div>
-            <div class="settingsHelpText">動画URLを登録して、公式プレイヤーで再生できます。</div>
-          </div>
+            </div>
           <div id="youtubeKeywordMode" class="youtubeInputMode" hidden>
-            <div class="settingsHelpText">APIキー不要で検索できます。検索は公開検索サービスを経由するため、接続状況によって利用できない場合があります。動画再生にはYouTube公式プレイヤーを使用します。</div>
             <div class="youtubeInputRow">
               <input id="youtubeSearchInput" type="search" placeholder="動画名・アーティスト名など" aria-label="YouTube動画をキーワード検索">
               <button class="btn small" id="youtubeSearchBtn" type="button">検索</button>
@@ -665,7 +655,7 @@
             <button class="btn small" id="youtubeRepeatBtn" type="button">🔁 リピート</button>
             <button class="btn small" id="youtubeAddPlaylistBtn" type="button" disabled>＋ リスト追加</button>
           </div>
-          <div id="youtubeStatus" class="settingsHelpText" aria-live="polite">YouTube動画はこのタブ内で再生されます。</div>
+          <div id="youtubeStatus" class="settingsHelpText" aria-live="polite"></div>
         </div>
         <div class="sectionTitle">登録した動画</div>
         
@@ -688,27 +678,27 @@
     <div id="settingsCategoryHome" class="settingsCategoryHome">
       <button class="settingsCategoryCard" data-settings-category="playback">
         <span class="settingsIcon">▶️</span>
-        <span class="settingsCardText"><strong>再生</strong><small>再生速度・音質・スリープタイマーなど</small></span>
+        <span class="settingsCardText"><strong>再生</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="audio">
         <span class="settingsIcon">🔊</span>
-        <span class="settingsCardText"><strong>音声</strong><small>出力・入力・音響遅延など</small></span>
+        <span class="settingsCardText"><strong>音声</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="display">
         <span class="settingsIcon">🖥️</span>
-        <span class="settingsCardText"><strong>表示</strong><small>波形・ビジュアライザー・レイアウト・テーマ</small></span>
+        <span class="settingsCardText"><strong>表示</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="history">
         <span class="settingsIcon">📊</span>
-        <span class="settingsCardText"><strong>履歴</strong><small>再生履歴・統計</small></span>
+        <span class="settingsCardText"><strong>履歴</strong></span>
         <span class="settingsArrow">›</span>
       </button>
       <button class="settingsCategoryCard" data-settings-category="other">
         <span class="settingsIcon">⚙️</span>
-        <span class="settingsCardText"><strong>その他</strong><small>再生キュー・データ管理</small></span>
+        <span class="settingsCardText"><strong>その他</strong></span>
         <span class="settingsArrow">›</span>
       </button>
     </div>
@@ -738,7 +728,6 @@
   <div class="panelSection" id="diagnosticsSection">
     <div class="sectionCard">
       <div class="sectionTitle">エラーログ一覧</div>
-      <div class="settingsHelpText">アプリで記録された診断ログを新しい順に表示します。通知を閉じても、ここに保存されたログは残ります。</div>
       <div id="mpDiagnosticsLogList" class="mpDiagnosticsLogList" aria-live="polite"></div>
       <div class="mpDiagnosticsLogActions">
         <button class="btn small" id="mpDiagnosticsCopy" type="button">診断情報をコピー</button>
@@ -835,7 +824,6 @@
       <button class="btn small" id="btnPlaylistTrackPlay">▶ 再生</button>
     </div>
     <button class="btn small ghost playlistTrackAddBtn" id="btnPlaylistTrackAdd">＋一覧から追加</button>
-    <div class="playlistTrackHint">曲を長押しすると順番を入れ替えできます</div>
     <div class="bottomSheetList" id="playlistTrackList"></div>
   </div>
 </div>
@@ -880,8 +868,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.76";
-  const BUILD_REVISION = 76;
+  const APP_VERSION = "v7.4.77";
+  const BUILD_REVISION = 77;
   const BUILD_COMMIT_ID = "5b2f4e67894f213eb7a59aa6c0f348adc32c2dd1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1256,7 +1244,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.76-r76"></script>
+<script src="js/1. ctrl.js?v=7.4.77-r77"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
