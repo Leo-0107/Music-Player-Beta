@@ -528,8 +528,9 @@ let mainOutputUsesNativeDestination = false;
         panner3DNode = audioCtx.createPanner();
         panner3DNode.panningModel = 'HRTF';
         panner3DNode.distanceModel = 'inverse';
-        panner3DNode.refDistance = 1;
-        panner3DNode.rolloffFactor = 0.35;
+        panner3DNode.refDistance = 1.25;
+        // HRTF移動中の距離減衰を抑え、位置変化による音量低下で定位が埋もれないようにする。
+        panner3DNode.rolloffFactor = 0.18;
         panner3DNode.maxDistance = 10000;
         if (audioCtx.listener) {
           const listener = audioCtx.listener;
@@ -1106,7 +1107,7 @@ let mainOutputUsesNativeDestination = false;
     if (el.pitchText) el.pitchText.textContent = state.pitchSemitones > 0 ? `+${state.pitchSemitones}` : `${state.pitchSemitones}`;
     updateMediaSessionPosition();
   }
-  // --- 経過時間（dt）ベースの回転更新 ---
+  // --- 経過時間（dt）ベースの空間軌道更新 ---
   function updateSpatialAudio(dt) {
     if (!audioCtx || !panner3DNode || audio.paused || state.dMode === "2D") return;
     const rotationSpeed = 1.5; // ラジアン/秒
@@ -1126,17 +1127,38 @@ let mainOutputUsesNativeDestination = false;
 
     switch (state.dMode) {
       case "3D":
-        // YouTubeの動画で聞くような自然な前方定位：HRTFで左右の位置だけを連続的に変える。
+        // 前方定位を保ち、左右位置だけを連続的に変える。
         x = state.panValue * 1.8; y = 0; z = -1.5; setPos(x, y, z); break;
       case "BINAURAL":
-        // 固定バイノーラル：HRTFで音源を正面の一定位置へ固定する。
+        // 固定バイノーラル：音源を正面の一定位置へ固定する。
         x = 0; y = 0; z = -1.5; setPos(x, y, z); break;
-      case "4D":
-        x = Math.sin(t * 0.4) * 2.5; y = Math.sin(t * 0.8) * 1.2; z = Math.cos(t * 0.4) * 2.5; setPos(x, y, z); break;
-      case "8D":
-        x = Math.sin(t) * 3.2; y = 0; z = Math.cos(t) * 3.2; setPos(x, y, z); break;
-      case "16D":
-        x = Math.sin(t * 1.2) * 3.5; y = Math.sin(t * 2.4) * 1.8; z = Math.cos(t * 0.7) * 3.5; setPos(x, y, z); break;
+      case "4D": {
+        // 4D：楕円軌道で前後左右を周回し、1周につき上下2回の起伏を作る。
+        const phase = t * 0.55;
+        x = Math.sin(phase) * 2.5;
+        y = Math.sin(phase * 2) * 1.35;
+        z = Math.cos(phase) * 2.0;
+        setPos(x, y, z);
+        break;
+      }
+      case "8D": {
+        // 8D：高さをほぼ固定し、頭の周囲を水平面で明確に一周する。
+        const phase = t * 0.95;
+        x = Math.sin(phase) * 2.6;
+        y = 0;
+        z = Math.cos(phase) * 2.6;
+        setPos(x, y, z);
+        break;
+      }
+      case "16D": {
+        // 16D：3軸を異なる周期で動かす非同期Lissajous軌道。
+        const phase = t * 0.72;
+        x = Math.sin(phase) * 2.45;
+        y = (Math.sin(phase * 1.618) + 0.35 * Math.sin(phase * 0.5)) * 1.05;
+        z = Math.cos(phase * 0.7071) * 2.45;
+        setPos(x, y, z);
+        break;
+      }
       case "2D":
       default:
         setPos(0, 0, 0); break;
@@ -1162,8 +1184,8 @@ let mainOutputUsesNativeDestination = false;
       "2D": "2D：通常の左右ステレオで再生します。",
       "3D": "3D：音が前方にあるような立体感を加えます。",
       "BINAURAL": "バイノーラル：音を正面に定位させ、ヘッドホン向けの立体感を加えます。",
-      "4D": "4D：音が前後左右や上下にゆっくり移動します。",
-      "8D": "8D：音が周囲を回るように移動します。",
+      "4D": "4D：楕円軌道で前後左右を周回しながら、上下にも動きます。ヘッドホン推奨。",
+      "8D": "8D：頭の周囲を水平面で一周し続けます。ヘッドホン推奨。",
       "16D": "16D：音が上下も交えて複雑に周回します。"
     };
     if (el.dModeDesc) el.dModeDesc.textContent = descriptions[mode] || descriptions["2D"];
