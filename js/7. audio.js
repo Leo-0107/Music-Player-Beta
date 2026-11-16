@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 90;
+  const BUILD_REVISION = 91;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1440,7 +1440,7 @@ let mainOutputUsesNativeDestination = false;
       if (output) output.textContent = Math.round(value) + suffix;
     });
     document.querySelectorAll("[data-theme-bg-rotation]").forEach(button => {
-      const selected = Number(button.dataset.themeBgRotation) === rotation;
+      const selected = Number(button.dataset.themeBgRotation) === customThemeBackgroundLayout.rotation;
       button.classList.toggle("active", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
@@ -1611,7 +1611,14 @@ let mainOutputUsesNativeDestination = false;
       if (file.size > 8 * 1024 * 1024) { toast("背景画像は8MB以下にしてください"); return; }
       customThemeBackgroundPendingBlob = file;
       setCustomThemeBackgroundPreviewBlob(file).then(() => {
-        updateCustomThemeBackgroundStatus(true, "新しい画像をプレビュー中です。配置を調整して保存してください");
+        const previewReady = !!customThemeBackgroundPreviewObjectUrl;
+        updateCustomThemeBackgroundStatus(previewReady, previewReady
+          ? "新しい画像をプレビュー中です。配置を調整して保存してください"
+          : "画像のプレビューを作成できませんでした。別の画像を選択してください");
+      }).catch(error => {
+        console.error("Custom theme background preview failed:", error);
+        updateCustomThemeBackgroundStatus(false, "画像のプレビューに失敗しました。別の画像を選択してください");
+        toast("背景画像のプレビューを作成できませんでした");
       });
     });
   }
@@ -1640,21 +1647,53 @@ let mainOutputUsesNativeDestination = false;
   const saveCustomThemeBackgroundButton = document.getElementById("btnSaveCustomThemeBackground");
   if (saveCustomThemeBackgroundButton) {
     saveCustomThemeBackgroundButton.addEventListener("click", async () => {
+      if (saveCustomThemeBackgroundButton.dataset.saving === "true") return;
       const sourceBlob = customThemeBackgroundPendingBlob || customThemeBackgroundOriginalBlob;
       if (!sourceBlob) return;
-      const layout = normalizeCustomThemeBackgroundLayout(customThemeBackgroundLayout);
-      const prepared = await prepareCustomThemeBackground(sourceBlob, layout.rotation);
-      if (!prepared) { toast("画像を回転・変換できませんでした。このブラウザで対応する画像を選択してください"); return; }
-      const saved = await saveCustomThemeBackground(sourceBlob);
-      if (!saved) { toast("背景画像を端末内へ保存できませんでした。保存領域を確認してください"); return; }
-      if (!saveCustomThemeBackgroundLayout(layout)) { toast("画像は保存されましたが配置設定を保存できませんでした"); return; }
-      customThemeBackgroundLayout = layout;
-      customThemeBackgroundPendingBlob = null;
-      const applied = await setCustomThemeBackgroundBlob(sourceBlob, prepared);
-      if (!applied) { toast("画像は保存されましたが、背景への適用に失敗しました"); return; }
-      applyTheme();
-      updateCustomThemeBackgroundStatus(true, "背景画像とスマホ・PCの配置を保存しました");
-      toast("カスタム背景画像と配置を保存しました");
+      saveCustomThemeBackgroundButton.dataset.saving = "true";
+      saveCustomThemeBackgroundButton.disabled = true;
+      try {
+        // 起動時のDB初期化に失敗した場合も、保存操作時に再接続を試みる。
+        if (!await initDB()) {
+          updateCustomThemeBackgroundStatus(true, "保存領域に接続できません。ブラウザのストレージ設定を確認してください");
+          toast("背景画像を保存できませんでした。保存領域に接続できません");
+          return;
+        }
+        const layout = normalizeCustomThemeBackgroundLayout(customThemeBackgroundLayout);
+        const prepared = await prepareCustomThemeBackground(sourceBlob, layout.rotation);
+        if (!prepared) {
+          toast("画像を回転・変換できませんでした。このブラウザで対応する画像を選択してください");
+          return;
+        }
+        const saved = await saveCustomThemeBackground(sourceBlob);
+        if (!saved) {
+          updateCustomThemeBackgroundStatus(true, "画像を端末内へ保存できませんでした。保存容量やブラウザの設定を確認してください");
+          toast("背景画像を端末内へ保存できませんでした。保存容量やストレージ設定を確認してください");
+          return;
+        }
+        if (!saveCustomThemeBackgroundLayout(layout)) {
+          updateCustomThemeBackgroundStatus(true, "画像本体は保存されましたが、配置設定を保存できませんでした");
+          toast("画像本体は保存されましたが、配置設定を保存できませんでした");
+          return;
+        }
+        customThemeBackgroundLayout = layout;
+        customThemeBackgroundPendingBlob = null;
+        const applied = await setCustomThemeBackgroundBlob(sourceBlob, prepared);
+        if (!applied) {
+          toast("画像は保存されましたが、背景への適用に失敗しました");
+          return;
+        }
+        applyTheme();
+        updateCustomThemeBackgroundStatus(true, "背景画像とスマホ・PCの配置を保存しました");
+        toast("カスタム背景画像と配置を保存しました");
+      } catch (error) {
+        console.error("Custom theme background save failed:", error);
+        updateCustomThemeBackgroundStatus(true, "背景画像の保存中にエラーが発生しました。もう一度お試しください");
+        toast("背景画像の保存中にエラーが発生しました");
+      } finally {
+        delete saveCustomThemeBackgroundButton.dataset.saving;
+        saveCustomThemeBackgroundButton.disabled = !(customThemeBackgroundPendingBlob || customThemeBackgroundOriginalBlob);
+      }
     });
   }
   const cancelCustomThemeBackgroundButton = document.getElementById("btnCancelCustomThemeBackground");
