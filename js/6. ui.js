@@ -1988,6 +1988,7 @@ function updateSpatialAudioFromClock(isPlaying) {
       };
       activePanel.addEventListener("animationend", finishSwipeAnimation);
     } else {
+      activePanel?.classList.remove("tabSwipeInFromLeft", "tabSwipeInFromRight");
       animateUiEntry(activePanel);
     }
 

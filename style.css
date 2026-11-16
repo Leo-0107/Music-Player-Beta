@@ -3437,3 +3437,5 @@ body.theme-light .navTab:not(:last-child) {
     animation: none !important;
   }
 }
+
+.mainContent { touch-action: pan-y; }

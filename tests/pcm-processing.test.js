@@ -4037,3 +4037,10 @@ test("bottom navigation separators are intentionally low contrast", () => {
   assert.match(styleSource, /border-top-color: rgba\(24, 32, 44, \.12\)/);
   assert.match(styleSource, /border-right-color: rgba\(24, 32, 44, \.08\)/);
 });
+
+
+test("main content keeps vertical scrolling and clears swipe animation on button navigation", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(uiSource, /activePanel\?\.classList\.remove\("tabSwipeInFromLeft", "tabSwipeInFromRight"\)/);
+  assert.match(styleSource, /\.mainContent\s*\{\s*touch-action:\s*pan-y;\s*\}/);
+});
