@@ -28,8 +28,8 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.4.91";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 90"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 90;"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 91"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 91;"));
   assert.ok(manifestSource.includes("Music Player v7.4.91"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.91-r91'));
   assert.ok(indexSource.includes("7.4.91-r91"));
