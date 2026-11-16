@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.85";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 85"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 85;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.85"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.85-r85'));
-  assert.ok(indexSource.includes("7.4.85-r85"));
-  assert.ok(controllerSource.includes("7.4.85-r85"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.85-r85"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.86";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 86"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 86;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.86"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.86-r86'));
+  assert.ok(indexSource.includes("7.4.86-r86"));
+  assert.ok(controllerSource.includes("7.4.86-r86"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.86-r86"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -139,14 +139,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.85-r85"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.86-r86"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.85-r85"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.86-r86"));
 });
 
 
