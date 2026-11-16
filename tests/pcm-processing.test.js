@@ -3967,17 +3967,20 @@ test("settings second-level detail is rendered in the same category layer withou
   assert.equal(openSource.includes("settingsDetailOverlay"), false);
   assert.equal(openSource.includes("animateUiEntry"), false);
   assert.ok(uiSource.includes("settingsCategoryCards.hidden = false"));
+  assert.equal(indexSource.includes("settingsDetailOverlay"), false);
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.ok(styleSource.includes(".settingsCategoryView > .panelSection.active.settingsInlineDetail"));
   assert.ok(styleSource.includes("animation: none !important"));
+  assert.equal(styleSource.includes("settingsDetailScreenFromBottom"), false);
 });
 
 test("settings search input text and caret follow active theme tokens", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  const searchRule = styleSource.match(/#settingsSearch\\s*\\{([^}]*)\\}/);
-  assert.ok(searchRule);
-  assert.ok(searchRule[1].includes("color: var(--text)"));
-  assert.ok(searchRule[1].includes("caret-color: var(--accent)"));
+  const ruleStart = styleSource.indexOf("\\n#settingsSearch {");
+  assert.ok(ruleStart >= 0);
+  const searchRule = styleSource.slice(ruleStart, styleSource.indexOf("}", ruleStart));
+  assert.ok(searchRule.includes("color: var(--text)"));
+  assert.ok(searchRule.includes("caret-color: var(--accent)"));
 });
 
 test("custom theme background editor previews mobile and desktop layouts with rotation and persistent per-device settings", () => {
