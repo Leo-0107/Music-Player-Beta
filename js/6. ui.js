@@ -2003,7 +2003,7 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   const mainContentForSwipe = document.querySelector(".mainContent");
   let navigationTouchStart = null;
-  const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
+  const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, .song, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
 
   function isNavigationSwipeBlocked() {
     return document.body.classList.contains("menu-open") ||
