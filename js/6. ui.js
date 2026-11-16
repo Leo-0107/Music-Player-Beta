@@ -1981,9 +1981,12 @@ function updateSpatialAudioFromClock(isPlaying) {
       void activePanel.offsetWidth;
       const animationClass = swipeDirection > 0 ? "tabSwipeInFromRight" : "tabSwipeInFromLeft";
       activePanel.classList.add(animationClass);
-      activePanel.addEventListener("animationend", () => {
+      const finishSwipeAnimation = event => {
+        if (event.target !== activePanel) return;
         activePanel.classList.remove(animationClass);
-      }, { once: true });
+        activePanel.removeEventListener("animationend", finishSwipeAnimation);
+      };
+      activePanel.addEventListener("animationend", finishSwipeAnimation);
     } else {
       animateUiEntry(activePanel);
     }
