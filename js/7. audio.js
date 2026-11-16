@@ -1462,7 +1462,7 @@ let mainOutputUsesNativeDestination = false;
           image.src = temporaryUrl;
         });
       }
-      const downscale = Math.min(1, 4096 / Math.max(bitmap.width, bitmap.height));
+      const downscale = Math.min(1, 3072 / Math.max(bitmap.width, bitmap.height));
       const sourceWidth = Math.max(1, Math.round(bitmap.width * downscale));
       const sourceHeight = Math.max(1, Math.round(bitmap.height * downscale));
       const swapped = rotation % 180 !== 0;
@@ -1474,6 +1474,8 @@ let mainOutputUsesNativeDestination = false;
       canvas.height = height;
       const context = canvas.getContext("2d");
       if (!context) return null;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
       context.translate(width / 2, height / 2);
       context.rotate(rotation * Math.PI / 180);
       context.drawImage(bitmap, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
