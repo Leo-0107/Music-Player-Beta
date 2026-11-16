@@ -1574,7 +1574,9 @@ let mainOutputUsesNativeDestination = false;
           : view.zoom;
         const imageWidth = customThemeBackgroundDimensions ? Math.round(customThemeBackgroundDimensions.width * scale) : "cover";
         const imageHeight = customThemeBackgroundDimensions ? Math.round(customThemeBackgroundDimensions.height * scale) : "cover";
-        document.body.style.backgroundSize = "cover, " + imageWidth + (typeof imageWidth === "number" ? "px" : "") + " " + imageHeight + (typeof imageHeight === "number" ? "px" : "");
+        document.body.style.backgroundSize = customThemeBackgroundDimensions
+          ? "cover, " + imageWidth + "px " + imageHeight + "px"
+          : "cover, cover";
         document.body.style.backgroundPosition = "center, " + view.x + "% " + view.y + "%";
         document.body.style.backgroundRepeat = "no-repeat, no-repeat";
       } else {
@@ -2094,6 +2096,7 @@ let mainOutputUsesNativeDestination = false;
           if (sleepTimerId) clearTimeout(sleepTimerId);
           if (sleepIntervalId) clearInterval(sleepIntervalId);
 
+          try { localStorage.removeItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY); } catch {}
           deleteCustomThemeBackground().finally(() => location.reload());
         },
         "初期化"

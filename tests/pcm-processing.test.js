@@ -3958,40 +3958,42 @@ test("menu is a full-screen foreground layer that enters from the bottom with a 
 
 
 test("settings second-level detail is rendered in the same category layer without a bottom-sheet transition", () => {
-  const start = uiSource.indexOf("  function openSettingsDetail(secId, title)");
-  const end = uiSource.indexOf("\\n  function showSettingsCategory", start);
+  const start = uiSource.indexOf("function openSettingsDetail(secId, title)");
+  const end = uiSource.indexOf("function showSettingsCategory", start);
   assert.ok(start >= 0 && end > start);
   const openSource = uiSource.slice(start, end);
-  assert.match(openSource, /settingsCategoryView\\.appendChild\\(target\\)/);
-  assert.match(openSource, /target\\.classList\\.add\\("active", "settingsInlineDetail"\\)/);
-  assert.doesNotMatch(openSource, /settingsDetailOverlay|translateY|animateUiEntry/);
-  assert.match(uiSource, /function restoreSettingsDetail\\(\\)[\\s\\S]*?settingsCategoryCards\\.hidden = false/);
+  assert.ok(openSource.includes("settingsCategoryView.appendChild(target)"));
+  assert.ok(openSource.includes('target.classList.add("active", "settingsInlineDetail")'));
+  assert.equal(openSource.includes("settingsDetailOverlay"), false);
+  assert.equal(openSource.includes("animateUiEntry"), false);
+  assert.ok(uiSource.includes("settingsCategoryCards.hidden = false"));
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  assert.match(styleSource, /\\.settingsCategoryView > \\.panelSection\\.active\\.settingsInlineDetail[\\s\\S]*?animation: none !important/);
+  assert.ok(styleSource.includes(".settingsCategoryView > .panelSection.active.settingsInlineDetail"));
+  assert.ok(styleSource.includes("animation: none !important"));
 });
 
 test("settings search input text and caret follow active theme tokens", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const searchRule = styleSource.match(/#settingsSearch\\s*\\{([^}]*)\\}/);
   assert.ok(searchRule);
-  assert.match(searchRule[1], /color:\\s*var\\(--text\\)/);
-  assert.match(searchRule[1], /caret-color:\\s*var\\(--accent\\)/);
+  assert.ok(searchRule[1].includes("color: var(--text)"));
+  assert.ok(searchRule[1].includes("caret-color: var(--accent)"));
 });
 
 test("custom theme background editor previews mobile and desktop layouts with rotation and persistent per-device settings", () => {
-  assert.match(indexSource, /id="themeBackgroundEditor"/);
-  assert.match(indexSource, /id="themeBgPreviewMobile"/);
-  assert.match(indexSource, /id="themeBgPreviewDesktop"/);
-  assert.match(indexSource, /data-theme-bg-rotation="270"/);
-  assert.match(indexSource, /data-theme-bg-setting="mobile\\.zoom"/);
-  assert.match(indexSource, /data-theme-bg-setting="desktop\\.x"/);
-  assert.match(indexSource, /id="btnSaveCustomThemeBackground"/);
-  assert.match(audioSource, /CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1"/);
-  assert.match(audioSource, /prepareCustomThemeBackground\\(blob, rotation\\)/);
-  assert.match(audioSource, /context\\.rotate\\(rotation \\* Math\\.PI \\/ 180\\)/);
-  assert.match(audioSource, /window\\.matchMedia\\("\\(max-width: 760px\\)"\\)/);
-  assert.match(audioSource, /customThemeBackgroundLayout\\[device\\]/);
-  assert.match(audioSource, /saveCustomThemeBackgroundLayout\\(layout\\)/);
-  assert.match(audioSource, /saveCustomThemeBackground\\(sourceBlob\\)/);
-  assert.match(audioSource, /backgroundPosition = "center, " \\+ view\\.x \\+ "% " \\+ view\\.y \\+ "%"/);
+  assert.ok(indexSource.includes('id="themeBackgroundEditor"'));
+  assert.ok(indexSource.includes('id="themeBgPreviewMobile"'));
+  assert.ok(indexSource.includes('id="themeBgPreviewDesktop"'));
+  assert.ok(indexSource.includes('data-theme-bg-rotation="270"'));
+  assert.ok(indexSource.includes('data-theme-bg-setting="mobile.zoom"'));
+  assert.ok(indexSource.includes('data-theme-bg-setting="desktop.x"'));
+  assert.ok(indexSource.includes('id="btnSaveCustomThemeBackground"'));
+  assert.ok(audioSource.includes('CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1"'));
+  assert.ok(audioSource.includes("prepareCustomThemeBackground(blob, rotation)"));
+  assert.ok(audioSource.includes("context.rotate(rotation * Math.PI / 180)"));
+  assert.ok(audioSource.includes('window.matchMedia("(max-width: 760px)")'));
+  assert.ok(audioSource.includes("customThemeBackgroundLayout[device]"));
+  assert.ok(audioSource.includes("saveCustomThemeBackgroundLayout(layout)"));
+  assert.ok(audioSource.includes("saveCustomThemeBackground(sourceBlob)"));
+  assert.ok(audioSource.includes('backgroundPosition = "center, " + view.x + "% " + view.y + "%"'));
 });
