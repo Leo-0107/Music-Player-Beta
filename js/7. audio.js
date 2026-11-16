@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 85;
+  const BUILD_REVISION = 86;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1336,22 +1336,190 @@ let mainOutputUsesNativeDestination = false;
     });
   }
 
-  let customThemeBackgroundObjectUrl = null;
-  function updateCustomThemeBackgroundStatus(hasImage) {
-    if (el.customThemeBackgroundStatus) el.customThemeBackgroundStatus.textContent = hasImage ? "背景画像を保存済みです" : "背景画像は設定されていません";
-    if (el.btnClearCustomThemeBackground) el.btnClearCustomThemeBackground.disabled = !hasImage;
+  const CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1";
+  function normalizeCustomThemeBackgroundLayout(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const validRotations = [0, 90, 180, 270];
+    const rotationValue = Number(source.rotation);
+    const rotation = validRotations.includes(rotationValue)
+      ? rotationValue
+      : validRotations.reduce((best, candidate) => Math.abs(candidate - (Number.isFinite(rotationValue) ? rotationValue : 0)) < Math.abs(best - (Number.isFinite(rotationValue) ? rotationValue : 0)) ? candidate : best, 0);
+    const normalizeView = device => {
+      const view = source[device] && typeof source[device] === "object" ? source[device] : {};
+      const number = (candidate, fallback) => Number.isFinite(Number(candidate)) ? Number(candidate) : fallback;
+      return {
+        zoom: Math.max(1, Math.min(2.5, number(view.zoom, 1))),
+        x: Math.max(0, Math.min(100, number(view.x, 50))),
+        y: Math.max(0, Math.min(100, number(view.y, 50)))
+      };
+    };
+    return { rotation, mobile: normalizeView("mobile"), desktop: normalizeView("desktop") };
   }
-  function setCustomThemeBackgroundBlob(blob) {
+  function readCustomThemeBackgroundLayout() {
+    try {
+      return normalizeCustomThemeBackgroundLayout(JSON.parse(localStorage.getItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY) || "null"));
+    } catch {
+      return normalizeCustomThemeBackgroundLayout(null);
+    }
+  }
+  function saveCustomThemeBackgroundLayout(layout) {
+    try {
+      localStorage.setItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY, JSON.stringify(normalizeCustomThemeBackgroundLayout(layout)));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  let customThemeBackgroundLayout = readCustomThemeBackgroundLayout();
+  let customThemeBackgroundObjectUrl = null;
+  let customThemeBackgroundPreviewObjectUrl = null;
+  let customThemeBackgroundOriginalBlob = null;
+  let customThemeBackgroundPendingBlob = null;
+  let customThemeBackgroundDimensions = null;
+  let customThemeBackgroundRenderToken = 0;
+  let customThemeBackgroundPreviewToken = 0;
+
+  function updateCustomThemeBackgroundStatus(hasImage, message = "") {
+    if (el.customThemeBackgroundStatus) {
+      el.customThemeBackgroundStatus.textContent = message || (hasImage ? "背景画像を保存済みです" : "背景画像は設定されていません");
+    }
+    if (el.btnClearCustomThemeBackground) el.btnClearCustomThemeBackground.disabled = !customThemeBackgroundOriginalBlob;
+    const saveButton = document.getElementById("btnSaveCustomThemeBackground");
+    if (saveButton) saveButton.disabled = !hasImage;
+  }
+
+  async function setCustomThemeBackgroundPreviewBlob(blob, prepared = null) {
+    const token = ++customThemeBackgroundPreviewToken;
+    if (customThemeBackgroundPreviewObjectUrl) {
+      URL.revokeObjectURL(customThemeBackgroundPreviewObjectUrl);
+      customThemeBackgroundPreviewObjectUrl = null;
+    }
+    if (!(blob instanceof Blob) || !/^image\/(png|jpeg|webp|avif)$/i.test(blob.type)) {
+      updateCustomThemeBackgroundPreviews();
+      return;
+    }
+    const rendered = prepared || await prepareCustomThemeBackground(blob, customThemeBackgroundLayout.rotation);
+    if (token !== customThemeBackgroundPreviewToken || !rendered) {
+      updateCustomThemeBackgroundPreviews();
+      return;
+    }
+    customThemeBackgroundPreviewObjectUrl = URL.createObjectURL(rendered.blob);
+    updateCustomThemeBackgroundPreviews();
+  }
+
+  function updateCustomThemeBackgroundPreviews() {
+    const editor = document.getElementById("themeBackgroundEditor");
+    if (editor) editor.hidden = !customThemeBackgroundPreviewObjectUrl;
+    for (const device of ["mobile", "desktop"]) {
+      const image = document.getElementById(device === "mobile" ? "themeBgPreviewMobile" : "themeBgPreviewDesktop");
+      const stage = document.getElementById(device === "mobile" ? "themeBgMobileStage" : "themeBgDesktopStage");
+      const view = customThemeBackgroundLayout[device];
+      if (!image || !stage) continue;
+      if (customThemeBackgroundPreviewObjectUrl) {
+        if (image.src !== customThemeBackgroundPreviewObjectUrl) image.src = customThemeBackgroundPreviewObjectUrl;
+        image.style.objectPosition = view.x + "% " + view.y + "%";
+        image.style.transform = "scale(" + view.zoom + ")";
+      } else {
+        image.removeAttribute("src");
+        image.style.transform = "";
+      }
+    }
+    const controls = [
+      ["themeBgMobileZoom", "themeBgMobileZoomValue", customThemeBackgroundLayout.mobile.zoom * 100, "%"],
+      ["themeBgMobileX", "themeBgMobileXValue", customThemeBackgroundLayout.mobile.x, "%"],
+      ["themeBgMobileY", "themeBgMobileYValue", customThemeBackgroundLayout.mobile.y, "%"],
+      ["themeBgDesktopZoom", "themeBgDesktopZoomValue", customThemeBackgroundLayout.desktop.zoom * 100, "%"],
+      ["themeBgDesktopX", "themeBgDesktopXValue", customThemeBackgroundLayout.desktop.x, "%"],
+      ["themeBgDesktopY", "themeBgDesktopYValue", customThemeBackgroundLayout.desktop.y, "%"]
+    ];
+    controls.forEach(([inputId, outputId, value, suffix]) => {
+      const input = document.getElementById(inputId);
+      const output = document.getElementById(outputId);
+      if (input && document.activeElement !== input) input.value = String(Math.round(value));
+      if (output) output.textContent = Math.round(value) + suffix;
+    });
+    document.querySelectorAll("[data-theme-bg-rotation]").forEach(button => {
+      const selected = Number(button.dataset.themeBgRotation) === rotation;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
+  async function prepareCustomThemeBackground(blob, rotation) {
+    if (!(blob instanceof Blob)) return null;
+    let bitmap;
+    let temporaryUrl = null;
+    try {
+      if (typeof createImageBitmap === "function") {
+        bitmap = await createImageBitmap(blob);
+      } else {
+        temporaryUrl = URL.createObjectURL(blob);
+        bitmap = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = temporaryUrl;
+        });
+      }
+      const downscale = Math.min(1, 3072 / Math.max(bitmap.width, bitmap.height));
+      const sourceWidth = Math.max(1, Math.round(bitmap.width * downscale));
+      const sourceHeight = Math.max(1, Math.round(bitmap.height * downscale));
+      const swapped = rotation % 180 !== 0;
+      const width = swapped ? sourceHeight : sourceWidth;
+      const height = swapped ? sourceWidth : sourceHeight;
+      if (rotation === 0 && downscale === 1) return { blob, width, height };
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.translate(width / 2, height / 2);
+      context.rotate(rotation * Math.PI / 180);
+      context.drawImage(bitmap, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+      const outputType = blob.type === "image/jpeg" ? "image/jpeg" : blob.type === "image/webp" ? "image/webp" : "image/png";
+      const outputBlob = await new Promise(resolve => canvas.toBlob(resolve, outputType, 0.92));
+      if (!outputBlob) return null;
+      return { blob: outputBlob, width, height };
+    } catch {
+      return null;
+    } finally {
+      bitmap?.close?.();
+      if (temporaryUrl) URL.revokeObjectURL(temporaryUrl);
+    }
+  }
+
+  async function setCustomThemeBackgroundBlob(blob, prepared = null) {
+    const token = ++customThemeBackgroundRenderToken;
+    customThemeBackgroundOriginalBlob = blob instanceof Blob ? blob : null;
     if (customThemeBackgroundObjectUrl) {
       URL.revokeObjectURL(customThemeBackgroundObjectUrl);
       customThemeBackgroundObjectUrl = null;
     }
-    if (blob instanceof Blob && /^image\/(png|jpeg|webp|avif)$/i.test(blob.type)) customThemeBackgroundObjectUrl = URL.createObjectURL(blob);
-    updateCustomThemeBackgroundStatus(!!customThemeBackgroundObjectUrl);
+    customThemeBackgroundDimensions = null;
+    if (!customThemeBackgroundOriginalBlob) {
+      await setCustomThemeBackgroundPreviewBlob(null);
+      updateCustomThemeBackgroundStatus(false);
+      return true;
+    }
+    const rendered = prepared || await prepareCustomThemeBackground(customThemeBackgroundOriginalBlob, customThemeBackgroundLayout.rotation);
+    if (!rendered || token !== customThemeBackgroundRenderToken) {
+      updateCustomThemeBackgroundStatus(true, "画像を処理できませんでした。別の画像を選択してください");
+      return false;
+    }
+    await setCustomThemeBackgroundPreviewBlob(customThemeBackgroundOriginalBlob, rendered);
+    customThemeBackgroundDimensions = { width: rendered.width, height: rendered.height };
+    customThemeBackgroundObjectUrl = URL.createObjectURL(rendered.blob);
+    updateCustomThemeBackgroundStatus(true);
+    return true;
   }
+
   async function restoreCustomThemeBackground() {
+    customThemeBackgroundLayout = readCustomThemeBackgroundLayout();
     const blob = await loadCustomThemeBackground();
-    setCustomThemeBackgroundBlob(blob);
+    await setCustomThemeBackgroundBlob(blob);
     applyTheme();
   }
   function applyTheme(){
@@ -1399,8 +1567,19 @@ let mainOutputUsesNativeDestination = false;
         document.body.style.backgroundColor = computedC2;
         document.body.style.backgroundImage =
           `linear-gradient(${dir || "180deg"}, color-mix(in srgb, ${computedC1} 48%, transparent), color-mix(in srgb, ${computedC2} 48%, transparent)), url("${customThemeBackgroundObjectUrl}")`;
-        document.body.style.backgroundSize = "cover, cover";
-        document.body.style.backgroundPosition = "center, center";
+        const device = window.matchMedia("(max-width: 760px)").matches ? "mobile" : "desktop";
+        const view = customThemeBackgroundLayout[device];
+        const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+        const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+        const scale = customThemeBackgroundDimensions
+          ? Math.max(viewportWidth / customThemeBackgroundDimensions.width, viewportHeight / customThemeBackgroundDimensions.height) * view.zoom
+          : view.zoom;
+        const imageWidth = customThemeBackgroundDimensions ? Math.round(customThemeBackgroundDimensions.width * scale) : "cover";
+        const imageHeight = customThemeBackgroundDimensions ? Math.round(customThemeBackgroundDimensions.height * scale) : "cover";
+        document.body.style.backgroundSize = customThemeBackgroundDimensions
+          ? "cover, " + imageWidth + "px " + imageHeight + "px"
+          : "cover, cover";
+        document.body.style.backgroundPosition = "center, " + view.x + "% " + view.y + "%";
         document.body.style.backgroundRepeat = "no-repeat, no-repeat";
       } else {
         document.body.style.background = `linear-gradient(${dir || "180deg"}, ${computedC1} 0%, ${computedC2} 100%)`;
@@ -1423,34 +1602,96 @@ let mainOutputUsesNativeDestination = false;
   }
 
   if (el.customThemeBackgroundInput) {
-    el.customThemeBackgroundInput.addEventListener("change", async () => {
+    el.customThemeBackgroundInput.addEventListener("change", () => {
       const file = el.customThemeBackgroundInput.files?.[0];
       el.customThemeBackgroundInput.value = "";
       if (!file) return;
       const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
       if (!allowedTypes.has(file.type)) { toast("PNG・JPEG・WebP・AVIF画像を選択してください"); return; }
       if (file.size > 8 * 1024 * 1024) { toast("背景画像は8MB以下にしてください"); return; }
-      const saved = await saveCustomThemeBackground(file);
+      customThemeBackgroundPendingBlob = file;
+      setCustomThemeBackgroundPreviewBlob(file).then(() => {
+        updateCustomThemeBackgroundStatus(true, "新しい画像をプレビュー中です。配置を調整して保存してください");
+      });
+    });
+  }
+  document.querySelectorAll("[data-theme-bg-rotation]").forEach(button => {
+    button.addEventListener("click", () => {
+      customThemeBackgroundLayout.rotation = Number(button.dataset.themeBgRotation);
+      const previewBlob = customThemeBackgroundPendingBlob || customThemeBackgroundOriginalBlob;
+      setCustomThemeBackgroundPreviewBlob(previewBlob);
+      updateCustomThemeBackgroundPreviews();
+      updateCustomThemeBackgroundStatus(true, "画像の向き・配置はまだ保存されていません");
+    });
+  });
+  document.querySelectorAll("[data-theme-bg-setting]").forEach(input => {
+    input.addEventListener("input", () => {
+      const [device, key] = String(input.dataset.themeBgSetting || "").split(".");
+      if (!["mobile", "desktop"].includes(device) || !["zoom", "x", "y"].includes(key)) return;
+      const value = Number(input.value);
+      if (!Number.isFinite(value)) return;
+      customThemeBackgroundLayout[device][key] = key === "zoom"
+        ? Math.max(1, Math.min(2.5, value / 100))
+        : Math.max(0, Math.min(100, value));
+      updateCustomThemeBackgroundPreviews();
+      updateCustomThemeBackgroundStatus(true, "画像の向き・配置はまだ保存されていません");
+    });
+  });
+  const saveCustomThemeBackgroundButton = document.getElementById("btnSaveCustomThemeBackground");
+  if (saveCustomThemeBackgroundButton) {
+    saveCustomThemeBackgroundButton.addEventListener("click", async () => {
+      const sourceBlob = customThemeBackgroundPendingBlob || customThemeBackgroundOriginalBlob;
+      if (!sourceBlob) return;
+      const layout = normalizeCustomThemeBackgroundLayout(customThemeBackgroundLayout);
+      const prepared = await prepareCustomThemeBackground(sourceBlob, layout.rotation);
+      if (!prepared) { toast("画像を回転・変換できませんでした。このブラウザで対応する画像を選択してください"); return; }
+      const saved = await saveCustomThemeBackground(sourceBlob);
       if (!saved) { toast("背景画像を端末内へ保存できませんでした。保存領域を確認してください"); return; }
-      setCustomThemeBackgroundBlob(file);
+      if (!saveCustomThemeBackgroundLayout(layout)) { toast("画像は保存されましたが配置設定を保存できませんでした"); return; }
+      customThemeBackgroundLayout = layout;
+      customThemeBackgroundPendingBlob = null;
+      const applied = await setCustomThemeBackgroundBlob(sourceBlob, prepared);
+      if (!applied) { toast("画像は保存されましたが、背景への適用に失敗しました"); return; }
       applyTheme();
-      toast("カスタム背景画像を保存しました");
+      updateCustomThemeBackgroundStatus(true, "背景画像とスマホ・PCの配置を保存しました");
+      toast("カスタム背景画像と配置を保存しました");
+    });
+  }
+  const cancelCustomThemeBackgroundButton = document.getElementById("btnCancelCustomThemeBackground");
+  if (cancelCustomThemeBackgroundButton) {
+    cancelCustomThemeBackgroundButton.addEventListener("click", async () => {
+      customThemeBackgroundPendingBlob = null;
+      customThemeBackgroundLayout = readCustomThemeBackgroundLayout();
+      const savedBlob = await loadCustomThemeBackground();
+      await setCustomThemeBackgroundBlob(savedBlob);
+      applyTheme();
+      updateCustomThemeBackgroundStatus(!!savedBlob);
     });
   }
   if (el.btnClearCustomThemeBackground) {
     el.btnClearCustomThemeBackground.addEventListener("click", async () => {
-      if (!customThemeBackgroundObjectUrl) return;
+      if (!customThemeBackgroundOriginalBlob) return;
       const removed = await deleteCustomThemeBackground();
       if (!removed) { toast("背景画像を削除できませんでした"); return; }
-      setCustomThemeBackgroundBlob(null);
+      try { localStorage.removeItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY); } catch {}
+      customThemeBackgroundLayout = normalizeCustomThemeBackgroundLayout(null);
+      customThemeBackgroundPendingBlob = null;
+      await setCustomThemeBackgroundBlob(null);
       applyTheme();
       toast("カスタム背景画像を削除しました");
     });
   }
+  window.addEventListener("resize", () => {
+    updateCustomThemeBackgroundPreviews();
+    if (state.themeMode === "custom" && customThemeBackgroundObjectUrl) applyTheme();
+  }, { passive: true });
   window.addEventListener("pagehide", event => {
-    if (!event.persisted && customThemeBackgroundObjectUrl) {
-      URL.revokeObjectURL(customThemeBackgroundObjectUrl);
+    if (!event.persisted) {
+      [customThemeBackgroundObjectUrl, customThemeBackgroundPreviewObjectUrl].forEach(url => {
+        if (url) URL.revokeObjectURL(url);
+      });
       customThemeBackgroundObjectUrl = null;
+      customThemeBackgroundPreviewObjectUrl = null;
     }
   });
   if (el.accentColorInput) {
@@ -1558,28 +1799,31 @@ let mainOutputUsesNativeDestination = false;
     el.eqBands.innerHTML = "";
     const labels = ["60Hz", "250Hz", "1kHz", "4kHz", "12kHz"];
     labels.forEach((lbl, idx) => {
-      const gainVal = Number(state.eqState.gains[idx] || 0);
+      const gainVal = Math.max(-24, Math.min(24, Number(state.eqState.gains[idx]) || 0));
+      state.eqState.gains[idx] = Math.round(gainVal * 10) / 10;
       const vBand = document.createElement("div");
       vBand.className = "vBand";
       vBand.innerHTML = `
         <div class="vVal" id="eqVal_${idx}">${gainVal > 0 ? "+" + gainVal.toFixed(1) : gainVal.toFixed(1)}dB</div>
         <div class="vTrack">
-          <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}" aria-label="${lbl} イコライザー調整">
+          <input type="range" class="vSlider" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${Math.max(-12, Math.min(12, gainVal))}" aria-label="${lbl} イコライザー調整">
         </div>
-        <input type="number" class="eqNumberInput" id="eqNumber_${idx}" min="-12" max="12" step="0.5" value="${gainVal.toFixed(1)}" inputmode="decimal" aria-label="${lbl} の数値（dB）">
+        <input type="number" class="eqNumberInput" id="eqNumber_${idx}" min="-24" max="24" step="0.1" value="${gainVal.toFixed(1)}" inputmode="decimal" aria-label="${lbl} の手動数値（−24〜+24 dB、0.1 dB刻み）">
         <span class="eqBandFrequency">${lbl}</span>
       `;
       const slider = vBand.querySelector(".vSlider");
       const numberInput = vBand.querySelector(".eqNumberInput");
-      const commitBandValue = (value, formatNumber = true) => {
+      const commitBandValue = (value, formatNumber = true, manualInput = false) => {
         const parsed = Number(value);
         if (!Number.isFinite(parsed)) return false;
-        const nextValue = Math.max(-12, Math.min(12, Math.round(parsed * 2) / 2));
+        const limit = manualInput ? 24 : 12;
+        const step = manualInput ? 10 : 2;
+        const nextValue = Math.max(-limit, Math.min(limit, Math.round(parsed * step) / step));
         invalidateBufferedPcmProcessing();
         if (eqAnimId) cancelAnimationFrame(eqAnimId);
         state.eqState.preset = "Custom";
         state.eqState.gains[idx] = nextValue;
-        if (slider) slider.value = String(nextValue);
+        if (slider) slider.value = String(Math.max(-12, Math.min(12, nextValue)));
         if (numberInput && formatNumber) numberInput.value = nextValue.toFixed(1);
         updatePresetButtonsUI();
         applyEqGains(0.05);
@@ -1587,16 +1831,16 @@ let mainOutputUsesNativeDestination = false;
         saveState();
         return true;
       };
-      slider.addEventListener("input", () => commitBandValue(slider.value));
+      slider.addEventListener("input", () => commitBandValue(slider.value, true, false));
       numberInput.addEventListener("input", () => {
         if (numberInput.value.trim() === "") return;
         const parsed = Number(numberInput.value);
-        if (!Number.isFinite(parsed) || parsed < -12 || parsed > 12) return;
-        commitBandValue(parsed, false);
+        if (!Number.isFinite(parsed) || parsed < -24 || parsed > 24) return;
+        commitBandValue(parsed, false, true);
       });
       numberInput.addEventListener("change", () => {
         const parsed = numberInput.value.trim() === "" ? state.eqState.gains[idx] : Number(numberInput.value);
-        commitBandValue(Number.isFinite(parsed) ? parsed : 0, true);
+        commitBandValue(Number.isFinite(parsed) ? parsed : 0, true, true);
       });
       el.eqBands.appendChild(vBand);
     });
@@ -1615,7 +1859,7 @@ let mainOutputUsesNativeDestination = false;
       const slider = document.getElementById(`eqSlider_${idx}`);
       const numberInput = document.getElementById(`eqNumber_${idx}`);
       const valDisp = document.getElementById(`eqVal_${idx}`);
-      if(slider) slider.value = g;
+      if(slider) slider.value = Math.max(-12, Math.min(12, g));
       if(numberInput && document.activeElement !== numberInput) numberInput.value = Number(g).toFixed(1);
       if(valDisp) valDisp.textContent = (g > 0 ? "+" + g.toFixed(1) : g.toFixed(1)) + "dB";
     });
@@ -1857,6 +2101,7 @@ let mainOutputUsesNativeDestination = false;
           if (sleepTimerId) clearTimeout(sleepTimerId);
           if (sleepIntervalId) clearInterval(sleepIntervalId);
 
+          try { localStorage.removeItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY); } catch {}
           deleteCustomThemeBackground().finally(() => location.reload());
         },
         "初期化"

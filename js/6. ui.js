@@ -1757,23 +1757,13 @@ function updateSpatialAudioFromClock(isPlaying) {
   }
 
   let activeSettingsDetail = null;
-  const settingsDetailOverlay = document.getElementById("settingsDetailOverlay");
-  const settingsDetailPanelBody = document.getElementById("settingsDetailPanelBody");
-  const btnSettingsDetailBack = document.getElementById("btnSettingsDetailBack");
-  const btnCloseSettingsDetail = document.getElementById("btnCloseSettingsDetail");
-  const settingsDetailBackdrop = document.getElementById("settingsDetailBackdrop");
 
   function restoreSettingsDetail() {
     if (!activeSettingsDetail) return;
     const { target, parent, nextSibling } = activeSettingsDetail;
-    target.classList.remove("active");
+    target.classList.remove("active", "settingsInlineDetail");
     if (parent) parent.insertBefore(target, nextSibling && nextSibling.parentNode === parent ? nextSibling : null);
     activeSettingsDetail = null;
-    if (settingsDetailOverlay) {
-      settingsDetailOverlay.classList.remove("open");
-      settingsDetailOverlay.hidden = true;
-    }
-    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;
     if (settingsCategoryCards) settingsCategoryCards.hidden = false;
     if (btnSettingsCategoryBack) {
@@ -1784,9 +1774,8 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   function openSettingsDetail(secId, title) {
     const target = document.getElementById(secId);
-    if (!target || !settingsCategoryView || !settingsCategoryCards || !settingsDetailOverlay || !settingsDetailPanelBody) return;
+    if (!target || !settingsCategoryView || !settingsCategoryCards) return;
 
-    // 詳細は既存の設定一覧や左メニュー内ではなく、独立したボトムシートに表示する。
     restoreSettingsDetail();
     activeSettingsDetail = {
       target,
@@ -1796,20 +1785,14 @@ function updateSpatialAudioFromClock(isPlaying) {
     document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
     settingsCategoryCards.hidden = true;
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
-    if (btnSettingsCategoryBack) btnSettingsCategoryBack.hidden = true;
-    if (btnSettingsDetailBack) btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle;
-    target.classList.add("active");
-    settingsDetailPanelBody.appendChild(target);
-    animateUiEntry(target);
-    settingsDetailOverlay.hidden = false;
-    settingsDetailOverlay.classList.remove("open");
-    void settingsDetailOverlay.offsetWidth;
-    requestAnimationFrame(() => settingsDetailOverlay.classList.add("open"));
+    if (btnSettingsCategoryBack) {
+      btnSettingsCategoryBack.hidden = false;
+      btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle;
+    }
+    target.classList.add("active", "settingsInlineDetail");
+    settingsCategoryView.appendChild(target);
+    settingsCategoryView.scrollTop = 0;
   }
-
-  if (btnSettingsDetailBack) btnSettingsDetailBack.addEventListener("click", restoreSettingsDetail);
-  if (btnCloseSettingsDetail) btnCloseSettingsDetail.addEventListener("click", restoreSettingsDetail);
-  if (settingsDetailBackdrop) settingsDetailBackdrop.addEventListener("click", restoreSettingsDetail);
 
   function showSettingsCategory(key) {
     const category = SETTINGS_CATEGORIES[key];

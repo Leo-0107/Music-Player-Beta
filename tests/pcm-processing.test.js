@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.85";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 85"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 85;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.85"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.85-r85'));
-  assert.ok(indexSource.includes("7.4.85-r85"));
-  assert.ok(controllerSource.includes("7.4.85-r85"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.85-r85"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.86";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 86"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 86;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.86"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.86-r86'));
+  assert.ok(indexSource.includes("7.4.86-r86"));
+  assert.ok(controllerSource.includes("7.4.86-r86"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.86-r86"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -84,12 +84,13 @@ test("settings and menu category back labels follow the selected category", () =
   assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
 });
 
-test("settings detail header uses one category back title and no duplicate title", () => {
-  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsDetailBackTitle" id="btnSettingsDetailBack"'));
-  assert.ok(!indexSource.includes('id="settingsDetailPanelTitle"'));
-  assert.ok(indexSource.includes('aria-label="設定項目"'));
-  assert.ok(uiSource.includes('btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle'));
-  assert.ok(!uiSource.includes("settingsDetailPanelTitle"));
+test("settings detail uses the existing category back header without a separate sheet", () => {
+  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsCategoryBackTitle" id="btnSettingsCategoryBack"'));
+  assert.ok(!indexSource.includes('id="btnSettingsDetailBack"'));
+  assert.ok(!indexSource.includes("settingsDetailOverlay"));
+  assert.ok(!indexSource.includes("settingsDetailPanelTitle"));
+  assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle'));
+  assert.ok(uiSource.includes("settingsCategoryView.appendChild(target)"));
   assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;"));
   assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;"));
 });
@@ -100,9 +101,9 @@ test("settings icons retain full colour and bottom navigation uses frosted glass
   assert.ok(!cssSource.includes("filter: grayscale(.72)"));
   assert.ok(cssSource.includes("backdrop-filter: blur(24px) saturate(1.55)"));
   assert.ok(cssSource.includes("body.theme-light .bottomNav"));
-  assert.ok(cssSource.includes(".settingsDetailBackTitle"));
+  assert.ok(!cssSource.includes(".settingsDetailBackTitle"));
   assert.ok(cssSource.includes(".settingsCategoryTitle {\n  font-size: 1rem;\n  font-weight: 700;\n  padding: 4px 2px 2px;"));
-  assert.ok(cssSource.includes("font: inherit;\n  font-size: 1rem;\n  font-weight: 700;"));
+  assert.ok(cssSource.includes(".settingsCategoryView > .settingsBackButton.settingsCategoryTitle"));
 });
 
 test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
@@ -139,14 +140,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.85-r85"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.85-r85"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.86-r86"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.85-r85"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.86-r86"));
 });
 
 
@@ -3873,12 +3874,14 @@ test("settings search covers category names, setting descriptions, and displays 
   assert.match(uiSource, /一致する設定項目がありません/);
 });
 
-test("equalizer bands support synchronized numeric input and slider values", () => {
-  assert.match(audioSource, /id="eqNumber_\$\{idx\}"/);
-  assert.match(audioSource, /class="eqNumberInput"/);
+test("equalizer slider remains ±12 dB/0.5 while manual input supports ±24 dB/0.1", () => {
+  assert.match(audioSource, /id="eqSlider_\$\{idx\}" min="-12" max="12" step="0\.5"/);
+  assert.match(audioSource, /id="eqNumber_\$\{idx\}" min="-24" max="24" step="0\.1"/);
+  assert.match(audioSource, /const limit = manualInput \? 24 : 12/);
+  assert.match(audioSource, /const step = manualInput \? 10 : 2/);
   assert.match(audioSource, /numberInput\.addEventListener\("input"/);
   assert.match(audioSource, /numberInput\.addEventListener\("change"/);
-  assert.match(audioSource, /Math\.max\(-12, Math\.min\(12, Math\.round\(parsed \* 2\) \/ 2\)\)/);
+  assert.match(audioSource, /slider\.value = String\(Math\.max\(-12, Math\.min\(12, nextValue\)\)\)/);
   assert.match(audioSource, /numberInput\.value = Number\(g\)\.toFixed\(1\)/);
 });
 
@@ -3892,7 +3895,7 @@ test("custom theme background image is validated and stored in IndexedDB", () =>
   assert.match(indexSource, /id="customThemeBackgroundInput"/);
   assert.match(indexSource, /accept="image\/png,image\/jpeg,image\/webp,image\/avif"/);
   assert.match(audioSource, /file\.size > 8 \* 1024 \* 1024/);
-  assert.match(audioSource, /saveCustomThemeBackground\(file\)/);
+  assert.match(audioSource, /saveCustomThemeBackground\(sourceBlob\)/);
   assert.match(audioSource, /backgroundImage =[\s\S]*?customThemeBackgroundObjectUrl/);
   assert.match(uiSource, /await restoreCustomThemeBackground\(\)/);
 });
@@ -3952,4 +3955,49 @@ test("menu is a full-screen foreground layer that enters from the bottom with a 
   assert.match(uiSource, /document\.body\.classList\.add\("menu-open"\)/);
   assert.match(styleSource, /body\.menu-open\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(indexSource, /z-index["']?,?\s*["']2147483647/);
+});
+
+
+test("settings second-level detail is rendered in the same category layer without a bottom-sheet transition", () => {
+  const start = uiSource.indexOf("function openSettingsDetail(secId, title)");
+  const end = uiSource.indexOf("function showSettingsCategory", start);
+  assert.ok(start >= 0 && end > start);
+  const openSource = uiSource.slice(start, end);
+  assert.ok(openSource.includes("settingsCategoryView.appendChild(target)"));
+  assert.ok(openSource.includes('target.classList.add("active", "settingsInlineDetail")'));
+  assert.equal(openSource.includes("settingsDetailOverlay"), false);
+  assert.equal(openSource.includes("animateUiEntry"), false);
+  assert.ok(uiSource.includes("settingsCategoryCards.hidden = false"));
+  assert.equal(indexSource.includes("settingsDetailOverlay"), false);
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.ok(styleSource.includes(".settingsCategoryView > .panelSection.active.settingsInlineDetail"));
+  assert.ok(styleSource.includes("animation: none !important"));
+  assert.equal(styleSource.includes("settingsDetailScreenFromBottom"), false);
+});
+
+test("settings search input text and caret follow active theme tokens", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  const ruleStart = styleSource.lastIndexOf("#settingsSearch {");
+  assert.ok(ruleStart >= 0);
+  const searchRule = styleSource.slice(ruleStart, styleSource.indexOf("}", ruleStart));
+  assert.ok(searchRule.includes("color: var(--text)"));
+  assert.ok(searchRule.includes("caret-color: var(--accent)"));
+});
+
+test("custom theme background editor previews mobile and desktop layouts with rotation and persistent per-device settings", () => {
+  assert.ok(indexSource.includes('id="themeBackgroundEditor"'));
+  assert.ok(indexSource.includes('id="themeBgPreviewMobile"'));
+  assert.ok(indexSource.includes('id="themeBgPreviewDesktop"'));
+  assert.ok(indexSource.includes('data-theme-bg-rotation="270"'));
+  assert.ok(indexSource.includes('data-theme-bg-setting="mobile.zoom"'));
+  assert.ok(indexSource.includes('data-theme-bg-setting="desktop.x"'));
+  assert.ok(indexSource.includes('id="btnSaveCustomThemeBackground"'));
+  assert.ok(audioSource.includes('CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1"'));
+  assert.ok(audioSource.includes("prepareCustomThemeBackground(blob, rotation)"));
+  assert.ok(audioSource.includes("context.rotate(rotation * Math.PI / 180)"));
+  assert.ok(audioSource.includes('window.matchMedia("(max-width: 760px)")'));
+  assert.ok(audioSource.includes("customThemeBackgroundLayout[device]"));
+  assert.ok(audioSource.includes("saveCustomThemeBackgroundLayout(layout)"));
+  assert.ok(audioSource.includes("saveCustomThemeBackground(sourceBlob)"));
+  assert.ok(audioSource.includes('backgroundPosition = "center, " + view.x + "% " + view.y + "%"'));
 });
