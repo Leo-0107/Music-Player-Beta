@@ -3217,29 +3217,6 @@ body.theme-light .bottomNav::before {
 }
 
 /* Settings detail: category back label takes the title's place */
-.settingsDetailHeader {
-  grid-template-columns: minmax(0, 1fr) 40px;
-}
-.settingsDetailBackTitle {
-  width: 100%;
-  min-width: 0;
-  min-height: 40px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-}
-.settingsDetailBackTitle:hover,
-.settingsDetailBackTitle:active {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text);
-  filter: none;
-}
 @media (prefers-reduced-motion: reduce) {
   .bottomNav,
   .navTab {

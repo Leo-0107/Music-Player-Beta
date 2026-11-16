@@ -84,12 +84,13 @@ test("settings and menu category back labels follow the selected category", () =
   assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
 });
 
-test("settings detail header uses one category back title and no duplicate title", () => {
-  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsDetailBackTitle" id="btnSettingsDetailBack"'));
-  assert.ok(!indexSource.includes('id="settingsDetailPanelTitle"'));
-  assert.ok(indexSource.includes('aria-label="設定項目"'));
-  assert.ok(uiSource.includes('btnSettingsDetailBack.textContent = "← " + activeSettingsCategoryTitle'));
-  assert.ok(!uiSource.includes("settingsDetailPanelTitle"));
+test("settings detail uses the existing category back header without a separate sheet", () => {
+  assert.ok(indexSource.includes('class="settingsBackButton settingsCategoryTitle settingsCategoryBackTitle" id="btnSettingsCategoryBack"'));
+  assert.ok(!indexSource.includes('id="btnSettingsDetailBack"'));
+  assert.ok(!indexSource.includes("settingsDetailOverlay"));
+  assert.ok(!indexSource.includes("settingsDetailPanelTitle"));
+  assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle'));
+  assert.ok(uiSource.includes("settingsCategoryView.appendChild(target)"));
   assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;"));
   assert.ok(uiSource.includes("if (settingsCategoryTitle) settingsCategoryTitle.hidden = false;"));
 });
@@ -100,7 +101,7 @@ test("settings icons retain full colour and bottom navigation uses frosted glass
   assert.ok(!cssSource.includes("filter: grayscale(.72)"));
   assert.ok(cssSource.includes("backdrop-filter: blur(24px) saturate(1.55)"));
   assert.ok(cssSource.includes("body.theme-light .bottomNav"));
-  assert.ok(cssSource.includes(".settingsDetailBackTitle"));
+  assert.ok(!cssSource.includes(".settingsDetailBackTitle"));
   assert.ok(cssSource.includes(".settingsCategoryTitle {\n  font-size: 1rem;\n  font-weight: 700;\n  padding: 4px 2px 2px;"));
   assert.ok(cssSource.includes("font: inherit;\n  font-size: 1rem;\n  font-weight: 700;"));
 });
