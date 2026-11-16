@@ -26,14 +26,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.84";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 84"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 84;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.84"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.84-r84'));
-  assert.ok(indexSource.includes("7.4.84-r84"));
-  assert.ok(controllerSource.includes("7.4.84-r84"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.84-r84"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.85";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 85"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 85;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.85"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.85-r84'));
+  assert.ok(indexSource.includes("7.4.85-r85"));
+  assert.ok(controllerSource.includes("7.4.85-r85"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.85-r85"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -139,14 +139,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.84-r84"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.84-r84"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.84-r84"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.84-r84"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.85-r85"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.85-r85"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.85-r85"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.85-r85"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.84-r84"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.85-r85"));
 });
 
 
@@ -3907,4 +3907,49 @@ test("network status probes the app origin and uses the accent colour while offl
 
 test("theme background image is removed when settings are reset", () => {
   assert.match(audioSource, /deleteCustomThemeBackground\(\)\.finally\(\(\) => location\.reload\(\)\)/);
+});
+
+
+test("menu omits redundant playback, favorite, microphone-monitor and 3D-reset shortcuts while preserving their controls", () => {
+  const menuConfigMatch = uiSource.match(/const MENU_CATEGORIES = \\{[\\s\\S]*?\\n  \\};/);
+  assert.ok(menuConfigMatch, "menu category configuration should exist");
+  const menuConfig = menuConfigMatch[0];
+  const removedShortcuts = [
+    "btnPlay", "btnPrev", "btnNext", "btnRewind10", "btnForward10",
+    "btnMainShuffle", "btnMainRepeat", "btnFav", "btnMicMonitor", "btnWaveViewReset"
+  ];
+  for (const id of removedShortcuts) {
+    assert.equal(menuConfig.includes(id), false, `${id} should not be a menu shortcut`);
+    assert.ok(indexSource.includes(`id="${id}"`), `${id} should remain available in its original UI`);
+  }
+  assert.ok(menuConfig.includes("optionsSection"), "playback settings should remain accessible from the menu");
+  assert.match(uiSource, /el\\.btnFav\\.addEventListener\\("click"/);
+  assert.match(uiSource, /el\\.btnMainShuffle\\.addEventListener\\("click"/);
+  assert.match(uiSource, /el\\.btnMainRepeat\\.addEventListener\\("click"/);
+  assert.match(outputSource, /el\\.btnMicMonitor\\.addEventListener\\("click"[\\s\\S]*?setMicMonitorEnabled/);
+  assert.match(uiSource, /const waveResetBtn = document\\.getElementById\\("btnWaveViewReset"\\)/);
+});
+
+test("menu is a full-screen foreground layer that enters from the bottom with a fade", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  const overlayRule = styleSource.match(/\\.overlay\\s*\\{([^}]*)\\}/);
+  const overlayOpenRule = styleSource.match(/\\.overlay\\.open\\s*\\{([^}]*)\\}/);
+  const sidebarRule = styleSource.match(/\\.sidebar\\s*\\{([^}]*)\\}/);
+  const sidebarOpenRule = styleSource.match(/\\.sidebar\\.open\\s*\\{([^}]*)\\}/);
+  assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule);
+  assert.match(overlayRule[1], /z-index:\\s*20000/);
+  assert.match(overlayOpenRule[1], /opacity:\\s*1/);
+  assert.match(sidebarRule[1], /position:\\s*fixed/);
+  assert.match(sidebarRule[1], /inset:\\s*0/);
+  assert.match(sidebarRule[1], /z-index:\\s*20001/);
+  assert.match(sidebarRule[1], /transform:\\s*translateY\\(100%\\)/);
+  assert.match(sidebarRule[1], /opacity:\\s*0/);
+  assert.match(sidebarRule[1], /visibility:\\s*hidden/);
+  assert.match(sidebarRule[1], /transition:[\\s\\S]*opacity/);
+  assert.match(sidebarOpenRule[1], /transform:\\s*translateY\\(0\\)/);
+  assert.match(sidebarOpenRule[1], /opacity:\\s*1/);
+  assert.match(sidebarOpenRule[1], /visibility:\\s*visible/);
+  assert.match(uiSource, /document\\.body\\.classList\\.add\\("menu-open"\\)/);
+  assert.match(styleSource, /body\\.menu-open\\s*\\{[^}]*overflow:\\s*hidden/s);
+  assert.match(indexSource, /z-index["']?,?\\s*["']2147483647/);
 });
