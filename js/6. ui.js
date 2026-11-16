@@ -1668,13 +1668,6 @@ function updateSpatialAudioFromClock(isPlaying) {
       title: "再生操作",
       
       items: [
-        ["click", "btnPlay", "▶", "再生 / 一時停止"],
-        ["click", "btnPrev", "◀◀", "前の曲"],
-        ["click", "btnNext", "▶▶", "次の曲"],
-        ["click", "btnRewind10", "↶", "10秒戻す"],
-        ["click", "btnForward10", "↷", "10秒進める"],
-        ["click", "btnMainShuffle", "🔀", "シャッフル"],
-        ["click", "btnMainRepeat", "🔁", "リピート"],
         ["section", "optionsSection", "🎚️", "速度・ピッチ", ]
       ]
     },
@@ -1686,7 +1679,6 @@ function updateSpatialAudioFromClock(isPlaying) {
         ["click", "btnAddMusic", "＋", "音楽 / ZIP / フォルダを追加"],
         ["section", "queueSection", "⏭️", "再生キュー", ],
         ["section", "playlistSection", "📋", "プレイリスト", ],
-        ["click", "btnFav", "☆", "現在の曲をお気に入りに追加 / 解除"]
       ]
     },
     audio: {
@@ -1695,7 +1687,6 @@ function updateSpatialAudioFromClock(isPlaying) {
       
       items: [
         ["section", "speakerSection", "🔊", "スピーカー", ],
-        ["click", "btnMicMonitor", "🎤", "マイクモニター", ],
         ["section", "inputSection", "🎙️", "マイク", ]
       ]
     },
@@ -1706,7 +1697,6 @@ function updateSpatialAudioFromClock(isPlaying) {
       items: [
         ["section", "waveSection", "〰️", "波形", ],
         ["section", "visualizerDetailSection", "📈", "ビジュアライザー", ],
-        ["click", "btnWaveViewReset", "↺", "3D視点をリセット"]
       ]
     }
   };
