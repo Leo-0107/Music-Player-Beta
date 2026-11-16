@@ -3911,7 +3911,7 @@ test("theme background image is removed when settings are reset", () => {
 
 
 test("menu omits redundant playback, favorite, microphone-monitor and 3D-reset shortcuts while preserving their controls", () => {
-  const menuConfigMatch = uiSource.match(/const MENU_CATEGORIES = \\{[\\s\\S]*?\\n  \\};/);
+  const menuConfigMatch = uiSource.match(/const MENU_CATEGORIES = \{[\s\S]*?\n  \};/);
   assert.ok(menuConfigMatch, "menu category configuration should exist");
   const menuConfig = menuConfigMatch[0];
   const removedShortcuts = [
@@ -3923,33 +3923,33 @@ test("menu omits redundant playback, favorite, microphone-monitor and 3D-reset s
     assert.ok(indexSource.includes(`id="${id}"`), `${id} should remain available in its original UI`);
   }
   assert.ok(menuConfig.includes("optionsSection"), "playback settings should remain accessible from the menu");
-  assert.match(uiSource, /el\\.btnFav\\.addEventListener\\("click"/);
-  assert.match(uiSource, /el\\.btnMainShuffle\\.addEventListener\\("click"/);
-  assert.match(uiSource, /el\\.btnMainRepeat\\.addEventListener\\("click"/);
-  assert.match(outputSource, /el\\.btnMicMonitor\\.addEventListener\\("click"[\\s\\S]*?setMicMonitorEnabled/);
-  assert.match(uiSource, /const waveResetBtn = document\\.getElementById\\("btnWaveViewReset"\\)/);
+  assert.match(uiSource, /el\.btnFav\.addEventListener\("click"/);
+  assert.match(uiSource, /el\.btnMainShuffle\.addEventListener\("click"/);
+  assert.match(uiSource, /el\.btnMainRepeat\.addEventListener\("click"/);
+  assert.match(outputSource, /el\.btnMicMonitor\.addEventListener\("click"[\s\S]*?setMicMonitorEnabled/);
+  assert.match(uiSource, /const waveResetBtn = document\.getElementById\("btnWaveViewReset"\)/);
 });
 
 test("menu is a full-screen foreground layer that enters from the bottom with a fade", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  const overlayRule = styleSource.match(/\\.overlay\\s*\\{([^}]*)\\}/);
-  const overlayOpenRule = styleSource.match(/\\.overlay\\.open\\s*\\{([^}]*)\\}/);
-  const sidebarRule = styleSource.match(/\\.sidebar\\s*\\{([^}]*)\\}/);
-  const sidebarOpenRule = styleSource.match(/\\.sidebar\\.open\\s*\\{([^}]*)\\}/);
+  const overlayRule = styleSource.match(/\.overlay\s*\{([^}]*)\}/);
+  const overlayOpenRule = styleSource.match(/\.overlay\.open\s*\{([^}]*)\}/);
+  const sidebarRule = styleSource.match(/\.sidebar\s*\{([^}]*)\}/);
+  const sidebarOpenRule = styleSource.match(/\.sidebar\.open\s*\{([^}]*)\}/);
   assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule);
-  assert.match(overlayRule[1], /z-index:\\s*20000/);
-  assert.match(overlayOpenRule[1], /opacity:\\s*1/);
-  assert.match(sidebarRule[1], /position:\\s*fixed/);
-  assert.match(sidebarRule[1], /inset:\\s*0/);
-  assert.match(sidebarRule[1], /z-index:\\s*20001/);
-  assert.match(sidebarRule[1], /transform:\\s*translateY\\(100%\\)/);
-  assert.match(sidebarRule[1], /opacity:\\s*0/);
-  assert.match(sidebarRule[1], /visibility:\\s*hidden/);
-  assert.match(sidebarRule[1], /transition:[\\s\\S]*opacity/);
-  assert.match(sidebarOpenRule[1], /transform:\\s*translateY\\(0\\)/);
-  assert.match(sidebarOpenRule[1], /opacity:\\s*1/);
-  assert.match(sidebarOpenRule[1], /visibility:\\s*visible/);
-  assert.match(uiSource, /document\\.body\\.classList\\.add\\("menu-open"\\)/);
-  assert.match(styleSource, /body\\.menu-open\\s*\\{[^}]*overflow:\\s*hidden/s);
-  assert.match(indexSource, /z-index["']?,?\\s*["']2147483647/);
+  assert.match(overlayRule[1], /z-index:\s*20000/);
+  assert.match(overlayOpenRule[1], /opacity:\s*1/);
+  assert.match(sidebarRule[1], /position:\s*fixed/);
+  assert.match(sidebarRule[1], /inset:\s*0/);
+  assert.match(sidebarRule[1], /z-index:\s*20001/);
+  assert.match(sidebarRule[1], /transform:\s*translateY\(100%\)/);
+  assert.match(sidebarRule[1], /opacity:\s*0/);
+  assert.match(sidebarRule[1], /visibility:\s*hidden/);
+  assert.match(sidebarRule[1], /transition:[\s\S]*opacity/);
+  assert.match(sidebarOpenRule[1], /transform:\s*translateY\(0\)/);
+  assert.match(sidebarOpenRule[1], /opacity:\s*1/);
+  assert.match(sidebarOpenRule[1], /visibility:\s*visible/);
+  assert.match(uiSource, /document\.body\.classList\.add\("menu-open"\)/);
+  assert.match(styleSource, /body\.menu-open\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(indexSource, /z-index["']?,?\s*["']2147483647/);
 });
