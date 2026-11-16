@@ -1950,28 +1950,93 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   setupHomeLayoutSettings();
 
-  document.querySelectorAll(".navTab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".navTab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      const target = tab.dataset.target;
+  const navigationTabs = Array.from(document.querySelectorAll(".navTab"));
 
-      const homeEl = document.getElementById("homeElements");
-      const ytEl = document.getElementById("youtubeElements");
-      const plEl = document.getElementById("playlistElements");
-      const setEl = document.getElementById("settingsTabContainer");
+  function getNavigationSwipeIndex(currentIndex, deltaX, deltaY, tabCount) {
+    if (!Number.isInteger(currentIndex) || Math.abs(deltaX) < 64 ||
+        Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return -1;
+    const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
+    return nextIndex >= 0 && nextIndex < tabCount ? nextIndex : -1;
+  }
 
-      if (homeEl) homeEl.style.display = target === "home" ? "block" : "none";
-      if (ytEl) ytEl.style.display = target === "youtube" ? "flex" : "none";
-      if (plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
-      if (setEl) setEl.style.display = target === "settings" ? "block" : "none";
-      const activePanel = ({ home: homeEl, youtube: ytEl, playlist: plEl, settings: setEl })[target];
+  function activateNavigationTab(tab, swipeDirection = 0) {
+    if (!tab) return;
+    navigationTabs.forEach(item => item.classList.remove("active"));
+    tab.classList.add("active");
+    const target = tab.dataset.target;
+
+    const homeEl = document.getElementById("homeElements");
+    const ytEl = document.getElementById("youtubeElements");
+    const plEl = document.getElementById("playlistElements");
+    const setEl = document.getElementById("settingsTabContainer");
+
+    if (homeEl) homeEl.style.display = target === "home" ? "block" : "none";
+    if (ytEl) ytEl.style.display = target === "youtube" ? "flex" : "none";
+    if (plEl) plEl.style.display = target === "playlist" ? "flex" : "none";
+    if (setEl) setEl.style.display = target === "settings" ? "block" : "none";
+    const activePanel = ({ home: homeEl, youtube: ytEl, playlist: plEl, settings: setEl })[target];
+
+    if (swipeDirection && activePanel) {
+      activePanel.classList.remove("uiEnter", "tabSwipeInFromLeft", "tabSwipeInFromRight");
+      void activePanel.offsetWidth;
+      const animationClass = swipeDirection > 0 ? "tabSwipeInFromRight" : "tabSwipeInFromLeft";
+      activePanel.classList.add(animationClass);
+      const finishSwipeAnimation = event => {
+        if (event.target !== activePanel) return;
+        activePanel.classList.remove(animationClass);
+        activePanel.removeEventListener("animationend", finishSwipeAnimation);
+      };
+      activePanel.addEventListener("animationend", finishSwipeAnimation);
+    } else {
+      activePanel?.classList.remove("tabSwipeInFromLeft", "tabSwipeInFromRight");
       animateUiEntry(activePanel);
-      tab.classList.remove("navTap");
-      void tab.offsetWidth;
-      tab.classList.add("navTap");
-    });
+    }
+
+    tab.classList.remove("navTap");
+    void tab.offsetWidth;
+    tab.classList.add("navTap");
+  }
+
+  navigationTabs.forEach(tab => {
+    tab.addEventListener("click", () => activateNavigationTab(tab));
   });
+
+  const mainContentForSwipe = document.querySelector(".mainContent");
+  let navigationTouchStart = null;
+  const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
+
+  function isNavigationSwipeBlocked() {
+    return document.body.classList.contains("menu-open") ||
+      !!document.querySelector(".modalBackdrop.show, .playlistTrackSheet.show, .plSelectSheet.show");
+  }
+
+  if (mainContentForSwipe) {
+    mainContentForSwipe.addEventListener("touchstart", event => {
+      navigationTouchStart = null;
+      if (event.touches.length !== 1 || isNavigationSwipeBlocked()) return;
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      if (target?.closest(swipeIgnoreSelector)) return;
+      const touch = event.touches[0];
+      navigationTouchStart = { x: touch.clientX, y: touch.clientY };
+    }, { passive: true });
+
+    mainContentForSwipe.addEventListener("touchend", event => {
+      const start = navigationTouchStart;
+      navigationTouchStart = null;
+      if (!start || event.changedTouches.length !== 1 || isNavigationSwipeBlocked()) return;
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - start.x;
+      const deltaY = touch.clientY - start.y;
+      const currentIndex = navigationTabs.findIndex(tab => tab.classList.contains("active"));
+      const nextIndex = getNavigationSwipeIndex(currentIndex, deltaX, deltaY, navigationTabs.length);
+      if (nextIndex < 0) return;
+      activateNavigationTab(navigationTabs[nextIndex], deltaX < 0 ? 1 : -1);
+    }, { passive: true });
+
+    mainContentForSwipe.addEventListener("touchcancel", () => {
+      navigationTouchStart = null;
+    }, { passive: true });
+  }
 
   if (el.shell) {
     el.shell.addEventListener("dragover", e => {

@@ -24,16 +24,16 @@ const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8"
 test("mini-player progress thumb is compact and app revision identifiers are synchronized", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }'));
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.86";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 86"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 86;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.86"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.86-r86'));
-  assert.ok(indexSource.includes("7.4.86-r86"));
-  assert.ok(controllerSource.includes("7.4.86-r86"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.86-r86"));
+  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
+  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.87";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 87"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 87;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.87"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.87-r87'));
+  assert.ok(indexSource.includes("7.4.87-r87"));
+  assert.ok(controllerSource.includes("7.4.87-r87"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.87-r87"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -140,14 +140,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.86-r86"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.86-r86"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.86-r86"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.86-r86"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.87-r87"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.87-r87"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.87-r87"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.87-r87"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.86-r86"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.87-r87"));
 });
 
 
@@ -3821,7 +3821,7 @@ test("menu detail keeps the menu title and category back row visible", () => {
 
 test("bottom navigation has visible separators between tabs and from the mini-player", () => {
   const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  assert.match(cssSource, /\.bottomNav\s*\{[\s\S]*?border-top-color: color-mix\(in srgb, var\(--line\) 72%, var\(--text\) 28%\)/);
+  assert.match(cssSource, /\.bottomNav\s*\{[\s\S]*?border-top-color: color-mix\(in srgb, var\(--line\) 90%, var\(--text\) 10%\)/);
   assert.match(cssSource, /\.navTab:not\(:last-child\)\s*\{\s*border-right: 1px solid color-mix/);
   assert.match(cssSource, /body\.theme-light \.navTab:not\(:last-child\)/);
 });
@@ -4000,4 +4000,47 @@ test("custom theme background editor previews mobile and desktop layouts with ro
   assert.ok(audioSource.includes("saveCustomThemeBackgroundLayout(layout)"));
   assert.ok(audioSource.includes("saveCustomThemeBackground(sourceBlob)"));
   assert.ok(audioSource.includes('backgroundPosition = "center, " + view.x + "% " + view.y + "%"'));
+});
+
+
+test("main content horizontal swipes select only adjacent navigation tabs", () => {
+  const start = uiSource.indexOf("function getNavigationSwipeIndex(");
+  const end = uiSource.indexOf("function activateNavigationTab", start);
+  assert.ok(start >= 0 && end > start, "navigation swipe index helper must exist");
+  const helperSource = uiSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(helperSource + "; this.getNavigationSwipeIndex = getNavigationSwipeIndex;", sandbox);
+  assert.equal(sandbox.getNavigationSwipeIndex(0, -100, 8, 4), 1);
+  assert.equal(sandbox.getNavigationSwipeIndex(2, 100, 4, 4), 1);
+  assert.equal(sandbox.getNavigationSwipeIndex(1, -100, 5, 4), 2);
+  assert.equal(sandbox.getNavigationSwipeIndex(0, 100, 4, 4), -1);
+  assert.equal(sandbox.getNavigationSwipeIndex(1, -40, 0, 4), -1);
+  assert.equal(sandbox.getNavigationSwipeIndex(1, -100, 90, 4), -1);
+  assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchstart"/);
+  assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchend"/);
+  assert.match(uiSource, /input, textarea, select, button, a, video, iframe, canvas/);
+  assert.match(uiSource, /isNavigationSwipeBlocked\(\)/);
+});
+
+test("swipe navigation uses directional slide animations and respects reduced motion", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(uiSource, /swipeDirection > 0 \? "tabSwipeInFromRight" : "tabSwipeInFromLeft"/);
+  assert.match(styleSource, /\.tabSwipeInFromRight[\s\S]*?animation: tabSwipeInFromRight/);
+  assert.match(styleSource, /\.tabSwipeInFromLeft[\s\S]*?animation: tabSwipeInFromLeft/);
+  assert.match(styleSource, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.tabSwipeInFromRight,[\s\S]*?\.tabSwipeInFromLeft/);
+});
+
+test("bottom navigation separators are intentionally low contrast", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(styleSource, /border-top-color: color-mix\(in srgb, var\(--line\) 90%, var\(--text\) 10%\)/);
+  assert.match(styleSource, /border-right: 1px solid color-mix\(in srgb, var\(--line\) 90%, var\(--text\) 10%\)/);
+  assert.match(styleSource, /border-top-color: rgba\(24, 32, 44, \.12\)/);
+  assert.match(styleSource, /border-right-color: rgba\(24, 32, 44, \.08\)/);
+});
+
+
+test("main content keeps vertical scrolling and clears swipe animation on button navigation", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(uiSource, /activePanel\?\.classList\.remove\("tabSwipeInFromLeft", "tabSwipeInFromRight"\)/);
+  assert.match(styleSource, /\.mainContent\s*\{\s*touch-action:\s*pan-y;\s*\}/);
 });
