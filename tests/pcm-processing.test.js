@@ -103,7 +103,7 @@ test("settings icons retain full colour and bottom navigation uses frosted glass
   assert.ok(cssSource.includes("body.theme-light .bottomNav"));
   assert.ok(!cssSource.includes(".settingsDetailBackTitle"));
   assert.ok(cssSource.includes(".settingsCategoryTitle {\n  font-size: 1rem;\n  font-weight: 700;\n  padding: 4px 2px 2px;"));
-  assert.ok(cssSource.includes("font: inherit;\n  font-size: 1rem;\n  font-weight: 700;"));
+  assert.ok(cssSource.includes(".settingsCategoryView > .settingsBackButton.settingsCategoryTitle"));
 });
 
 test("navigation and settings interactions include subtle motion with reduced-motion support", () => {
