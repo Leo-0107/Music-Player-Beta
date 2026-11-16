@@ -1420,9 +1420,25 @@ function updateSpatialAudioFromClock(isPlaying) {
     document.body.classList.add("menu-open");
   }
 
+  function setMenuLevelTwo(enabled) {
+    if (!el.sidebar) return;
+    if (enabled) {
+      if (el.sidebar.classList.contains("menuLevelTwo")) return;
+      el.sidebar.classList.remove("open");
+      el.sidebar.classList.add("menuLevelTwo");
+      void el.sidebar.offsetWidth;
+      el.sidebar.classList.add("open");
+      return;
+    }
+    if (!el.sidebar.classList.contains("menuLevelTwo")) return;
+    el.sidebar.classList.remove("open", "menuLevelTwo");
+    void el.sidebar.offsetWidth;
+    el.sidebar.classList.add("open");
+  }
+
   function closeSidebar() {
     state.menuOpen = false;
-    if (el.sidebar) el.sidebar.classList.remove("open", "settingsBottomSheet");
+    if (el.sidebar) el.sidebar.classList.remove("open", "settingsBottomSheet", "menuLevelTwo");
     if (el.overlay) el.overlay.classList.remove("open");
     document.body.classList.remove("menu-open");
     resetSidebarView();
@@ -1456,6 +1472,7 @@ function updateSpatialAudioFromClock(isPlaying) {
   if (el.btnSideBack) {
     el.btnSideBack.addEventListener("click", () => {
       if (!menuDetailOpen) {
+        setMenuLevelTwo(false);
         resetSidebarView();
         return;
       }
@@ -1718,6 +1735,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (!category || !menuCategoryHome || !menuCategoryView || !menuCategoryCards) return;
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
+    setMenuLevelTwo(true);
     document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
     menuCategoryTitle.textContent = category.title;
     menuCategoryCards.hidden = false;
@@ -1844,6 +1862,7 @@ function updateSpatialAudioFromClock(isPlaying) {
         animateUiEntry(menuCategoryView);
         return;
       }
+      setMenuLevelTwo(false);
       if (menuCategoryView) menuCategoryView.hidden = true;
       if (menuCategoryHome) menuCategoryHome.hidden = false;
       if (menuCategoryTitle) menuCategoryTitle.textContent = "";
