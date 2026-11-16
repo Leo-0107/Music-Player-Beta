@@ -1786,6 +1786,9 @@ body.theme-light #waveModeBtns .btn.active {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
+.settingsGrid[hidden] {
+  display: none !important;
+}
 .settingsCard {
   width: 100%;
   min-width: 0;
@@ -3474,3 +3477,7 @@ body.theme-light .navTab:not(:last-child) {
 }
 
 .mainContent { touch-action: pan-y; }
+
+
+/* v7.4.90: app-wide swipe hit area while preserving vertical scrolling */
+#shell { touch-action: pan-y; }

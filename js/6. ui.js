@@ -1971,9 +1971,12 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   const navigationTabs = Array.from(document.querySelectorAll(".navTab"));
 
+  function isNavigationSwipeGesture(deltaX, deltaY) {
+    return Math.abs(deltaX) >= 64 && Math.abs(deltaX) >= Math.abs(deltaY) * 1.35;
+  }
+
   function getNavigationSwipeIndex(currentIndex, deltaX, deltaY, tabCount) {
-    if (!Number.isInteger(currentIndex) || Math.abs(deltaX) < 64 ||
-        Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return -1;
+    if (!Number.isInteger(currentIndex) || !isNavigationSwipeGesture(deltaX, deltaY)) return -1;
     const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
     return nextIndex >= 0 && nextIndex < tabCount ? nextIndex : -1;
   }
@@ -2016,43 +2019,70 @@ function updateSpatialAudioFromClock(isPlaying) {
     tab.classList.add("navTap");
   }
 
-  navigationTabs.forEach(tab => {
-    tab.addEventListener("click", () => activateNavigationTab(tab));
-  });
-
-  const mainContentForSwipe = document.querySelector(".mainContent");
+  n  const navigationSwipeRoot = document.getElementById("shell") || document.querySelector(".shell");
   let navigationTouchStart = null;
-  const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, .song, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
+  let navigationSwipeClickSuppression = null;
+  const swipeIgnoreSelector = "input, textarea, select, a, video, iframe, canvas, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
 
   function isNavigationSwipeBlocked() {
     return document.body.classList.contains("menu-open") ||
       !!document.querySelector(".modalBackdrop.show, .playlistTrackSheet.show, .plSelectSheet.show");
   }
 
-  if (mainContentForSwipe) {
-    mainContentForSwipe.addEventListener("touchstart", event => {
+  if (navigationSwipeRoot) {
+    // 横スワイプをボタン上から開始した場合、合成clickによる誤操作だけを抑止する。
+    navigationSwipeRoot.addEventListener("click", event => {
+      const suppression = navigationSwipeClickSuppression;
+      if (!suppression) return;
+      if (Date.now() > suppression.expiresAt) {
+        navigationSwipeClickSuppression = null;
+        return;
+      }
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      if (event.detail === 0 || target?.closest("button") !== suppression.button) return;
+      navigationSwipeClickSuppression = null;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+
+    navigationSwipeRoot.addEventListener("touchstart", event => {
       navigationTouchStart = null;
       if (event.touches.length !== 1 || isNavigationSwipeBlocked()) return;
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       if (target?.closest(swipeIgnoreSelector)) return;
+      // 曲行の空白部分は従来どおり除外するが、曲行内のボタンはスワイプ開始を許可する。
+      if (target?.closest(".song") && !target.closest("button")) return;
       const touch = event.touches[0];
-      navigationTouchStart = { x: touch.clientX, y: touch.clientY };
+      navigationTouchStart = { x: touch.clientX, y: touch.clientY, target };
     }, { passive: true });
 
-    mainContentForSwipe.addEventListener("touchend", event => {
+    navigationSwipeRoot.addEventListener("touchend", event => {
       const start = navigationTouchStart;
       navigationTouchStart = null;
       if (!start || event.changedTouches.length !== 1 || isNavigationSwipeBlocked()) return;
       const touch = event.changedTouches[0];
       const deltaX = touch.clientX - start.x;
       const deltaY = touch.clientY - start.y;
+      if (!isNavigationSwipeGesture(deltaX, deltaY)) return;
+
+      const startButton = start.target?.closest("button");
+      if (startButton) {
+        navigationSwipeClickSuppression = {
+          button: startButton,
+          expiresAt: Date.now() + 900
+        };
+      }
+
       const currentIndex = navigationTabs.findIndex(tab => tab.classList.contains("active"));
       const nextIndex = getNavigationSwipeIndex(currentIndex, deltaX, deltaY, navigationTabs.length);
       if (nextIndex < 0) return;
       activateNavigationTab(navigationTabs[nextIndex], deltaX < 0 ? 1 : -1);
     }, { passive: true });
 
-    mainContentForSwipe.addEventListener("touchcancel", () => {
+    navigationSwipeRoot.addEventListener("touchcancel", () => {
+      navigationTouchStart = null;
+    }, { passive: true });
+  }.addEventListener("touchcancel", () => {
       navigationTouchStart = null;
     }, { passive: true });
   }

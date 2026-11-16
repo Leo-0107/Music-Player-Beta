@@ -27,14 +27,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.89";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 89"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 89;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.89"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.89-r89'));
-  assert.ok(indexSource.includes("7.4.89-r89"));
-  assert.ok(controllerSource.includes("7.4.89-r89"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.89-r89"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.90";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 90"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 90;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.90"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.90-r90'));
+  assert.ok(indexSource.includes("7.4.89-r90"));
+  assert.ok(controllerSource.includes("7.4.89-r90"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.89-r90"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -141,14 +141,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.89-r89"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.89-r89"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.89-r89"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.89-r89"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.89-r90"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.89-r90"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.89-r90"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.89-r90"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.89-r89"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.89-r90"));
 });
 
 
@@ -3977,10 +3977,16 @@ test("settings second-level detail is rendered in the same category layer withou
   assert.ok(openSource.includes('target.classList.add("active", "settingsInlineDetail")'));
   assert.equal(openSource.includes("settingsDetailOverlay"), false);
   assert.equal(openSource.includes("animateUiEntry"), false);
+  assert.ok(uiSource.includes("settingsCategoryCards.hidden = true"));
   assert.ok(uiSource.includes("settingsCategoryCards.hidden = false"));
   assert.equal(indexSource.includes("settingsDetailOverlay"), false);
+  assert.ok(indexSource.includes('id="eqPresetRow"'));
+  assert.ok(indexSource.includes('id="eqBands"'));
+  assert.ok(audioSource.includes("function renderEqualizer()"));
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.ok(styleSource.includes(".settingsCategoryView > .panelSection.active.settingsInlineDetail"));
+  assert.ok(styleSource.includes(".settingsGrid[hidden]"));
+  assert.match(styleSource, /\.settingsGrid\[hidden\]\s*\{\s*display:\s*none !important;/);
   assert.ok(styleSource.includes("animation: none !important"));
   assert.equal(styleSource.includes("settingsDetailScreenFromBottom"), false);
 });
@@ -4013,30 +4019,37 @@ test("custom theme background editor previews mobile and desktop layouts with ro
 });
 
 
-test("main content horizontal swipes select only adjacent navigation tabs", () => {
-  const start = uiSource.indexOf("function getNavigationSwipeIndex(");
+test("app background and buttons support horizontal navigation swipes without confusing taps", () => {
+  const start = uiSource.indexOf("function isNavigationSwipeGesture(");
   const end = uiSource.indexOf("function activateNavigationTab", start);
-  assert.ok(start >= 0 && end > start, "navigation swipe index helper must exist");
+  assert.ok(start >= 0 && end > start, "navigation swipe helpers must exist");
   const helperSource = uiSource.slice(start, end);
   const sandbox = {};
-  vm.runInNewContext(helperSource + "; this.getNavigationSwipeIndex = getNavigationSwipeIndex;", sandbox);
+  vm.runInNewContext(helperSource + "; this.isNavigationSwipeGesture = isNavigationSwipeGesture; this.getNavigationSwipeIndex = getNavigationSwipeIndex;", sandbox);
+  assert.equal(sandbox.isNavigationSwipeGesture(100, 8), true);
+  assert.equal(sandbox.isNavigationSwipeGesture(10, 2), false, "a tap must not count as a swipe");
+  assert.equal(sandbox.isNavigationSwipeGesture(100, 90), false, "vertical/diagonal gestures must not count as a swipe");
   assert.equal(sandbox.getNavigationSwipeIndex(0, -100, 8, 4), 1);
   assert.equal(sandbox.getNavigationSwipeIndex(2, 100, 4, 4), 1);
   assert.equal(sandbox.getNavigationSwipeIndex(1, -100, 5, 4), 2);
   assert.equal(sandbox.getNavigationSwipeIndex(0, 100, 4, 4), -1);
   assert.equal(sandbox.getNavigationSwipeIndex(1, -40, 0, 4), -1);
   assert.equal(sandbox.getNavigationSwipeIndex(1, -100, 90, 4), -1);
-  assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchstart"/);
-  assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchend"/);
-  assert.match(uiSource, /input, textarea, select, button, a, video, iframe, canvas/);
-  assert.ok(uiSource.includes('const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, .song,'));
+  assert.match(uiSource, /navigationSwipeRoot\.addEventListener\("touchstart"/);
+  assert.match(uiSource, /navigationSwipeRoot\.addEventListener\("touchend"/);
+  assert.match(uiSource, /navigationSwipeRoot\.addEventListener\("touchcancel"/);
+  assert.match(uiSource, /document\.getElementById\("shell"\) \|\| document\.querySelector\("\.shell"\)/);
+  assert.ok(uiSource.includes('const swipeIgnoreSelector = "input, textarea, select, a, video, iframe, canvas,'));
+  assert.equal(uiSource.includes('const swipeIgnoreSelector = "input, textarea, select, button,'), false, "buttons must not be excluded");
+  assert.match(uiSource, /target\?\.closest\("\.song"\) && !target\.closest\("button"\)/);
+  assert.match(uiSource, /navigationSwipeClickSuppression/);
+  assert.match(uiSource, /event\.stopImmediatePropagation\(\)/);
   assert.ok(librarySource.includes('row.className = "song"'));
   assert.ok(librarySource.includes("playSong(song);"));
   assert.ok(youtubeSource.includes('row.className = "song"'));
   assert.ok(youtubeSource.includes('row.addEventListener("click", () => playSong(song))'));
   assert.match(uiSource, /isNavigationSwipeBlocked\(\)/);
 });
-
 test("swipe navigation uses directional slide animations and respects reduced motion", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.match(uiSource, /swipeDirection > 0 \? "tabSwipeInFromRight" : "tabSwipeInFromLeft"/);
@@ -4058,4 +4071,5 @@ test("main content keeps vertical scrolling and clears swipe animation on button
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.match(uiSource, /activePanel\?\.classList\.remove\("tabSwipeInFromLeft", "tabSwipeInFromRight"\)/);
   assert.match(styleSource, /\.mainContent\s*\{\s*touch-action:\s*pan-y;\s*\}/);
+  assert.match(styleSource, /#shell\s*\{\s*touch-action:\s*pan-y;\s*\}/);
 });
