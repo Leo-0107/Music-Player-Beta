@@ -27,14 +27,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.90";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 90"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 90;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.90"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.90-r90'));
-  assert.ok(indexSource.includes("7.4.90-r90"));
-  assert.ok(controllerSource.includes("7.4.90-r90"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.90-r90"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.91";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 91"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 91;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.91"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.91-r91'));
+  assert.ok(indexSource.includes("7.4.91-r91"));
+  assert.ok(controllerSource.includes("7.4.91-r91"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.91-r91"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -141,14 +141,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.90-r90"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.90-r90"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.90-r90"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.90-r90"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.91-r91"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.91-r91"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.91-r91"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.91-r91"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.90-r90"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.91-r91"));
 });
 
 
@@ -4016,6 +4016,31 @@ test("custom theme background editor previews mobile and desktop layouts with ro
   assert.ok(audioSource.includes("saveCustomThemeBackgroundLayout(layout)"));
   assert.ok(audioSource.includes("saveCustomThemeBackground(sourceBlob)"));
   assert.ok(audioSource.includes('backgroundPosition = "center, " + view.x + "% " + view.y + "%"'));
+});
+
+
+test("custom theme background preview reads rotation from its layout and keeps save enabled after a successful preview", () => {
+  const previewStart = audioSource.indexOf("function updateCustomThemeBackgroundPreviews()");
+  const previewEnd = audioSource.indexOf("async function prepareCustomThemeBackground", previewStart);
+  assert.ok(previewStart >= 0 && previewEnd > previewStart);
+  const previewSource = audioSource.slice(previewStart, previewEnd);
+  assert.ok(previewSource.includes("customThemeBackgroundLayout.rotation"));
+  assert.ok(!previewSource.includes("=== rotation"), "preview must not read an undeclared rotation variable");
+
+  const inputStart = audioSource.indexOf('el.customThemeBackgroundInput.addEventListener("change"');
+  const inputEnd = audioSource.indexOf('document.querySelectorAll("[data-theme-bg-rotation]")', inputStart);
+  assert.ok(inputStart >= 0 && inputEnd > inputStart);
+  const inputSource = audioSource.slice(inputStart, inputEnd);
+  assert.ok(inputSource.includes("previewReady"));
+  assert.ok(inputSource.includes(".catch(error =>"));
+
+  const saveStart = audioSource.indexOf('saveCustomThemeBackgroundButton.addEventListener("click"');
+  const saveEnd = audioSource.indexOf("const cancelCustomThemeBackgroundButton", saveStart);
+  assert.ok(saveStart >= 0 && saveEnd > saveStart);
+  const saveSource = audioSource.slice(saveStart, saveEnd);
+  assert.ok(saveSource.includes("await initDB()"));
+  assert.ok(saveSource.includes('saveCustomThemeBackgroundButton.dataset.saving === "true"'));
+  assert.ok(saveSource.includes("finally"));
 });
 
 
