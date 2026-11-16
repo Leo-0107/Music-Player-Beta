@@ -4025,7 +4025,7 @@ test("custom theme background preview reads rotation from its layout and keeps s
   assert.ok(previewStart >= 0 && previewEnd > previewStart);
   const previewSource = audioSource.slice(previewStart, previewEnd);
   assert.ok(previewSource.includes("customThemeBackgroundLayout.rotation"));
-  assert.ok(!/===\\s*rotation\\b/.test(previewSource), "preview must not read an undeclared rotation variable");
+  assert.ok(!previewSource.includes("=== rotation"), "preview must not read an undeclared rotation variable");
 
   const inputStart = audioSource.indexOf('el.customThemeBackgroundInput.addEventListener("change"');
   const inputEnd = audioSource.indexOf('document.querySelectorAll("[data-theme-bg-rotation]")', inputStart);
