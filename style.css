@@ -614,31 +614,66 @@ input[type="range"] {
 }
 .sidebar {
   position: fixed;
-  inset: 0;
-  width: 100%;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(360px, calc(100vw - 48px));
   height: 100vh;
   height: 100dvh;
   background: var(--bg);
   z-index: 20001;
-  transform: translateY(100%);
+  transform: translateX(-100%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition:
-    transform 0.32s cubic-bezier(.2,.75,.25,1),
-    opacity 0.24s ease,
-    visibility 0s linear 0.32s;
+    transform 0.28s cubic-bezier(.2,.75,.25,1),
+    opacity 0.22s ease,
+    visibility 0s linear 0.28s;
   box-shadow: var(--shadow);
 }
 .sidebar.open {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 0.28s cubic-bezier(.2,.75,.25,1),
+    opacity 0.22s ease,
+    visibility 0s;
+}
+
+/* メニュー二段目：画面を大きく覆うボトムパネル */
+.sidebar.menuLevelTwo {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  height: min(92vh, 920px);
+  height: min(92dvh, 920px);
+  max-height: calc(100dvh - 20px);
+  border-radius: 24px 24px 0 0;
+  transform: translateY(100%);
+  opacity: 0;
+  transition:
+    transform 0.32s cubic-bezier(.1,.9,.2,1),
+    opacity 0.24s ease,
+    visibility 0s linear 0.32s;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.32);
+}
+.sidebar.menuLevelTwo.open {
   transform: translateY(0);
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transition:
-    transform 0.32s cubic-bezier(.2,.75,.25,1),
+    transform 0.32s cubic-bezier(.1,.9,.2,1),
     opacity 0.24s ease,
     visibility 0s;
+}
+.sidebar.menuLevelTwo .sideBody {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
 .sidebar.settingsBottomSheet {

@@ -27,14 +27,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.88";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 88"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 88;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.88"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.88-r88'));
-  assert.ok(indexSource.includes("7.4.88-r88"));
-  assert.ok(controllerSource.includes("7.4.88-r88"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.88-r88"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.89";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 89"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 89;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.89"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.89-r89'));
+  assert.ok(indexSource.includes("7.4.89-r89"));
+  assert.ok(controllerSource.includes("7.4.89-r89"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.89-r89"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -141,14 +141,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.88-r88"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.88-r88"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.88-r88"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.88-r88"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.89-r89"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.89-r89"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.89-r89"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.89-r89"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.88-r88"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.89-r89"));
 });
 
 
@@ -3934,25 +3934,34 @@ test("menu omits redundant playback, favorite, microphone-monitor and 3D-reset s
   assert.match(uiSource, /const waveResetBtn = document\.getElementById\("btnWaveViewReset"\)/);
 });
 
-test("menu is a full-screen foreground layer that enters from the bottom with a fade", () => {
+test("menu opens as a narrow left drawer first, then expands into a large bottom sheet on category selection", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const overlayRule = styleSource.match(/\.overlay\s*\{([^}]*)\}/);
   const overlayOpenRule = styleSource.match(/\.overlay\.open\s*\{([^}]*)\}/);
   const sidebarRule = styleSource.match(/\.sidebar\s*\{([^}]*)\}/);
   const sidebarOpenRule = styleSource.match(/\.sidebar\.open\s*\{([^}]*)\}/);
-  assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule);
+  const levelTwoRule = styleSource.match(/\.sidebar\.menuLevelTwo\s*\{([^}]*)\}/);
+  const levelTwoOpenRule = styleSource.match(/\.sidebar\.menuLevelTwo\.open\s*\{([^}]*)\}/);
+  assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule && levelTwoRule && levelTwoOpenRule);
   assert.match(overlayRule[1], /z-index:\s*20000/);
   assert.match(overlayOpenRule[1], /opacity:\s*1/);
   assert.match(sidebarRule[1], /position:\s*fixed/);
-  assert.match(sidebarRule[1], /inset:\s*0/);
+  assert.match(sidebarRule[1], /left:\s*0/);
+  assert.match(sidebarRule[1], /width:\s*min\(360px, calc\(100vw - 48px\)\)/);
   assert.match(sidebarRule[1], /z-index:\s*20001/);
-  assert.match(sidebarRule[1], /transform:\s*translateY\(100%\)/);
+  assert.match(sidebarRule[1], /transform:\s*translateX\(-100%\)/);
   assert.match(sidebarRule[1], /opacity:\s*0/);
-  assert.match(sidebarRule[1], /visibility:\s*hidden/);
-  assert.match(sidebarRule[1], /transition:[\s\S]*opacity/);
-  assert.match(sidebarOpenRule[1], /transform:\s*translateY\(0\)/);
+  assert.match(sidebarOpenRule[1], /transform:\s*translateX\(0\)/);
   assert.match(sidebarOpenRule[1], /opacity:\s*1/);
-  assert.match(sidebarOpenRule[1], /visibility:\s*visible/);
+  assert.match(levelTwoRule[1], /width:\s*100vw/);
+  assert.match(levelTwoRule[1], /height:\s*min\(92dvh, 920px\)/);
+  assert.match(levelTwoRule[1], /transform:\s*translateY\(100%\)/);
+  assert.match(levelTwoRule[1], /opacity:\s*0/);
+  assert.match(levelTwoOpenRule[1], /transform:\s*translateY\(0\)/);
+  assert.match(levelTwoOpenRule[1], /opacity:\s*1/);
+  assert.match(uiSource, /function setMenuLevelTwo\(enabled\)/);
+  assert.match(uiSource, /menuCategoryHome\.hidden = true;[\s\S]*?setMenuLevelTwo\(true\)/);
+  assert.match(uiSource, /setMenuLevelTwo\(false\)/);
   assert.match(uiSource, /document\.body\.classList\.add\("menu-open"\)/);
   assert.match(styleSource, /body\.menu-open\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(indexSource, /z-index["']?,?\s*["']2147483647/);
