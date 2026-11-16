@@ -16,6 +16,7 @@ const stateSource = fs.readFileSync(path.join(root, "js/2. state.js"), "utf8");
 const uiSource = fs.readFileSync(path.join(root, "js/6. ui.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const youtubeSource = fs.readFileSync(path.join(root, "js/5. youtube.js"), "utf8");
+const librarySource = fs.readFileSync(path.join(root, "js/4. library.js"), "utf8");
 
 const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8");
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
@@ -26,14 +27,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.87";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 87"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 87;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.87"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.87-r87'));
-  assert.ok(indexSource.includes("7.4.87-r87"));
-  assert.ok(controllerSource.includes("7.4.87-r87"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.87-r87"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.88";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 88"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 88;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.88"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.88-r88'));
+  assert.ok(indexSource.includes("7.4.88-r88"));
+  assert.ok(controllerSource.includes("7.4.88-r88"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.88-r88"));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -140,14 +141,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.87-r87"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.87-r87"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.87-r87"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.87-r87"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.88-r88"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.88-r88"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.88-r88"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.88-r88"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.87-r87"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.88-r88"));
 });
 
 
@@ -4019,6 +4020,9 @@ test("main content horizontal swipes select only adjacent navigation tabs", () =
   assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchstart"/);
   assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchend"/);
   assert.match(uiSource, /input, textarea, select, button, a, video, iframe, canvas/);
+  assert.match(uiSource, /const swipeIgnoreSelector = "[^"]*\\.song/);
+  assert.match(librarySource, /row\\.className = "song"[\\s\\S]*?row\\.addEventListener\\("click", \\(\\) => \\{[\\s\\S]*?playSong\\(song\\)/);
+  assert.match(youtubeSource, /row\\.className = "song"[\\s\\S]*?row\\.addEventListener\\("click", \\(\\) => playSong\\(song\\)\\)/);
   assert.match(uiSource, /isNavigationSwipeBlocked\(\)/);
 });
 
