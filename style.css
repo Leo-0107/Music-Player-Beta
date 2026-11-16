@@ -2265,6 +2265,8 @@ body.output-device-modal-open .sidebar {
   border-radius: 14px;
   min-height: 42px;
   padding-left: 14px;
+  color: var(--text);
+  caret-color: var(--accent);
   transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
 }
 #settingsSearch::placeholder {
@@ -3416,3 +3418,143 @@ body.theme-light .navTab:not(:last-child) {
 .networkStatus.isOffline { color:var(--accent); }
 .networkStatus.isChecking { color:var(--muted); }
 @media (max-width:520px) { .eqBands { gap:5px; } .eqNumberInput { font-size:.72rem; padding-left:1px !important; padding-right:1px !important; } }
+
+
+/* v7.4.86: manual EQ range, inline settings detail and responsive theme background editor */
+.eqNumberInput {
+  display: block;
+  width: min(100%, 66px);
+  max-width: 66px;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 5px 2px !important;
+  font-size: .74rem;
+}
+@media (max-width: 520px) {
+  .eqBands { gap: 4px; }
+  .eqNumberInput {
+    width: min(100%, 56px);
+    max-width: 56px;
+    padding: 4px 1px !important;
+    font-size: .68rem;
+  }
+}
+.settingsCategoryView > .panelSection.active.settingsInlineDetail {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  animation: none !important;
+  transform: none !important;
+}
+.settingsCategoryView > .panelSection.active.settingsInlineDetail.uiEnter {
+  animation: none !important;
+}
+.themeBackgroundEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.themeBackgroundEditor[hidden] { display: none !important; }
+.themeBackgroundRotation { display: flex; flex-direction: column; gap: 6px; }
+.themeBackgroundRotationButtons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.themeBackgroundRotationButtons .btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel2));
+}
+.themeBackgroundPreviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+.themeBackgroundPreviewCard {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel2);
+}
+.themeBackgroundPreviewTitle {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: .84rem;
+  font-weight: 700;
+  text-align: center;
+}
+.themeBackgroundPreviewStage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #334155, #111827);
+}
+.themeBackgroundPreviewMobile {
+  width: min(100%, 150px);
+  aspect-ratio: 9 / 16;
+  margin: 0 auto;
+}
+.themeBackgroundPreviewDesktop {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 210px;
+}
+.themeBackgroundPreviewStage > img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  will-change: transform;
+}
+.themeBackgroundPreviewContent {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+  color: #fff;
+  font-size: .72rem;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+  pointer-events: none;
+}
+.themeBackgroundPreviewGlass {
+  padding: 8px 5px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 9px;
+  background: rgba(15,23,42,.48);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-align: center;
+}
+.themeBackgroundPreviewControls { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.themeBackgroundPreviewControls label {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--text);
+  font-size: .72rem;
+}
+.themeBackgroundPreviewControls output { color: var(--muted); font-variant-numeric: tabular-nums; }
+.themeBackgroundPreviewControls input[type="range"] { width: 100%; min-width: 0; margin: 0 0 5px; }
+.themeBackgroundEditorActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.themeBackgroundEditorActions > button { flex: 1 1 140px; }
+@media (max-width: 620px) {
+  .themeBackgroundPreviewGrid { grid-template-columns: minmax(0, 1fr); }
+  .themeBackgroundPreviewMobile { width: min(100%, 176px); }
+  .themeBackgroundPreviewDesktop { max-height: none; }
+}

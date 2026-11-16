@@ -3873,12 +3873,14 @@ test("settings search covers category names, setting descriptions, and displays 
   assert.match(uiSource, /一致する設定項目がありません/);
 });
 
-test("equalizer bands support synchronized numeric input and slider values", () => {
-  assert.match(audioSource, /id="eqNumber_\$\{idx\}"/);
-  assert.match(audioSource, /class="eqNumberInput"/);
+test("equalizer slider remains ±12 dB/0.5 while manual input supports ±24 dB/0.1", () => {
+  assert.match(audioSource, /id="eqSlider_\$\{idx\}" min="-12" max="12" step="0\.5"/);
+  assert.match(audioSource, /id="eqNumber_\$\{idx\}" min="-24" max="24" step="0\.1"/);
+  assert.match(audioSource, /const limit = manualInput \? 24 : 12/);
+  assert.match(audioSource, /const step = manualInput \? 10 : 2/);
   assert.match(audioSource, /numberInput\.addEventListener\("input"/);
   assert.match(audioSource, /numberInput\.addEventListener\("change"/);
-  assert.match(audioSource, /Math\.max\(-12, Math\.min\(12, Math\.round\(parsed \* 2\) \/ 2\)\)/);
+  assert.match(audioSource, /slider\.value = String\(Math\.max\(-12, Math\.min\(12, nextValue\)\)\)/);
   assert.match(audioSource, /numberInput\.value = Number\(g\)\.toFixed\(1\)/);
 });
 
@@ -3892,7 +3894,7 @@ test("custom theme background image is validated and stored in IndexedDB", () =>
   assert.match(indexSource, /id="customThemeBackgroundInput"/);
   assert.match(indexSource, /accept="image\/png,image\/jpeg,image\/webp,image\/avif"/);
   assert.match(audioSource, /file\.size > 8 \* 1024 \* 1024/);
-  assert.match(audioSource, /saveCustomThemeBackground\(file\)/);
+  assert.match(audioSource, /saveCustomThemeBackground\(sourceBlob\)/);
   assert.match(audioSource, /backgroundImage =[\s\S]*?customThemeBackgroundObjectUrl/);
   assert.match(uiSource, /await restoreCustomThemeBackground\(\)/);
 });
@@ -3952,4 +3954,44 @@ test("menu is a full-screen foreground layer that enters from the bottom with a 
   assert.match(uiSource, /document\.body\.classList\.add\("menu-open"\)/);
   assert.match(styleSource, /body\.menu-open\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(indexSource, /z-index["']?,?\s*["']2147483647/);
+});
+
+
+test("settings second-level detail is rendered in the same category layer without a bottom-sheet transition", () => {
+  const start = uiSource.indexOf("  function openSettingsDetail(secId, title)");
+  const end = uiSource.indexOf("\\n  function showSettingsCategory", start);
+  assert.ok(start >= 0 && end > start);
+  const openSource = uiSource.slice(start, end);
+  assert.match(openSource, /settingsCategoryView\\.appendChild\\(target\\)/);
+  assert.match(openSource, /target\\.classList\\.add\\("active", "settingsInlineDetail"\\)/);
+  assert.doesNotMatch(openSource, /settingsDetailOverlay|translateY|animateUiEntry/);
+  assert.match(uiSource, /function restoreSettingsDetail\\(\\)[\\s\\S]*?settingsCategoryCards\\.hidden = false/);
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  assert.match(styleSource, /\\.settingsCategoryView > \\.panelSection\\.active\\.settingsInlineDetail[\\s\\S]*?animation: none !important/);
+});
+
+test("settings search input text and caret follow active theme tokens", () => {
+  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
+  const searchRule = styleSource.match(/#settingsSearch\\s*\\{([^}]*)\\}/);
+  assert.ok(searchRule);
+  assert.match(searchRule[1], /color:\\s*var\\(--text\\)/);
+  assert.match(searchRule[1], /caret-color:\\s*var\\(--accent\\)/);
+});
+
+test("custom theme background editor previews mobile and desktop layouts with rotation and persistent per-device settings", () => {
+  assert.match(indexSource, /id="themeBackgroundEditor"/);
+  assert.match(indexSource, /id="themeBgPreviewMobile"/);
+  assert.match(indexSource, /id="themeBgPreviewDesktop"/);
+  assert.match(indexSource, /data-theme-bg-rotation="270"/);
+  assert.match(indexSource, /data-theme-bg-setting="mobile\\.zoom"/);
+  assert.match(indexSource, /data-theme-bg-setting="desktop\\.x"/);
+  assert.match(indexSource, /id="btnSaveCustomThemeBackground"/);
+  assert.match(audioSource, /CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1"/);
+  assert.match(audioSource, /prepareCustomThemeBackground\\(blob, rotation\\)/);
+  assert.match(audioSource, /context\\.rotate\\(rotation \\* Math\\.PI \\/ 180\\)/);
+  assert.match(audioSource, /window\\.matchMedia\\("\\(max-width: 760px\\)"\\)/);
+  assert.match(audioSource, /customThemeBackgroundLayout\\[device\\]/);
+  assert.match(audioSource, /saveCustomThemeBackgroundLayout\\(layout\\)/);
+  assert.match(audioSource, /saveCustomThemeBackground\\(sourceBlob\\)/);
+  assert.match(audioSource, /backgroundPosition = "center, " \\+ view\\.x \\+ "% " \\+ view\\.y \\+ "%"/);
 });
