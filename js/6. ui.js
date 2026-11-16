@@ -2019,7 +2019,11 @@ function updateSpatialAudioFromClock(isPlaying) {
     tab.classList.add("navTap");
   }
 
-  n  const navigationSwipeRoot = document.getElementById("shell") || document.querySelector(".shell");
+  navigationTabs.forEach(tab => {
+    tab.addEventListener("click", () => activateNavigationTab(tab));
+  });
+
+  const navigationSwipeRoot = document.getElementById("shell") || document.querySelector(".shell");
   let navigationTouchStart = null;
   let navigationSwipeClickSuppression = null;
   const swipeIgnoreSelector = "input, textarea, select, a, video, iframe, canvas, [contenteditable='true'], [data-tab-swipe-ignore], .modalBackdrop, .playlistTrackSheet, .sidebar";
@@ -2082,11 +2086,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     navigationSwipeRoot.addEventListener("touchcancel", () => {
       navigationTouchStart = null;
     }, { passive: true });
-  }.addEventListener("touchcancel", () => {
-      navigationTouchStart = null;
-    }, { passive: true });
   }
-
   if (el.shell) {
     el.shell.addEventListener("dragover", e => {
       e.preventDefault();
