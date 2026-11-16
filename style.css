@@ -587,8 +587,8 @@ input[type="range"] {
   margin: 0;
   height: 3px;
 }
-.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 4px; height: 4px; }
-.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 4px; height: 4px; border: 0; border-radius: 50%; }
+.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }
+.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }
 
 @media (max-width: 520px) {
   .miniTitleRow { gap: 5px; }
@@ -3249,16 +3249,16 @@ body.theme-light .bottomNav::before {
 
 /* v7.4.85: make the bottom player/navigation boundary and tab divisions easier to distinguish */
 .bottomNav {
-  border-top-color: color-mix(in srgb, var(--line) 72%, var(--text) 28%);
+  border-top-color: color-mix(in srgb, var(--line) 90%, var(--text) 10%);
 }
 .navTab:not(:last-child) {
-  border-right: 1px solid color-mix(in srgb, var(--line) 70%, var(--text) 30%);
+  border-right: 1px solid color-mix(in srgb, var(--line) 90%, var(--text) 10%);
 }
 body.theme-light .bottomNav {
-  border-top-color: rgba(24, 32, 44, .2);
+  border-top-color: rgba(24, 32, 44, .12);
 }
 body.theme-light .navTab:not(:last-child) {
-  border-right-color: rgba(24, 32, 44, .14);
+  border-right-color: rgba(24, 32, 44, .08);
 }
 
 
@@ -3413,4 +3413,27 @@ body.theme-light .navTab:not(:last-child) {
   .themeBackgroundPreviewGrid { grid-template-columns: minmax(0, 1fr); }
   .themeBackgroundPreviewMobile { width: min(100%, 176px); }
   .themeBackgroundPreviewDesktop { max-height: none; }
+}
+
+
+/* v7.4.87: subtle navigation separators and horizontal tab-swipe transitions */
+.tabSwipeInFromRight {
+  animation: tabSwipeInFromRight .24s cubic-bezier(.2,.7,.25,1) both;
+}
+.tabSwipeInFromLeft {
+  animation: tabSwipeInFromLeft .24s cubic-bezier(.2,.7,.25,1) both;
+}
+@keyframes tabSwipeInFromRight {
+  from { opacity: .76; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes tabSwipeInFromLeft {
+  from { opacity: .76; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabSwipeInFromRight,
+  .tabSwipeInFromLeft {
+    animation: none !important;
+  }
 }
