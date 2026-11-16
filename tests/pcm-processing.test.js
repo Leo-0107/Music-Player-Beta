@@ -4020,9 +4020,11 @@ test("main content horizontal swipes select only adjacent navigation tabs", () =
   assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchstart"/);
   assert.match(uiSource, /mainContentForSwipe\.addEventListener\("touchend"/);
   assert.match(uiSource, /input, textarea, select, button, a, video, iframe, canvas/);
-  assert.match(uiSource, /const swipeIgnoreSelector = "[^"]*\\.song/);
-  assert.match(librarySource, /row\\.className = "song"[\\s\\S]*?row\\.addEventListener\\("click", \\(\\) => \\{[\\s\\S]*?playSong\\(song\\)/);
-  assert.match(youtubeSource, /row\\.className = "song"[\\s\\S]*?row\\.addEventListener\\("click", \\(\\) => playSong\\(song\\)\\)/);
+  assert.ok(uiSource.includes('const swipeIgnoreSelector = "input, textarea, select, button, a, video, iframe, canvas, .song,'));
+  assert.ok(librarySource.includes('row.className = "song"'));
+  assert.ok(librarySource.includes("playSong(song);"));
+  assert.ok(youtubeSource.includes('row.className = "song"'));
+  assert.ok(youtubeSource.includes('row.addEventListener("click", () => playSong(song))'));
   assert.match(uiSource, /isNavigationSwipeBlocked\(\)/);
 });
 
