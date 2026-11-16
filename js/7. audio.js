@@ -1337,11 +1337,6 @@ let mainOutputUsesNativeDestination = false;
   }
 
   const CUSTOM_THEME_BACKGROUND_LAYOUT_KEY = "mp_custom_theme_background_layout_v1";
-  const DEFAULT_CUSTOM_THEME_BACKGROUND_LAYOUT = {
-    rotation: 0,
-    mobile: { zoom: 1, x: 50, y: 50 },
-    desktop: { zoom: 1, x: 50, y: 50 }
-  };
   function normalizeCustomThemeBackgroundLayout(value) {
     const source = value && typeof value === "object" ? value : {};
     const validRotations = [0, 90, 180, 270];
@@ -1383,6 +1378,7 @@ let mainOutputUsesNativeDestination = false;
   let customThemeBackgroundPendingBlob = null;
   let customThemeBackgroundDimensions = null;
   let customThemeBackgroundRenderToken = 0;
+  let customThemeBackgroundPreviewToken = 0;
 
   function updateCustomThemeBackgroundStatus(hasImage, message = "") {
     if (el.customThemeBackgroundStatus) {
@@ -1393,21 +1389,28 @@ let mainOutputUsesNativeDestination = false;
     if (saveButton) saveButton.disabled = !hasImage;
   }
 
-  function setCustomThemeBackgroundPreviewBlob(blob) {
+  async function setCustomThemeBackgroundPreviewBlob(blob, prepared = null) {
+    const token = ++customThemeBackgroundPreviewToken;
     if (customThemeBackgroundPreviewObjectUrl) {
       URL.revokeObjectURL(customThemeBackgroundPreviewObjectUrl);
       customThemeBackgroundPreviewObjectUrl = null;
     }
-    if (blob instanceof Blob && /^image\/(png|jpeg|webp|avif)$/i.test(blob.type)) {
-      customThemeBackgroundPreviewObjectUrl = URL.createObjectURL(blob);
+    if (!(blob instanceof Blob) || !/^image\/(png|jpeg|webp|avif)$/i.test(blob.type)) {
+      updateCustomThemeBackgroundPreviews();
+      return;
     }
+    const rendered = prepared || await prepareCustomThemeBackground(blob, customThemeBackgroundLayout.rotation);
+    if (token !== customThemeBackgroundPreviewToken || !rendered) {
+      updateCustomThemeBackgroundPreviews();
+      return;
+    }
+    customThemeBackgroundPreviewObjectUrl = URL.createObjectURL(rendered.blob);
     updateCustomThemeBackgroundPreviews();
   }
 
   function updateCustomThemeBackgroundPreviews() {
     const editor = document.getElementById("themeBackgroundEditor");
     if (editor) editor.hidden = !customThemeBackgroundPreviewObjectUrl;
-    const rotation = customThemeBackgroundLayout.rotation;
     for (const device of ["mobile", "desktop"]) {
       const image = document.getElementById(device === "mobile" ? "themeBgPreviewMobile" : "themeBgPreviewDesktop");
       const stage = document.getElementById(device === "mobile" ? "themeBgMobileStage" : "themeBgDesktopStage");
@@ -1415,12 +1418,8 @@ let mainOutputUsesNativeDestination = false;
       if (!image || !stage) continue;
       if (customThemeBackgroundPreviewObjectUrl) {
         if (image.src !== customThemeBackgroundPreviewObjectUrl) image.src = customThemeBackgroundPreviewObjectUrl;
-        const rect = stage.getBoundingClientRect();
-        const rotationCover = rotation % 180 === 0 || !rect.width || !rect.height
-          ? 1
-          : Math.max(rect.width / rect.height, rect.height / rect.width);
         image.style.objectPosition = view.x + "% " + view.y + "%";
-        image.style.transform = "rotate(" + rotation + "deg) scale(" + (rotationCover * view.zoom) + ")";
+        image.style.transform = "scale(" + view.zoom + ")";
       } else {
         image.removeAttribute("src");
         image.style.transform = "";
@@ -1493,13 +1492,13 @@ let mainOutputUsesNativeDestination = false;
   async function setCustomThemeBackgroundBlob(blob, prepared = null) {
     const token = ++customThemeBackgroundRenderToken;
     customThemeBackgroundOriginalBlob = blob instanceof Blob ? blob : null;
-    setCustomThemeBackgroundPreviewBlob(customThemeBackgroundOriginalBlob);
     if (customThemeBackgroundObjectUrl) {
       URL.revokeObjectURL(customThemeBackgroundObjectUrl);
       customThemeBackgroundObjectUrl = null;
     }
     customThemeBackgroundDimensions = null;
     if (!customThemeBackgroundOriginalBlob) {
+      await setCustomThemeBackgroundPreviewBlob(null);
       updateCustomThemeBackgroundStatus(false);
       return true;
     }
@@ -1508,6 +1507,7 @@ let mainOutputUsesNativeDestination = false;
       updateCustomThemeBackgroundStatus(true, "画像を処理できませんでした。別の画像を選択してください");
       return false;
     }
+    await setCustomThemeBackgroundPreviewBlob(customThemeBackgroundOriginalBlob, rendered);
     customThemeBackgroundDimensions = { width: rendered.width, height: rendered.height };
     customThemeBackgroundObjectUrl = URL.createObjectURL(rendered.blob);
     updateCustomThemeBackgroundStatus(true);
@@ -1608,13 +1608,16 @@ let mainOutputUsesNativeDestination = false;
       if (!allowedTypes.has(file.type)) { toast("PNG・JPEG・WebP・AVIF画像を選択してください"); return; }
       if (file.size > 8 * 1024 * 1024) { toast("背景画像は8MB以下にしてください"); return; }
       customThemeBackgroundPendingBlob = file;
-      setCustomThemeBackgroundPreviewBlob(file);
-      updateCustomThemeBackgroundStatus(true, "新しい画像をプレビュー中です。配置を調整して保存してください");
+      setCustomThemeBackgroundPreviewBlob(file).then(() => {
+        updateCustomThemeBackgroundStatus(true, "新しい画像をプレビュー中です。配置を調整して保存してください");
+      });
     });
   }
   document.querySelectorAll("[data-theme-bg-rotation]").forEach(button => {
     button.addEventListener("click", () => {
       customThemeBackgroundLayout.rotation = Number(button.dataset.themeBgRotation);
+      const previewBlob = customThemeBackgroundPendingBlob || customThemeBackgroundOriginalBlob;
+      setCustomThemeBackgroundPreviewBlob(previewBlob);
       updateCustomThemeBackgroundPreviews();
       updateCustomThemeBackgroundStatus(true, "画像の向き・配置はまだ保存されていません");
     });

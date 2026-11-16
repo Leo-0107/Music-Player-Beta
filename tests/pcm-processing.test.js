@@ -3976,7 +3976,7 @@ test("settings second-level detail is rendered in the same category layer withou
 
 test("settings search input text and caret follow active theme tokens", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  const ruleStart = styleSource.indexOf("\\n#settingsSearch {");
+  const ruleStart = styleSource.lastIndexOf("#settingsSearch {");
   assert.ok(ruleStart >= 0);
   const searchRule = styleSource.slice(ruleStart, styleSource.indexOf("}", ruleStart));
   assert.ok(searchRule.includes("color: var(--text)"));
