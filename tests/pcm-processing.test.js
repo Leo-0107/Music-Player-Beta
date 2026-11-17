@@ -34,13 +34,13 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(styleSource.includes("background-size: calc(100% - 3px) 3px;"));
   assert.ok(styleSource.includes("background-position: center;"));
   assert.ok(styleSource.includes("background-repeat: no-repeat;"));
-  assert.ok(styleSource.includes("width: 3px;"));
-  assert.ok(styleSource.includes("height: 3px;"));
+  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*width:\s*3px;[^}]*height:\s*3px;/);
+  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*width:\s*3px;[^}]*height:\s*3px;/);
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
   assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.01";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 0"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 0;"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 1"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 1;"));
   assert.ok(manifestSource.includes("Music Player v7.5.01"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.01-r1'));
   assert.ok(indexSource.includes("7.5.01-r1"));
