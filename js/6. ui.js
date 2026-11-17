@@ -1422,18 +1422,8 @@ function updateSpatialAudioFromClock(isPlaying) {
 
   function setMenuLevelTwo(enabled) {
     if (!el.sidebar) return;
-    if (enabled) {
-      if (el.sidebar.classList.contains("menuLevelTwo")) return;
-      el.sidebar.classList.remove("open");
-      el.sidebar.classList.add("menuLevelTwo");
-      void el.sidebar.offsetWidth;
-      el.sidebar.classList.add("open");
-      return;
-    }
-    if (!el.sidebar.classList.contains("menuLevelTwo")) return;
-    el.sidebar.classList.remove("open", "menuLevelTwo");
-    void el.sidebar.offsetWidth;
-    el.sidebar.classList.add("open");
+    // 第2階層も第1階層と同じ左側ドロワー内で表示する。クラスは階層状態の識別にのみ使う。
+    el.sidebar.classList.toggle("menuLevelTwo", Boolean(enabled));
   }
 
   function closeSidebar() {
@@ -1674,6 +1664,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     }
     activeMenuCategoryTitle = categoryTitle || activeMenuCategoryTitle;
     menuDetailOpen = true;
+    if (btnMenuCategoryBack) btnMenuCategoryBack.textContent = "← " + title;
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
     if (el.sideTitle) el.sideTitle.textContent = "メニュー";
     animateUiEntry(menuCategoryView);
@@ -1736,7 +1727,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     menuCategoryHome.hidden = true;
     menuCategoryView.hidden = false;
     setMenuLevelTwo(true);
-    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
+    document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = true; });
     menuCategoryTitle.textContent = category.title;
     menuCategoryCards.hidden = false;
     if (el.btnSideBack) el.btnSideBack.style.display = "none";
@@ -1856,13 +1847,14 @@ function updateSpatialAudioFromClock(isPlaying) {
         document.querySelectorAll(".panelSection").forEach(p => p.classList.remove("active"));
         menuDetailOpen = false;
         if (menuCategoryCards) menuCategoryCards.hidden = false;
-        document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
+        if (btnMenuCategoryBack) btnMenuCategoryBack.textContent = "← " + activeMenuCategoryTitle;
         if (el.btnSideBack) el.btnSideBack.style.display = "none";
         if (el.sideTitle) el.sideTitle.textContent = "メニュー";
         animateUiEntry(menuCategoryView);
         return;
       }
       setMenuLevelTwo(false);
+      document.querySelectorAll("#mainMenuList > .menuTools").forEach(node => { node.hidden = false; });
       if (menuCategoryView) menuCategoryView.hidden = true;
       if (menuCategoryHome) menuCategoryHome.hidden = false;
       if (menuCategoryTitle) menuCategoryTitle.textContent = "";
