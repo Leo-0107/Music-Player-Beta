@@ -584,22 +584,53 @@ input[type="range"] {
   align-items: center;
 }
 .miniProgressWrap input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
   margin: 0;
+  padding: 0;
   height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--mini-progress, 0%),
+    var(--panel3) var(--mini-progress, 0%),
+    var(--panel3) 100%
+  );
+  cursor: pointer;
+}
+.miniProgressWrap input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+.miniProgressWrap input[type="range"]::-moz-range-track {
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+.miniProgressWrap input[type="range"]::-moz-range-progress {
+  height: 3px;
+  background: transparent;
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 2px !important;
-  height: 2px !important;
+  width: 2px;
+  height: 2px;
   margin: 0;
   border: 0;
   border-radius: 50%;
   background: var(--accent);
 }
 .miniProgressWrap input[type="range"]::-moz-range-thumb {
-  width: 2px !important;
-  height: 2px !important;
+  width: 2px;
+  height: 2px;
   border: 0;
   border-radius: 50%;
   background: var(--accent);
