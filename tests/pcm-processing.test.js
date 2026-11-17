@@ -22,19 +22,24 @@ const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
 const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 
-test("mini-player progress thumb is compact and app revision identifiers are synchronized", () => {
+test("mini-player progress thumb is forced to 2px and app revision identifiers are synchronized", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.94";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 94"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 94;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.94"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.94-r94'));
-  assert.ok(indexSource.includes("7.4.94-r94"));
-  assert.ok(controllerSource.includes("7.4.94-r94"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.94-r94"));
+  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb {'));
+  assert.ok(styleSource.includes("-webkit-appearance: none;"));
+  assert.ok(styleSource.includes("width: 2px !important;"));
+  assert.ok(styleSource.includes("height: 2px !important;"));
+  assert.ok(styleSource.includes("background: var(--accent);"));
+  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
+  assert.ok(styleSource.includes("border-radius: 50%;"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.95";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 95"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 95;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.95"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.95-r95'));
+  assert.ok(indexSource.includes("7.4.95-r95"));
+  assert.ok(controllerSource.includes("7.4.95-r95"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.95-r95"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
@@ -183,14 +188,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.94-r94"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.94-r94"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.94-r94"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.94-r94"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.95-r95"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.95-r95"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.95-r95"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.95-r95"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.94-r94"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.95-r95"));
 });
 
 
