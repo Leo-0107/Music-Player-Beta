@@ -36,13 +36,13 @@ test("mini-player progress thumb uses a custom 2px control with synchronized pro
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
   assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.4.96";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 96"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 96;"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 0"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 0;"));
   assert.ok(manifestSource.includes("Music Player v7.4.96"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.96-r96'));
-  assert.ok(indexSource.includes("7.4.96-r96"));
-  assert.ok(controllerSource.includes("7.4.96-r96"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.96-r96"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.96-r0'));
+  assert.ok(indexSource.includes("7.4.96-r0"));
+  assert.ok(controllerSource.includes("7.4.96-r0"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.96-r0"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
@@ -191,14 +191,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.96-r96"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.96-r96"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.96-r96"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.96-r96"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.96-r0"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.96-r0"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.96-r0"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.96-r0"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.96-r96"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.96-r0"));
 });
 
 
