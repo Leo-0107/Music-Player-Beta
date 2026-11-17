@@ -22,24 +22,27 @@ const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
 const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 
-test("mini-player progress thumb is forced to 2px and app revision identifiers are synchronized", () => {
+test("mini-player progress thumb uses a custom 2px control with synchronized progress fill", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb {'));
+  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"] {'));
   assert.ok(styleSource.includes("-webkit-appearance: none;"));
-  assert.ok(styleSource.includes("width: 2px !important;"));
-  assert.ok(styleSource.includes("height: 2px !important;"));
-  assert.ok(styleSource.includes("background: var(--accent);"));
+  assert.ok(styleSource.includes("appearance: none;"));
+  assert.ok(styleSource.includes("--mini-progress, 0%"));
+  assert.ok(styleSource.includes("::-webkit-slider-runnable-track"));
+  assert.ok(styleSource.includes("::-moz-range-track"));
+  assert.ok(styleSource.includes("width: 2px;"));
+  assert.ok(styleSource.includes("height: 2px;"));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
-  assert.ok(styleSource.includes("border-radius: 50%;"));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.95";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 95"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 95;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.95"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.95-r95'));
-  assert.ok(indexSource.includes("7.4.95-r95"));
-  assert.ok(controllerSource.includes("7.4.95-r95"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.95-r95"));
+  assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.96";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 96"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 96;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.96"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.96-r96'));
+  assert.ok(indexSource.includes("7.4.96-r96"));
+  assert.ok(controllerSource.includes("7.4.96-r96"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.96-r96"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
