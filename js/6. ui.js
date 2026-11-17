@@ -214,7 +214,11 @@
     if(!audio.duration) return;
     if(!isSlidingRange) {
       if (el.progress) el.progress.value = (cur / dur) * 100;
-      if (el.miniProgress) el.miniProgress.value = (cur / dur) * 100;
+      if (el.miniProgress) {
+        const miniProgressValue = (cur / dur) * 100;
+        el.miniProgress.value = miniProgressValue;
+        el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
+      }
     }
     if (cur > 30 || (dur > 0 && cur / dur > 0.5)) {
       recordPlayCount();
@@ -274,7 +278,9 @@
     el.miniProgress.addEventListener("pointerdown", () => isSlidingRange = true);
     el.miniProgress.addEventListener("pointerup", () => isSlidingRange = false);
     el.miniProgress.addEventListener("input", () => {
-      if(audio.duration) audio.currentTime = (Number(el.miniProgress.value) / 100) * audio.duration;
+      const miniProgressValue = Number(el.miniProgress.value) || 0;
+      el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
+      if(audio.duration) audio.currentTime = (miniProgressValue / 100) * audio.duration;
     });
   }
 
