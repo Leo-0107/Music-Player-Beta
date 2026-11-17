@@ -27,14 +27,14 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.92";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 92"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 92;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.92"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.92-r92'));
-  assert.ok(indexSource.includes("7.4.92-r92"));
-  assert.ok(controllerSource.includes("7.4.92-r92"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.92-r92"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.93";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 93"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 93;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.93"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.93-r93'));
+  assert.ok(indexSource.includes("7.4.92-r93"));
+  assert.ok(controllerSource.includes("7.4.92-r93"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.92-r93"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
@@ -97,6 +97,7 @@ test("2D spectrum and stereo peak meters retain their original rainbow colours",
 test("settings and menu category back labels follow the selected category", () => {
   assert.ok(uiSource.includes('btnSettingsCategoryBack.textContent = "← " + category.title'));
   assert.ok(uiSource.includes('menuBack.textContent = "← " + category.title'));
+  assert.ok(uiSource.includes('btnMenuCategoryBack.textContent = "← " + title'));
   assert.ok(uiSource.includes('openMenuDetail(targetId, title, category.title)'));
 });
 
@@ -156,14 +157,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.92-r92"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.92-r92"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.92-r92"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.92-r92"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.92-r93"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.92-r93"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.92-r93"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.92-r93"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.92-r92"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.92-r93"));
 });
 
 
@@ -3814,15 +3815,15 @@ test("left-right pan offsets remain effective in 4D, 8D, and 16D orbit modes", (
 });
 
 
-test("menu detail keeps the menu title and category back row visible", () => {
+test("menu detail updates the back title to the selected operation and keeps library/settings tools hidden", () => {
   const openStart = uiSource.indexOf("function openMenuDetail(");
   const openEnd = uiSource.indexOf("\n  const MENU_CATEGORIES", openStart);
   assert.ok(openStart >= 0 && openEnd > openStart);
   const openSource = uiSource.slice(openStart, openEnd);
-  assert.match(openSource, /mainMenuList\) el\.mainMenuList\.style\.display = "flex"/);
   assert.match(openSource, /menuCategoryView\) menuCategoryView\.hidden = false/);
   assert.match(openSource, /menuCategoryCards\) menuCategoryCards\.hidden = true/);
   assert.ok(openSource.includes('node.hidden = true'));
+  assert.ok(openSource.includes('btnMenuCategoryBack.textContent = "← " + title'));
   assert.match(openSource, /sideTitle\) el\.sideTitle\.textContent = "メニュー"/);
   assert.match(openSource, /btnSideBack\) el\.btnSideBack\.style\.display = "none"/);
   const backStart = uiSource.indexOf("if (btnMenuCategoryBack) {");
@@ -3830,10 +3831,12 @@ test("menu detail keeps the menu title and category back row visible", () => {
   assert.ok(backStart >= 0 && backEnd > backStart);
   const backSource = uiSource.slice(backStart, backEnd);
   assert.match(backSource, /if \(menuDetailOpen\)[\s\S]*?menuDetailOpen = false/);
+  assert.ok(backSource.includes('btnMenuCategoryBack.textContent = "← " + activeMenuCategoryTitle'));
   assert.match(backSource, /menuCategoryCards\.hidden = false/);
-  assert.ok(backSource.includes('node.hidden = false'));
   assert.match(backSource, /menuCategoryView\) menuCategoryView\.hidden = true/);
+  assert.match(backSource, /node\.hidden = false/);
 });
+
 
 test("bottom navigation has visible separators between tabs and from the mini-player", () => {
   const cssSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
@@ -3949,15 +3952,13 @@ test("menu omits redundant playback, favorite, microphone-monitor and 3D-reset s
   assert.match(uiSource, /const waveResetBtn = document\.getElementById\("btnWaveViewReset"\)/);
 });
 
-test("menu opens as a narrow left drawer first, then expands into a large bottom sheet on category selection", () => {
+test("menu first and second levels both remain in the left drawer and hide library/settings tools in level two", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const overlayRule = styleSource.match(/\.overlay\s*\{([^}]*)\}/);
   const overlayOpenRule = styleSource.match(/\.overlay\.open\s*\{([^}]*)\}/);
   const sidebarRule = styleSource.match(/\.sidebar\s*\{([^}]*)\}/);
   const sidebarOpenRule = styleSource.match(/\.sidebar\.open\s*\{([^}]*)\}/);
-  const levelTwoRule = styleSource.match(/\.sidebar\.menuLevelTwo\s*\{([^}]*)\}/);
-  const levelTwoOpenRule = styleSource.match(/\.sidebar\.menuLevelTwo\.open\s*\{([^}]*)\}/);
-  assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule && levelTwoRule && levelTwoOpenRule);
+  assert.ok(overlayRule && overlayOpenRule && sidebarRule && sidebarOpenRule);
   assert.match(overlayRule[1], /z-index:\s*20000/);
   assert.match(overlayOpenRule[1], /opacity:\s*1/);
   assert.match(sidebarRule[1], /position:\s*fixed/);
@@ -3968,19 +3969,20 @@ test("menu opens as a narrow left drawer first, then expands into a large bottom
   assert.match(sidebarRule[1], /opacity:\s*0/);
   assert.match(sidebarOpenRule[1], /transform:\s*translateX\(0\)/);
   assert.match(sidebarOpenRule[1], /opacity:\s*1/);
-  assert.match(levelTwoRule[1], /width:\s*100vw/);
-  assert.match(levelTwoRule[1], /height:\s*min\(92dvh, 920px\)/);
-  assert.match(levelTwoRule[1], /transform:\s*translateY\(100%\)/);
-  assert.match(levelTwoRule[1], /opacity:\s*0/);
-  assert.match(levelTwoOpenRule[1], /transform:\s*translateY\(0\)/);
-  assert.match(levelTwoOpenRule[1], /opacity:\s*1/);
-  assert.match(uiSource, /function setMenuLevelTwo\(enabled\)/);
-  assert.match(uiSource, /menuCategoryHome\.hidden = true;[\s\S]*?setMenuLevelTwo\(true\)/);
-  assert.match(uiSource, /setMenuLevelTwo\(false\)/);
+  assert.equal(styleSource.includes(".sidebar.menuLevelTwo {"), false);
+  assert.match(uiSource, /function setMenuLevelTwo\(enabled\)[\s\S]*?classList\.toggle\("menuLevelTwo", Boolean\(enabled\)\)/);
+  const categoryStart = uiSource.indexOf("function showMenuCategory(");
+  const categoryEnd = uiSource.indexOf("\n  let activeSettingsDetail", categoryStart);
+  const categorySource = uiSource.slice(categoryStart, categoryEnd);
+  assert.ok(categorySource.includes('node.hidden = true'));
+  const backStart = uiSource.indexOf("if (btnMenuCategoryBack) {");
+  const backEnd = uiSource.indexOf("\n  if (btnSettingsCategoryBack)", backStart);
+  assert.ok(uiSource.slice(backStart, backEnd).includes('node.hidden = false'));
   assert.match(uiSource, /document\.body\.classList\.add\("menu-open"\)/);
   assert.match(styleSource, /body\.menu-open\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(indexSource, /z-index["']?,?\s*["']2147483647/);
 });
+
 
 
 test("settings second-level detail is rendered in the same category layer without a bottom-sheet transition", () => {
