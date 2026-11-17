@@ -17,6 +17,7 @@ const uiSource = fs.readFileSync(path.join(root, "js/6. ui.js"), "utf8");
 const indexSource = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const youtubeSource = fs.readFileSync(path.join(root, "js/5. youtube.js"), "utf8");
 const librarySource = fs.readFileSync(path.join(root, "js/4. library.js"), "utf8");
+const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
 
 const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8");
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
