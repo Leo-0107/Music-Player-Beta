@@ -1737,10 +1737,50 @@ body.theme-light #waveModeBtns .btn.active {
   flex: 0 0 auto;
   margin: 0;
 }
-.settingsTitleRow #settingsSearch {
+.settingsTitleRow .settingsSearchControl {
+  position: relative;
   width: min(48%, 240px);
   min-width: 0;
   margin-left: auto;
+}
+.settingsSearchControl #settingsSearch {
+  width: 100%;
+  min-width: 0;
+  padding-right: 36px;
+}
+.settingsSearchControl #settingsSearch::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+.settingsSearchClear {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.settingsSearchClear:hover {
+  background: var(--panel3);
+  color: var(--text);
+}
+.settingsSearchClear[hidden] {
+  display: none !important;
+}
+.menuTools[hidden] {
+  display: none !important;
 }
 .settingsDescription {
   color: var(--muted);

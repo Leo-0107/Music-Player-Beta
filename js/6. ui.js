@@ -1536,8 +1536,25 @@ function updateSpatialAudioFromClock(isPlaying) {
   const settingsCategoryCards = document.getElementById("settingsCategoryCards");
   const settingsCategoryTitle = document.getElementById("settingsCategoryTitle");
   const btnSettingsCategoryBack = document.getElementById("btnSettingsCategoryBack");
+  const settingsSearchClearButton = document.getElementById("settingsSearchClear");
+
+  function updateSettingsSearchClearButton() {
+    if (settingsSearchClearButton) {
+      settingsSearchClearButton.hidden = !String(el.settingsSearch?.value || "").length;
+    }
+  }
+
+  if (settingsSearchClearButton) {
+    settingsSearchClearButton.addEventListener("click", () => {
+      if (!el.settingsSearch) return;
+      el.settingsSearch.value = "";
+      applySettingsSearch("");
+      el.settingsSearch.focus();
+    });
+  }
 
   function applySettingsSearch(rawQuery) {
+    updateSettingsSearchClearButton();
     if (!settingsCategoryHome || !settingsCategoryView || !settingsCategoryCards) return;
     const query = String(rawQuery || "").trim().toLocaleLowerCase("ja");
     if (!query) {
@@ -1796,7 +1813,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (settingsCategoryTitle) settingsCategoryTitle.hidden = true;
     if (btnSettingsCategoryBack) {
       btnSettingsCategoryBack.hidden = false;
-      btnSettingsCategoryBack.textContent = "← " + activeSettingsCategoryTitle;
+      btnSettingsCategoryBack.textContent = "← " + title;
     }
     target.classList.add("active", "settingsInlineDetail");
     settingsCategoryView.appendChild(target);
@@ -1814,6 +1831,7 @@ function updateSpatialAudioFromClock(isPlaying) {
     if (btnSettingsCategoryBack) btnSettingsCategoryBack.textContent = "← " + category.title;
     animateUiEntry(settingsCategoryView);
     if (el.settingsSearch) el.settingsSearch.value = "";
+    updateSettingsSearchClearButton();
 
     settingsCategoryCards.innerHTML = "";
     category.items.forEach(([secId, icon, title, description = ""]) => {
@@ -1876,6 +1894,7 @@ function updateSpatialAudioFromClock(isPlaying) {
       if (settingsCategoryView) settingsCategoryView.hidden = true;
       if (settingsCategoryHome) settingsCategoryHome.hidden = false;
       if (el.settingsSearch) el.settingsSearch.value = "";
+      updateSettingsSearchClearButton();
       if (settingsCategoryTitle) {
         settingsCategoryTitle.textContent = "";
         settingsCategoryTitle.hidden = false;

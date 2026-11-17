@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.93</title>
+<title>Music Player v7.4.94</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.93-r93">
+<link rel="stylesheet" href="style.css?v=7.4.94-r94">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -750,7 +750,10 @@
   <div class="settingsHome">
     <div class="settingsTitleRow">
       <div class="sectionTitle">設定</div>
+      <div class="settingsSearchControl">
       <input type="search" id="settingsSearch" placeholder="設定名・説明で検索..." aria-label="設定名や説明から項目を検索">
+      <button class="settingsSearchClear" id="settingsSearchClear" type="button" aria-label="検索文字を消去" title="検索文字を消去" hidden>✕</button>
+    </div>
     </div>
 
     <div id="settingsCategoryHome" class="settingsCategoryHome">
@@ -933,8 +936,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.93";
-  const BUILD_REVISION = 93
+  const APP_VERSION = "v7.4.94";
+  const BUILD_REVISION = 94
   const BUILD_COMMIT_ID = "7dad50972f93b883b8e01174f16eff2530b8ab24";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1311,7 +1314,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.93-r93"></script>
+<script src="js/1. ctrl.js?v=7.4.94-r94"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
