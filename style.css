@@ -643,40 +643,7 @@ input[type="range"] {
     visibility 0s;
 }
 
-/* メニュー二段目：画面を大きく覆うボトムパネル */
-.sidebar.menuLevelTwo {
-  top: auto;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: 100vw;
-  height: min(92vh, 920px);
-  height: min(92dvh, 920px);
-  max-height: calc(100dvh - 20px);
-  border-radius: 24px 24px 0 0;
-  transform: translateY(100%);
-  opacity: 0;
-  transition:
-    transform 0.32s cubic-bezier(.1,.9,.2,1),
-    opacity 0.24s ease,
-    visibility 0s linear 0.32s;
-  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.32);
-}
-.sidebar.menuLevelTwo.open {
-  transform: translateY(0);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition:
-    transform 0.32s cubic-bezier(.1,.9,.2,1),
-    opacity 0.24s ease,
-    visibility 0s;
-}
-.sidebar.menuLevelTwo .sideBody {
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-}
-
-.sidebar.settingsBottomSheet {
+remove bottom sheet rules.sidebar.settingsBottomSheet {
   top: auto;
   left: 0;
   right: 0;
