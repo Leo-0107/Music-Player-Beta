@@ -275,8 +275,27 @@
   }
 
   if (el.miniProgress) {
-    el.miniProgress.addEventListener("pointerdown", () => isSlidingRange = true);
-    el.miniProgress.addEventListener("pointerup", () => isSlidingRange = false);
+    const miniProgressWrap = el.miniProgress.closest(".miniProgressWrap");
+    let miniProgressPointerId = null;
+    const finishMiniProgressScrub = event => {
+      if (miniProgressPointerId === null) return;
+      if (Number.isFinite(event?.pointerId) && event.pointerId !== miniProgressPointerId) return;
+      miniProgressPointerId = null;
+      isSlidingRange = false;
+      miniProgressWrap?.classList.remove("is-scrubbing");
+    };
+    el.miniProgress.addEventListener("pointerdown", event => {
+      miniProgressPointerId = event.pointerId;
+      isSlidingRange = true;
+      miniProgressWrap?.classList.add("is-scrubbing");
+    });
+    window.addEventListener("pointerup", finishMiniProgressScrub, true);
+    window.addEventListener("pointercancel", finishMiniProgressScrub, true);
+    el.miniProgress.addEventListener("lostpointercapture", finishMiniProgressScrub);
+    window.addEventListener("blur", finishMiniProgressScrub);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") finishMiniProgressScrub();
+    });
     el.miniProgress.addEventListener("input", () => {
       const miniProgressValue = Number(el.miniProgress.value) || 0;
       el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
