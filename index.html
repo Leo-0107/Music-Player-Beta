@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.4.91</title>
+<title>Music Player v7.4.92</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.4.91-r91">
+<link rel="stylesheet" href="style.css?v=7.4.91-r92">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -933,8 +933,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.4.91";
-  const BUILD_REVISION = 91
+  const APP_VERSION = "v7.4.92";
+  const BUILD_REVISION = 92
   const BUILD_COMMIT_ID = "a1b7cff0a84b1cd60f15903cfcbd74a0a02a2775";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1079,8 +1079,8 @@
     try {
       const panel = ensureNotice();
       const code = entry
-        ? entry.code + " ／ 変更確認番号: " + entry.revision
-        : "MP-DIAG-FAILED ／ 変更確認番号: " + BUILD_REVISION;
+        ? entry.code + " ／ エラー発生時BR: " + entry.revision
+        : "MP-DIAG-FAILED ／ 診断機能側BR: " + BUILD_REVISION;
       const detail = entry
         ? "機能: " + entry.category + " ／ 段階: " + entry.stage + " ／ " + entry.message
         : "診断表示の通常処理に失敗しました。簡易表示へ切り替えました。";
@@ -1129,6 +1129,7 @@
         stack: sanitize(error && error.stack ? error.stack : ""),
         time: now.toISOString(),
         version: APP_VERSION,
+        // エラー発生時のBRを保存し、後日のアプリ更新で履歴の値が変わらないようにする。
         revision: BUILD_REVISION
       };
       entries.push(record);
@@ -1205,7 +1206,7 @@
         "機能: " + (entry.category || "不明"),
         "段階: " + (entry.stage || "不明"),
         "内容: " + (entry.message || "詳細なし"),
-        "変更確認番号: " + (entry.revision ?? "不明"),
+        "エラー発生時BR: " + (entry.revision ?? "不明"),
         "アプリ: " + (entry.version || "不明")
       ];
       if (entry.file) lines.push("場所: " + entry.file + (entry.line ? ":" + entry.line : ""));
@@ -1232,9 +1233,9 @@
     const recent = entries.slice(-5);
     const lines = [
       "Music Player 診断情報",
-      "Version: " + APP_VERSION,
-      "BUILD_REVISION: " + BUILD_REVISION,
-      "Build commit: " + BUILD_COMMIT_ID,
+      "診断レポート作成時Version: " + APP_VERSION,
+      "診断レポート作成時BUILD_REVISION: " + BUILD_REVISION,
+      "診断レポート作成時Build commit: " + BUILD_COMMIT_ID,
       "Browser: " + sanitize(navigator.userAgent),
       "Page: " + location.pathname,
       ""
@@ -1249,7 +1250,8 @@
     if (outputLatencyDiagnostics) lines.push("OutputLatency: " + JSON.stringify(outputLatencyDiagnostics));
     lines.push("");
     recent.forEach(entry => {
-      lines.push("[" + entry.time + "] " + entry.code + " ／ 変更確認番号: " + entry.revision);
+      lines.push("[" + entry.time + "] " + entry.code + " ／ エラー発生時BR: " + (entry.revision ?? "不明"));
+      lines.push("アプリ: " + (entry.version || "不明"));
       lines.push("機能: " + entry.category + " / 段階: " + entry.stage);
       lines.push("内容: " + entry.message);
       if (entry.file) lines.push("場所: " + entry.file + ":" + entry.line + ":" + entry.column);
@@ -1309,7 +1311,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.4.91-r91"></script>
+<script src="js/1. ctrl.js?v=7.4.91-r92"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {

@@ -27,14 +27,29 @@ test("mini-player progress thumb is compact and app revision identifiers are syn
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-webkit-slider-thumb { width: 3px; height: 3px; }'));
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb { width: 3px; height: 3px; border: 0; border-radius: 50%; }'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.91";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 91"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 91;"));
-  assert.ok(manifestSource.includes("Music Player v7.4.91"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.91-r91'));
-  assert.ok(indexSource.includes("7.4.91-r91"));
-  assert.ok(controllerSource.includes("7.4.91-r91"));
-  assert.ok(rootServiceWorkerSource.includes("7.4.91-r91"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.4.92";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 92"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 92;"));
+  assert.ok(manifestSource.includes("Music Player v7.4.92"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.4.92-r92'));
+  assert.ok(indexSource.includes("7.4.92-r92"));
+  assert.ok(controllerSource.includes("7.4.92-r92"));
+  assert.ok(rootServiceWorkerSource.includes("7.4.92-r92"));
+});
+
+test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
+  const historyStart = uiSource.indexOf("history: {");
+  const otherStart = uiSource.indexOf("other: {", historyStart);
+  const otherEnd = uiSource.indexOf("\n    }\n  };", otherStart);
+  assert.ok(historyStart >= 0 && otherStart > historyStart);
+  assert.ok(otherEnd > otherStart);
+  const historySource = uiSource.slice(historyStart, otherStart);
+  const otherSource = uiSource.slice(otherStart, otherEnd);
+  assert.ok(historySource.includes('["diagnosticsSection", "📋", "診断情報の履歴"'));
+  assert.equal(otherSource.includes('["diagnosticsSection"'), false);
+  assert.ok(indexSource.includes("revision: BUILD_REVISION"));
+  assert.ok(indexSource.includes('"エラー発生時BR: " + (entry.revision ?? "不明")'));
+  assert.ok(indexSource.includes('"診断レポート作成時BUILD_REVISION: " + BUILD_REVISION'));
 });
 
 test("accent colour is persisted and applied through shared theme tokens", () => {
@@ -141,14 +156,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.4.91-r91"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.4.91-r91"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.4.91-r91"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.91-r91"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.4.92-r92"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.4.92-r92"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.4.92-r92"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.4.92-r92"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.91-r91"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.4.92-r92"));
 });
 
 
