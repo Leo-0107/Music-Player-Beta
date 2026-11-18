@@ -39,14 +39,14 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
   assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.02";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 2"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 2;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.02"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.02-r2'));
-  assert.ok(indexSource.includes("7.5.02-r2"));
-  assert.ok(controllerSource.includes("7.5.02-r2"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.02-r2"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.03";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 3"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 3;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.03"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.03-r3'));
+  assert.ok(indexSource.includes("7.5.03-r3"));
+  assert.ok(controllerSource.includes("7.5.03-r3"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.03-r3"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -55,7 +55,8 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(styleSource.includes("--mini-progress-size: 3px;"));
   assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type=\"range\"] {"));
   assert.ok(styleSource.includes("--mini-progress-size: 8px;"));
-  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease;"));
+  assert.ok(styleSource.includes('@property --mini-progress'));
+  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;"));
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.add("is-scrubbing")'));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.remove("is-scrubbing")'));
@@ -63,7 +64,11 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(uiSource.includes('window.addEventListener("pointercancel", finishMiniProgressScrub, true)'));
   assert.ok(uiSource.includes('el.miniProgress.addEventListener("lostpointercapture", finishMiniProgressScrub)'));
   assert.ok(uiSource.includes('document.visibilityState !== "visible"'));
-  assert.ok(uiSource.includes('audio.currentTime = (miniProgressValue / 100) * audio.duration'));
+  assert.ok(uiSource.includes("miniProgressPendingValue = miniProgressValue"));
+  assert.ok(uiSource.includes("miniProgressSeekFrame = requestAnimationFrame"));
+  assert.ok(uiSource.includes("cancelAnimationFrame(miniProgressSeekFrame)"));
+  assert.ok(uiSource.includes("flushMiniProgressSeek();"));
+  assert.ok(uiSource.includes("audio.currentTime = (value / 100) * duration"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
@@ -212,14 +217,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.02-r2"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.02-r2"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.02-r2"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.02-r2"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.03-r3"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.03-r3"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.03-r3"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.03-r3"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.02-r2"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.03-r3"));
 });
 
 
