@@ -608,7 +608,7 @@ input[type="range"] {
     to right,
     var(--accent) 0%,
     var(--accent) var(--mini-progress, 0px),
-    transparent var(--mini-progress, 0%),
+    transparent var(--mini-progress, 0px),
     transparent 100%
   );
   background-size: 100% 100%;

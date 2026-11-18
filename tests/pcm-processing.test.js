@@ -46,6 +46,7 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
     styleSource.indexOf('.miniProgressWrap input[type="range"]::-webkit-slider-runnable-track')
   );
   assert.equal((miniProgressRule.match(/linear-gradient\(/g) || []).length, 1);
+  assert.equal((miniProgressRule.match(/var\(--mini-progress, 0px\)/g) || []).length, 2);
   assert.ok(miniProgressRule.includes("background-size: 100% 100%;"));
   assert.doesNotMatch(miniProgressRule, /--mini-progress\s+\d+ms/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
