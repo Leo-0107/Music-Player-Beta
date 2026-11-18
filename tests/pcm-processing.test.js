@@ -45,7 +45,7 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(indexSource.includes("const BUILD_REVISION = 5"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 5;"));
   assert.ok(manifestSource.includes("Music Player v7.5.05"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.05-r4'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.05-r5'));
   assert.ok(indexSource.includes("7.5.05-r5"));
   assert.ok(controllerSource.includes("7.5.05-r5"));
   assert.ok(rootServiceWorkerSource.includes("7.5.05-r5"));
