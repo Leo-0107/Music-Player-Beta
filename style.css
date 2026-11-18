@@ -604,22 +604,19 @@ input[type="range"] {
   border: 0;
   border-radius: 999px;
   background-color: var(--panel3);
-  background-image:
-    linear-gradient(
-      to right,
-      var(--accent) 0%,
-      var(--accent) var(--mini-progress, 0%),
-      transparent var(--mini-progress, 0%),
-      transparent 100%
-    ),
-    linear-gradient(to right, var(--accent) 0%, var(--accent) 50%, transparent 50%, transparent 100%);
-  background-size:
-    calc(100% - var(--mini-progress-size)) var(--mini-progress-size),
-    var(--mini-progress-size) var(--mini-progress-size);
-  background-position: center, left center;
+  background-image: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--mini-progress, 0%),
+    transparent var(--mini-progress, 0%),
+    transparent 100%
+  );
+  background-size: 100% 100%;
+  background-position: left center;
   background-repeat: no-repeat;
   cursor: pointer;
-  transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;
+  /* 進捗色はrange thumbと同じフレームで更新し、補間による遅れを作らない。 */
+  transition: height 140ms ease;
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-runnable-track {
   height: var(--mini-progress-size);
