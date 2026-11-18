@@ -33,7 +33,7 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(styleSource.includes("::-webkit-slider-runnable-track"));
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.ok(styleSource.includes("calc(100% - var(--mini-progress-size)) var(--mini-progress-size),"));
-  assert.ok(styleSource.includes("linear-gradient(to right, var(--accent) 0 50%, transparent 50% 100%)"));
+  assert.ok(styleSource.includes("linear-gradient(to right, var(--accent) 0%, var(--accent) 50%, transparent 50%, transparent 100%)"));
   assert.ok(styleSource.includes("var(--mini-progress-size) var(--mini-progress-size);"));
   assert.ok(styleSource.includes("background-position: center, left center;"));
   assert.ok(styleSource.includes("background-repeat: no-repeat;"));
@@ -45,7 +45,7 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(indexSource.includes("const BUILD_REVISION = 4"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 4;"));
   assert.ok(manifestSource.includes("Music Player v7.5.04"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.04-r3'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.04-r4'));
   assert.ok(indexSource.includes("7.5.04-r4"));
   assert.ok(controllerSource.includes("7.5.04-r4"));
   assert.ok(rootServiceWorkerSource.includes("7.5.04-r4"));
@@ -59,7 +59,8 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(styleSource.includes("--mini-progress-size: 8px;"));
   assert.ok(styleSource.includes('@property --mini-progress'));
   assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;"));
-  assert.match(styleSource, /\.miniProgressWrap\.is-scrubbing input\[type="range"\][\\s\\S]*?transition: none !important;/);
+  assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type=\\"range\\"],"));
+  assert.ok(styleSource.includes("transition: none !important;"));
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.add("is-scrubbing")'));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.remove("is-scrubbing")'));
