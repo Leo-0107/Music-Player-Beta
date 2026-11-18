@@ -20,7 +20,7 @@
     if (!range) return;
     const width = range.getBoundingClientRect().width;
     const wrap = range.closest(".miniProgressWrap");
-    const thumbSize = wrap?.classList.contains("is-scrubbing") ? 8 : 3;
+    const thumbSize = wrap?.classList.contains("is-scrubbing") ? 6 : 3;
     const progress = Math.min(100, Math.max(0, Number(value) || 0));
     const position = thumbSize / 2 + (progress / 100) * Math.max(0, width - thumbSize);
     range.style.setProperty("--mini-progress", `${position}px`);
