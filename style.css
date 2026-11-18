@@ -578,6 +578,12 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+@property --mini-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 .miniProgressWrap {
   width: 100%;
   height: 3px;
@@ -609,7 +615,7 @@ input[type="range"] {
   background-position: center;
   background-repeat: no-repeat;
   cursor: pointer;
-  transition: height 140ms ease, background-size 140ms ease;
+  transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-runnable-track {
   height: var(--mini-progress-size);
