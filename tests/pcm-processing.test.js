@@ -32,8 +32,10 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(styleSource.includes("--mini-progress, 0%"));
   assert.ok(styleSource.includes("::-webkit-slider-runnable-track"));
   assert.ok(styleSource.includes("::-moz-range-track"));
-  assert.ok(styleSource.includes("background-size: calc(100% - var(--mini-progress-size)) var(--mini-progress-size);"));
-  assert.ok(styleSource.includes("background-position: center;"));
+  assert.ok(styleSource.includes("calc(100% - var(--mini-progress-size)) var(--mini-progress-size),"));
+  assert.ok(styleSource.includes("linear-gradient(to right, var(--accent) 0 50%, transparent 50% 100%)"));
+  assert.ok(styleSource.includes("var(--mini-progress-size) var(--mini-progress-size);"));
+  assert.ok(styleSource.includes("background-position: center, left center;"));
   assert.ok(styleSource.includes("background-repeat: no-repeat;"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
@@ -57,6 +59,7 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(styleSource.includes("--mini-progress-size: 8px;"));
   assert.ok(styleSource.includes('@property --mini-progress'));
   assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;"));
+  assert.match(styleSource, /\.miniProgressWrap\.is-scrubbing input\[type="range"\][\\s\\S]*?transition: none !important;/);
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.add("is-scrubbing")'));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.remove("is-scrubbing")'));
