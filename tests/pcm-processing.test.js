@@ -55,7 +55,8 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(styleSource.includes("--mini-progress-size: 3px;"));
   assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type=\"range\"] {"));
   assert.ok(styleSource.includes("--mini-progress-size: 8px;"));
-  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease;"));
+  assert.ok(styleSource.includes('@property --mini-progress'));
+  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;"));
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.add("is-scrubbing")'));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.remove("is-scrubbing")'));
@@ -63,7 +64,11 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(uiSource.includes('window.addEventListener("pointercancel", finishMiniProgressScrub, true)'));
   assert.ok(uiSource.includes('el.miniProgress.addEventListener("lostpointercapture", finishMiniProgressScrub)'));
   assert.ok(uiSource.includes('document.visibilityState !== "visible"'));
-  assert.ok(uiSource.includes('audio.currentTime = (miniProgressValue / 100) * audio.duration'));
+  assert.ok(uiSource.includes("miniProgressPendingValue = miniProgressValue"));
+  assert.ok(uiSource.includes("miniProgressSeekFrame = requestAnimationFrame"));
+  assert.ok(uiSource.includes("cancelAnimationFrame(miniProgressSeekFrame)"));
+  assert.ok(uiSource.includes("flushMiniProgressSeek();"));
+  assert.ok(uiSource.includes("audio.currentTime = (value / 100) * duration"));
 });
 
 test("diagnostic history is grouped under settings history and records the BR from the error occurrence", () => {
