@@ -49,8 +49,8 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
   assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.07";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 6"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 6;"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 7"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 7;"));
   assert.ok(manifestSource.includes("Music Player v7.5.07"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.07-r7'));
   assert.ok(indexSource.includes("7.5.07-r7"));
