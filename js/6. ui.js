@@ -277,9 +277,37 @@
   if (el.miniProgress) {
     const miniProgressWrap = el.miniProgress.closest(".miniProgressWrap");
     let miniProgressPointerId = null;
+    let miniProgressSeekFrame = 0;
+    let miniProgressPendingValue = null;
+    const flushMiniProgressSeek = () => {
+      if (miniProgressSeekFrame) {
+        cancelAnimationFrame(miniProgressSeekFrame);
+        miniProgressSeekFrame = 0;
+      }
+      if (miniProgressPendingValue === null) return;
+      const value = miniProgressPendingValue;
+      miniProgressPendingValue = null;
+      const duration = Number(audio.duration);
+      if (Number.isFinite(duration) && duration > 0) {
+        audio.currentTime = (value / 100) * duration;
+      }
+    };
+    const scheduleMiniProgressSeek = () => {
+      if (miniProgressSeekFrame) return;
+      miniProgressSeekFrame = requestAnimationFrame(() => {
+        miniProgressSeekFrame = 0;
+        const value = miniProgressPendingValue;
+        miniProgressPendingValue = null;
+        const duration = Number(audio.duration);
+        if (value !== null && Number.isFinite(duration) && duration > 0) {
+          audio.currentTime = (value / 100) * duration;
+        }
+      });
+    };
     const finishMiniProgressScrub = event => {
       if (miniProgressPointerId === null) return;
       if (Number.isFinite(event?.pointerId) && event.pointerId !== miniProgressPointerId) return;
+      flushMiniProgressSeek();
       miniProgressPointerId = null;
       isSlidingRange = false;
       miniProgressWrap?.classList.remove("is-scrubbing");
@@ -299,7 +327,8 @@
     el.miniProgress.addEventListener("input", () => {
       const miniProgressValue = Number(el.miniProgress.value) || 0;
       el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
-      if(audio.duration) audio.currentTime = (miniProgressValue / 100) * audio.duration;
+      miniProgressPendingValue = miniProgressValue;
+      scheduleMiniProgressSeek();
     });
   }
 
