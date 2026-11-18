@@ -579,9 +579,9 @@ input[type="range"] {
   white-space: nowrap;
 }
 @property --mini-progress {
-  syntax: "<percentage>";
+  syntax: "<length>";
   inherits: false;
-  initial-value: 0%;
+  initial-value: 0px;
 }
 
 .miniProgressWrap {
@@ -607,7 +607,7 @@ input[type="range"] {
   background-image: linear-gradient(
     to right,
     var(--accent) 0%,
-    var(--accent) var(--mini-progress, 0%),
+    var(--accent) var(--mini-progress, 0px),
     transparent var(--mini-progress, 0%),
     transparent 100%
   );

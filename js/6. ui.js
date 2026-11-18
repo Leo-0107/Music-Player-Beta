@@ -12,6 +12,19 @@
 
   const networkStatusElement = document.getElementById("networkStatus");
   let networkProbeSequence = 0;
+
+  // range thumbの中心位置は両端からthumb半径分だけ内側になるため、
+  // 背景gradientの終端も実際のthumb中心座標へ合わせる。
+  function updateMiniProgressVisual(value) {
+    const range = el.miniProgress;
+    if (!range) return;
+    const width = range.getBoundingClientRect().width;
+    const wrap = range.closest(".miniProgressWrap");
+    const thumbSize = wrap?.classList.contains("is-scrubbing") ? 8 : 3;
+    const progress = Math.min(100, Math.max(0, Number(value) || 0));
+    const position = thumbSize / 2 + (progress / 100) * Math.max(0, width - thumbSize);
+    range.style.setProperty("--mini-progress", `${position}px`);
+  }
   function renderNetworkStatus(status) {
     if (!networkStatusElement) return;
     const labels = { online: "オンライン", offline: "オフライン", checking: "接続確認中" };
@@ -218,7 +231,7 @@
       if (el.miniProgress) {
         const miniProgressValue = (cur / dur) * 100;
         el.miniProgress.value = miniProgressValue;
-        el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
+        updateMiniProgressVisual(miniProgressValue);
       }
     }
     if (cur > 30 || (dur > 0 && cur / dur > 0.5)) {
@@ -312,11 +325,13 @@
       miniProgressPointerId = null;
       isSlidingRange = false;
       miniProgressWrap?.classList.remove("is-scrubbing");
+      updateMiniProgressVisual(Number(el.miniProgress.value));
     };
     el.miniProgress.addEventListener("pointerdown", event => {
       miniProgressPointerId = event.pointerId;
       isSlidingRange = true;
       miniProgressWrap?.classList.add("is-scrubbing");
+      updateMiniProgressVisual(Number(el.miniProgress.value));
     });
     window.addEventListener("pointerup", finishMiniProgressScrub, true);
     window.addEventListener("pointercancel", finishMiniProgressScrub, true);
@@ -327,7 +342,7 @@
     });
     el.miniProgress.addEventListener("input", () => {
       const miniProgressValue = Number(el.miniProgress.value) || 0;
-      el.miniProgress.style.setProperty("--mini-progress", `${miniProgressValue}%`);
+      updateMiniProgressVisual(miniProgressValue);
       miniProgressPendingValue = miniProgressValue;
       scheduleMiniProgressSeek();
     });
