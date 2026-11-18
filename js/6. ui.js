@@ -32,10 +32,11 @@
     try {
       const probeUrl = new URL("./index.html?mp-network-check=" + Date.now(), document.baseURI);
       const response = await fetch(probeUrl.href, {
-        method: "HEAD", cache: "no-store", credentials: "same-origin",
-        redirect: "manual", signal: controller.signal
+        method: "GET", cache: "no-store", credentials: "same-origin",
+        redirect: "error", signal: controller.signal
       });
-      const reachable = response.ok || response.status === 405 || response.type === "opaqueredirect";
+      const reachable = response.ok && response.type === "basic" &&
+        new URL(response.url).origin === probeUrl.origin;
       if (sequence === networkProbeSequence) renderNetworkStatus(reachable ? "online" : "offline");
     } catch {
       if (sequence === networkProbeSequence) renderNetworkStatus("offline");

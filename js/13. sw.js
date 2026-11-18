@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.5.04-r4";
+const CACHE_NAME = "music-player-app-v7.5.06-r6";
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
   "./sw.js",
@@ -69,11 +69,21 @@ function matchCachedRequest(request) {
 
 self.addEventListener("fetch", event => {
   const request = event.request;
+  const requestUrl = new URL(request.url);
+
+  // 接続状態の確認は必ず実ネットワークへ到達させる。
+  // キャッシュへの保存・オフライン時のキャッシュ返却を行わない。
+  if (request.method === "GET" &&
+      requestUrl.origin === self.location.origin &&
+      requestUrl.searchParams.has("mp-network-check")) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   if (request.method !== "GET") return;
 
   // 外部API・YouTubeなどのレスポンスやAPIキー付きURLはアプリキャッシュへ保存しない。
   // このService Workerは同一オリジンのアプリ資産と画面だけを扱う。
-  const requestUrl = new URL(request.url);
   if (requestUrl.href === JSZIP_URL) {
     event.respondWith(
       fetch(request)
