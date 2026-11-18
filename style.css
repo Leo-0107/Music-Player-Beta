@@ -612,7 +612,7 @@ input[type="range"] {
       transparent var(--mini-progress, 0%),
       transparent 100%
     ),
-    linear-gradient(to right, var(--accent) 0 50%, transparent 50% 100%);
+    linear-gradient(to right, var(--accent) 0%, var(--accent) 50%, transparent 50%, transparent 100%);
   background-size:
     calc(100% - var(--mini-progress-size)) var(--mini-progress-size),
     var(--mini-progress-size) var(--mini-progress-size);
