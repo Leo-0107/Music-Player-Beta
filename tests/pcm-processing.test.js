@@ -65,7 +65,9 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  assert.match(styleSource, /\.miniProgressWrap\s*\{[^}]*height:\s*3px;[^}]*margin-top:\s*4px;/);\n  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]\s*\{[^}]*height:\s*20px;/);\n  assert.match(styleSource, /\.miniPlayer\s*\{[^}]*padding:\s*8px 16px 10px;/);
+  assert.match(styleSource, /\.miniProgressWrap\s*\{[^}]*height:\s*3px;[^}]*margin-top:\s*4px;/);
+  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]\s*\{[^}]*height:\s*20px;/);
+  assert.match(styleSource, /\.miniPlayer\s*\{[^}]*padding:\s*8px 16px 10px;/);
   assert.ok(styleSource.includes("--mini-progress-size: 3px;"));
   assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type="));
   assert.ok(styleSource.includes("--mini-progress-size: 6px;"));
