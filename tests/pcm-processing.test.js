@@ -32,7 +32,7 @@ test("mini-player progress thumb matches the 3px track and aligns with the progr
   assert.ok(styleSource.includes("--mini-progress, 0px"));
   assert.ok(styleSource.includes('syntax: "<length>";'));
   assert.ok(uiSource.includes("getBoundingClientRect().width"));
-  assert.ok(uiSource.includes("const thumbSize = wrap?.classList.contains(\"is-scrubbing\") ? 8 : 3;"));
+  assert.ok(uiSource.includes("const thumbSize = wrap?.classList.contains(\"is-scrubbing\") ? 6 : 3;"));
   assert.ok(uiSource.includes("(progress / 100) * Math.max(0, width - thumbSize)"));
   assert.ok(styleSource.includes("::-webkit-slider-runnable-track"));
   assert.ok(styleSource.includes("::-moz-range-track"));
