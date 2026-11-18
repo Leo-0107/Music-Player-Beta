@@ -58,7 +58,8 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type="));
   assert.ok(styleSource.includes("--mini-progress-size: 8px;"));
   assert.ok(styleSource.includes('@property --mini-progress'));
-  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease, --mini-progress 65ms linear;"));
+  assert.ok(styleSource.includes("transition: height 140ms ease, background-size 140ms ease;"));
+  assert.ok(!styleSource.includes("--mini-progress 65ms linear"), "progress fill must update immediately with the native range thumb");
   assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type="));
   assert.ok(styleSource.includes("transition: none !important;"));
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
