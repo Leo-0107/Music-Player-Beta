@@ -48,9 +48,9 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(audioSource.includes("const BUILD_REVISION = 11;"));
   assert.ok(manifestSource.includes("Music Player v7.5.11"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.11-r11'));
-  assert.ok(indexSource.includes("7.5.10-r11"));
-  assert.ok(controllerSource.includes("7.5.10-r11"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.10-r11"));
+  assert.ok(indexSource.includes("7.5.11-r11"));
+  assert.ok(controllerSource.includes("7.5.11-r11"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.11-r11"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -226,14 +226,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.10-r11"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.10-r11"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.10-r11"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.10-r11"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.11-r11"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.11-r11"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.11-r11"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.11-r11"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.10-r11"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.11-r11"));
 });
 
 
