@@ -47,7 +47,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(indexSource.includes("const BUILD_REVISION = 13"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 13;"));
   assert.ok(manifestSource.includes("Music Player v7.5.13"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.13-r12'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.13-r13'));
   assert.ok(indexSource.includes("7.5.13-r13"));
   assert.ok(controllerSource.includes("7.5.13-r13"));
   assert.ok(rootServiceWorkerSource.includes("7.5.13-r13"));
