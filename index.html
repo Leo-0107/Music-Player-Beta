@@ -5,9 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.12</title>
+<title>Music Player v7.5.13</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.12-r12">
+<link rel="stylesheet" href="style.css?v=7.5.13-r13">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -379,6 +379,15 @@
               <label for="outputLevelDb">全体の出力レベル: <span id="outputLevelDbText">0.0 dB</span></label>
               <input type="range" id="outputLevelDb" min="-12" max="0" step="0.5" value="0">
               <div class="settingsHelpText">音量スライダーとは別に、全出力を−12〜0 dBの範囲で減衰調整します。</div>
+            </div>
+            <div class="field speakerOutputLevel loudnessCompressionControl">
+              <label for="loudnessCompression">音圧調整: <span id="loudnessCompressionText">OFF</span></label>
+              <div class="loudnessCompressionInputRow">
+                <input type="range" id="loudnessCompression" min="0" max="100" step="1" value="0" aria-label="音圧調整">
+                <input type="number" id="loudnessCompressionNumber" min="0" max="100" step="1" value="0" inputmode="numeric" aria-label="音圧調整の数値入力">
+                <span aria-hidden="true">%</span>
+              </div>
+              <div class="settingsHelpText">小さい音を聞き取りやすくし、大きな音を圧縮して音量差を抑えます。0%でOFF、数値入力もできます。</div>
             </div>
           </div>
           
@@ -937,8 +946,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.12";
-  const BUILD_REVISION = 12
+  const APP_VERSION = "v7.5.13";
+  const BUILD_REVISION = 13
   const BUILD_COMMIT_ID = "dcc84f691ed04915adbc2679f41dc630a7f105b8";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
@@ -1315,7 +1324,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.5.12-r12"></script>
+<script src="js/1. ctrl.js?v=7.5.13-r13"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {

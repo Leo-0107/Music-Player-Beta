@@ -3601,3 +3601,11 @@ body.theme-light .navTab:not(:last-child) {
 
 /* v7.4.90: app-wide swipe hit area while preserving vertical scrolling */
 #shell { touch-action: pan-y; }
+
+
+/* v7.5.13: manual dynamic-range compression control */
+.loudnessCompressionInputRow { display:flex; align-items:center; gap:10px; }
+.loudnessCompressionInputRow input[type="range"] { flex:1 1 auto; min-width:0; width:100%; }
+.loudnessCompressionInputRow input[type="number"] { flex:0 0 76px; width:76px; min-width:0; padding:8px 6px; text-align:center; font-variant-numeric:tabular-nums; }
+.loudnessCompressionInputRow > span { color:var(--muted); font-size:.88rem; }
+@media (max-width:520px) { .loudnessCompressionInputRow { gap:7px; } .loudnessCompressionInputRow input[type="number"] { flex-basis:68px; width:68px; } }
