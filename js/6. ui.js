@@ -15,6 +15,24 @@
   let activeNetworkProbeController = null;
   const NETWORK_PROBE_TIMEOUT_MS = 3000;
   const NETWORK_PROBE_INTERVAL_MS = 5000;
+  const NETWORK_PROBE_URLS = [
+    "https://www.gstatic.com/generate_204",
+    "https://www.google.com/generate_204"
+  ];
+
+  async function probeInternetConnection(signal) {
+    const checks = NETWORK_PROBE_URLS.map(async endpoint => {
+      const probeUrl = new URL(endpoint);
+      probeUrl.searchParams.set("mp-network-check", String(Date.now()));
+      const response = await fetch(probeUrl.href, {
+        method: "GET", mode: "no-cors", cache: "no-store",
+        credentials: "omit", redirect: "error", signal
+      });
+      if (response.type === "opaque" || (response.ok && response.status === 204)) return true;
+      throw new Error("Internet connectivity probe did not receive a valid response");
+    });
+    return Promise.any(checks);
+  }
 
   // range thumbの中心位置は両端からthumb半径分だけ内側になるため、
   // 背景gradientの終端も実際のthumb中心座標へ合わせる。
@@ -38,8 +56,8 @@
     networkStatusElement.classList.toggle("isOnline", status === "online");
     networkStatusElement.classList.toggle("isOffline", status === "offline");
     networkStatusElement.classList.toggle("isChecking", status === "checking");
-    networkStatusElement.title = status === "online" ? "アプリの配信元へ接続できます" :
-      status === "offline" ? "アプリの配信元へ接続できません" : "ネットワーク接続を確認しています";
+    networkStatusElement.title = status === "online" ? "インターネットへ接続できます" :
+      status === "offline" ? "インターネットへ接続できません" : "インターネット接続を確認しています";
   }
   function markNetworkStatusOffline() {
     networkProbeSequence++;
@@ -62,15 +80,10 @@
     if (!networkStatusElement?.classList.contains("isOnline")) renderNetworkStatus("checking");
     const timeoutId = window.setTimeout(() => controller.abort(), NETWORK_PROBE_TIMEOUT_MS);
     try {
-      // index.html全体ではなく小さなmanifestを確認し、定期通信量を抑える。
-      // 固有クエリとService Workerのnetwork-only分岐でキャッシュ応答を避ける。
-      const probeUrl = new URL("./manifest.json?mp-network-check=" + Date.now(), document.baseURI);
-      const response = await fetch(probeUrl.href, {
-        method: "GET", cache: "no-store", credentials: "same-origin",
-        redirect: "error", signal: controller.signal
-      });
-      const reachable = response.ok && response.type === "basic" &&
-        new URL(response.url).origin === probeUrl.origin;
+      // アプリ配信元の到達性ではなく、外部ネットワークへの実通信で判定する。
+      // 2つの独立した接続確認先のうち、どちらか一方に到達できればオンライン。
+      const reachable = await probeInternetConnection(controller.signal);
+      controller.abort();
       if (sequence === networkProbeSequence && activeNetworkProbeController === controller) {
         renderNetworkStatus(reachable ? "online" : "offline");
       }
