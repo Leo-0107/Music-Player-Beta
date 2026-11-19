@@ -23,44 +23,34 @@ const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
 const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
 
-test("mini-player progress thumb matches the 3px track and aligns with the progress endpoint", () => {
+test("mini-player progress fill and thumb share one visual position", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
   assert.ok(styleSource.includes('.miniProgressWrap input[type="range"] {'));
   assert.ok(styleSource.includes("-webkit-appearance: none;"));
   assert.ok(styleSource.includes("appearance: none;"));
-  assert.ok(styleSource.includes("--mini-progress, 0px"));
-  assert.ok(styleSource.includes('syntax: "<length>";'));
+  assert.ok(styleSource.includes(".miniProgressWrap::after"));
+  assert.ok(styleSource.includes("width: var(--mini-progress-position);"));
+  assert.ok(styleSource.includes("left: var(--mini-progress-position);"));
+  assert.ok(styleSource.includes(".miniProgressThumb"));
+  assert.ok(indexSource.includes('<span class="miniProgressThumb" aria-hidden="true"></span>'));
   assert.ok(uiSource.includes("getBoundingClientRect().width"));
-  assert.ok(uiSource.includes("const thumbSize = wrap?.classList.contains(\"is-scrubbing\") ? 6 : 3;"));
+  assert.ok(uiSource.includes("const thumbSize = wrap.classList.contains(\"is-scrubbing\") ? 6 : 3;"));
   assert.ok(uiSource.includes("(progress / 100) * Math.max(0, width - thumbSize)"));
+  assert.ok(uiSource.includes('style.setProperty("--mini-progress-position"'));
+  assert.ok(uiSource.includes('style.setProperty("--mini-progress-size"'));
   assert.ok(styleSource.includes("::-webkit-slider-runnable-track"));
   assert.ok(styleSource.includes("::-moz-range-track"));
-
-
-
-  assert.ok(styleSource.includes("background-position: left center;"));
-  assert.ok(styleSource.includes("background-repeat: no-repeat;"));
-  const miniProgressRule = styleSource.slice(
-    styleSource.indexOf('.miniProgressWrap input[type="range"] {'),
-    styleSource.indexOf('.miniProgressWrap input[type="range"]::-webkit-slider-runnable-track')
-  );
-  assert.equal((miniProgressRule.match(/linear-gradient\(/g) || []).length, 1);
-  assert.equal((miniProgressRule.match(/var\(--mini-progress, 0px\)/g) || []).length, 2);
-  assert.ok(miniProgressRule.includes("background-size: 100% var(--mini-progress-size);"));
-  assert.doesNotMatch(miniProgressRule, /--mini-progress\s+\d+ms/);
-  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
-  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*width:\s*var\(--mini-progress-size\);[^}]*height:\s*var\(--mini-progress-size\);/);
-  assert.ok(styleSource.includes('.miniProgressWrap input[type="range"]::-moz-range-thumb {'));
-  assert.ok(uiSource.includes('style.setProperty("--mini-progress"'));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.09";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 9"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 9;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.09"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.09-r9'));
-  assert.ok(indexSource.includes("7.5.09-r9"));
-  assert.ok(controllerSource.includes("7.5.09-r9"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.09-r9"));
+  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
+  assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.10";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 10"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 10;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.10"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.10-r10'));
+  assert.ok(indexSource.includes("7.5.10-r10"));
+  assert.ok(controllerSource.includes("7.5.10-r10"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.10-r10"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -69,12 +59,12 @@ test("mini-player progress bar and thumb enlarge only while the pointer is held"
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]\s*\{[^}]*height:\s*20px;/);
   assert.match(styleSource, /\.miniPlayer\s*\{[^}]*padding:\s*8px 16px 10px;/);
   assert.ok(styleSource.includes("--mini-progress-size: 3px;"));
-  assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type="));
+  assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing {"));
   assert.ok(styleSource.includes("--mini-progress-size: 6px;"));
-  assert.ok(styleSource.includes('@property --mini-progress'));
-  assert.ok(styleSource.includes("transition: height 140ms ease;"));
+  assert.ok(styleSource.includes("--mini-progress-position"));
+  assert.ok(styleSource.includes("transition: width 140ms ease, height 140ms ease;"));
   assert.doesNotMatch(styleSource, /--mini-progress\s+\d+ms/);
-  assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing input[type="));
+  assert.ok(styleSource.includes(".miniProgressWrap.is-scrubbing .miniProgressThumb"));
   assert.ok(styleSource.includes("transition: none !important;"));
   assert.ok(styleSource.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(uiSource.includes('miniProgressWrap?.classList.add("is-scrubbing")'));
@@ -236,14 +226,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.09-r9"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.09-r9"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.09-r9"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.09-r9"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.10-r10"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.10-r10"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.10-r10"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.10-r10"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.09-r9"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.10-r10"));
 });
 
 

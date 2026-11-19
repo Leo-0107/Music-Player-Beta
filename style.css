@@ -578,13 +578,9 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-@property --mini-progress {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
 .miniProgressWrap {
+  --mini-progress-position: 1.5px;
+  --mini-progress-size: 3px;
   position: relative;
   width: 100%;
   height: 3px;
@@ -592,13 +588,31 @@ input[type="range"] {
   display: flex;
   align-items: center;
 }
+.miniProgressWrap::before,
+.miniProgressWrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--mini-progress-size);
+  border-radius: 999px;
+  pointer-events: none;
+}
+.miniProgressWrap::before {
+  width: 100%;
+  background: var(--panel3);
+}
+.miniProgressWrap::after {
+  width: var(--mini-progress-position);
+  background: var(--accent);
+}
 .miniProgressWrap input[type="range"] {
-  --mini-progress-size: 3px;
   -webkit-appearance: none;
   appearance: none;
   display: block;
   position: absolute;
-  z-index: 0;
+  z-index: 2;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
@@ -608,39 +622,24 @@ input[type="range"] {
   height: 20px;
   border: 0;
   border-radius: 999px;
-  background-color: transparent;
-  background-image: linear-gradient(
-    to right,
-    var(--accent) 0%,
-    var(--accent) var(--mini-progress, 0px),
-    var(--panel3) var(--mini-progress, 0px),
-    var(--panel3) 100%
-  );
-  background-size: 100% var(--mini-progress-size);
-  background-position: left center;
-  background-repeat: no-repeat;
+  background: transparent;
   cursor: pointer;
-  /* 進捗色はrange thumbと同じフレームで更新し、補間による遅れを作らない。 */
-  transition: height 140ms ease;
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-runnable-track {
   height: var(--mini-progress-size);
   border: 0;
   border-radius: 999px;
   background: transparent;
-  transition: height 140ms ease;
 }
 .miniProgressWrap input[type="range"]::-moz-range-track {
   height: var(--mini-progress-size);
   border: 0;
   border-radius: 999px;
   background: transparent;
-  transition: height 140ms ease;
 }
 .miniProgressWrap input[type="range"]::-moz-range-progress {
   height: var(--mini-progress-size);
   background: transparent;
-  transition: height 140ms ease;
 }
 .miniProgressWrap input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -650,8 +649,7 @@ input[type="range"] {
   margin: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--accent);
-  transition: width 140ms ease, height 140ms ease;
+  background: transparent;
 }
 .miniProgressWrap input[type="range"]::-moz-range-thumb {
   width: var(--mini-progress-size);
@@ -659,29 +657,48 @@ input[type="range"] {
   margin: 0;
   border: 0;
   border-radius: 50%;
+  background: transparent;
+}
+.miniProgressThumb {
+  position: absolute;
+  z-index: 1;
+  left: var(--mini-progress-position);
+  top: 50%;
+  width: var(--mini-progress-size);
+  height: var(--mini-progress-size);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
   background: var(--accent);
+  pointer-events: none;
   transition: width 140ms ease, height 140ms ease;
 }
-.miniProgressWrap.is-scrubbing input[type="range"] {
+.miniProgressWrap.is-scrubbing {
   --mini-progress-size: 6px;
-  z-index: 1;
 }
-
+.miniProgressWrap.is-scrubbing input[type="range"] {
+  z-index: 2;
+}
+.miniProgressWrap.is-scrubbing::before,
+.miniProgressWrap.is-scrubbing::after,
 .miniProgressWrap.is-scrubbing input[type="range"],
 .miniProgressWrap.is-scrubbing input[type="range"]::-webkit-slider-runnable-track,
 .miniProgressWrap.is-scrubbing input[type="range"]::-moz-range-track,
 .miniProgressWrap.is-scrubbing input[type="range"]::-moz-range-progress,
 .miniProgressWrap.is-scrubbing input[type="range"]::-webkit-slider-thumb,
-.miniProgressWrap.is-scrubbing input[type="range"]::-moz-range-thumb {
+.miniProgressWrap.is-scrubbing input[type="range"]::-moz-range-thumb,
+.miniProgressWrap.is-scrubbing .miniProgressThumb {
   transition: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
+  .miniProgressWrap::before,
+  .miniProgressWrap::after,
   .miniProgressWrap input[type="range"],
   .miniProgressWrap input[type="range"]::-webkit-slider-runnable-track,
   .miniProgressWrap input[type="range"]::-moz-range-track,
   .miniProgressWrap input[type="range"]::-moz-range-progress,
   .miniProgressWrap input[type="range"]::-webkit-slider-thumb,
-  .miniProgressWrap input[type="range"]::-moz-range-thumb {
+  .miniProgressWrap input[type="range"]::-moz-range-thumb,
+  .miniProgressWrap .miniProgressThumb {
     transition: none !important;
   }
 }
