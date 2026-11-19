@@ -12,6 +12,9 @@
 
   const networkStatusElement = document.getElementById("networkStatus");
   let networkProbeSequence = 0;
+  let activeNetworkProbeController = null;
+  const NETWORK_PROBE_TIMEOUT_MS = 3000;
+  const NETWORK_PROBE_INTERVAL_MS = 5000;
 
   // range thumbの中心位置は両端からthumb半径分だけ内側になるため、
   // 背景gradientの終端も実際のthumb中心座標へ合わせる。
@@ -38,31 +41,64 @@
     networkStatusElement.title = status === "online" ? "アプリの配信元へ接続できます" :
       status === "offline" ? "アプリの配信元へ接続できません" : "ネットワーク接続を確認しています";
   }
+  function markNetworkStatusOffline() {
+    networkProbeSequence++;
+    if (activeNetworkProbeController) {
+      activeNetworkProbeController.abort();
+      activeNetworkProbeController = null;
+    }
+    renderNetworkStatus("offline");
+  }
   async function updateNetworkStatus() {
     const sequence = ++networkProbeSequence;
+    if (activeNetworkProbeController) {
+      activeNetworkProbeController.abort();
+      activeNetworkProbeController = null;
+    }
     if (navigator.onLine === false) { renderNetworkStatus("offline"); return; }
     if (document.visibilityState === "hidden") return;
-    renderNetworkStatus("checking");
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+    activeNetworkProbeController = controller;
+    if (!networkStatusElement?.classList.contains("isOnline")) renderNetworkStatus("checking");
+    const timeoutId = window.setTimeout(() => controller.abort(), NETWORK_PROBE_TIMEOUT_MS);
     try {
-      const probeUrl = new URL("./index.html?mp-network-check=" + Date.now(), document.baseURI);
+      // index.html全体ではなく小さなmanifestを確認し、定期通信量を抑える。
+      // 固有クエリとService Workerのnetwork-only分岐でキャッシュ応答を避ける。
+      const probeUrl = new URL("./manifest.json?mp-network-check=" + Date.now(), document.baseURI);
       const response = await fetch(probeUrl.href, {
         method: "GET", cache: "no-store", credentials: "same-origin",
         redirect: "error", signal: controller.signal
       });
       const reachable = response.ok && response.type === "basic" &&
         new URL(response.url).origin === probeUrl.origin;
-      if (sequence === networkProbeSequence) renderNetworkStatus(reachable ? "online" : "offline");
+      if (sequence === networkProbeSequence && activeNetworkProbeController === controller) {
+        renderNetworkStatus(reachable ? "online" : "offline");
+      }
     } catch {
-      if (sequence === networkProbeSequence) renderNetworkStatus("offline");
-    } finally { window.clearTimeout(timeoutId); }
+      if (sequence === networkProbeSequence && activeNetworkProbeController === controller) {
+        renderNetworkStatus("offline");
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (activeNetworkProbeController === controller) activeNetworkProbeController = null;
+    }
   }
   updateNetworkStatus();
   window.addEventListener("online", updateNetworkStatus);
-  window.addEventListener("offline", () => { networkProbeSequence++; renderNetworkStatus("offline"); });
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") updateNetworkStatus(); });
-  window.setInterval(updateNetworkStatus, 15000);
+  window.addEventListener("offline", markNetworkStatusOffline);
+  window.addEventListener("focus", updateNetworkStatus);
+  window.addEventListener("pageshow", updateNetworkStatus);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") updateNetworkStatus();
+    else {
+      networkProbeSequence++;
+      if (activeNetworkProbeController) {
+        activeNetworkProbeController.abort();
+        activeNetworkProbeController = null;
+      }
+    }
+  });
+  window.setInterval(updateNetworkStatus, NETWORK_PROBE_INTERVAL_MS);
 
   function renderAll(){
     renderSongList();
