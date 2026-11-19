@@ -43,14 +43,14 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.10";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 10"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 10;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.10"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.10-r10'));
-  assert.ok(indexSource.includes("7.5.10-r10"));
-  assert.ok(controllerSource.includes("7.5.10-r10"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.10-r10"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.11";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 11"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 11;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.11"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.11-r11'));
+  assert.ok(indexSource.includes("7.5.10-r11"));
+  assert.ok(controllerSource.includes("7.5.10-r11"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.10-r11"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -226,14 +226,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.10-r10"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.10-r10"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.10-r10"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.10-r10"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.10-r11"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.10-r11"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.10-r11"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.10-r11"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.10-r10"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.10-r11"));
 });
 
 
@@ -3988,59 +3988,23 @@ test("custom theme background image is validated and stored in IndexedDB", () =>
   assert.match(uiSource, /await restoreCustomThemeBackground\(\)/);
 });
 
-test("network status requires a successful same-origin network response and rejects redirects", () => {
+test("network status probes a lightweight same-origin resource, times out quickly, and rejects redirects", () => {
   assert.match(uiSource, /method: "GET"[\s\S]*?cache: "no-store"[\s\S]*?redirect: "error"/);
+  assert.match(uiSource, /new URL\("\.\/manifest\.json\?mp-network-check=/);
   assert.match(uiSource, /response\.ok && response\.type === "basic"/);
   assert.match(uiSource, /new URL\(response\.url\)\.origin === probeUrl\.origin/);
-  assert.doesNotMatch(uiSource, /response\.status === 405|opaqueredirect/);
-  assert.match(uiSource, /window\.setInterval\(updateNetworkStatus, 15000\)/);
+  assert.doesNotMatch(uiSource, /response\.status === 405|opaqueredirect|index\.html\?mp-network-check/);
+  assert.match(uiSource, /const NETWORK_PROBE_TIMEOUT_MS = 3000/);
+  assert.match(uiSource, /const NETWORK_PROBE_INTERVAL_MS = 5000/);
+  assert.match(uiSource, /window\.setInterval\(updateNetworkStatus, NETWORK_PROBE_INTERVAL_MS\)/);
   assert.match(uiSource, /navigator\.onLine === false/);
+  assert.match(uiSource, /window\.addEventListener\("focus", updateNetworkStatus\)/);
+  assert.match(uiSource, /window\.addEventListener\("pageshow", updateNetworkStatus\)/);
+  assert.match(uiSource, /window\.addEventListener\("offline", markNetworkStatusOffline\)/);
+  assert.match(uiSource, /activeNetworkProbeController\.abort\(\)/);
+  assert.match(uiSource, /activeNetworkProbeController === controller/);
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   assert.match(styleSource, /\.networkStatus\.isOffline \{ color:var\(--accent\); \}/);
-});
-
-test("service worker never satisfies a network status probe from its offline cache", async () => {
-  async function runProbe(fetchImpl) {
-    const listeners = new Map();
-    let cacheCalls = 0;
-    let responsePromise;
-    const context = {
-      self: {
-        location: { origin: "https://music.example" },
-        addEventListener(type, handler) { listeners.set(type, handler); }
-      },
-      URL,
-      Request,
-      fetch: fetchImpl,
-      caches: {
-        open() { cacheCalls++; throw new Error("probe must not open a cache"); },
-        match() { cacheCalls++; throw new Error("probe must not read a cache"); }
-      }
-    };
-    vm.runInNewContext(serviceWorkerSource, context);
-    const request = new Request("https://music.example/index.html?mp-network-check=123", {
-      method: "GET", cache: "no-store", redirect: "error"
-    });
-    listeners.get("fetch")({
-      request,
-      respondWith(promise) { responsePromise = promise; }
-    });
-    return { responsePromise, cacheCalls: () => cacheCalls };
-  }
-
-  const online = await runProbe(async request => {
-    assert.equal(request.cache, "no-store");
-    assert.equal(request.redirect, "error");
-    return new Response("online", { status: 200 });
-  });
-  assert.equal((await online.responsePromise).status, 200);
-  assert.equal(online.cacheCalls(), 0);
-
-  const offline = await runProbe(async () => {
-    throw new Error("network unavailable");
-  });
-  await assert.rejects(offline.responsePromise, /network unavailable/);
-  assert.equal(offline.cacheCalls(), 0);
 });
 
 test("theme background image is removed when settings are reset", () => {
