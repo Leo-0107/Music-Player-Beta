@@ -43,11 +43,11 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.11";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 11"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 11;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.11"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.11-r11'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.12";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 12"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 12;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.12"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.12-r12'));
   assert.ok(indexSource.includes("7.5.11-r11"));
   assert.ok(controllerSource.includes("7.5.11-r11"));
   assert.ok(rootServiceWorkerSource.includes("7.5.11-r11"));
@@ -3988,12 +3988,15 @@ test("custom theme background image is validated and stored in IndexedDB", () =>
   assert.match(uiSource, /await restoreCustomThemeBackground\(\)/);
 });
 
-test("network status probes a lightweight same-origin resource, times out quickly, and rejects redirects", () => {
-  assert.match(uiSource, /method: "GET"[\s\S]*?cache: "no-store"[\s\S]*?redirect: "error"/);
-  assert.match(uiSource, /new URL\("\.\/manifest\.json\?mp-network-check=/);
-  assert.match(uiSource, /response\.ok && response\.type === "basic"/);
-  assert.match(uiSource, /new URL\(response\.url\)\.origin === probeUrl\.origin/);
-  assert.doesNotMatch(uiSource, /response\.status === 405|opaqueredirect|index\.html\?mp-network-check/);
+test("network status checks real internet access through independent external endpoints", async () => {
+  assert.match(uiSource, /const NETWORK_PROBE_URLS = \[/);
+  assert.match(uiSource, /https:\/\/www\.gstatic\.com\/generate_204/);
+  assert.match(uiSource, /https:\/\/www\.google\.com\/generate_204/);
+  assert.match(uiSource, /mode: "no-cors"/);
+  assert.match(uiSource, /credentials: "omit"/);
+  assert.match(uiSource, /Promise\.any\(checks\)/);
+  assert.match(uiSource, /response\.type === "opaque"/);
+  assert.doesNotMatch(uiSource, /manifest\.json\?mp-network-check|アプリの配信元へ接続/);
   assert.match(uiSource, /const NETWORK_PROBE_TIMEOUT_MS = 3000/);
   assert.match(uiSource, /const NETWORK_PROBE_INTERVAL_MS = 5000/);
   assert.match(uiSource, /window\.setInterval\(updateNetworkStatus, NETWORK_PROBE_INTERVAL_MS\)/);
@@ -4003,11 +4006,48 @@ test("network status probes a lightweight same-origin resource, times out quickl
   assert.match(uiSource, /window\.addEventListener\("offline", markNetworkStatusOffline\)/);
   assert.match(uiSource, /activeNetworkProbeController\.abort\(\)/);
   assert.match(uiSource, /activeNetworkProbeController === controller/);
-  const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
-  assert.match(styleSource, /\.networkStatus\.isOffline \{ color:var\(--accent\); \}/);
+  assert.match(uiSource, /インターネットへ接続できます/);
+
+  const probeMatch = uiSource.match(/async function probeInternetConnection\(signal\) \{[\s\S]*?\n  \}/);
+  assert.ok(probeMatch, "the internet probe helper should exist");
+  const calls = [];
+  const reachableSandbox = {
+    NETWORK_PROBE_URLS: ["https://www.gstatic.com/generate_204", "https://www.google.com/generate_204"],
+    URL, Date, Promise,
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { type: "opaque", ok: false, status: 0 };
+    }
+  };
+  vm.runInNewContext(probeMatch[0] + "; this.probeInternetConnection = probeInternetConnection;", reachableSandbox);
+  assert.equal(await reachableSandbox.probeInternetConnection(new AbortController().signal), true);
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.options.mode, "no-cors");
+    assert.equal(call.options.cache, "no-store");
+    assert.equal(call.options.credentials, "omit");
+    assert.equal(call.options.redirect, "error");
+    assert.ok(call.url.includes("mp-network-check="));
+  }
+
+  const offlineSandbox = {
+    NETWORK_PROBE_URLS: ["https://www.gstatic.com/generate_204", "https://www.google.com/generate_204"],
+    URL, Date, Promise,
+    fetch: async () => { throw new Error("network unavailable"); }
+  };
+  vm.runInNewContext(probeMatch[0] + "; this.probeInternetConnection = probeInternetConnection;", offlineSandbox);
+  await assert.rejects(offlineSandbox.probeInternetConnection(new AbortController().signal));
+
+  const invalidResponseSandbox = {
+    NETWORK_PROBE_URLS: ["https://www.gstatic.com/generate_204", "https://www.google.com/generate_204"],
+    URL, Date, Promise,
+    fetch: async () => ({ type: "basic", ok: true, status: 200 })
+  };
+  vm.runInNewContext(probeMatch[0] + "; this.probeInternetConnection = probeInternetConnection;", invalidResponseSandbox);
+  await assert.rejects(invalidResponseSandbox.probeInternetConnection(new AbortController().signal));
 });
 
-test("service worker never satisfies a network status probe from its offline cache", async () => {
+test("service worker network-only bypass never satisfies requests from its offline cache", async () => {
   async function runProbe(fetchImpl) {
     const listeners = new Map();
     let cacheCalls = 0;
