@@ -4007,6 +4007,50 @@ test("network status probes a lightweight same-origin resource, times out quickl
   assert.match(styleSource, /\.networkStatus\.isOffline \{ color:var\(--accent\); \}/);
 });
 
+test("service worker never satisfies a network status probe from its offline cache", async () => {
+  async function runProbe(fetchImpl) {
+    const listeners = new Map();
+    let cacheCalls = 0;
+    let responsePromise;
+    const context = {
+      self: {
+        location: { origin: "https://music.example" },
+        addEventListener(type, handler) { listeners.set(type, handler); }
+      },
+      URL,
+      Request,
+      fetch: fetchImpl,
+      caches: {
+        open() { cacheCalls++; throw new Error("probe must not open a cache"); },
+        match() { cacheCalls++; throw new Error("probe must not read a cache"); }
+      }
+    };
+    vm.runInNewContext(serviceWorkerSource, context);
+    const request = new Request("https://music.example/manifest.json?mp-network-check=123", {
+      method: "GET", cache: "no-store", redirect: "error"
+    });
+    listeners.get("fetch")({
+      request,
+      respondWith(promise) { responsePromise = promise; }
+    });
+    return { responsePromise, cacheCalls: () => cacheCalls };
+  }
+
+  const online = await runProbe(async request => {
+    assert.equal(request.cache, "no-store");
+    assert.equal(request.redirect, "error");
+    return new Response("online", { status: 200 });
+  });
+  assert.equal((await online.responsePromise).status, 200);
+  assert.equal(online.cacheCalls(), 0);
+
+  const offline = await runProbe(async () => {
+    throw new Error("network unavailable");
+  });
+  await assert.rejects(offline.responsePromise, /network unavailable/);
+  assert.equal(offline.cacheCalls(), 0);
+});
+
 test("theme background image is removed when settings are reset", () => {
   assert.match(audioSource, /deleteCustomThemeBackground\(\)\.finally\(\(\) => location\.reload\(\)\)/);
 });
