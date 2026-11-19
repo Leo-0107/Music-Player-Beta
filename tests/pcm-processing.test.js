@@ -43,14 +43,14 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.12";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 12"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 12;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.12"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.12-r12'));
-  assert.ok(indexSource.includes("7.5.12-r12"));
-  assert.ok(controllerSource.includes("7.5.12-r12"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.12-r12"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.13";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 13"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 13;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.13"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.13-r12'));
+  assert.ok(indexSource.includes("7.5.13-r13"));
+  assert.ok(controllerSource.includes("7.5.13-r13"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.13-r13"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -226,14 +226,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.12-r12"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.12-r12"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.12-r12"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.12-r12"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.13-r13"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.13-r13"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.13-r13"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.13-r13"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.12-r12"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.13-r13"));
 });
 
 
@@ -4278,4 +4278,18 @@ test("main content keeps vertical scrolling and clears swipe animation on button
   assert.match(uiSource, /activePanel\?\.classList\.remove\("tabSwipeInFromLeft", "tabSwipeInFromRight"\)/);
   assert.match(styleSource, /\.mainContent\s*\{\s*touch-action:\s*pan-y;\s*\}/);
   assert.match(styleSource, /#shell\s*\{\s*touch-action:\s*pan-y;\s*\}/);
+});
+
+
+test("manual dynamic-range compression control is persisted and inserted in the shared output path", () => {
+  assert.match(stateSource, /loudnessCompression: Math\.max\(0, Math\.min\(100, Math\.round\(loadNum\(STORAGE\.loudnessCompression, 0\)\)\)\)/);
+  assert.match(stateSource, /loudnessCompressionNumber: document\.getElementById\("loudnessCompressionNumber"\)/);
+  assert.match(indexSource, /id="loudnessCompression" min="0" max="100" step="1"/);
+  assert.match(indexSource, /id="loudnessCompressionNumber" min="0" max="100" step="1"/);
+  assert.match(audioSource, /function applyLoudnessCompression\(value, persist = true\)/);
+  assert.match(audioSource, /loudnessCompressorNode\.ratio\.setTargetAtTime\(1 \+ intensity \* 7/);
+  assert.match(audioSource, /const makeupDb = intensity \* 6/);
+  assert.match(audioSource, /localStorage\.setItem\(STORAGE\.loudnessCompression, String\(state\.loudnessCompression\)\)/);
+  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(playbackPrebufferDelayNode\);/);
+  assert.match(audioSource, /STORAGE\.loudnessCompression,/);
 });
