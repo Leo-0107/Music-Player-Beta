@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.13</title>
+<title>Music Player v7.5.14</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css?v=7.5.13-r13">
 <style id="responsive-song-list-fix">
@@ -64,7 +64,7 @@
 </style>
 
 <style id="file-load-progress-style">
-.fileLoadProgress{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.48);backdrop-filter:blur(4px);}
+.fileLoadProgress{position:fixed;inset:0;z-index:2147483647;isolation:isolate;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.48);backdrop-filter:blur(4px);}
 .fileLoadProgress[hidden]{display:none;}
 .fileLoadProgressCard{width:min(420px,calc(100vw - 32px));padding:18px;border-radius:14px;background:var(--panel,#181818);box-shadow:0 10px 35px rgba(0,0,0,.35);}
 .fileLoadProgressText{font-size:.9rem;margin-bottom:10px;}
@@ -946,8 +946,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.13";
-  const BUILD_REVISION = 13
+  const APP_VERSION = "v7.5.14";
+  const BUILD_REVISION = 14
   const BUILD_COMMIT_ID = "dc6685519eacafd18cd293df02fa4da8289f019c";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
