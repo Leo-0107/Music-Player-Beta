@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 12;
+  const BUILD_REVISION = 13;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -201,6 +201,7 @@
     localStorage.setItem(STORAGE.micFeedbackStrength, String(state.micFeedbackStrength));
     localStorage.setItem(STORAGE.normalizeTrackVolume, String(state.normalizeTrackVolume !== false));
     localStorage.setItem(STORAGE.outputLevelDb, String(state.outputLevelDb));
+    localStorage.setItem(STORAGE.loudnessCompression, String(state.loudnessCompression));
     localStorage.setItem(STORAGE.speakerPairSwap, "false");
     localStorage.setItem(STORAGE.visualizerSettings, JSON.stringify(state.visualizerSettings || {}));
     localStorage.setItem(STORAGE.visualizerModeSettings, JSON.stringify(state.visualizerModeSettings || {}));
@@ -223,6 +224,31 @@
       el.outputLevelDbText.textContent = (db > 0 ? "+" : "") + db.toFixed(1) + " dB";
     }
     if (outputLevelGainNode && audioCtx) outputLevelGainNode.gain.setTargetAtTime(outputLevelDbToGain(state.outputLevelDb), audioCtx.currentTime, 0.08);
+    if (persist) saveState();
+  }
+  function applyLoudnessCompression(value, persist = true) {
+    const parsed = Number(value);
+    state.loudnessCompression = Math.max(0, Math.min(100, Math.round(Number.isFinite(parsed) ? parsed : 0)));
+    const intensity = state.loudnessCompression / 100;
+    if (el.loudnessCompression) el.loudnessCompression.value = String(state.loudnessCompression);
+    if (el.loudnessCompressionNumber) el.loudnessCompressionNumber.value = String(state.loudnessCompression);
+    if (el.loudnessCompressionText) {
+      el.loudnessCompressionText.textContent = state.loudnessCompression === 0 ? "OFF" : `${state.loudnessCompression}%`;
+    }
+    if (audioCtx) {
+      const now = audioCtx.currentTime;
+      if (loudnessCompressorNode) {
+        loudnessCompressorNode.threshold.setTargetAtTime(-24, now, 0.04);
+        loudnessCompressorNode.knee.setTargetAtTime(24, now, 0.04);
+        loudnessCompressorNode.ratio.setTargetAtTime(1 + intensity * 7, now, 0.04);
+        loudnessCompressorNode.attack.setTargetAtTime(0.003, now, 0.04);
+        loudnessCompressorNode.release.setTargetAtTime(0.25, now, 0.04);
+      }
+      if (loudnessMakeupGainNode) {
+        const makeupDb = intensity * 6;
+        loudnessMakeupGainNode.gain.setTargetAtTime(Math.pow(10, makeupDb / 20), now, 0.08);
+      }
+    }
     if (persist) saveState();
   }
   function resetTrackLoudnessNormalization() {
@@ -260,6 +286,12 @@
   if (el.outputLevelDb) {
     applyOutputLevelDb(state.outputLevelDb, false);
     el.outputLevelDb.addEventListener("input", () => applyOutputLevelDb(el.outputLevelDb.value));
+  }
+  if (el.loudnessCompression || el.loudnessCompressionNumber) {
+    applyLoudnessCompression(state.loudnessCompression, false);
+    el.loudnessCompression?.addEventListener("input", () => applyLoudnessCompression(el.loudnessCompression.value));
+    el.loudnessCompressionNumber?.addEventListener("input", () => applyLoudnessCompression(el.loudnessCompressionNumber.value));
+    el.loudnessCompressionNumber?.addEventListener("change", () => applyLoudnessCompression(el.loudnessCompressionNumber.value));
   }
   if (el.normalizeTrackVolume) {
     el.normalizeTrackVolume.checked = state.normalizeTrackVolume !== false;
@@ -687,6 +719,11 @@ let mainOutputUsesNativeDestination = false;
       finalMixGainNode.gain.value = 1;
       outputLevelGainNode = audioCtx.createGain();
       outputLevelGainNode.gain.value = outputLevelDbToGain(state.outputLevelDb);
+      // 音圧調整：PCM・通常再生・マイクを含む共通ミックスの後段で
+      // 大きな音を圧縮し、メイクアップゲインで小さな音を相対的に聞き取りやすくする。
+      loudnessCompressorNode = audioCtx.createDynamicsCompressor();
+      loudnessMakeupGainNode = audioCtx.createGain();
+      applyLoudnessCompression(state.loudnessCompression, false);
 
       // --- DynamicsCompressorNode (最終クリッピング保護) ---
       // masterGain は最大2.0倍まで許可されているため、-1dB/4:1では
@@ -792,7 +829,9 @@ let mainOutputUsesNativeDestination = false;
       playbackPrebufferDelayNode = audioCtx.createDelay(MAX_PLAYBACK_PREBUFFER_MS / 1000 + 0.1);
       playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
       finalMixGainNode.connect(outputLevelGainNode);
-      outputLevelGainNode.connect(playbackPrebufferDelayNode);
+      outputLevelGainNode.connect(loudnessCompressorNode);
+      loudnessCompressorNode.connect(loudnessMakeupGainNode);
+      loudnessMakeupGainNode.connect(playbackPrebufferDelayNode);
       playbackPrebufferDelayNode.connect(speakerBusNode);
 
       speakerBusNode.connect(channelSplitter);
@@ -2128,6 +2167,7 @@ let mainOutputUsesNativeDestination = false;
             STORAGE.micFeedbackStrength,
             STORAGE.normalizeTrackVolume,
             STORAGE.outputLevelDb,
+            STORAGE.loudnessCompression,
             STORAGE.speakerPairSwap,
             STORAGE.visualizerSettings,
             STORAGE.visualizerModeSettings,
