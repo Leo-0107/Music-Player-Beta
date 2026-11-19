@@ -3146,7 +3146,9 @@ test("PCM insertion boundary traverses the shared stereo output and optional cli
     "trackLoudnessGainNode.connect(masterGain);",
     "masterGain.connect(finalMixGainNode);",
     "finalMixGainNode.connect(outputLevelGainNode);",
-    "outputLevelGainNode.connect(playbackPrebufferDelayNode);",
+    "outputLevelGainNode.connect(loudnessCompressorNode);",
+    "loudnessCompressorNode.connect(loudnessMakeupGainNode);",
+    "loudnessMakeupGainNode.connect(playbackPrebufferDelayNode);",
     "playbackPrebufferDelayNode.connect(speakerBusNode);",
     "speakerBusNode.connect(channelSplitter);",
     "leftGainNode.connect(channelMerger, 0, 0);",
@@ -3937,7 +3939,7 @@ test("track loudness normalization and manual output level share the protected o
   assert.match(audioSource, /trackLoudnessAnalyser\.connect\(trackLoudnessGainNode\)/);
   assert.match(audioSource, /trackLoudnessGainNode\.connect\(masterGain\)/);
   assert.match(audioSource, /finalMixGainNode\.connect\(outputLevelGainNode\)/);
-  assert.match(audioSource, /outputLevelGainNode\.connect\(playbackPrebufferDelayNode\)/);
+  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(playbackPrebufferDelayNode\);/);
   assert.match(indexSource, /id="normalizeTrackVolume"/);
   assert.match(indexSource, /id="outputLevelDb"/);
 });
