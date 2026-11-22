@@ -43,15 +43,15 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.14";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 14"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.15";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 15"));
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 14;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.14"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.14-r14'));
-  assert.ok(indexSource.includes("7.5.14-r14"));
-  assert.ok(controllerSource.includes("7.5.14-r14"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.14-r14"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 15;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.15"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.15-r15'));
+  assert.ok(indexSource.includes("7.5.15-r15"));
+  assert.ok(controllerSource.includes("7.5.15-r15"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.15-r15"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -227,14 +227,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.14-r14"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.14-r14"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.14-r14"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.14-r14"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.15-r15"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.15-r15"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.15-r15"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.15-r15"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.14-r14"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.15-r15"));
 });
 
 
@@ -2715,7 +2715,7 @@ test("audio graph exposes and clears the stable post-DSP PCM insertion boundary"
 
 test("MediaElement fallback preserves the PCM position and resumes through the existing Web Audio graph", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2745,8 +2745,6 @@ test("MediaElement fallback preserves the PCM position and resumes through the e
     currentRate: 1.25,
     filters: [{}],
     audioCtx: null,
-    playbackPrebufferDelayNode: null,
-    playbackPrebufferMs: 100,
     ensureGraph() { events.push("ensureGraph"); },
     setGraphInputNode(node, target) { graphInput.node = node; graphInput.target = target; },
     updatePitchShiftNode() { events.push("updatePitchShiftNode"); },
@@ -2773,7 +2771,7 @@ test("MediaElement fallback preserves the PCM position and resumes through the e
 
 test("MediaElement fallback keeps a paused PCM session paused", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2797,8 +2795,6 @@ test("MediaElement fallback keeps a paused PCM session paused", async () => {
     currentRate: 1,
     filters: [],
     audioCtx: null,
-    playbackPrebufferDelayNode: null,
-    playbackPrebufferMs: 100,
     ensureGraph() {},
     setGraphInputNode() {},
     updatePitchShiftNode() {},
@@ -2818,7 +2814,7 @@ test("MediaElement fallback keeps a paused PCM session paused", async () => {
 
 test("MediaElement fallback waits for delayed metadata before restoring seek and resuming", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2846,8 +2842,6 @@ test("MediaElement fallback waits for delayed metadata before restoring seek and
     currentRate: 1.5,
     filters: [{}],
     audioCtx: null,
-    playbackPrebufferDelayNode: null,
-    playbackPrebufferMs: 100,
     ensureGraph() {},
     setGraphInputNode() {},
     updatePitchShiftNode() {},
@@ -2872,7 +2866,7 @@ test("MediaElement fallback waits for delayed metadata before restoring seek and
 
 test("MediaElement fallback timeout stays paused and restores the saved seek when metadata arrives later", async () => {
   const start = audioSource.indexOf("async function switchBufferedPlaybackToMediaElement(");
-  const end = audioSource.indexOf("\n  function setPlaybackPrebufferMs", start);
+  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
   assert.ok(start >= 0 && end > start, "audio.js fallback function must exist");
   const fallbackSource = audioSource.slice(start, end);
 
@@ -2900,8 +2894,6 @@ test("MediaElement fallback timeout stays paused and restores the saved seek whe
     currentRate: 1,
     filters: [{}],
     audioCtx: null,
-    playbackPrebufferDelayNode: null,
-    playbackPrebufferMs: 100,
     ensureGraph() {},
     setGraphInputNode() {},
     updatePitchShiftNode() {},
@@ -3149,8 +3141,7 @@ test("PCM insertion boundary traverses the shared stereo output and optional cli
     "finalMixGainNode.connect(outputLevelGainNode);",
     "outputLevelGainNode.connect(loudnessCompressorNode);",
     "loudnessCompressorNode.connect(loudnessMakeupGainNode);",
-    "loudnessMakeupGainNode.connect(playbackPrebufferDelayNode);",
-    "playbackPrebufferDelayNode.connect(speakerBusNode);",
+    "loudnessMakeupGainNode.connect(speakerBusNode);",
     "speakerBusNode.connect(channelSplitter);",
     "leftGainNode.connect(channelMerger, 0, 0);",
     "rightGainNode.connect(channelMerger, 0, 1);",
@@ -3268,7 +3259,6 @@ test("audio proxy does not start MediaElement playback when fallback cannot rest
     },
     state: { currentSong: { mediaType: "audio" } },
     setGraphInputNode() {},
-    setPlaybackPrebufferMs() {},
     sourceNode: {},
     filters: [{}]
   };
@@ -3324,10 +3314,8 @@ test("audio proxy routes local audio to PCM while local video and YouTube stay o
       mediaElement,
       bufferedPlaybackMode: false,
       bufferedPlaybackEngine: engine,
-      playbackPrebufferMs: 100,
       state: { currentSong: { mediaType } },
       setGraphInputNode(...args) { graphCalls.push(args); },
-      setPlaybackPrebufferMs(value) { sandbox.prebufferValue = value; },
       sourceNode: { id: "native-source" },
       filters: [{ id: "eq" }]
     };
@@ -3343,7 +3331,6 @@ test("audio proxy routes local audio to PCM while local video and YouTube stay o
   assert.deepEqual(localAudio.mediaElement.removedAttributes, ["src"]);
   assert.equal(localAudio.mediaElement.loadCalls, 1);
   assert.equal(localAudio.graphCalls[0][0], null);
-  assert.equal(localAudio.sandbox.prebufferValue, 100);
 
   const localVideo = createHarness("video");
   localVideo.sandbox.audio.src = "blob:local-video";
@@ -3813,54 +3800,15 @@ test("YouTube iframe audio is muted on custom output routing and prior mute stat
 });
 
 
-test("playback prebuffer slider applies the new delay only after the range change is committed", () => {
-  const start = uiSource.indexOf("if (playbackPrebufferSlider) {");
-  const end = uiSource.indexOf("\n  if (playbackPrebufferNumber)", start);
-  assert.ok(start >= 0 && end > start, "prebuffer slider handlers must exist");
-  const handlers = uiSource.slice(start, end);
-  const inputHandler = handlers.slice(0, handlers.indexOf('addEventListener("change"'));
-  assert.match(inputHandler, /addEventListener\("input"[\s\S]*?syncPlaybackPrebufferControls\(previewValue\)/);
-  assert.doesNotMatch(inputHandler, /setPlaybackPrebufferMs/);
-  assert.match(handlers, /addEventListener\("change"[\s\S]*?setPlaybackPrebufferMs\(event\.target\.value\)/);
+test("the artificial playback delay is removed while the PCM engine's internal prebuffer remains", () => {
+  assert.doesNotMatch(audioSource, /playbackPrebufferDelayNode|setPlaybackPrebufferMs|PLAYBACK_PREBUFFER_STORAGE_KEY/);
+  assert.doesNotMatch(uiSource, /playbackPrebufferSlider|playbackPrebufferNumber|setPlaybackPrebufferMs/);
+  assert.doesNotMatch(indexSource, /playbackPrebufferSlider|playbackPrebufferNumber|音声先行バッファ/);
+  assert.match(audioSource, /loudnessMakeupGainNode\.connect\(speakerBusNode\)/);
+  assert.match(engineSource, /startBufferFrames:\s*8192/);
+  assert.match(engineSource, /lookAheadSeconds:\s*0\.25/);
 });
 
-test("manual playback prebuffer limit is 5000ms while the range slider remains 500ms", () => {
-  assert.match(audioSource, /const MAX_PLAYBACK_PREBUFFER_MS = 5000;/);
-  assert.match(audioSource, /createDelay\(MAX_PLAYBACK_PREBUFFER_MS \/ 1000 \+ 0\.1\)/);
-  assert.match(uiSource, /const MAX_PLAYBACK_PREBUFFER_SLIDER_MS = 500;/);
-  assert.match(uiSource, /Math\.min\(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, Math\.round\(Number\(event\.target\.value\) \|\| 0\)\)/);
-  assert.match(uiSource, /playbackPrebufferSlider\.value = String\(Math\.min\(MAX_PLAYBACK_PREBUFFER_SLIDER_MS, value\)\)/);
-  assert.match(uiSource, /playbackPrebufferNumber\.value = String\(value\)/);
-  assert.match(indexSource, /id="playbackPrebufferSlider" min="0" max="500"/);
-  assert.match(indexSource, /id="playbackPrebufferNumber" min="0" max="5000"/);
-
-  const start = audioSource.indexOf("function setPlaybackPrebufferMs(value)");
-  const end = audioSource.indexOf("\n  let outputTransitionPromise", start);
-  assert.ok(start >= 0 && end > start, "prebuffer setter must exist");
-  const setterSource = audioSource.slice(start, end);
-  const stored = [];
-  const delayCalls = [];
-  const sandbox = {
-    DEFAULT_PLAYBACK_PREBUFFER_MS: 100,
-    MAX_PLAYBACK_PREBUFFER_MS: 5000,
-    PLAYBACK_PREBUFFER_STORAGE_KEY: "mp_playback_prebuffer_ms_v1",
-    playbackPrebufferMs: 100,
-    localStorage: { setItem(key, value) { stored.push([key, value]); } },
-    audioCtx: { currentTime: 3 },
-    playbackPrebufferDelayNode: {
-      delayTime: {
-        cancelScheduledValues(time) { delayCalls.push(["cancel", time]); },
-        setTargetAtTime(value, time, constant) { delayCalls.push(["set", value, time, constant]); }
-      }
-    }
-  };
-  vm.runInNewContext(setterSource + "\nthis.setPlaybackPrebufferMs = setPlaybackPrebufferMs;", sandbox);
-  assert.equal(sandbox.setPlaybackPrebufferMs(9000), 5000);
-  assert.equal(sandbox.playbackPrebufferMs, 5000);
-  assert.deepEqual(stored.at(-1), ["mp_playback_prebuffer_ms_v1", "5000"]);
-  assert.deepEqual(delayCalls.at(-1), ["set", 5, 3, 0.025]);
-  assert.equal(sandbox.setPlaybackPrebufferMs(-20), 0);
-});
 
 test("left-right pan offsets remain effective in 4D, 8D, and 16D orbit modes", () => {
   const start = audioSource.indexOf("function updateSpatialAudio(dt)");
@@ -3940,7 +3888,7 @@ test("track loudness normalization and manual output level share the protected o
   assert.match(audioSource, /trackLoudnessAnalyser\.connect\(trackLoudnessGainNode\)/);
   assert.match(audioSource, /trackLoudnessGainNode\.connect\(masterGain\)/);
   assert.match(audioSource, /finalMixGainNode\.connect\(outputLevelGainNode\)/);
-  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(playbackPrebufferDelayNode\);/);
+  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(speakerBusNode\);/);
   assert.match(indexSource, /id="normalizeTrackVolume"/);
   assert.match(indexSource, /id="outputLevelDb"/);
 });
@@ -4293,6 +4241,6 @@ test("manual dynamic-range compression control is persisted and inserted in the 
   assert.match(audioSource, /loudnessCompressorNode\.ratio\.setTargetAtTime\(1 \+ intensity \* 7/);
   assert.match(audioSource, /const makeupDb = intensity \* 6/);
   assert.match(audioSource, /localStorage\.setItem\(STORAGE\.loudnessCompression, String\(state\.loudnessCompression\)\)/);
-  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(playbackPrebufferDelayNode\);/);
+  assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(speakerBusNode\);/);
   assert.match(audioSource, /STORAGE\.loudnessCompression,/);
 });

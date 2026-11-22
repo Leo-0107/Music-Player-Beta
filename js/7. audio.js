@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 14;
+  const BUILD_REVISION = 15;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -462,22 +462,7 @@
   }
 
 
-const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
-  const DEFAULT_PLAYBACK_PREBUFFER_MS = 100;
-  const MAX_PLAYBACK_PREBUFFER_MS = 5000;
-  function readPlaybackPrebufferMs() {
-    try {
-      const raw = localStorage.getItem(PLAYBACK_PREBUFFER_STORAGE_KEY);
-      if (raw === null || raw === "") return DEFAULT_PLAYBACK_PREBUFFER_MS;
-      const stored = Number(raw);
-      return Number.isFinite(stored) ? Math.max(0, Math.min(MAX_PLAYBACK_PREBUFFER_MS, Math.round(stored))) : DEFAULT_PLAYBACK_PREBUFFER_MS;
-    } catch (e) {
-      return DEFAULT_PLAYBACK_PREBUFFER_MS;
-    }
-  }
-  let playbackPrebufferMs = readPlaybackPrebufferMs();
-  let playbackPrebufferDelayNode = null;
-  let graphInputOwnership = null;
+let graphInputOwnership = null;
 
   function getGraphInputOwnership() {
     if (!graphInputOwnership) graphInputOwnership = new PcmGraphInputOwnership();
@@ -516,11 +501,6 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
     mediaElement.playbackRate = currentRate;
     mediaElement.preservesPitch = true;
     setGraphInputNode(sourceNode, filters?.[0] || null);
-    if (playbackPrebufferDelayNode && audioCtx) {
-      const now = audioCtx.currentTime;
-      playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
-      playbackPrebufferDelayNode.delayTime.setTargetAtTime(playbackPrebufferMs / 1000, now, 0.025);
-    }
     updatePitchShiftNode();
 
     const seekPosition = Math.max(0, Number(position) || 0);
@@ -564,21 +544,6 @@ const PLAYBACK_PREBUFFER_STORAGE_KEY = "mp_playback_prebuffer_ms_v1";
 
     if (shouldResume) await mediaElement.play();
     return true;
-  }
-
-  function setPlaybackPrebufferMs(value) {
-    let next = Number(value);
-    if (!Number.isFinite(next)) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
-    next = Math.max(0, Math.min(MAX_PLAYBACK_PREBUFFER_MS, Math.round(next)));
-    if (Math.abs(next - DEFAULT_PLAYBACK_PREBUFFER_MS) <= 8) next = DEFAULT_PLAYBACK_PREBUFFER_MS;
-    playbackPrebufferMs = next;
-    try { localStorage.setItem(PLAYBACK_PREBUFFER_STORAGE_KEY, String(next)); } catch (e) {}
-    if (playbackPrebufferDelayNode && audioCtx) {
-      const now = audioCtx.currentTime;
-      playbackPrebufferDelayNode.delayTime.cancelScheduledValues(now);
-      playbackPrebufferDelayNode.delayTime.setTargetAtTime(next / 1000, now, 0.025);
-    }
-    return playbackPrebufferMs;
   }
 
   let outputTransitionPromise = Promise.resolve();
@@ -824,15 +789,12 @@ let mainOutputUsesNativeDestination = false;
       micGainNode.connect(finalMixGainNode);
 
       speakerBusNode = audioCtx.createGain();
-      // 先行バッファはメイン出力と追加スピーカーに共通するバスの手前へ置く。
-      // これにより、追加出力や音割れ防止設定の切替でもバッファ経路を迂回しない。
-      playbackPrebufferDelayNode = audioCtx.createDelay(MAX_PLAYBACK_PREBUFFER_MS / 1000 + 0.1);
-      playbackPrebufferDelayNode.delayTime.value = playbackPrebufferMs / 1000;
+      // PCMエンジン側の内部バッファで音声データを先行準備する。
+      // 出力経路には追加の固定遅延を挿入せず、スピーカーバスへ直接接続する。
       finalMixGainNode.connect(outputLevelGainNode);
       outputLevelGainNode.connect(loudnessCompressorNode);
       loudnessCompressorNode.connect(loudnessMakeupGainNode);
-      loudnessMakeupGainNode.connect(playbackPrebufferDelayNode);
-      playbackPrebufferDelayNode.connect(speakerBusNode);
+      loudnessMakeupGainNode.connect(speakerBusNode);
 
       speakerBusNode.connect(channelSplitter);
       channelSplitter.connect(leftGainNode, 0, 0);
@@ -842,7 +804,6 @@ let mainOutputUsesNativeDestination = false;
       rightGainNode.connect(channelMerger, 0, 1);
 
       // 最終クリッピング保護はL/R個別ゲインの「後」に置く。
-      // 先行バッファは共通スピーカーバスの手前にあるため、ここでは従来どおり接続する。
       if (state.clippingProtection) {
         channelMerger.connect(limiterNode);
         limiterNode.connect(outputSplitter);
