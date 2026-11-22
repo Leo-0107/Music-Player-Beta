@@ -491,7 +491,6 @@
                 bufferedPlaybackEngine.clear();
                 bufferedPlaybackMode = false;
                 if (typeof setGraphInputNode === "function") setGraphInputNode(sourceNode, filters?.[0] || null);
-                if (typeof setPlaybackPrebufferMs === "function") setPlaybackPrebufferMs(playbackPrebufferMs);
               }
               return target.removeAttribute(name);
             };
@@ -512,13 +511,11 @@
             target.load();
           } catch {}
           if (typeof setGraphInputNode === "function") setGraphInputNode(null);
-          if (typeof setPlaybackPrebufferMs === "function") setPlaybackPrebufferMs(playbackPrebufferMs);
           return true;
         }
         if (bufferedPlaybackEngine) bufferedPlaybackEngine.clear();
         bufferedPlaybackMode = false;
         if (typeof setGraphInputNode === "function") setGraphInputNode(sourceNode, filters?.[0] || null);
-        if (typeof setPlaybackPrebufferMs === "function") setPlaybackPrebufferMs(playbackPrebufferMs);
         return Reflect.set(target, property, value, target);
       }
       if (bufferedPlaybackMode && bufferedPlaybackEngine) {
