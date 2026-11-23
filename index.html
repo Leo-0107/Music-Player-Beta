@@ -67,10 +67,10 @@
 <style id="file-load-progress-style">
 .fileLoadProgress{
   position:fixed;
-  right:max(10px,env(safe-area-inset-right));
+  right:max(10px,env(safe-area-inset-right,0px));
   bottom:var(--file-load-progress-bottom,160px);
   z-index:1100;
-  width:min(280px,calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  width:min(280px,calc(100vw - 20px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));
   display:block;
   pointer-events:none;
 }
