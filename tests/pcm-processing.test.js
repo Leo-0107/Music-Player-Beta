@@ -148,9 +148,9 @@ test("PCM queue diagnostics publish an empty snapshot after scheduler terminal t
     assert.notEqual(start, -1, `${method} method exists`);
     const end = schedulerSource.indexOf("\n  }", start);
     assert.notEqual(end, -1, `${method} method closes`);
-    assert.match(schedulerSource.slice(start, end), /this\\.publishQueueDiagnostics\\(\\)/);
+    assert.match(schedulerSource.slice(start, end), /this\.publishQueueDiagnostics\(\)/);
   }
-  assert.match(schedulerSource, /const availableFrames = ring\\s*\\?/);
+  assert.match(schedulerSource, /const availableFrames = ring\s*\?/);
 });
 
 test("audio diagnostics expose optional queue, playback, sink, and route calibration metrics", () => {
