@@ -2048,7 +2048,7 @@ body.output-device-modal-open .sidebar {
   .settingsTools .sectionTitle { font-size: .9rem; }
 }
 @media (max-width: 420px) {
-  .settingsToolRow { grid-template-columns: 1fr; }
+  .settingsDataTools .settingsTools:first-child .settingsToolRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settingsTitleRow { gap: 7px; }
   .settingsTitleRow #settingsSearch { width: 55%; font-size: .82rem; }
 }
