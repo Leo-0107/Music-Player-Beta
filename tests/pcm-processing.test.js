@@ -37,6 +37,46 @@ test("ZIP size rejection message is derived from the enforced limit", () => {
   assert.doesNotMatch(librarySource, /上限512MB/);
 });
 
+test("permanently disposed additional output runtimes disconnect every audio stage", () => {
+  const start = outputSource.indexOf("function disposeAdditionalOutputRuntime(");
+  const end = outputSource.indexOf("\n  function disconnectAdditionalOutputRuntime", start);
+  assert.ok(start >= 0 && end > start);
+  const helperSource = outputSource.slice(start, end);
+  const makeNode = () => ({
+    disconnected: false,
+    disconnect() { this.disconnected = true; }
+  });
+  const speakerBusNode = { disconnected: false, disconnect() { this.disconnected = true; } };
+  const audio = {
+    paused: false,
+    srcObject: {},
+    removed: false,
+    pause() { this.paused = true; },
+    remove() { this.removed = true; }
+  };
+  const runtime = {
+    audio,
+    connected: true,
+    splitter: makeNode(),
+    leftGain: makeNode(),
+    rightGain: makeNode(),
+    merger: makeNode(),
+    limiterNode: makeNode(),
+    delayNode: makeNode()
+  };
+  const sandbox = { speakerBusNode };
+  vm.runInNewContext(helperSource + "\nthis.disposeRuntime = disposeAdditionalOutputRuntime;", sandbox);
+  sandbox.disposeRuntime(runtime);
+  assert.equal(speakerBusNode.disconnected, true);
+  for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.delayNode]) {
+    assert.equal(node.disconnected, true);
+  }
+  assert.equal(runtime.connected, false);
+  assert.equal(audio.paused, true);
+  assert.equal(audio.srcObject, null);
+  assert.equal(audio.removed, true);
+});
+
 test("additional speaker route graph applies compression before optional delay", () => {
   const start = outputSource.indexOf("function applyAdditionalOutputRouteGraph(");
   const end = outputSource.indexOf("\n  function applyAllSpeakerDelayNodes", start);
