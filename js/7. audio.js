@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 20;
+  const BUILD_REVISION = 21;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -153,21 +153,86 @@
   function updateTitleTextAndScroll(element, text) {
     if (!element) return;
     const container = element.closest(".scroll-container");
+    const isTopSongTitle = element.id === "nowTitle";
     element.classList.remove("scrolling");
     element.style.animationPlayState = "paused";
     element.textContent = text;
 
+    let baseFontSize = 0;
+    if (isTopSongTitle) {
+      if (!element.dataset.fitBaseFontSize) {
+        element.dataset.fitBaseFontSize = String(parseFloat(getComputedStyle(element).fontSize) || 18.4);
+      }
+      baseFontSize = Number(element.dataset.fitBaseFontSize) || 18.4;
+      element.style.fontSize = `${baseFontSize}px`;
+    }
+
     requestAnimationFrame(() => {
       if (!container) return;
-      const overflow = element.scrollWidth - container.clientWidth;
-      if (overflow > 6) {
+
+      if (isTopSongTitle) {
+        const availableWidth = container.clientWidth;
+        if (availableWidth <= 0) return;
+
+        // まず標準サイズを試し、収まらない場合だけ読みやすさを保てる範囲で縮小する。
+        const minFontSize = Math.max(12, baseFontSize * 0.7);
+        const fits = size => {
+          element.style.fontSize = `${size}px`;
+          return element.scrollWidth <= availableWidth + 1;
+        };
+
+        let overflow = 0;
+        if (!fits(baseFontSize)) {
+          if (fits(minFontSize)) {
+            let low = minFontSize;
+            let high = baseFontSize;
+            for (let i = 0; i < 10; i++) {
+              const middle = (low + high) / 2;
+              if (fits(middle)) low = middle;
+              else high = middle;
+            }
+            fits(low);
+          } else {
+            element.style.fontSize = `${minFontSize}px`;
+            overflow = element.scrollWidth - availableWidth;
+          }
+        }
+
+        if (overflow <= 6) return;
         element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
-        element.classList.add("scrolling");
-        if (container._isIntersecting && document.visibilityState === "visible") {
-          element.style.animationPlayState = "running";
+      } else {
+        const overflow = element.scrollWidth - container.clientWidth;
+        if (overflow > 6) {
+          element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
+        } else {
+          return;
         }
       }
+
+      element.classList.add("scrolling");
+      if (container._isIntersecting && document.visibilityState === "visible") {
+        element.style.animationPlayState = "running";
+      }
     });
+  }
+
+  // 上部曲名の表示領域が変わったときも、同じ曲名を再計測してサイズを合わせる。
+  if (el.nowTitle) {
+    const nowTitleContainer = el.nowTitle.closest(".scroll-container");
+    let nowTitleResizeFrame = 0;
+    const refitNowTitle = () => {
+      if (nowTitleResizeFrame) cancelAnimationFrame(nowTitleResizeFrame);
+      nowTitleResizeFrame = requestAnimationFrame(() => {
+        nowTitleResizeFrame = 0;
+        updateTitleTextAndScroll(el.nowTitle, el.nowTitle.textContent || "");
+      });
+    };
+    if (nowTitleContainer && typeof ResizeObserver !== "undefined") {
+      const nowTitleResizeObserver = new ResizeObserver(refitNowTitle);
+      nowTitleResizeObserver.observe(nowTitleContainer);
+    }
+    window.addEventListener("resize", refitNowTitle, { passive: true });
+    window.addEventListener("orientationchange", refitNowTitle, { passive: true });
   }
 
   function saveState(){
