@@ -2102,7 +2102,14 @@ let mainOutputUsesNativeDestination = false;
       showInSiteConfirm(
         "すべての設定を初期化しますか？",
         "音楽ファイルやプレイリストなどのデータは残したまま、設定だけを初回アクセス時の状態に戻します。",
-        () => {
+        async () => {
+          // IndexedDBの削除が成功するまでは、他の設定や保存データに触れない。
+          const backgroundDeleted = await deleteCustomThemeBackground();
+          if (!backgroundDeleted) {
+            toast("背景画像の削除に失敗したため、設定の初期化を中止しました。時間をおいて再試行してください。");
+            return;
+          }
+
           [
             STORAGE.eqState,
             STORAGE.volume,
@@ -2142,7 +2149,7 @@ let mainOutputUsesNativeDestination = false;
           if (sleepIntervalId) clearInterval(sleepIntervalId);
 
           try { localStorage.removeItem(CUSTOM_THEME_BACKGROUND_LAYOUT_KEY); } catch {}
-          deleteCustomThemeBackground().finally(() => location.reload());
+          location.reload();
         },
         "初期化"
       );
