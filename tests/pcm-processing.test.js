@@ -205,9 +205,9 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(indexSource.includes("const BUILD_REVISION = 23"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 22;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 23;"));
   assert.ok(manifestSource.includes("Music Player v7.5.23"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.23-r22'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.23-r23'));
   assert.ok(indexSource.includes("7.5.23-r23"));
   assert.ok(controllerSource.includes("7.5.23-r23"));
   assert.ok(rootServiceWorkerSource.includes("7.5.23-r23"));
@@ -4414,7 +4414,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.23-r22",
+        "music-player-app-v7.5.23-r23",
         "another-app-cache",
         "shared-site-cache"
       ],
