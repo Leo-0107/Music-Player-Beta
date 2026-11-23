@@ -549,9 +549,9 @@ class PcmOutputScheduler {
   publishQueueDiagnostics() {
     if (typeof window === "undefined") return;
     const ring = this.queue?.ringBuffer;
-    const availableFrames = Number.isFinite(Number(ring?.availableFrames))
-      ? Math.max(0, Number(ring.availableFrames))
-      : null;
+    const availableFrames = ring
+      ? (Number.isFinite(Number(ring.availableFrames)) ? Math.max(0, Number(ring.availableFrames)) : null)
+      : 0;
     const capacityFrames = Number.isFinite(Number(ring?.capacityFrames))
       ? Math.max(0, Number(ring.capacityFrames))
       : null;
@@ -803,6 +803,7 @@ class PcmOutputScheduler {
     this.pausedFrame = this.nextFrame;
     this.queue = null;
     this.isDraining = false;
+    this.publishQueueDiagnostics();
     if (wasDraining) {
       try { this.onDrained?.(this.pausedFrame); } catch (error) {}
     } else {
@@ -845,6 +846,7 @@ class PcmOutputScheduler {
     this.pausedFrame = frame;
     this.initialFrame = frame;
     this.clockSegments = [];
+    this.publishQueueDiagnostics();
     try { this.onError?.(error, frame); } catch (ignore) {}
   }
 
@@ -869,6 +871,7 @@ class PcmOutputScheduler {
     this.hasScheduledData = false;
     this.hasStartTimeAnchor = false;
     this.isDraining = false;
+    this.publishQueueDiagnostics();
     return frame;
   }
 }
