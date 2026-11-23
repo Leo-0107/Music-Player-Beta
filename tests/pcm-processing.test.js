@@ -77,6 +77,15 @@ test("additional speaker routes use the same optional peak compression stage", (
   assert.match(outputSource, /for \(const route of state\.outputRoutes \|\| \[\]\)[\s\S]*?applyAdditionalOutputRouteGraph\(runtime, route\.delayMs\)/);
 });
 
+test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
+  assert.match(indexSource, /jszip\\.min\\.js" integrity="sha256-rMfkFFWoB2W1\\/Zx\\+4bgHim0WC7vKRVrq6FTeZclH1Z4=" crossorigin="anonymous"/);
+});
+
+test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
+  assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
+  assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
+});
+
 test("peak compression UI does not promise a True Peak ceiling", () => {
   assert.match(indexSource, /ピーク圧縮: ON/);
   assert.match(indexSource, /True Peakの絶対上限を保証する機能ではありません/);
