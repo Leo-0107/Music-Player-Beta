@@ -417,12 +417,32 @@ input[type="range"] {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 5px 4px 2px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
   color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.songArtistGroupName { min-width: 0; color: var(--text); font-size: .9rem; font-weight: 700; overflow-wrap: anywhere; }
-.songArtistGroupCount { flex: none; font-size: .74rem; color: var(--muted); }
+.songArtistGroupHeader:hover,
+.songArtistGroupHeader[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--panel2) 72%, transparent);
+}
+.songArtistGroupHeader:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.songArtistGroupName { min-width: 0; color: var(--text); font-size: .92rem; font-weight: 700; overflow-wrap: anywhere; }
+.songArtistGroupHeaderRight { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.songArtistGroupCount { font-size: .74rem; color: var(--muted); }
+.songArtistGroupChevron { width: 1em; color: var(--muted); font-size: 1.2rem; line-height: 1; text-align: center; }
 .songArtistGroupList { display: flex; flex-direction: column; gap: 8px; }
+.songArtistGroupList[hidden] { display: none !important; }
 
 .song {
   display: flex;
