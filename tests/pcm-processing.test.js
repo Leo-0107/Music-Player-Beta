@@ -43,15 +43,16 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.15";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 15"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.16";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 16"));
+  // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 15;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.15"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.15-r15'));
-  assert.ok(indexSource.includes("7.5.15-r15"));
-  assert.ok(controllerSource.includes("7.5.15-r15"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.15-r15"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 16;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.16"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.16-r16'));
+  assert.ok(indexSource.includes("7.5.16-r16"));
+  assert.ok(controllerSource.includes("7.5.16-r16"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.16-r16"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -227,14 +228,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.15-r15"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.15-r15"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.15-r15"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.15-r15"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.16-r16"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.16-r16"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.16-r16"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.16-r16"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.15-r15"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.16-r16"));
 });
 
 
@@ -3613,6 +3614,9 @@ test("multiple speaker output is opt-in and defaults to OFF", () => {
   assert.equal(sandbox.isMultipleOutputEnabled(), true);
   assert.match(stateSource, /multipleOutputEnabled:\s*false/);
   assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
+  assert.doesNotMatch(stateSource, /state\.speakerSettings\.outputRoutingBlocked = false/);
+  assert.match(outputSource, /if \(routingBlocked\) \{[\s\S]*?stopAllAdditionalOutputRuntimes\(\)/);
+  assert.match(outputSource, /const isMain = state\.speakerSettings\?\.outputRoutingBlocked !== true/);
   assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力：OFF/);
   assert.ok(outputSource.includes('const normalized = isMultipleOutputEnabled() ? requestedId : ""'));
   assert.match(outputSource, /複数出力ONで使用/);
@@ -3728,6 +3732,47 @@ test("routing failure mutes the main sink and bridge and persists a blocked stat
   assert.equal(bridge.paused, true);
   assert.equal(stopped, 1);
   assert.equal(saved, 1);
+});
+
+
+test("a disconnected selected main output is detected and remains fail-closed until explicit reselection", () => {
+  const start = outputSource.indexOf("  function getDisconnectedSelectedMainOutputId(");
+  const end = outputSource.indexOf("\n  let lastSystemDefaultOutputDeviceId", start);
+  assert.ok(start >= 0 && end > start, "selected-output disconnect detector must exist");
+  const functionSource = outputSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(functionSource + "\nthis.getDisconnectedSelectedMainOutputId = getDisconnectedSelectedMainOutputId;", sandbox);
+  const previouslyKnown = new Set(["bluetooth-headset", "wired-speaker"]);
+  const afterDisconnect = [
+    { kind: "audiooutput", deviceId: "default" },
+    { kind: "audiooutput", deviceId: "wired-speaker" }
+  ];
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "bluetooth-headset", true),
+    "bluetooth-headset"
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "wired-speaker", true),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "new-device", true),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "bluetooth-headset", false),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "default", true),
+    ""
+  );
+  assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\) \{[\s\S]*?muteAllAppOutputsForRoutingFailure\(disconnectedSelectedMainOutputId \|\| selectedMainOutputIdBeforeChange\)/);
+  assert.match(outputSource, /const preemptiveFailClosed = !wasBlockedBeforeChange/);
+  assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\)/);
+  // Default-route changes must remain blocked until an explicit output selection.
+  assert.match(outputSource, /lastSystemDefaultOutputDevice = defaultPhysical/);
+  assert.match(audioSource, /document\.visibilityState === "visible" && pendingOutputDeviceRefresh[\s\S]*?dispatchEvent\?\.\(new Event\("devicechange"\)\)/);
 });
 
 
