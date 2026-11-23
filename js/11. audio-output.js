@@ -999,7 +999,7 @@
       ensureGraph();
       ensureOutputBridge();
       if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
-        await outputBridgeAudio.setSinkId(deviceId);
+        await setOutputSinkId(outputBridgeAudio, deviceId, "main-media-element-picker");
         await startOutputBridge();
       }
       await updateOutputDeviceName();
