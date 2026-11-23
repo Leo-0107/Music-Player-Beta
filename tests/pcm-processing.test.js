@@ -49,7 +49,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
   assert.ok(audioSource.includes("const BUILD_REVISION = 17;"));
   assert.ok(manifestSource.includes("Music Player v7.5.17"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.17-r16'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.17-r17'));
   assert.ok(indexSource.includes("7.5.17-r17"));
   assert.ok(controllerSource.includes("7.5.17-r17"));
   assert.ok(rootServiceWorkerSource.includes("7.5.17-r17"));
