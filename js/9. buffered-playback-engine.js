@@ -699,6 +699,15 @@ class PcmOutputScheduler {
     const gapSeconds = Math.max(0, startAt - previousEndTime);
     if ((this.hasScheduledData || this.hasStartTimeAnchor) && gapSeconds > 0.000001) {
       this.underrunCount++;
+      if (typeof window !== "undefined") {
+        const diagnostics = window.__musicPlayerPcmUnderrunDiagnostics || { totalCount: 0 };
+        diagnostics.totalCount = (Number(diagnostics.totalCount) || 0) + 1;
+        diagnostics.lastGapMs = Math.round(gapSeconds * 10000) / 10;
+        diagnostics.lastFrame = this.nextFrame;
+        diagnostics.lastSchedulerCount = this.underrunCount;
+        diagnostics.lastAtMs = Date.now();
+        window.__musicPlayerPcmUnderrunDiagnostics = diagnostics;
+      }
       try {
         this.onUnderrun?.({ frame: this.nextFrame, gapSeconds, count: this.underrunCount });
       } catch (error) {}

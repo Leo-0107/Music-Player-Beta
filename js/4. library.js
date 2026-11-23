@@ -358,7 +358,8 @@
 
     for(const zipFile of zipFiles){
       if (zipFile.size > MAX_ZIP_BYTES) {
-        toast("ZIPが大きすぎるため読み込みを停止しました（上限512MB）");
+        const maxZipMb = Math.round(MAX_ZIP_BYTES / (1024 * 1024));
+        toast(`ZIPが大きすぎるため読み込みを停止しました（上限${maxZipMb}MB）`);
         continue;
       }
       if(typeof JSZip==="undefined"){toast("Zipライブラリが見つかりません");continue;}
