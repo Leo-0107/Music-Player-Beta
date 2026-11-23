@@ -3769,6 +3769,7 @@ test("a disconnected selected main output is detected and remains fail-closed un
   assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\) \{[\s\S]*?muteAllAppOutputsForRoutingFailure\(disconnectedSelectedMainOutputId \|\| selectedMainOutputIdBeforeChange\)/);
   assert.match(outputSource, /const preemptiveFailClosed = !wasBlockedBeforeChange/);
   assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\)/);
+  // Default-route changes must remain blocked until an explicit output selection.
   assert.match(outputSource, /lastSystemDefaultOutputDevice = defaultPhysical/);
   assert.match(audioSource, /document\.visibilityState === "visible" && pendingOutputDeviceRefresh[\s\S]*?dispatchEvent\?\.\(new Event\("devicechange"\)\)/);
 });
