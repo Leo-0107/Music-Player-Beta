@@ -409,6 +409,20 @@ input[type="range"] {
   margin: 0 0 10px;
 }
 .songList { display: flex; flex-direction: column; gap: 8px; }
+.songArtistGroup { display: flex; flex-direction: column; gap: 7px; }
+.songArtistGroup + .songArtistGroup { margin-top: 9px; }
+.songArtistGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 4px 2px;
+  color: var(--muted);
+}
+.songArtistGroupName { min-width: 0; color: var(--text); font-size: .9rem; font-weight: 700; overflow-wrap: anywhere; }
+.songArtistGroupCount { flex: none; font-size: .74rem; color: var(--muted); }
+.songArtistGroupList { display: flex; flex-direction: column; gap: 8px; }
+
 .song {
   display: flex;
   align-items: center;
