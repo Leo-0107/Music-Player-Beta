@@ -141,7 +141,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "1622c9f5ed8bd6857d6c933f691b0d2580da237c"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "7feef2542fe13846985b5f31a7b50926c0e88cd9"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
@@ -201,16 +201,34 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.22";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 22"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.23";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 23"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 22;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.22"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.22-r22'));
-  assert.ok(indexSource.includes("7.5.22-r22"));
-  assert.ok(controllerSource.includes("7.5.22-r22"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.22-r22"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 23;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.23"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.23-r23'));
+  assert.ok(indexSource.includes("7.5.23-r23"));
+  assert.ok(controllerSource.includes("7.5.23-r23"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.23-r23"));
+});
+
+test("song library groups tracks by artist and preserves per-artist reorder behavior", () => {
+  assert.ok(librarySource.includes('group.className = "songArtistGroup"'));
+  assert.ok(librarySource.includes('heading.className = "songArtistGroupHeader"'));
+  assert.ok(librarySource.includes('groupList.className = "songArtistGroupList"'));
+  assert.ok(librarySource.includes('ordered => reorderSongsByVisibleOrder(ordered)'));
+  assert.ok(librarySource.includes('a.localeCompare(b, "ja", { numeric: true, sensitivity: "base" })'));
+  assert.ok(styleSource.includes(".songArtistGroupHeader"));
+  assert.ok(styleSource.includes(".songArtistGroupCount"));
+});
+
+test("home and mini-player seek bars synchronize in both directions", () => {
+  assert.ok(uiSource.includes("const syncProgressBars = (value, source = null) =>"));
+  assert.ok(uiSource.includes('syncProgressBars(value, "main")'));
+  assert.ok(uiSource.includes('syncProgressBars(miniProgressValue, "mini")'));
+  assert.ok(uiSource.includes("syncProgressBars((cur / dur) * 100)"));
+  assert.ok(uiSource.includes("syncProgressBars(progress)"));
 });
 
 test("top song title auto-fits before preserving marquee for long titles", () => {
@@ -395,14 +413,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.22-r22"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.22-r22"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.22-r22"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.22-r22"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.23-r23"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.23-r23"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.23-r23"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.23-r23"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.22-r22"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.23-r23"));
 });
 
 
@@ -4396,7 +4414,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.22-r22",
+        "music-player-app-v7.5.23-r23",
         "another-app-cache",
         "shared-site-cache"
       ],
