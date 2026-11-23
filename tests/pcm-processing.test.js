@@ -141,7 +141,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "7feef2542fe13846985b5f31a7b50926c0e88cd9"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "1da2b4749ca22a7cb96124c6b880f8a6919d9329"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
@@ -207,7 +207,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
   assert.ok(audioSource.includes("const BUILD_REVISION = 24;"));
   assert.ok(manifestSource.includes("Music Player v7.5.24"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.24-r23'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.24-r24'));
   assert.ok(indexSource.includes("7.5.24-r24"));
   assert.ok(controllerSource.includes("7.5.24-r24"));
   assert.ok(rootServiceWorkerSource.includes("7.5.24-r24"));
@@ -4419,7 +4419,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.24-r23",
+        "music-player-app-v7.5.24-r24",
         "another-app-cache",
         "shared-site-cache"
       ],
