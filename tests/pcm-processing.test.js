@@ -3766,7 +3766,7 @@ test("a disconnected selected main output is detected and remains fail-closed un
     sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "default", true),
     ""
   );
-  assert.match(outputSource, /if \(disconnectedSelectedMainOutputId\) \{[\s\S]*?muteAllAppOutputsForRoutingFailure\(disconnectedSelectedMainOutputId\)/);
+  assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\) \{[\s\S]*?muteAllAppOutputsForRoutingFailure\(disconnectedSelectedMainOutputId \|\| selectedMainOutputIdBeforeChange\)/);
   assert.match(outputSource, /const preemptiveFailClosed = !wasBlockedBeforeChange/);
   assert.match(outputSource, /if \(disconnectedSelectedMainOutputId \|\| defaultChanged\)/);
   assert.match(outputSource, /lastSystemDefaultOutputDevice = defaultPhysical/);
