@@ -1111,10 +1111,7 @@
 
         const selectedRuntime = additionalOutputRuntimes.get(selectedRoute.deviceId);
         if (selectedRuntime) {
-          try { speakerBusNode?.disconnect(selectedRuntime.splitter); } catch (ignore) {}
-          try { selectedRuntime.audio.pause(); } catch (ignore) {}
-          try { selectedRuntime.audio.srcObject = null; } catch (ignore) {}
-          selectedRuntime.audio.remove();
+          disposeAdditionalOutputRuntime(selectedRuntime);
           additionalOutputRuntimes.delete(selectedRoute.deviceId);
         }
 
@@ -1709,6 +1706,18 @@
     );
   }
 
+  function disposeAdditionalOutputRuntime(runtime) {
+    if (!runtime) return;
+    try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
+    for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.delayNode]) {
+      try { node?.disconnect(); } catch (e) {}
+    }
+    runtime.connected = false;
+    try { runtime.audio.pause(); } catch (e) {}
+    try { runtime.audio.srcObject = null; } catch (e) {}
+    try { runtime.audio.remove(); } catch (e) {}
+  }
+
   function disconnectAdditionalOutputRuntime(deviceId) {
     const runtime = additionalOutputRuntimes.get(deviceId);
     if (!runtime) return;
@@ -1774,10 +1783,7 @@
 
     const runtime = additionalOutputRuntimes.get(route.deviceId);
     if (runtime) {
-      try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
-      try { runtime.audio.pause(); } catch (e) {}
-      try { runtime.audio.srcObject = null; } catch (e) {}
-      runtime.audio.remove();
+      disposeAdditionalOutputRuntime(runtime);
       additionalOutputRuntimes.delete(route.deviceId);
     }
 
@@ -1874,10 +1880,7 @@
     try {
       await media.setSinkId(route.deviceId);
     } catch (e) {
-      try { speakerBusNode?.disconnect(splitter); } catch (ignore) {}
-      media.pause();
-      media.srcObject = null;
-      media.remove();
+      disposeAdditionalOutputRuntime(runtime);
       return null;
     }
 
@@ -1936,10 +1939,7 @@
       const oldId = route.deviceId;
       const oldRuntime = additionalOutputRuntimes.get(oldId);
       if (oldRuntime) {
-        try { speakerBusNode?.disconnect(oldRuntime.splitter); } catch (e) {}
-        try { oldRuntime.audio.pause(); } catch (e) {}
-        try { oldRuntime.audio.srcObject = null; } catch (e) {}
-        try { oldRuntime.audio.remove(); } catch (e) {}
+        disposeAdditionalOutputRuntime(oldRuntime);
         additionalOutputRuntimes.delete(oldId);
       }
       route.deviceId = match.deviceId;
@@ -2019,10 +2019,7 @@
 
     for (const [deviceId, runtime] of additionalOutputRuntimes) {
       if (!validIds.has(deviceId)) {
-        try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
-        try { runtime.audio.pause(); } catch (e) {}
-        try { runtime.audio.srcObject = null; } catch (e) {}
-        runtime.audio.remove();
+        disposeAdditionalOutputRuntime(runtime);
         additionalOutputRuntimes.delete(deviceId);
       }
     }
