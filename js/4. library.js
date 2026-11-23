@@ -320,9 +320,24 @@
     const progressPercent = document.getElementById("fileLoadProgressPercent");
     const progressText = document.getElementById("fileLoadProgressText");
     let displayedProgress = 0;
+    const miniPlayerEl = document.querySelector(".miniPlayer");
+    const syncProgressPosition = () => {
+      if (!progressEl) return;
+      const miniPlayerTop = miniPlayerEl?.getBoundingClientRect().top;
+      const bottomOffset = Number.isFinite(miniPlayerTop)
+        ? Math.max(12, window.innerHeight - miniPlayerTop + 10)
+        : 160;
+      progressEl.style.setProperty("--file-load-progress-bottom", bottomOffset + "px");
+    };
+    const progressResizeObserver = miniPlayerEl && typeof ResizeObserver === "function"
+      ? new ResizeObserver(syncProgressPosition)
+      : null;
+    progressResizeObserver?.observe(miniPlayerEl);
+    window.addEventListener("resize", syncProgressPosition, { passive: true });
     const updateProgress = (percent, message) => {
       const safe = Math.max(displayedProgress, Math.min(100, Math.round(percent)));
       displayedProgress = safe;
+      syncProgressPosition();
       if (progressEl) progressEl.hidden = false;
       if (progressFill) progressFill.style.width = safe + "%";
       if (progressPercent) progressPercent.textContent = safe + "%";
@@ -332,7 +347,12 @@
     const closeProgress = () => {
       if (!progressEl) return;
       updateProgress(100, "読み込み完了");
-      setTimeout(() => { progressEl.hidden = true; }, 500);
+      setTimeout(() => {
+        progressEl.hidden = true;
+        progressResizeObserver?.disconnect();
+        window.removeEventListener("resize", syncProgressPosition);
+        progressEl.style.removeProperty("--file-load-progress-bottom");
+      }, 500);
     };
 
     const directMediaFiles=files.filter(f=>f.type.startsWith("audio/")||f.type.startsWith("video/")||/\.(mp3|m4a|wav|ogg|opus|flac|aac|mp4|webm)$/i.test(f.name));
