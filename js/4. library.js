@@ -1790,6 +1790,9 @@
     return mimeLabels[mime] || (song?.mediaType === "video" ? "VIDEO" : "AUDIO");
   }
 
+  // 曲一覧では最初にアーティスト名だけを表示し、選択した1組だけ曲を展開する。
+  let expandedSongArtistName = null;
+
   function renderSongList(){
     const vis = getVisibleSongs();
     if (!el.list) return;
@@ -1807,20 +1810,44 @@
       if (b === "不明なアーティスト") return -1;
       return a.localeCompare(b, "ja", { numeric: true, sensitivity: "base" });
     });
+    if (expandedSongArtistName && !groups.has(expandedSongArtistName)) {
+      expandedSongArtistName = null;
+    }
 
-    artistNames.forEach(artist => {
+    artistNames.forEach((artist, artistIndex) => {
       const songs = groups.get(artist);
       const group = document.createElement("section");
       group.className = "songArtistGroup";
       group.dataset.artist = artist;
 
-      const heading = document.createElement("div");
+      const isExpanded = expandedSongArtistName === artist;
+      const heading = document.createElement("button");
+      heading.type = "button";
       heading.className = "songArtistGroupHeader";
-      heading.innerHTML = `<span class="songArtistGroupName">${escapeHTML(artist)}</span><span class="songArtistGroupCount">${songs.length}曲</span>`;
+      heading.setAttribute("aria-expanded", String(isExpanded));
+      heading.setAttribute("aria-controls", `songArtistGroupList-${artistIndex}`);
+      heading.innerHTML = `<span class="songArtistGroupName">${escapeHTML(artist)}</span><span class="songArtistGroupHeaderRight"><span class="songArtistGroupCount">${songs.length}曲</span><span class="songArtistGroupChevron" aria-hidden="true">${isExpanded ? "▾" : "›"}</span></span>`;
       group.appendChild(heading);
 
       const groupList = document.createElement("div");
       groupList.className = "songArtistGroupList";
+      groupList.id = `songArtistGroupList-${artistIndex}`;
+      groupList.hidden = !isExpanded;
+      heading.addEventListener("click", () => {
+        expandedSongArtistName = expandedSongArtistName === artist ? null : artist;
+        el.list.querySelectorAll(".songArtistGroup").forEach(section => {
+          const open = section.dataset.artist === expandedSongArtistName;
+          const list = section.querySelector(".songArtistGroupList");
+          const button = section.querySelector(".songArtistGroupHeader");
+          if (list) list.hidden = !open;
+          if (button) {
+            button.setAttribute("aria-expanded", String(open));
+            const chevron = button.querySelector(".songArtistGroupChevron");
+            if (chevron) chevron.textContent = open ? "▾" : "›";
+          }
+          section.classList.toggle("expanded", open);
+        });
+      });
       songs.forEach(song => {
         const row = document.createElement("div");
         row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
