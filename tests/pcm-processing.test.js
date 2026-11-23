@@ -207,6 +207,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
   assert.doesNotMatch(indexSource, /\.fileLoadProgress\s*\{[^}]*inset:\s*0/);
+  assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 27;"));
