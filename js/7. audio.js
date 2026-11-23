@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 19;
+  const BUILD_REVISION = 20;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -575,6 +575,20 @@ let mainOutputUsesNativeDestination = false;
       // createMediaElementSource() は同じ audio 要素に対して複数回実行できないため。
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+        if (typeof audioCtx.addEventListener === "function") {
+          audioCtx.addEventListener("sinkchange", () => {
+            const diagnostics = window.__musicPlayerSinkChangeDiagnostics || {
+              requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0
+            };
+            diagnostics.eventCount = (Number(diagnostics.eventCount) || 0) + 1;
+            diagnostics.lastEventAtMs = Date.now();
+            const sinkId = audioCtx.sinkId;
+            diagnostics.lastEventSinkKind = typeof sinkId === "object"
+              ? (sinkId?.type === "none" ? "none" : "other")
+              : (sinkId ? "explicit" : "default");
+            window.__musicPlayerSinkChangeDiagnostics = diagnostics;
+          });
+        }
         // バックグラウンド移行などでAudioContextだけが停止した場合も、
         // 再生意図が残っていれば状態変化を検知して音声経路を復帰させる。
         audioCtx.addEventListener("statechange", () => {
