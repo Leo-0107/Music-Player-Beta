@@ -74,7 +74,7 @@
 </style>
 
 <!-- Zip解析用ライブラリ -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha256-rMfkFFWoB2W1/Zx+4bgHim0WC7vKRVrq6FTeZclH1Z4=" crossorigin="anonymous"></script>
 </head>
 <body class="app-loading">
 <script>
@@ -942,6 +942,7 @@
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
   const APP_VERSION = "v7.5.19";
   const BUILD_REVISION = 19
+  // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
   const BUILD_COMMIT_ID = "7bd55c82c2f7f1d276098ae9c909677a5af789ec";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
