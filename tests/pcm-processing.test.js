@@ -204,7 +204,11 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.27";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 27"));
   // The artwork placeholder and application diagnostics share the same BR.
-  assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);\n  assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);\n  assert.doesNotMatch(indexSource, /\.fileLoadProgress\s*\{[^}]*inset:\s*0/);\n  assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));\n  assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
+  assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
+  assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
+  assert.doesNotMatch(indexSource, /\.fileLoadProgress\s*\{[^}]*inset:\s*0/);
+  assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
+  assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 27;"));
   assert.ok(manifestSource.includes("Music Player v7.5.27"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.27-r27'));
