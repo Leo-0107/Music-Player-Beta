@@ -1794,80 +1794,109 @@
     const vis = getVisibleSongs();
     if (!el.list) return;
     el.list.innerHTML = "";
+
+    const groups = new Map();
     vis.forEach(song => {
-      const row = document.createElement("div");
-      row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
-      row.dataset.name = song.name;
-      row.innerHTML = `
-        <div class="songNowIndicator" aria-hidden="true"></div>
-        <div class="songMain">
-          <div class="songName">${escapeHTML(song.title)}</div>
-          <div class="songArtist">${escapeHTML(song.artist)}<span class="songSourceTag">${escapeHTML(getSongSourceLabel(song))}</span></div>
-          <div class="songMeta"><span>再生数 ${state.playCounts[song.name] || 0}回</span><span class="songDuration" data-duration-for="${escapeHTML(song.name)}">${formatTrackDuration(song.duration)}</span></div>
-        </div>
-        <div class="songRight">
-          <button class="queueBtn" type="button">＋キュー</button>
-          <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}" type="button" aria-label="お気に入り">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
-          <div class="songMenuWrap">
-            <button class="songMenuBtn" type="button" aria-label="曲の操作" aria-expanded="false">︙</button>
-            <div class="songMenuPopup" hidden>
-              <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
-              <button class="songMenuItem renameTrackBtn" type="button">名前変更</button>
-              <button class="songMenuItem delTrackBtn" type="button">🗑 削除</button>
+      const artist = String(song.artist || "").trim() || "不明なアーティスト";
+      if (!groups.has(artist)) groups.set(artist, []);
+      groups.get(artist).push(song);
+    });
+
+    const artistNames = Array.from(groups.keys()).sort((a, b) => {
+      if (a === "不明なアーティスト") return 1;
+      if (b === "不明なアーティスト") return -1;
+      return a.localeCompare(b, "ja", { numeric: true, sensitivity: "base" });
+    });
+
+    artistNames.forEach(artist => {
+      const songs = groups.get(artist);
+      const group = document.createElement("section");
+      group.className = "songArtistGroup";
+      group.dataset.artist = artist;
+
+      const heading = document.createElement("div");
+      heading.className = "songArtistGroupHeader";
+      heading.innerHTML = `<span class="songArtistGroupName">${escapeHTML(artist)}</span><span class="songArtistGroupCount">${songs.length}曲</span>`;
+      group.appendChild(heading);
+
+      const groupList = document.createElement("div");
+      groupList.className = "songArtistGroupList";
+      songs.forEach(song => {
+        const row = document.createElement("div");
+        row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
+        row.dataset.name = song.name;
+        row.innerHTML = `
+          <div class="songNowIndicator" aria-hidden="true"></div>
+          <div class="songMain">
+            <div class="songName">${escapeHTML(song.title)}</div>
+            <div class="songArtist">${escapeHTML(song.artist)}<span class="songSourceTag">${escapeHTML(getSongSourceLabel(song))}</span></div>
+            <div class="songMeta"><span>再生数 ${state.playCounts[song.name] || 0}回</span><span class="songDuration" data-duration-for="${escapeHTML(song.name)}">${formatTrackDuration(song.duration)}</span></div>
+          </div>
+          <div class="songRight">
+            <button class="queueBtn" type="button">＋キュー</button>
+            <button class="starBtn${state.favorites.includes(song.name) ? " active" : ""}" type="button" aria-label="お気に入り">${state.favorites.includes(song.name) ? "★" : "☆"}</button>
+            <div class="songMenuWrap">
+              <button class="songMenuBtn" type="button" aria-label="曲の操作" aria-expanded="false">︙</button>
+              <div class="songMenuPopup" hidden>
+                <button class="songMenuItem addPlBtn" type="button">リスト追加</button>
+                <button class="songMenuItem renameTrackBtn" type="button">名前変更</button>
+                <button class="songMenuItem delTrackBtn" type="button">🗑 削除</button>
+              </div>
             </div>
           </div>
-        </div>
-      `;
-      const menuWrap = row.querySelector(".songMenuWrap");
-      const menuBtn = row.querySelector(".songMenuBtn");
-      const menu = row.querySelector(".songMenuPopup");
-      menuWrap.addEventListener("click", e => e.stopPropagation());
-      menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
-      menuBtn.addEventListener("click", e => {
-        e.stopPropagation();
-        document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(open => {
-          if (open !== menu) open.hidden = true;
-        });
-        menu.hidden = !menu.hidden;
-        menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
-      });
-      const bindMenuAction = (selector, action) => {
-        const button = row.querySelector(selector);
-        button.addEventListener("pointerdown", e => e.stopPropagation());
-        button.addEventListener("click", e => {
+        `;
+        const menuWrap = row.querySelector(".songMenuWrap");
+        const menuBtn = row.querySelector(".songMenuBtn");
+        const menu = row.querySelector(".songMenuPopup");
+        menuWrap.addEventListener("click", e => e.stopPropagation());
+        menuBtn.addEventListener("pointerdown", e => e.stopPropagation());
+        menuBtn.addEventListener("click", e => {
           e.stopPropagation();
-          menu.hidden = true;
-          menuBtn.setAttribute("aria-expanded", "false");
-          action();
+          document.querySelectorAll(".songMenuPopup:not([hidden])").forEach(open => {
+            if (open !== menu) open.hidden = true;
+          });
+          menu.hidden = !menu.hidden;
+          menuBtn.setAttribute("aria-expanded", String(!menu.hidden));
         });
-      };
-      bindMenuAction(".addPlBtn", () => addSongToPlaylist(song.name));
-      bindMenuAction(".renameTrackBtn", () => renameTrack(song));
-      bindMenuAction(".delTrackBtn", () => deleteSingleTrack(song));
-      row.querySelector(".queueBtn").addEventListener("pointerdown", e => e.stopPropagation());
-      row.querySelector(".queueBtn").addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
-      row.querySelector(".starBtn").addEventListener("pointerdown", e => e.stopPropagation());
-      row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
-      row.addEventListener("click", () => {
-        if (suppressNextSongClick || row._suppressClick) {
-          suppressNextSongClick = false;
-          return;
+        const bindMenuAction = (selector, action) => {
+          const button = row.querySelector(selector);
+          button.addEventListener("pointerdown", e => e.stopPropagation());
+          button.addEventListener("click", e => {
+            e.stopPropagation();
+            menu.hidden = true;
+            menuBtn.setAttribute("aria-expanded", "false");
+            action();
+          });
+        };
+        bindMenuAction(".addPlBtn", () => addSongToPlaylist(song.name));
+        bindMenuAction(".renameTrackBtn", () => renameTrack(song));
+        bindMenuAction(".delTrackBtn", () => deleteSingleTrack(song));
+        row.querySelector(".queueBtn").addEventListener("pointerdown", e => e.stopPropagation());
+        row.querySelector(".queueBtn").addEventListener("click", e => { e.stopPropagation(); addToQueue(song.name); });
+        row.querySelector(".starBtn").addEventListener("pointerdown", e => e.stopPropagation());
+        row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
+        row.addEventListener("click", () => {
+          if (suppressNextSongClick || row._suppressClick) {
+            suppressNextSongClick = false;
+            return;
+          }
+          playSong(song);
+        });
+        groupList.appendChild(row);
+        setupSongNameScroll(row.querySelector(".songName"));
+        if (!Number.isFinite(song.duration) || song.duration <= 0) {
+          void ensureSongDuration(song);
         }
-        playSong(song);
+        attachLongPressReorder(
+          row,
+          groupList,
+          ".song",
+          r => r.dataset.name,
+          ordered => reorderSongsByVisibleOrder(ordered)
+        );
       });
-      el.list.appendChild(row);
-      setupSongNameScroll(row.querySelector(".songName"));
-      // 描画時にも未取得の再生時間を再確認し、個別取得の失敗で表示が欠けたままになるのを防ぐ。
-      if (!Number.isFinite(song.duration) || song.duration <= 0) {
-        void ensureSongDuration(song);
-      }
-      attachLongPressReorder(
-        row,
-        el.list,
-        ".song",
-        r => r.dataset.name,
-        ordered => reorderSongsByVisibleOrder(ordered)
-      );
+      group.appendChild(groupList);
+      el.list.appendChild(group);
     });
   }
 
