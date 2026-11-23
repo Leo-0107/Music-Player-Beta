@@ -281,7 +281,8 @@ body.theme-light select option {
   align-items: center;
   justify-content: center;
 }
-#nowCoverCanvas[hidden] { display: none !important; }\n#nowCoverCanvas {
+#nowCoverCanvas[hidden] { display: none !important; }
+#nowCoverCanvas {
   width: 160px;
   height: 160px;
   object-fit: cover;
