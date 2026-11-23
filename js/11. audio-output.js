@@ -1,6 +1,32 @@
   // 出力先の切替直後に発生する一時的な音声経路の不安定化を防ぐ。
   // 再生位置・再生速度・ピッチは変更せず、最終ミックスだけをごく短時間フェードアウトしてから復帰させる。
 
+  function recordOutputSinkChange(role, result, sinkId, error = null) {
+    if (typeof window === "undefined") return;
+    const diagnostics = window.__musicPlayerSinkChangeDiagnostics || {
+      requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0
+    };
+    diagnostics.requestCount = (Number(diagnostics.requestCount) || 0) + 1;
+    if (result === "success") diagnostics.successCount++;
+    else diagnostics.failureCount++;
+    diagnostics.lastAtMs = Date.now();
+    diagnostics.lastRole = role;
+    diagnostics.lastResult = result;
+    diagnostics.lastSinkKind = sinkId === "" ? "default" : "explicit";
+    diagnostics.lastErrorName = error?.name ? String(error.name) : null;
+    window.__musicPlayerSinkChangeDiagnostics = diagnostics;
+  }
+
+  async function setOutputSinkId(target, sinkId, role) {
+    try {
+      await target.setSinkId(sinkId);
+      recordOutputSinkChange(role, "success", sinkId);
+    } catch (error) {
+      recordOutputSinkChange(role, "failure", sinkId, error);
+      throw error;
+    }
+  }
+
   function isMultipleOutputEnabled() {
     return state.speakerSettings?.multipleOutputEnabled === true;
   }
@@ -570,6 +596,18 @@
       state.speakerSettings.lastMeasurementConfidence = median(measurements.map(item => item.confidence));
       state.speakerSettings.lastMeasurementSpreadMs = Math.max(...measurements.map(item => item.spreadMs));
       state.speakerSettings.lastMeasurementSampleCount = measurements.reduce((sum, item) => sum + item.samples, 0);
+      state.speakerSettings.lastMeasurementScope = targetEntry ? "single-route" : "all-routes";
+      state.speakerSettings.lastRouteMeasurements = measurements.map(item => {
+        const routeIndex = item.entry.selected ? null : state.outputRoutes.indexOf(item.entry.route);
+        return {
+          isMain: item.entry.selected === true,
+          routeIndex: Number.isInteger(routeIndex) && routeIndex >= 0 ? routeIndex : null,
+          measuredDelayMs: Math.round(item.delayMs * 10) / 10,
+          confidence: Math.round(item.confidence * 1000) / 1000,
+          spreadMs: Math.round(item.spreadMs * 10) / 10,
+          samples: item.samples
+        };
+      });
       saveState();
       applyMainOutputDelayNode();
       renderAdditionalOutputSpeakers();
@@ -1054,7 +1092,7 @@
         }
         if (typeof audioCtx?.setSinkId === "function") {
           mainOutputUsesNativeDestination = false;
-          await audioCtx.setSinkId(normalized);
+          await setOutputSinkId(audioCtx, normalized, "main-audio-context");
           mainOutputUsesDirectSink = true;
           if (wasPlaying && (audioCtx.state === "suspended" || audioCtx.state === "interrupted")) {
             try { await audioCtx.resume(); } catch (resumeError) {
@@ -1087,7 +1125,7 @@
         if (wasPlaying && outputBridgeAudio && !outputBridgeAudio.paused) {
           try { outputBridgeAudio.pause(); } catch (ignore) {}
         }
-        await outputBridgeAudio.setSinkId(normalized);
+        await setOutputSinkId(outputBridgeAudio, normalized, "main-media-element");
         if (wasPlaying) {
           try { await audioCtx?.resume(); } catch (ignore) {}
           await outputBridgeAudio.play();
@@ -1175,16 +1213,16 @@
       }
       try {
         if (mainOutputUsesDirectSink && typeof audioCtx?.setSinkId === "function") {
-          await audioCtx.setSinkId(previousId);
+          await setOutputSinkId(audioCtx, previousId, "restore-audio-context");
         } else if (outputBridgeAudio && outputBridgeAudio.sinkId !== previousId) {
-          await outputBridgeAudio.setSinkId(previousId);
+          await setOutputSinkId(outputBridgeAudio, previousId, "restore-main-media-element");
           if (wasPlaying) await outputBridgeAudio.play();
         }
         applyAllSpeakerDelayNodes();
       } catch (restoreError) {
         try {
           if (outputBridgeAudio) {
-            await outputBridgeAudio.setSinkId("");
+            await setOutputSinkId(outputBridgeAudio, "", "fallback-main-media-element");
             if (wasPlaying) await outputBridgeAudio.play();
           }
         } catch (ignore) {}
@@ -1878,7 +1916,7 @@
     document.body.appendChild(media);
 
     try {
-      await media.setSinkId(route.deviceId);
+      await setOutputSinkId(media, route.deviceId, "additional-route-media-element");
     } catch (e) {
       disposeAdditionalOutputRuntime(runtime);
       return null;
@@ -2737,7 +2775,9 @@
     const apiCapabilities = {
       audioContextSetSinkId: typeof AudioContext !== "undefined" && typeof AudioContext.prototype.setSinkId === "function",
       mediaElementSetSinkId: typeof HTMLMediaElement !== "undefined" && typeof HTMLMediaElement.prototype.setSinkId === "function",
-      selectAudioOutput: typeof navigator.mediaDevices?.selectAudioOutput === "function"
+      selectAudioOutput: typeof navigator.mediaDevices?.selectAudioOutput === "function",
+      audioPlaybackStats: !!audioCtx && "playbackStats" in audioCtx,
+      audioContextSinkChange: !!audioCtx && typeof audioCtx.addEventListener === "function"
     };
     if (!audioCtx) return { available: false, apiCapabilities };
     const baseLatency = Number.isFinite(Number(audioCtx.baseLatency)) ? Number(audioCtx.baseLatency) : null;
@@ -2768,6 +2808,38 @@
       outputTimestampContextGapMs: contextGapMs == null ? null : Math.round(contextGapMs * 10) / 10,
       outputTimestampPerformanceAgeMs: performanceAgeMs == null ? null : Math.round(performanceAgeMs * 10) / 10,
       contextState: audioCtx.state,
+      audioPlaybackStats: (() => {
+        try {
+          const stats = audioCtx.playbackStats;
+          if (!stats) return null;
+          const metric = value => Number.isFinite(Number(value)) ? Number(value) : null;
+          return {
+            underrunEvents: metric(stats.underrunEvents),
+            underrunDurationMs: metric(stats.underrunDuration) === null ? null : Math.round(stats.underrunDuration * 1000 * 10) / 10,
+            averageLatencyMs: metric(stats.averageLatency) === null ? null : Math.round(stats.averageLatency * 1000 * 10) / 10,
+            minimumLatencyMs: metric(stats.minimumLatency) === null ? null : Math.round(stats.minimumLatency * 1000 * 10) / 10,
+            maximumLatencyMs: metric(stats.maximumLatency) === null ? null : Math.round(stats.maximumLatency * 1000 * 10) / 10
+          };
+        } catch { return null; }
+      })(),
+      sinkChanges: window.__musicPlayerSinkChangeDiagnostics
+        ? { ...window.__musicPlayerSinkChangeDiagnostics }
+        : { requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0 },
+      pcmQueue: window.__musicPlayerPcmQueueDiagnostics
+        ? { ...window.__musicPlayerPcmQueueDiagnostics }
+        : { active: false, availableFrames: null, capacityFrames: null, fillPercent: null, queuedMs: null, scheduledAheadMs: null, sampleRate: null },
+      routeSyncMeasurements: {
+        measuredAt: Number(state.speakerSettings?.lastMeasuredAt) || null,
+        method: state.speakerSettings?.measurementMethod || null,
+        scope: state.speakerSettings?.lastMeasurementScope || null,
+        confidence: Number.isFinite(Number(state.speakerSettings?.lastMeasurementConfidence))
+          ? Number(state.speakerSettings.lastMeasurementConfidence) : null,
+        spreadMs: Number.isFinite(Number(state.speakerSettings?.lastMeasurementSpreadMs))
+          ? Number(state.speakerSettings.lastMeasurementSpreadMs) : null,
+        routes: Array.isArray(state.speakerSettings?.lastRouteMeasurements)
+          ? state.speakerSettings.lastRouteMeasurements.map(item => ({ ...item }))
+          : []
+      },
       limiterReductionDb: Number.isFinite(Number(limiterNode?.reduction)) ? Math.round(Number(limiterNode.reduction) * 10) / 10 : null,
       pcmUnderrun: typeof window !== "undefined" && window.__musicPlayerPcmUnderrunDiagnostics
         ? { ...window.__musicPlayerPcmUnderrunDiagnostics }
