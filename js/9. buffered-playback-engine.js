@@ -546,6 +546,37 @@ class PcmOutputScheduler {
     this.isDraining = false;
   }
 
+  publishQueueDiagnostics() {
+    if (typeof window === "undefined") return;
+    const ring = this.queue?.ringBuffer;
+    const availableFrames = Number.isFinite(Number(ring?.availableFrames))
+      ? Math.max(0, Number(ring.availableFrames))
+      : null;
+    const capacityFrames = Number.isFinite(Number(ring?.capacityFrames))
+      ? Math.max(0, Number(ring.capacityFrames))
+      : null;
+    const sampleRate = Number.isFinite(Number(this.sampleRate)) && this.sampleRate > 0
+      ? this.sampleRate
+      : null;
+    const currentTime = Number(this.audioContext?.currentTime) || 0;
+    const scheduledAheadMs = this.active && Number.isFinite(Number(this.nextStartTime))
+      ? Math.max(0, (this.nextStartTime - currentTime) * 1000)
+      : 0;
+    window.__musicPlayerPcmQueueDiagnostics = {
+      active: this.active === true,
+      availableFrames,
+      capacityFrames,
+      fillPercent: availableFrames !== null && capacityFrames > 0
+        ? Math.round(availableFrames / capacityFrames * 1000) / 10
+        : null,
+      queuedMs: availableFrames !== null && sampleRate
+        ? Math.round(availableFrames / sampleRate * 1000 * 10) / 10
+        : null,
+      scheduledAheadMs: Math.round(scheduledAheadMs * 10) / 10,
+      sampleRate
+    };
+  }
+
   get currentFrame() {
     if (!this.active) return this.pausedFrame;
     const now = Number(this.audioContext.currentTime) || 0;
@@ -678,6 +709,7 @@ class PcmOutputScheduler {
       throw error;
     }).finally(() => {
       if (this.pumpPromise === wrapped) this.pumpPromise = null;
+      this.publishQueueDiagnostics();
     });
     this.pumpPromise = wrapped;
     return wrapped;
