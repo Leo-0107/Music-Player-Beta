@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.26</title>
+<title>Music Player v7.5.27</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.26-r26">
+<link rel="stylesheet" href="style.css?v=7.5.27-r27">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -65,13 +65,36 @@
 </style>
 
 <style id="file-load-progress-style">
-.fileLoadProgress{position:fixed;inset:0;z-index:2147483647;isolation:isolate;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.48);backdrop-filter:blur(4px);}
+.fileLoadProgress{
+  position:fixed;
+  right:max(10px,env(safe-area-inset-right));
+  bottom:var(--file-load-progress-bottom,160px);
+  z-index:1100;
+  width:min(280px,calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  display:block;
+  pointer-events:none;
+}
 .fileLoadProgress[hidden]{display:none;}
-.fileLoadProgressCard{width:min(420px,calc(100vw - 32px));padding:18px;border-radius:14px;background:var(--panel,#181818);box-shadow:0 10px 35px rgba(0,0,0,.35);}
-.fileLoadProgressText{font-size:.9rem;margin-bottom:10px;}
-.fileLoadProgressTrack{height:8px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.12);}
+.fileLoadProgressCard{
+  box-sizing:border-box;
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--line,rgba(255,255,255,.12));
+  border-radius:12px;
+  background:color-mix(in srgb,var(--panel,#181818) 94%,transparent);
+  box-shadow:0 6px 22px rgba(0,0,0,.28);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.fileLoadProgressText{
+  margin-bottom:7px;
+  font-size:.78rem;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.fileLoadProgressTrack{height:5px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.12);}
 .fileLoadProgressFill{height:100%;width:0%;background:var(--accent,#5fd6ff);transition:width .12s linear;}
-.fileLoadProgressPercent{text-align:right;font-size:.8rem;color:var(--muted,#aaa);margin-top:6px;}
+.fileLoadProgressPercent{text-align:right;font-size:.72rem;color:var(--muted,#aaa);margin-top:4px;}
 </style>
 
 <!-- Zip解析用ライブラリ -->
@@ -941,10 +964,10 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.26";
-  const BUILD_REVISION = 26
+  const APP_VERSION = "v7.5.27";
+  const BUILD_REVISION = 27
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
-  const BUILD_COMMIT_ID = "f7c059969caf860f06051aceb6d4045eb2b1a057";
+  const BUILD_COMMIT_ID = "0000000000000000000000000000000000000000";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1320,7 +1343,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.5.26-r26"></script>
+<script src="js/1. ctrl.js?v=7.5.27-r27"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
