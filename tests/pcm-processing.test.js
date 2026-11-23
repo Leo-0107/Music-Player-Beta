@@ -78,7 +78,7 @@ test("additional speaker routes use the same optional peak compression stage", (
 });
 
 test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
-  assert.match(indexSource, /jszip\\.min\\.js" integrity="sha256-rMfkFFWoB2W1\\/Zx\\+4bgHim0WC7vKRVrq6FTeZclH1Z4=" crossorigin="anonymous"/);
+  assert.ok(indexSource.includes('jszip.min.js" integrity="sha256-rMfkFFWoB2W1/Zx+4bgHim0WC7vKRVrq6FTeZclH1Z4=" crossorigin="anonymous"'));
 });
 
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
