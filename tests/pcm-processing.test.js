@@ -124,7 +124,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "7ea5b00a833e8102a6bc0e97d65c5967b7f8bbea"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "088bcf1ebe689fffee00f255a14f9ea9cb9d8c4d"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
@@ -138,6 +138,30 @@ test("audio diagnostics expose local underrun, compressor, and additional-route 
   assert.match(outputSource, /limiterReductionDb:/);
   assert.match(outputSource, /pcmUnderrun:/);
   assert.match(outputSource, /additionalOutputRoutes:/);
+});
+
+test("PCM queue diagnostics publish an empty snapshot after scheduler terminal transitions", () => {
+  const schedulerStart = engineSource.indexOf("class PcmOutputScheduler");
+  const schedulerSource = engineSource.slice(schedulerStart);
+  for (const method of ["finish", "fail", "stop"]) {
+    const start = schedulerSource.indexOf(`  ${method}(`);
+    assert.notEqual(start, -1, `${method} method exists`);
+    const end = schedulerSource.indexOf("\n  }", start);
+    assert.notEqual(end, -1, `${method} method closes`);
+    assert.match(schedulerSource.slice(start, end), /this\.publishQueueDiagnostics\(\)/);
+  }
+  assert.match(schedulerSource, /const availableFrames = ring\s*\?/);
+});
+
+test("audio diagnostics expose optional queue, playback, sink, and route calibration metrics", () => {
+  assert.match(engineSource, /publishQueueDiagnostics\(\)/);
+  assert.match(engineSource, /__musicPlayerPcmQueueDiagnostics/);
+  assert.match(outputSource, /audioPlaybackStats:/);
+  assert.match(outputSource, /sinkChanges:/);
+  assert.match(outputSource, /routeSyncMeasurements:/);
+  assert.match(outputSource, /lastRouteMeasurements/);
+  assert.match(outputSource, /setOutputSinkId\(media, route\.deviceId, "additional-route-media-element"\)/);
+  assert.match(audioSource, /addEventListener\("sinkchange"/);
 });
 
 test("mini-player progress fill and thumb share one visual position", () => {
@@ -160,16 +184,16 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.19";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 19"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.20";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 20"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 19;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.19"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.19-r19'));
-  assert.ok(indexSource.includes("7.5.19-r19"));
-  assert.ok(controllerSource.includes("7.5.19-r19"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.19-r19"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 20;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.20"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.20-r20'));
+  assert.ok(indexSource.includes("7.5.20-r20"));
+  assert.ok(controllerSource.includes("7.5.20-r20"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.20-r20"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -345,14 +369,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.19-r19"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.19-r19"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.19-r19"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.19-r19"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.20-r20"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.20-r20"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.20-r20"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.20-r20"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.19-r19"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.20-r20"));
 });
 
 
@@ -4346,7 +4370,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.19-r19",
+        "music-player-app-v7.5.20-r20",
         "another-app-cache",
         "shared-site-cache"
       ],
