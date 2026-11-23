@@ -39,7 +39,7 @@ test("ZIP size rejection message is derived from the enforced limit", () => {
 
 test("additional speaker route graph applies compression before optional delay", () => {
   const start = outputSource.indexOf("function applyAdditionalOutputRouteGraph(");
-  const end = outputSource.indexOf("\\n  function applyAllSpeakerDelayNodes", start);
+  const end = outputSource.indexOf("\n  function applyAllSpeakerDelayNodes", start);
   assert.ok(start >= 0 && end > start);
   const helperSource = outputSource.slice(start, end);
   const makeNode = name => ({
@@ -54,7 +54,7 @@ test("additional speaker route graph applies compression before optional delay",
   const destination = makeNode("destination");
   const runtime = { merger, limiterNode, delayNode, destination };
   const sandbox = { state: { clippingProtection: true }, getEffectiveSpeakerDelay: value => value };
-  vm.runInNewContext(helperSource + "\\nthis.applyRouteGraph = applyAdditionalOutputRouteGraph;", sandbox);
+  vm.runInNewContext(helperSource + "\nthis.applyRouteGraph = applyAdditionalOutputRouteGraph;", sandbox);
   sandbox.applyRouteGraph(runtime, 0);
   assert.equal(merger.connections.has(limiterNode), true);
   assert.equal(limiterNode.connections.has(destination), true);
