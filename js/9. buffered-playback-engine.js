@@ -1251,7 +1251,7 @@ function getPcmSourceChannelHint(compressed) {
   }
 
   // FLAC STREAMINFO packs (channels - 1) into bits 43..41.
-  if (readAscii(0, 4) === "fLaC" && bytes.length >= 26 &&
+  if (readAscii(0, 4) === "fLaC" && bytes.length >= 42 &&
       (bytes[4] & 0x7f) === 0 && ((bytes[5] << 16) | (bytes[6] << 8) | bytes[7]) >= 34) {
     const packed = (BigInt(view.getUint32(18, false)) << 32n) | BigInt(view.getUint32(22, false));
     const channels = Number((packed >> 41n) & 0x07n) + 1;
@@ -1259,7 +1259,7 @@ function getPcmSourceChannelHint(compressed) {
   }
 
   // Ogg Opus and Vorbis identify their channel count in the identification header.
-  const signatureLimit = Math.min(bytes.length - 8, 65536);
+  const signatureLimit = Math.min(bytes.length - 12, 65536);
   for (let offset = 0; offset <= signatureLimit; offset++) {
     if (readAscii(offset, 8) === "OpusHead") {
       const channels = bytes[offset + 8];
