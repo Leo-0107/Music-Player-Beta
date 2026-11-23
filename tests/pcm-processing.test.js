@@ -140,6 +140,19 @@ test("audio diagnostics expose local underrun, compressor, and additional-route 
   assert.match(outputSource, /additionalOutputRoutes:/);
 });
 
+test("PCM queue diagnostics publish an empty snapshot after scheduler terminal transitions", () => {
+  const schedulerStart = engineSource.indexOf("class PcmOutputScheduler");
+  const schedulerSource = engineSource.slice(schedulerStart);
+  for (const method of ["finish", "fail", "stop"]) {
+    const start = schedulerSource.indexOf(`  ${method}(`);
+    assert.notEqual(start, -1, `${method} method exists`);
+    const end = schedulerSource.indexOf("\n  }", start);
+    assert.notEqual(end, -1, `${method} method closes`);
+    assert.match(schedulerSource.slice(start, end), /this\\.publishQueueDiagnostics\\(\\)/);
+  }
+  assert.match(schedulerSource, /const availableFrames = ring\\s*\\?/);
+});
+
 test("audio diagnostics expose optional queue, playback, sink, and route calibration metrics", () => {
   assert.match(engineSource, /publishQueueDiagnostics\(\)/);
   assert.match(engineSource, /__musicPlayerPcmQueueDiagnostics/);
