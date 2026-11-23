@@ -2043,6 +2043,33 @@ let mainOutputUsesNativeDestination = false;
   }
 
   function updateArtwork(song) {
+    const showVideo = song?.mediaType === "video" &&
+      el.nowCoverBox && mediaElement instanceof HTMLVideoElement;
+
+    if (showVideo) {
+      mediaElement.classList.add("coverVideo");
+      mediaElement.controls = false;
+      mediaElement.playsInline = true;
+      mediaElement.setAttribute("playsinline", "");
+      mediaElement.setAttribute("webkit-playsinline", "");
+      if (song.coverUrl) mediaElement.poster = song.coverUrl;
+      else mediaElement.removeAttribute("poster");
+
+      if (mediaElement.parentElement !== el.nowCoverBox) {
+        el.nowCoverBox.insertBefore(mediaElement, el.btnVideoFullscreen || null);
+      }
+      if (el.nowCoverCanvas) {
+        el.nowCoverCanvas.hidden = mediaElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+      }
+      if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = false;
+    } else {
+      if (mediaElement.parentElement === el.nowCoverBox) mediaElement.remove();
+      mediaElement.classList.remove("coverVideo");
+      mediaElement.removeAttribute("poster");
+      if (el.nowCoverCanvas) el.nowCoverCanvas.hidden = false;
+      if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = true;
+    }
+
     const drawCanvas = (canvas, size) => {
       if(!canvas) return;
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -2084,17 +2111,38 @@ let mainOutputUsesNativeDestination = false;
     drawCanvas(el.miniCoverCanvas, 32);
   }
 
+  // 同じ再生要素の映像データが準備できたら、静止サムネイルから動画表示へ切り替える。
+  mediaElement.addEventListener("loadeddata", () => {
+    if (state.currentSong?.mediaType !== "video" ||
+        mediaElement.currentSrc !== state.currentSong.url ||
+        mediaElement.parentElement !== el.nowCoverBox) return;
+    if (el.nowCoverCanvas) el.nowCoverCanvas.hidden = true;
+    if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = false;
+  });
+
+  // 動画をデコードできない場合は静止ジャケットへ戻し、黒い映像枠を残さない。
+  mediaElement.addEventListener("error", () => {
+    if (state.currentSong?.mediaType !== "video" ||
+        mediaElement.currentSrc !== state.currentSong.url) return;
+    if (mediaElement.parentElement === el.nowCoverBox) mediaElement.remove();
+    mediaElement.classList.remove("coverVideo");
+    if (el.nowCoverCanvas) el.nowCoverCanvas.hidden = false;
+    if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = true;
+  });
+
   if (el.btnVideoFullscreen) {
     el.btnVideoFullscreen.addEventListener("click", async e => {
       e.stopPropagation();
-      if (!(audio instanceof HTMLVideoElement) || state.currentSong?.mediaType !== "video") return;
+      if (!(mediaElement instanceof HTMLVideoElement) ||
+          state.currentSong?.mediaType !== "video" ||
+          mediaElement.parentElement !== el.nowCoverBox) return;
       try {
         if (document.fullscreenElement) {
           await document.exitFullscreen?.();
-        } else if (audio.requestFullscreen) {
-          await audio.requestFullscreen();
-        } else if (audio.webkitEnterFullscreen) {
-          audio.webkitEnterFullscreen();
+        } else if (mediaElement.requestFullscreen) {
+          await mediaElement.requestFullscreen();
+        } else if (mediaElement.webkitEnterFullscreen) {
+          mediaElement.webkitEnterFullscreen();
         }
       } catch (err) {
         toast("映像を全画面表示できませんでした");
