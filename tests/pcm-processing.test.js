@@ -3731,6 +3731,43 @@ test("routing failure mutes the main sink and bridge and persists a blocked stat
 });
 
 
+test("a disconnected selected main output is detected and remains fail-closed until explicit reselection", () => {
+  const start = outputSource.indexOf("  function getDisconnectedSelectedMainOutputId(");
+  const end = outputSource.indexOf("\\n  let lastSystemDefaultOutputDeviceId", start);
+  assert.ok(start >= 0 && end > start, "selected-output disconnect detector must exist");
+  const functionSource = outputSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(functionSource + "\\nthis.getDisconnectedSelectedMainOutputId = getDisconnectedSelectedMainOutputId;", sandbox);
+  const previouslyKnown = new Set(["bluetooth-headset", "wired-speaker"]);
+  const afterDisconnect = [
+    { kind: "audiooutput", deviceId: "default" },
+    { kind: "audiooutput", deviceId: "wired-speaker" }
+  ];
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "bluetooth-headset", true),
+    "bluetooth-headset"
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "wired-speaker", true),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "new-device", true),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "bluetooth-headset", false),
+    ""
+  );
+  assert.equal(
+    sandbox.getDisconnectedSelectedMainOutputId(afterDisconnect, previouslyKnown, "default", true),
+    ""
+  );
+  assert.match(outputSource, /if \\(disconnectedSelectedMainOutputId\\) \\{[\\s\\S]*?muteAllAppOutputsForRoutingFailure\\(disconnectedSelectedMainOutputId\\)/);
+  assert.match(outputSource, /else if \\(state\\.speakerSettings\\?\\.outputRoutingBlocked !== true\\)/);
+});
+
+
 test("multi-output ON suppresses a saved route that aliases the current main speaker", async () => {
   const start = outputSource.indexOf("  async function syncAdditionalOutputRuntimes()");
   const end = outputSource.indexOf("\n  async function startOutputBridge", start);

@@ -2558,6 +2558,16 @@
     });
   }
 
+  function getDisconnectedSelectedMainOutputId(outputs, previouslyKnownDeviceIds, selectedDeviceId, hasBaseline) {
+    const selectedId = String(selectedDeviceId || "");
+    if (!hasBaseline || !selectedId || selectedId === "default" ||
+        !previouslyKnownDeviceIds?.has?.(selectedId)) return "";
+    const stillConnected = outputs.some(device =>
+      device?.kind === "audiooutput" && device.deviceId === selectedId
+    );
+    return stillConnected ? "" : selectedId;
+  }
+
   let lastSystemDefaultOutputDeviceId = null;
   let hasOutputDeviceBaseline = false;
 
@@ -2568,6 +2578,12 @@
         return;
       }
       const outputs = await enumerateAudioOutputs();
+      const disconnectedSelectedMainOutputId = getDisconnectedSelectedMainOutputId(
+        outputs,
+        knownPhysicalOutputDeviceIds,
+        state.mainOutputDeviceId,
+        hasOutputDeviceBaseline
+      );
       await rebindStoredOutputRoutes(outputs);
       const physicalOutputs = outputs.filter(device =>
         device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
@@ -2583,16 +2599,24 @@
       const defaultChanged = lastSystemDefaultOutputDeviceId !== null &&
         nextDefaultId !== lastSystemDefaultOutputDeviceId;
 
-      if (isMultipleOutputEnabled() && newlyConnectedOutput) {
-        await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
-      } else if (defaultChanged) {
-        if (isMultipleOutputEnabled()) {
-          await switchToExclusiveOutputDevice(
-            defaultPhysical || { deviceId: "default", label: getDefaultOutputLabel(outputs) },
-            outputs
-          );
-        } else {
-          await setMainOutputDevice("", { failClosed: true });
+      if (disconnectedSelectedMainOutputId) {
+        // 選択中の物理出力が消えた場合、OS既定出力への自動復帰を許可しない。
+        // 端末スピーカーへの意図しない出力を防ぎ、ユーザーの明示的な再選択まで遮断する。
+        muteAllAppOutputsForRoutingFailure(disconnectedSelectedMainOutputId);
+        toast("選択中の出力機器が切断されたため、音漏れ防止のため音声出力を停止しました。出力先を選び直してください");
+      } else if (state.speakerSettings?.outputRoutingBlocked !== true) {
+        // 一度遮断した後は、新しい機器の接続やOS既定出力の変化だけでは自動解除しない。
+        if (isMultipleOutputEnabled() && newlyConnectedOutput) {
+          await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
+        } else if (defaultChanged) {
+          if (isMultipleOutputEnabled()) {
+            await switchToExclusiveOutputDevice(
+              defaultPhysical || { deviceId: "default", label: getDefaultOutputLabel(outputs) },
+              outputs
+            );
+          } else {
+            await setMainOutputDevice("", { failClosed: true });
+          }
         }
       }
 
