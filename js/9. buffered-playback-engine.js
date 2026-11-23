@@ -1217,6 +1217,73 @@ class PcmPlaybackSessionController {
   }
 }
 
+// Read a reliable channel-count hint before decodeAudioData allocates the AudioBuffer.
+// Unknown containers are budgeted at the Web Audio maximum (32 channels).
+function getPcmSourceChannelHint(compressed) {
+  const bytes = new Uint8Array(compressed);
+  const view = new DataView(compressed);
+  const readAscii = (offset, length) => {
+    if (offset < 0 || offset + length > bytes.length) return "";
+    let value = "";
+    for (let index = 0; index < length; index++) value += String.fromCharCode(bytes[offset + index]);
+    return value;
+  };
+  const valid = channels => Number.isInteger(channels) && channels >= 1 && channels <= 32;
+
+  // RIFF/WAVE: channel count is the third UINT16 field in the fmt chunk.
+  if (readAscii(0, 4) === "RIFF" && readAscii(8, 4) === "WAVE") {
+    let offset = 12;
+    const scanLimit = Math.min(bytes.length, 1024 * 1024);
+    while (offset + 8 <= scanLimit) {
+      const chunkId = readAscii(offset, 4);
+      const chunkSize = view.getUint32(offset + 4, true);
+      const dataStart = offset + 8;
+      if (chunkId === "fmt ") {
+        if (chunkSize < 16 || dataStart + chunkSize > bytes.length) break;
+        const channels = view.getUint16(dataStart + 2, true);
+        if (valid(channels)) return { channels, exact: true };
+        break;
+      }
+      const nextOffset = dataStart + chunkSize + (chunkSize & 1);
+      if (!Number.isSafeInteger(nextOffset) || nextOffset <= offset) break;
+      offset = nextOffset;
+    }
+  }
+
+  // FLAC STREAMINFO packs (channels - 1) into bits 43..41.
+  if (readAscii(0, 4) === "fLaC" && bytes.length >= 42 &&
+      (bytes[4] & 0x7f) === 0 && ((bytes[5] << 16) | (bytes[6] << 8) | bytes[7]) >= 34) {
+    const packed = (BigInt(view.getUint32(18, false)) << 32n) | BigInt(view.getUint32(22, false));
+    const channels = Number((packed >> 41n) & 0x07n) + 1;
+    if (valid(channels)) return { channels, exact: true };
+  }
+
+  // Ogg Opus and Vorbis identify their channel count in the identification header.
+  const signatureLimit = Math.min(bytes.length - 12, 65536);
+  for (let offset = 0; offset <= signatureLimit; offset++) {
+    if (readAscii(offset, 8) === "OpusHead") {
+      const channels = bytes[offset + 8];
+      if (valid(channels)) return { channels, exact: true };
+      break;
+    }
+    if (readAscii(offset, 7) === "\u0001vorbis") {
+      const channels = bytes[offset + 11];
+      if (valid(channels)) return { channels, exact: true };
+      break;
+    }
+  }
+
+  // MPEG Layer III has at most two audio channels.
+  const name = String(state.currentSong?.name || "");
+  const mimeType = String(state.currentSong?.mimeType || "").toLowerCase();
+  if (/\.mp3$/i.test(name) || mimeType === "audio/mpeg" || mimeType.includes("mp3")) {
+    return { channels: 2, exact: false };
+  }
+
+  // AAC/MP4 and unrecognized containers are not assumed to be stereo.
+  return { channels: 32, exact: false };
+}
+
 class BufferedPlaybackEngine {
   constructor() {
     this.sourceUrl = "";
@@ -1535,10 +1602,15 @@ class BufferedPlaybackEngine {
       if (!Number.isFinite(durationHint) || durationHint <= 0) {
         throw new Error("Track duration is unavailable; PCM memory use cannot be estimated safely");
       }
+      const channelHint = getPcmSourceChannelHint(compressed);
+      if (channelHint.exact && channelHint.channels > 2) {
+        throw new Error(`PCM playback supports mono/stereo only; source has ${channelHint.channels} channels and requires MediaElement playback`);
+      }
       const sampleRateHint = Math.max(48000, Number(audioCtx?.sampleRate) || 48000);
-      const estimatedBytes = durationHint * sampleRateHint * 2 * 4;
-      // decodeAudioData receives a copy so the original compressed payload remains
-      // intact; budget for both compressed copies and the decoded stereo PCM peak.
+      // Duration metadata can be slightly low. Reserve an additional 25% and use
+      // the detected channel count, or 32 channels when the container is unknown.
+      const estimatedBytes = durationHint * 1.25 * sampleRateHint * channelHint.channels * 4;
+      // decodeAudioData receives a copy, so count both compressed copies and decoded PCM.
       const estimatedPeakBytes = compressed.byteLength * 2 + estimatedBytes;
       if (!Number.isFinite(estimatedPeakBytes) || estimatedPeakBytes > this.maxPcmBytes) {
         throw new Error("Compressed and decoded audio exceed the PCM memory budget before decoding");

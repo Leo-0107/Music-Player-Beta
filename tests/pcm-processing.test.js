@@ -43,16 +43,16 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.17";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 17"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.18";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 18"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 17;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.17"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.17-r17'));
-  assert.ok(indexSource.includes("7.5.17-r17"));
-  assert.ok(controllerSource.includes("7.5.17-r17"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.17-r17"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 18;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.18"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.18-r18'));
+  assert.ok(indexSource.includes("7.5.18-r18"));
+  assert.ok(controllerSource.includes("7.5.18-r18"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.18-r18"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -228,14 +228,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.17-r17"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.18-r18"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.17-r17"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.18-r18"));
 });
 
 
@@ -729,7 +729,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   const appState = {
     eqState: { gains: [0, 0, 0, 0, 0] },
     pitchSemitones: 0,
-    currentSong: { duration: 1 }
+    currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
   };
   const context = createMockOutputContext();
   const routeNode = { connect() {}, disconnect() {} };
@@ -1780,7 +1780,7 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 1 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
     },
     ensureGraph() {}
   });
@@ -1794,6 +1794,122 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
   );
   assert.equal(decodeCalls, 0);
   assert.equal(engine.buffer, null);
+});
+
+function makeWaveHeader(channels) {
+  const buffer = new ArrayBuffer(44);
+  const view = new DataView(buffer);
+  const writeAscii = (offset, value) => {
+    for (let index = 0; index < value.length; index++) view.setUint8(offset + index, value.charCodeAt(index));
+  };
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, 48000, true);
+  view.setUint32(28, 48000 * channels * 2, true);
+  view.setUint16(32, channels * 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, "data");
+  view.setUint32(40, 0, true);
+  return buffer;
+}
+
+test("PCM preparation detects multichannel WAV and falls back before decoding", async () => {
+  let decodeCalls = 0;
+  const compressed = makeWaveHeader(6);
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() {
+        decodeCalls++;
+        throw new Error("multichannel WAV must use MediaElement playback");
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "surround.wav", mimeType: "audio/wav", duration: 120 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/surround.wav";
+
+  await assert.rejects(() => engine.prepare(), /source has 6 channels and requires MediaElement playback/);
+  assert.equal(decodeCalls, 0);
+  assert.equal(engine.buffer, null);
+});
+
+test("PCM preparation uses a conservative 32-channel estimate for unknown containers", async () => {
+  let decodeCalls = 0;
+  const compressed = new ArrayBuffer(128);
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() {
+        decodeCalls++;
+        throw new Error("decode must not run above the conservative channel budget");
+      }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "unknown-audio.bin", mimeType: "application/octet-stream", duration: 60 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/unknown-audio.bin";
+  engine.maxPcmBytes = 64 * 1024 * 1024;
+
+  await assert.rejects(() => engine.prepare(), /exceed the PCM memory budget before decoding/);
+  assert.equal(decodeCalls, 0);
+  assert.equal(engine.buffer, null);
+});
+
+test("local audio Proxy falls back to MediaElement when PCM preparation rejects a channel layout", async () => {
+  const start = stateSource.indexOf("const audio = new Proxy(mediaElement, {");
+  const end = stateSource.indexOf("\n  let audioCtx", start);
+  assert.ok(start >= 0 && end > start, "audio Proxy source must exist");
+  const proxySource = stateSource.slice(start, end);
+  const events = [];
+  const mediaElement = {
+    removeAttribute() {},
+    load() {},
+    async play() { events.push("media-element-play"); return true; }
+  };
+  let bufferedPlaybackMode = false;
+  const bufferedPlaybackEngine = {
+    setSource(url) { this.sourceUrl = url; },
+    async play() { throw new Error("multichannel PCM is not supported"); },
+    clear() {}
+  };
+  const sandbox = {
+    mediaElement,
+    state: { currentSong: { mediaType: "audio" } },
+    bufferedPlaybackEngine,
+    bufferedPlaybackMode,
+    canUseBufferedPlayback: () => true,
+    async switchBufferedPlaybackToMediaElement() {
+      events.push("media-element-fallback");
+      bufferedPlaybackMode = false;
+      return true;
+    },
+    setGraphInputNode() {},
+    sourceNode: {},
+    filters: []
+  };
+  vm.runInNewContext(proxySource + "\nthis.testAudio = audio;", sandbox);
+  sandbox.testAudio.src = "blob:multichannel-test";
+  await sandbox.testAudio.play();
+
+  assert.deepEqual(events, ["media-element-fallback", "media-element-play"]);
 });
 
 test("PCM preparation refuses an unknown duration before allocating decoded audio", async () => {
@@ -1848,7 +1964,7 @@ test("PCM preparation checks actual compressed-plus-decoded peak if duration met
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 0.001 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 0.001 }
     },
     ensureGraph() {}
   });
@@ -1880,7 +1996,7 @@ test("fallback invalidates an in-flight decode without surfacing a stale play fa
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 1 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
     },
     ensureGraph() {},
     resumeAudioCtx: async () => {},
@@ -2936,7 +3052,7 @@ test("rapid PCM rate, pitch, and EQ updates keep only the newest handoff active"
   const appState = {
     eqState: { gains: [0, 0, 0, 0, 0] },
     pitchSemitones: 0,
-    currentSong: { duration: 1 }
+    currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
   };
   const context = createMockOutputContext();
   const routeNode = { connect() {}, disconnect() {} };
@@ -4113,7 +4229,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.17-r17",
+        "music-player-app-v7.5.18-r18",
         "another-app-cache",
         "shared-site-cache"
       ],
