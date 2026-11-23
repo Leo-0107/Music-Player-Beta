@@ -124,7 +124,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "088bcf1ebe689fffee00f255a14f9ea9cb9d8c4d"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "4b3c06902cf9c254d3e7e9f00549855976d7adee"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
