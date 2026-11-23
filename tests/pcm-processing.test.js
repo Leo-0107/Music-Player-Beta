@@ -140,6 +140,17 @@ test("audio diagnostics expose local underrun, compressor, and additional-route 
   assert.match(outputSource, /additionalOutputRoutes:/);
 });
 
+test("audio diagnostics expose optional queue, playback, sink, and route calibration metrics", () => {
+  assert.match(engineSource, /publishQueueDiagnostics\(\)/);
+  assert.match(engineSource, /__musicPlayerPcmQueueDiagnostics/);
+  assert.match(outputSource, /audioPlaybackStats:/);
+  assert.match(outputSource, /sinkChanges:/);
+  assert.match(outputSource, /routeSyncMeasurements:/);
+  assert.match(outputSource, /lastRouteMeasurements/);
+  assert.match(outputSource, /setOutputSinkId\(media, route\.deviceId, "additional-route-media-element"\)/);
+  assert.match(audioSource, /addEventListener\("sinkchange"/);
+});
+
 test("mini-player progress fill and thumb share one visual position", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
   const manifestSource = fs.readFileSync(path.join(root, "manifest.json"), "utf8");
