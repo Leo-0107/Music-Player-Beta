@@ -3613,6 +3613,9 @@ test("multiple speaker output is opt-in and defaults to OFF", () => {
   assert.equal(sandbox.isMultipleOutputEnabled(), true);
   assert.match(stateSource, /multipleOutputEnabled:\s*false/);
   assert.match(stateSource, /state\.speakerSettings\.multipleOutputEnabled !== true[\s\S]*?state\.mainOutputDeviceId = ""/);
+  assert.doesNotMatch(stateSource, /state\.speakerSettings\.outputRoutingBlocked = false/);
+  assert.match(outputSource, /if \(routingBlocked\) \{[\s\S]*?stopAllAdditionalOutputRuntimes\(\)/);
+  assert.match(outputSource, /const isMain = state\.speakerSettings\?\.outputRoutingBlocked !== true/);
   assert.match(indexSource, /id="multipleOutputToggle"[^>]*>複数出力：OFF/);
   assert.ok(outputSource.includes('const normalized = isMultipleOutputEnabled() ? requestedId : ""'));
   assert.match(outputSource, /複数出力ONで使用/);

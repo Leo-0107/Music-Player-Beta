@@ -1650,10 +1650,19 @@
     }
     if (!next) {
       resetTrackLoudnessNormalization();
+      const routingBlocked = state.speakerSettings.outputRoutingBlocked === true;
       state.speakerSettings.multipleOutputEnabled = false;
       state.mainOutputDeviceId = "";
       syncExternalOutputSafety();
       saveState();
+      if (routingBlocked) {
+        // 出力遮断中に複数出力をOFFにしても、既定スピーカーへ自動復帰させない。
+        stopAllAdditionalOutputRuntimes();
+        updateMultipleOutputToggleUI();
+        renderAdditionalOutputSpeakers();
+        toast("複数出力をOFFにしました。出力先を選び直すまで音声出力は停止中です");
+        return true;
+      }
       const switched = await setMainOutputDevice("", { failClosed: true });
       await syncAdditionalOutputRuntimes();
       updateMultipleOutputToggleUI();
@@ -2166,10 +2175,12 @@
         appendSpeakerNameContent(name, getOutputDeviceLabel(device, "音声出力デバイス"), false);
 
         const stateText = document.createElement("small");
-        const isMain = key === mainId || (
-          key === "default" &&
-          defaultPhysical &&
-          mainId === defaultPhysical.deviceId
+        const isMain = state.speakerSettings?.outputRoutingBlocked !== true && (
+          key === mainId || (
+            key === "default" &&
+            defaultPhysical &&
+            mainId === defaultPhysical.deviceId
+          )
         );
         stateText.textContent = isMain ? "現在使用中" : "";
 

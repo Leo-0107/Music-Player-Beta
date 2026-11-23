@@ -655,7 +655,7 @@
   // 複数出力がOFFの間は、アプリ独自の保存先を使わずOS既定の出力先に従う。
   if (state.speakerSettings.multipleOutputEnabled !== true) {
     state.mainOutputDeviceId = "";
-    state.speakerSettings.outputRoutingBlocked = false;
+    // outputRoutingBlockedはユーザーが出力先を明示的に選び直すまで維持する。
   }
 
   const el = {
