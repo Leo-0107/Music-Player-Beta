@@ -3,12 +3,13 @@ name: PCM processing regression tests
 on:
   push:
     branches:
-      - main15/pcm-worker-protocol-hardening
+      - main
   pull_request:
     branches:
       - main
     paths:
       - "index.html"
+      - "style.css"
       - "manifest.json"
       - "sw.js"
       - "js/13. sw.js"

@@ -127,6 +127,27 @@
     return state.speakerSettings?.autoDelayEnabled === false ? 0 : clampSpeakerDelay(delayMs);
   }
 
+  function applyAdditionalOutputRouteGraph(runtime, delayMs) {
+    if (!runtime?.merger || !runtime.destination) return;
+    const effectiveDelayMs = getEffectiveSpeakerDelay(delayMs);
+    const useLimiter = state.clippingProtection === true && !!runtime.limiterNode;
+    const target = effectiveDelayMs > 0 && runtime.delayNode ? runtime.delayNode : runtime.destination;
+    try { runtime.merger.disconnect(runtime.limiterNode); } catch (e) {}
+    try { runtime.merger.disconnect(runtime.delayNode); } catch (e) {}
+    try { runtime.merger.disconnect(runtime.destination); } catch (e) {}
+    if (runtime.limiterNode) {
+      try { runtime.limiterNode.disconnect(runtime.delayNode); } catch (e) {}
+      try { runtime.limiterNode.disconnect(runtime.destination); } catch (e) {}
+    }
+    if (runtime.delayNode) runtime.delayNode.connect(runtime.destination);
+    if (useLimiter) {
+      runtime.merger.connect(runtime.limiterNode);
+      runtime.limiterNode.connect(target);
+    } else {
+      runtime.merger.connect(target);
+    }
+  }
+
   function applyAllSpeakerDelayNodes() {
     if (!audioCtx) return;
     const now = audioCtx.currentTime;
@@ -152,13 +173,7 @@
       if (runtime?.delayNode) {
         const delayMs = getEffectiveSpeakerDelay(route.delayMs);
         runtime.delayNode.delayTime.setValueAtTime(Math.min(1.5, delayMs / 1000), now);
-        try { runtime.merger.disconnect(runtime.delayNode); } catch (e) {}
-        try { runtime.delayNode.disconnect(runtime.destination); } catch (e) {}
-        try { runtime.merger.disconnect(runtime.destination); } catch (e) {}
-        // 0ms時も測定音をDelayNodeへ直接入力できるよう出力先は常時接続する。
-        runtime.delayNode.connect(runtime.destination);
-        if (delayMs <= 0) runtime.merger.connect(runtime.destination);
-        else runtime.merger.connect(runtime.delayNode);
+        applyAdditionalOutputRouteGraph(runtime, route.delayMs);
       }
     }
   }
@@ -1812,6 +1827,12 @@
     const leftGain = audioCtx.createGain();
     const rightGain = audioCtx.createGain();
     const merger = audioCtx.createChannelMerger(2);
+    const routeLimiterNode = audioCtx.createDynamicsCompressor();
+    routeLimiterNode.threshold.setValueAtTime(-6.0, audioCtx.currentTime);
+    routeLimiterNode.knee.setValueAtTime(24, audioCtx.currentTime);
+    routeLimiterNode.ratio.setValueAtTime(2.5, audioCtx.currentTime);
+    routeLimiterNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
+    routeLimiterNode.release.setValueAtTime(0.2, audioCtx.currentTime);
     const delayNode = audioCtx.createDelay(1.5);
     const media = document.createElement("audio");
 
@@ -1833,6 +1854,7 @@
       leftGain,
       rightGain,
       merger,
+      limiterNode: routeLimiterNode,
       delayNode,
       connected: true,
       playError: null
@@ -1842,13 +1864,8 @@
     applyPairedSpeakerRouting();
     leftGain.connect(merger, 0, 0);
     rightGain.connect(merger, 0, 1);
-    // 遅延補正が0 msのときはDelayNodeを経由せず、最短経路で出力する。
-    // 補正値が必要なスピーカーだけDelayNodeを使用する。
-    if (getEffectiveSpeakerDelay(route.delayMs) <= 0) merger.connect(destination);
-    else {
-      merger.connect(delayNode);
-      delayNode.connect(destination);
-    }
+    // メイン出力と同じピーク圧縮を追加出力にも適用し、遅延補正の前段に置く。
+    applyAdditionalOutputRouteGraph(runtime, route.delayMs);
 
     media.volume = 1;
     media.muted = false;
@@ -2701,15 +2718,21 @@
         console.error("Music Player clipping protection routing failed:", e);
       }
     }
+    for (const route of state.outputRoutes || []) {
+      const runtime = additionalOutputRuntimes.get(route.deviceId);
+      if (runtime) applyAdditionalOutputRouteGraph(runtime, route.delayMs);
+    }
     if (el.btnClippingProtection) {
-      el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
+      el.btnClippingProtection.textContent = `ピーク圧縮: ${state.clippingProtection ? "ON" : "OFF"}`;
+      el.btnClippingProtection.title = "DynamicsCompressorNodeによるピーク圧縮です。True Peakの絶対上限を保証する機能ではありません。";
       el.btnClippingProtection.classList.toggle("active", state.clippingProtection);
     }
   }
 
   if (el.btnClippingProtection) {
     el.btnClippingProtection.addEventListener("click", () => setClippingProtection(!state.clippingProtection));
-    el.btnClippingProtection.textContent = `音割れ防止: ${state.clippingProtection ? "ON" : "OFF"}`;
+    el.btnClippingProtection.textContent = `ピーク圧縮: ${state.clippingProtection ? "ON" : "OFF"}`;
+    el.btnClippingProtection.title = "DynamicsCompressorNodeによるピーク圧縮です。True Peakの絶対上限を保証する機能ではありません。";
     el.btnClippingProtection.classList.toggle("active", state.clippingProtection);
   }
 
@@ -2747,7 +2770,24 @@
       outputTimestampAvailable: !!timestamp,
       outputTimestampContextGapMs: contextGapMs == null ? null : Math.round(contextGapMs * 10) / 10,
       outputTimestampPerformanceAgeMs: performanceAgeMs == null ? null : Math.round(performanceAgeMs * 10) / 10,
-      contextState: audioCtx.state
+      contextState: audioCtx.state,
+      limiterReductionDb: Number.isFinite(Number(limiterNode?.reduction)) ? Math.round(Number(limiterNode.reduction) * 10) / 10 : null,
+      pcmUnderrun: typeof window !== "undefined" && window.__musicPlayerPcmUnderrunDiagnostics
+        ? { ...window.__musicPlayerPcmUnderrunDiagnostics }
+        : { totalCount: 0, lastGapMs: null, lastFrame: null, lastAtMs: null },
+      additionalOutputRoutes: (state.outputRoutes || []).map((route, index) => {
+        const runtime = additionalOutputRuntimes.get(route.deviceId);
+        const reduction = Number(runtime?.limiterNode?.reduction);
+        return {
+          index,
+          enabled: route.enabled !== false,
+          connected: runtime?.connected === true,
+          playing: !!runtime && runtime.audio?.paused === false,
+          delayMs: getEffectiveSpeakerDelay(route.delayMs),
+          limiterReductionDb: Number.isFinite(reduction) ? Math.round(reduction * 10) / 10 : null,
+          playError: runtime?.playError || null
+        };
+      })
     };
     window.__musicPlayerOutputLatencyDiagnostics = diagnostics;
     return diagnostics;

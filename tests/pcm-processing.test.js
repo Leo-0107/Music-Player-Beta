@@ -22,6 +22,40 @@ const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
 const controllerSource = fs.readFileSync(path.join(root, "js/1. ctrl.js"), "utf8");
 const serviceWorkerSource = fs.readFileSync(path.join(root, "js/13. sw.js"), "utf8");
 const rootServiceWorkerSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+const workflowSource = fs.readFileSync(path.join(root, ".github/workflows/pcm-processing-regression.yml"), "utf8");
+
+
+test("PCM regression workflow covers main pushes and style-only pull requests", () => {
+  assert.match(workflowSource, /push:\s*\n\s+branches:\s*\n\s+- main/);
+  assert.match(workflowSource, /pull_request:[\s\S]*?paths:[\s\S]*?- "style\.css"/);
+  assert.doesNotMatch(workflowSource, /main15\/pcm-worker-protocol-hardening/);
+});
+
+test("ZIP size rejection message is derived from the enforced limit", () => {
+  assert.match(librarySource, /const maxZipMb = Math\.round\(MAX_ZIP_BYTES \/ \(1024 \* 1024\)\)/);
+  assert.match(librarySource, /上限\$\{maxZipMb\}MB/);
+  assert.doesNotMatch(librarySource, /上限512MB/);
+});
+
+test("additional speaker routes use the same optional peak compression stage", () => {
+  assert.match(outputSource, /const routeLimiterNode = audioCtx\.createDynamicsCompressor\(\)/);
+  assert.match(outputSource, /limiterNode: routeLimiterNode/);
+  assert.match(outputSource, /function applyAdditionalOutputRouteGraph\([\s\S]*?runtime\.merger\.connect\(runtime\.limiterNode\)[\s\S]*?runtime\.limiterNode\.connect\(target\)/);
+  assert.match(outputSource, /for \(const route of state\.outputRoutes \|\| \[\]\)[\s\S]*?applyAdditionalOutputRouteGraph\(runtime, route\.delayMs\)/);
+});
+
+test("peak compression UI does not promise a True Peak ceiling", () => {
+  assert.match(indexSource, /ピーク圧縮: ON/);
+  assert.match(indexSource, /True Peakの絶対上限を保証する機能ではありません/);
+  assert.match(outputSource, /ピーク圧縮: \$\{state\.clippingProtection/);
+});
+
+test("audio diagnostics expose local underrun, compressor, and additional-route metrics", () => {
+  assert.match(engineSource, /__musicPlayerPcmUnderrunDiagnostics/);
+  assert.match(outputSource, /limiterReductionDb:/);
+  assert.match(outputSource, /pcmUnderrun:/);
+  assert.match(outputSource, /additionalOutputRoutes:/);
+});
 
 test("mini-player progress fill and thumb share one visual position", () => {
   const styleSource = fs.readFileSync(path.join(root, "style.css"), "utf8");
@@ -43,16 +77,16 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.18";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 18"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.19";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 19"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
-  assert.ok(audioSource.includes("const BUILD_REVISION = 18;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.18"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.18-r18'));
-  assert.ok(indexSource.includes("7.5.18-r18"));
-  assert.ok(controllerSource.includes("7.5.18-r18"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.18-r18"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 19;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.19"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.19-r19'));
+  assert.ok(indexSource.includes("7.5.18-r19"));
+  assert.ok(controllerSource.includes("7.5.18-r19"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.18-r19"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -228,14 +262,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.18-r18"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.18-r18"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.18-r18"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.18-r19"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.18-r19"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.18-r19"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.18-r19"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.18-r18"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.18-r19"));
 });
 
 
@@ -3324,7 +3358,7 @@ test("clipping protection toggles the main output through the limiter without di
   assert.equal(channelMerger.connections.has(outputSplitter), false);
   assert.equal(limiterNode.connections.has(outputSplitter), true);
   assert.equal(limiterNode.connections.has(analyser), true);
-  assert.equal(ui.textContent, "音割れ防止: ON");
+  assert.equal(ui.textContent, "ピーク圧縮: ON");
   assert.equal(ui.active, true);
 
   sandbox.setClippingProtection(false);
@@ -3333,7 +3367,7 @@ test("clipping protection toggles the main output through the limiter without di
   assert.equal(channelMerger.connections.has(analyser), true);
   assert.equal(limiterNode.connections.has(outputSplitter), false);
   assert.equal(limiterNode.connections.has(analyser), false);
-  assert.equal(ui.textContent, "音割れ防止: OFF");
+  assert.equal(ui.textContent, "ピーク圧縮: OFF");
   assert.equal(ui.active, false);
 
   sandbox.setClippingProtection(true);
@@ -4229,7 +4263,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.18-r18",
+        "music-player-app-v7.5.19-r19",
         "another-app-cache",
         "shared-site-cache"
       ],
