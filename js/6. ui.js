@@ -253,6 +253,15 @@
   audio.addEventListener("seeking", () => trackPlaybackEvent("seeking"));
   audio.addEventListener("seeked", () => trackPlaybackEvent("seeked"));
 
+  const syncProgressBars = (value, source = null) => {
+    const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
+    if (source !== "main" && el.progress) el.progress.value = safeValue;
+    if (source !== "mini" && el.miniProgress) {
+      el.miniProgress.value = safeValue;
+      updateMiniProgressVisual(safeValue);
+    }
+  };
+
   audio.addEventListener("timeupdate", () => {
     updateTrackLoudnessNormalization();
     const statsNow = performance.now();
@@ -279,12 +288,7 @@
 
     if(!audio.duration) return;
     if(!isSlidingRange) {
-      if (el.progress) el.progress.value = (cur / dur) * 100;
-      if (el.miniProgress) {
-        const miniProgressValue = (cur / dur) * 100;
-        el.miniProgress.value = miniProgressValue;
-        updateMiniProgressVisual(miniProgressValue);
-      }
+      syncProgressBars((cur / dur) * 100);
     }
     if (cur > 30 || (dur > 0 && cur / dur > 0.5)) {
       recordPlayCount();
@@ -299,6 +303,8 @@
     if (el.timeAll) el.timeAll.textContent = text;
     if (el.miniTimeNow) el.miniTimeNow.textContent = fmtTime(audio.currentTime || 0);
     if (el.miniTimeAll) el.miniTimeAll.textContent = text;
+    const progress = Number.isFinite(dur) && dur > 0 ? (Number(audio.currentTime) / dur) * 100 : 0;
+    syncProgressBars(progress);
   });
 
   audio.addEventListener("ended", () => {
@@ -336,7 +342,11 @@
     el.progress.addEventListener("pointerdown", () => isSlidingRange = true);
     el.progress.addEventListener("pointerup", () => isSlidingRange = false);
     el.progress.addEventListener("input", () => {
-      if(audio.duration) audio.currentTime = (Number(el.progress.value) / 100) * audio.duration;
+      const value = Number(el.progress.value) || 0;
+      syncProgressBars(value, "main");
+      if (Number.isFinite(Number(audio.duration)) && audio.duration > 0) {
+        audio.currentTime = (value / 100) * audio.duration;
+      }
     });
   }
 
@@ -394,7 +404,7 @@
     });
     el.miniProgress.addEventListener("input", () => {
       const miniProgressValue = Number(el.miniProgress.value) || 0;
-      updateMiniProgressVisual(miniProgressValue);
+      syncProgressBars(miniProgressValue, "mini");
       miniProgressPendingValue = miniProgressValue;
       scheduleMiniProgressSeek();
     });
