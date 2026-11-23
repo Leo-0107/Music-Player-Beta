@@ -275,15 +275,23 @@
       } catch { resolve(null); }
     });
   }
-  function deleteCustomThemeBackground() {
+  async function deleteCustomThemeBackground() {
+    // 設定初期化時にDB接続が未確立でも、削除を試みてから成否を返す。
+    if (!db && !(await initDB())) return false;
+    if (!db || !db.objectStoreNames.contains("appSettings")) return false;
+
     return new Promise(resolve => {
-      if (!db || !db.objectStoreNames.contains("appSettings")) return resolve(false);
       try {
         const tx = db.transaction("appSettings", "readwrite");
         tx.objectStore("appSettings").delete("customThemeBackground");
-        tx.oncomplete = () => { updateStorageUsageStatus(); resolve(true); };
+        tx.oncomplete = () => {
+          updateStorageUsageStatus();
+          resolve(true);
+        };
         tx.onerror = tx.onabort = () => resolve(false);
-      } catch { resolve(false); }
+      } catch {
+        resolve(false);
+      }
     });
   }
   async function updateStorageUsageStatus() {

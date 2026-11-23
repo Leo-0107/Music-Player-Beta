@@ -1,4 +1,5 @@
-const CACHE_NAME = "music-player-app-v7.5.16-r16";
+const CACHE_NAME = "music-player-app-v7.5.17-r17";
+const CACHE_PREFIX = "music-player-app-v";
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
   "./sw.js",
@@ -45,7 +46,7 @@ self.addEventListener("activate", event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key !== CACHE_NAME && key.startsWith(CACHE_PREFIX))
           .map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
