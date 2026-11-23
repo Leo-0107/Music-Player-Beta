@@ -702,7 +702,7 @@ class PcmOutputScheduler {
       if (typeof window !== "undefined") {
         const diagnostics = window.__musicPlayerPcmUnderrunDiagnostics || { totalCount: 0 };
         diagnostics.totalCount = (Number(diagnostics.totalCount) || 0) + 1;
-        diagnostics.lastGapMs = Math.round(gapSeconds * 100000) / 100;
+        diagnostics.lastGapMs = Math.round(gapSeconds * 10000) / 10;
         diagnostics.lastFrame = this.nextFrame;
         diagnostics.lastSchedulerCount = this.underrunCount;
         diagnostics.lastAtMs = Date.now();

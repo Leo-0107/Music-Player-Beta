@@ -37,6 +37,39 @@ test("ZIP size rejection message is derived from the enforced limit", () => {
   assert.doesNotMatch(librarySource, /上限512MB/);
 });
 
+test("additional speaker route graph applies compression before optional delay", () => {
+  const start = outputSource.indexOf("function applyAdditionalOutputRouteGraph(");
+  const end = outputSource.indexOf("\\n  function applyAllSpeakerDelayNodes", start);
+  assert.ok(start >= 0 && end > start);
+  const helperSource = outputSource.slice(start, end);
+  const makeNode = name => ({
+    name,
+    connections: new Set(),
+    connect(target) { this.connections.add(target); },
+    disconnect(target) { if (target) this.connections.delete(target); else this.connections.clear(); }
+  });
+  const merger = makeNode("merger");
+  const limiterNode = makeNode("limiter");
+  const delayNode = makeNode("delay");
+  const destination = makeNode("destination");
+  const runtime = { merger, limiterNode, delayNode, destination };
+  const sandbox = { state: { clippingProtection: true }, getEffectiveSpeakerDelay: value => value };
+  vm.runInNewContext(helperSource + "\\nthis.applyRouteGraph = applyAdditionalOutputRouteGraph;", sandbox);
+  sandbox.applyRouteGraph(runtime, 0);
+  assert.equal(merger.connections.has(limiterNode), true);
+  assert.equal(limiterNode.connections.has(destination), true);
+  assert.equal(limiterNode.connections.has(delayNode), false);
+  sandbox.applyRouteGraph(runtime, 25);
+  assert.equal(merger.connections.has(limiterNode), true);
+  assert.equal(limiterNode.connections.has(delayNode), true);
+  assert.equal(delayNode.connections.has(destination), true);
+  sandbox.state.clippingProtection = false;
+  sandbox.applyRouteGraph(runtime, 0);
+  assert.equal(merger.connections.has(limiterNode), false);
+  assert.equal(merger.connections.has(destination), true);
+  assert.equal(limiterNode.connections.has(delayNode), false);
+});
+
 test("additional speaker routes use the same optional peak compression stage", () => {
   assert.match(outputSource, /const routeLimiterNode = audioCtx\.createDynamicsCompressor\(\)/);
   assert.match(outputSource, /limiterNode: routeLimiterNode/);
@@ -84,9 +117,9 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(audioSource.includes("const BUILD_REVISION = 19;"));
   assert.ok(manifestSource.includes("Music Player v7.5.19"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.19-r19'));
-  assert.ok(indexSource.includes("7.5.18-r19"));
-  assert.ok(controllerSource.includes("7.5.18-r19"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.18-r19"));
+  assert.ok(indexSource.includes("7.5.19-r19"));
+  assert.ok(controllerSource.includes("7.5.19-r19"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.19-r19"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -262,14 +295,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.18-r19"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.18-r19"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.18-r19"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.18-r19"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.19-r19"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.19-r19"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.19-r19"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.19-r19"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.18-r19"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.19-r19"));
 });
 
 
