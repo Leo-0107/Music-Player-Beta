@@ -43,16 +43,16 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.17";'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.18";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 17"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*z-index:\s*2147483647/);
   assert.ok(audioSource.includes("const BUILD_REVISION = 17;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.17"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.17-r17'));
-  assert.ok(indexSource.includes("7.5.17-r17"));
-  assert.ok(controllerSource.includes("7.5.17-r17"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.17-r17"));
+  assert.ok(manifestSource.includes("Music Player v7.5.18"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.18-r17'));
+  assert.ok(indexSource.includes("7.5.18-r18"));
+  assert.ok(controllerSource.includes("7.5.18-r18"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.18-r18"));
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -228,14 +228,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.17-r17"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.17-r17"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.18-r18"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.18-r18"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.17-r17"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.18-r18"));
 });
 
 
@@ -729,7 +729,7 @@ test("BufferedPlaybackEngine routes play, pause, resume, seek, and rate handoff 
   const appState = {
     eqState: { gains: [0, 0, 0, 0, 0] },
     pitchSemitones: 0,
-    currentSong: { duration: 1 }
+    currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
   };
   const context = createMockOutputContext();
   const routeNode = { connect() {}, disconnect() {} };
@@ -1780,7 +1780,7 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 1 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
     },
     ensureGraph() {}
   });
@@ -1964,7 +1964,7 @@ test("PCM preparation checks actual compressed-plus-decoded peak if duration met
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 0.001 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 0.001 }
     },
     ensureGraph() {}
   });
@@ -1996,7 +1996,7 @@ test("fallback invalidates an in-flight decode without surfacing a stale play fa
     state: {
       eqState: { gains: [0, 0, 0, 0, 0] },
       pitchSemitones: 0,
-      currentSong: { duration: 1 }
+      currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
     },
     ensureGraph() {},
     resumeAudioCtx: async () => {},
@@ -3052,7 +3052,7 @@ test("rapid PCM rate, pitch, and EQ updates keep only the newest handoff active"
   const appState = {
     eqState: { gains: [0, 0, 0, 0, 0] },
     pitchSemitones: 0,
-    currentSong: { duration: 1 }
+    currentSong: { name: "sample.mp3", mimeType: "audio/mpeg", duration: 1 }
   };
   const context = createMockOutputContext();
   const routeNode = { connect() {}, disconnect() {} };
@@ -4229,7 +4229,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.17-r17",
+        "music-player-app-v7.5.18-r17",
         "another-app-cache",
         "shared-site-cache"
       ],
