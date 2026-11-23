@@ -2582,7 +2582,6 @@
   let lastSystemDefaultOutputDeviceId = null;
   let lastSystemDefaultOutputDevice = null;
   let hasOutputDeviceBaseline = false;
-  let pendingOutputDeviceRefresh = false;
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
@@ -2651,14 +2650,6 @@
       renderAdditionalOutputSpeakers();
     });
   }
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && pendingOutputDeviceRefresh &&
-        typeof navigator.mediaDevices?.dispatchEvent === "function") {
-      pendingOutputDeviceRefresh = false;
-      navigator.mediaDevices.dispatchEvent(new Event("devicechange"));
-    }
-  });
 
   enumerateAudioOutputs().then(outputs => {
     const physicalOutputs = outputs.filter(device =>
