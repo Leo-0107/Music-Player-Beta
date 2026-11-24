@@ -201,8 +201,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.27";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 27"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.28";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 28"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -210,12 +210,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 27;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.27"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.27-r27'));
-  assert.ok(indexSource.includes("7.5.27-r27"));
-  assert.ok(controllerSource.includes("7.5.27-r27"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.27-r27"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 28;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.28"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.28-r28'));
+  assert.ok(indexSource.includes("7.5.28-r28"));
+  assert.ok(controllerSource.includes("7.5.28-r28"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.28-r28"));
 });
 
 test("video tracks display the active playback element in the cover and restore still artwork for audio tracks", () => {
@@ -449,14 +449,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.27-r27"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.27-r27"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.27-r27"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.27-r27"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.28-r28"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.28-r28"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.28-r28"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.28-r28"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.27-r27"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.28-r28"));
 });
 
 
@@ -3984,6 +3984,75 @@ test("OS default output resolves to the named physical speaker without an ambigu
   assert.equal(sandbox.getDefaultOutputLabel(ambiguous), "Speaker");
 });
 
+test("unresolved OS default identity is treated as unsafe when device changes occur", () => {
+  const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
+  const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
+  assert.ok(start >= 0 && end > start, "default-output identity helpers must exist");
+  const helperSource = outputSource.slice(start, end);
+  const sandbox = {};
+  vm.runInNewContext(
+    helperSource + "\nthis.isDefaultOutputIdentityUnresolved = isDefaultOutputIdentityUnresolved;",
+    sandbox
+  );
+  const maskedDefault = [
+    { kind: "audiooutput", deviceId: "default", label: "", groupId: "" },
+    { kind: "audiooutput", deviceId: "speaker-a", label: "", groupId: "" },
+    { kind: "audiooutput", deviceId: "speaker-b", label: "", groupId: "" }
+  ];
+  assert.equal(sandbox.isDefaultOutputIdentityUnresolved(maskedDefault), true);
+  const identifiedDefault = [
+    { kind: "audiooutput", deviceId: "default", label: "Default - Speaker", groupId: "internal" },
+    { kind: "audiooutput", deviceId: "speaker-a", label: "Speaker", groupId: "internal" }
+  ];
+  assert.equal(sandbox.isDefaultOutputIdentityUnresolved(identifiedDefault), false);
+  assert.ok(outputSource.includes("lastSystemDefaultOutputIdentityUnresolved"));
+  assert.ok(outputSource.includes("previousDefaultIdentityUnresolved"));
+  assert.ok(outputSource.includes("unresolvedDefaultDeviceChange"));
+  assert.ok(outputSource.includes("disconnectedSelectedMainOutputId || defaultChanged || unresolvedDefaultDeviceChange"));
+});
+
+test("stored explicit output stays muted until the current sink is confirmed", () => {
+  const start = audioSource.indexOf("  function enableMainOutputAfterSinkConfirmed(");
+  const end = audioSource.indexOf("\n  function ensureGraph", start);
+  assert.ok(start >= 0 && end > start, "sink confirmation helper must exist");
+  const helperSource = audioSource.slice(start, end);
+  const gain = { value: 0, setTargetAtTime(value) { this.value = value; } };
+  const sandbox = {
+    audioCtx: { currentTime: 4, sinkId: "saved-speaker" },
+    mainOutputDirectGainNode: { gain },
+    state: {
+      mainOutputDeviceId: "saved-speaker",
+      speakerSettings: { outputRoutingBlocked: false, mainEnabled: true }
+    }
+  };
+  vm.runInNewContext(helperSource + "\nthis.enableMainOutputAfterSinkConfirmed = enableMainOutputAfterSinkConfirmed;", sandbox);
+  assert.equal(sandbox.enableMainOutputAfterSinkConfirmed("saved-speaker"), true);
+  assert.equal(gain.value, 1);
+
+  gain.value = 0;
+  sandbox.state.mainOutputDeviceId = "new-speaker";
+  assert.equal(sandbox.enableMainOutputAfterSinkConfirmed("saved-speaker"), false);
+  assert.equal(gain.value, 0);
+
+  sandbox.state.mainOutputDeviceId = "saved-speaker";
+  sandbox.audioCtx.sinkId = "different-speaker";
+  assert.equal(sandbox.enableMainOutputAfterSinkConfirmed("saved-speaker"), false);
+  assert.equal(gain.value, 0);
+
+  sandbox.audioCtx.sinkId = "saved-speaker";
+  sandbox.state.speakerSettings.outputRoutingBlocked = true;
+  assert.equal(sandbox.enableMainOutputAfterSinkConfirmed("saved-speaker"), false);
+  assert.equal(gain.value, 0);
+
+  sandbox.state.speakerSettings.outputRoutingBlocked = false;
+  sandbox.state.speakerSettings.mainEnabled = false;
+  assert.equal(sandbox.enableMainOutputAfterSinkConfirmed("saved-speaker"), true);
+  assert.equal(gain.value, 0);
+  assert.ok(audioSource.includes("!!state.mainOutputDeviceId ? 0 : 1;"));
+  assert.ok(audioSource.includes("audioCtx.setSinkId(initialMainOutputDeviceId).then(() => {"));
+  assert.ok(audioSource.includes("enableMainOutputAfterSinkConfirmed(initialMainOutputDeviceId)"));
+});
+
 test("newly connected output selection prefers the new OS-default physical device", () => {
   const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
   const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
@@ -4450,7 +4519,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.27-r27",
+        "music-player-app-v7.5.28-r28",
         "another-app-cache",
         "shared-site-cache"
       ],
