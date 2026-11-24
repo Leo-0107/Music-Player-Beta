@@ -199,6 +199,11 @@
 
         req.onsuccess = e => {
           const openedDB = e.target.result;
+          // blockedでPromiseが既にreject済みなら、遅れて開いた接続を残さない。
+          if (settled) {
+            try { openedDB.close(); } catch {}
+            return;
+          }
           openedDB.onversionchange = () => {
             try { openedDB.close(); } catch {}
           };
