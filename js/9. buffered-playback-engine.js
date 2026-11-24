@@ -1283,6 +1283,7 @@ async function readResponseArrayBufferWithLimit(response, maxBytes, shouldCancel
   const reader = body.getReader();
   const chunks = [];
   let totalBytes = 0;
+  let retainedBufferBytes = 0;
   try {
     while (true) {
       if (shouldCancel()) throw new Error("PCM preparation was cancelled");
@@ -1301,7 +1302,9 @@ async function readResponseArrayBufferWithLimit(response, maxBytes, shouldCancel
       if (!chunk.byteLength) continue;
 
       totalBytes += chunk.byteLength;
-      if (totalBytes > limit) {
+      retainedBufferBytes += Math.max(chunk.byteLength, Number(chunk.buffer?.byteLength) || chunk.byteLength);
+      // Account for both retained stream chunks and the contiguous buffer built below.
+      if (totalBytes > limit || retainedBufferBytes + totalBytes > limit * 2) {
         throw new Error("Compressed source exceeds the PCM memory budget");
       }
       chunks.push(chunk);
