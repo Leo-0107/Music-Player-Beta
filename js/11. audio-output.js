@@ -2653,8 +2653,10 @@
       const wasBlockedBeforeChange = state.speakerSettings?.outputRoutingBlocked === true;
       const selectedMainOutputIdBeforeChange = state.mainOutputDeviceId || "";
       const previousDefaultWasExternal = getOutputDevicePriority(lastSystemDefaultOutputDevice) === 0;
+      const previousDefaultIdentityUnresolved =
+        !selectedMainOutputIdBeforeChange && lastSystemDefaultOutputIdentityUnresolved;
       const preemptiveFailClosed = !wasBlockedBeforeChange &&
-        (!!selectedMainOutputIdBeforeChange || previousDefaultWasExternal);
+        (!!selectedMainOutputIdBeforeChange || previousDefaultWasExternal || previousDefaultIdentityUnresolved);
       if (preemptiveFailClosed) {
         // enumerateDevices()は非同期のため、OSの既定出力切替より先にアプリ側を遮断する。
         muteAllAppOutputsForRoutingFailure(selectedMainOutputIdBeforeChange);
