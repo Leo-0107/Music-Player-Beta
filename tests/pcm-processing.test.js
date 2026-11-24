@@ -4051,6 +4051,9 @@ test("stored explicit output stays muted until the current sink is confirmed", (
   assert.ok(audioSource.includes("!!state.mainOutputDeviceId ? 0 : 1;"));
   assert.ok(audioSource.includes("audioCtx.setSinkId(initialMainOutputDeviceId).then(() => {"));
   assert.ok(audioSource.includes("enableMainOutputAfterSinkConfirmed(initialMainOutputDeviceId)"));
+  assert.ok(audioSource.includes("mainOutputSinkInitializationPromise = audioCtx.setSinkId(initialMainOutputDeviceId)"));
+  assert.ok(audioSource.includes("mainOutputSinkInitializationPromise = outputBridgeAudio.setSinkId(initialMainOutputDeviceId)"));
+  assert.ok(outputSource.includes("await mainOutputSinkInitializationPromise"));
 });
 
 test("newly connected output selection prefers the new OS-default physical device", () => {
