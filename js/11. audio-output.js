@@ -2656,9 +2656,10 @@
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       const wasBlockedBeforeChange = state.speakerSettings?.outputRoutingBlocked === true;
       const selectedMainOutputIdBeforeChange = state.mainOutputDeviceId || "";
+      const hadOutputDeviceBaseline = hasOutputDeviceBaseline;
       const previousDefaultWasExternal = getOutputDevicePriority(lastSystemDefaultOutputDevice) === 0;
       const previousDefaultIdentityUnresolved =
-        !selectedMainOutputIdBeforeChange && lastSystemDefaultOutputIdentityUnresolved;
+        !selectedMainOutputIdBeforeChange && (!hadOutputDeviceBaseline || lastSystemDefaultOutputIdentityUnresolved);
       const preemptiveFailClosed = !wasBlockedBeforeChange &&
         (!!selectedMainOutputIdBeforeChange || previousDefaultWasExternal || previousDefaultIdentityUnresolved);
       if (preemptiveFailClosed) {
