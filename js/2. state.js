@@ -608,7 +608,7 @@
   }
 
   function loadStringArray(k) {
-    return loadJSON(k, []).filter(value => typeof value === "string" && value.length <= 1024);
+    return loadJSON(k, []).filter(value => typeof value === "string" && value.length > 0 && value.length <= 1024);
   }
 
   function loadNonNegativeNumberMap(k) {
@@ -651,7 +651,7 @@
     const color = (value, defaultValue) =>
       typeof value === "string" && value.trim() !== "" && value.length <= 64 ? value : defaultValue;
     const lightness = (value, defaultValue) => normalizeStoredNumber(value, defaultValue, 0, 100);
-    const direction = typeof stored.dir === "string" && /^-?\\d{1,4}(?:\\.\\d+)?deg$/.test(stored.dir)
+    const direction = typeof stored.dir === "string" && /^-?\d{1,4}(?:\.\d+)?deg$/.test(stored.dir)
       ? stored.dir
       : fallback.dir;
     return {
@@ -672,7 +672,7 @@
     const entries = [];
     for (const [name, tracks] of Object.entries(stored)) {
       if (!name.trim() || name.length > 200 || !Array.isArray(tracks)) continue;
-      entries.push([name, tracks.filter(track => typeof track === "string" && track.length <= 1024)]);
+      entries.push([name, tracks.filter(track => typeof track === "string" && track.length > 0 && track.length <= 1024)]);
     }
     return Object.fromEntries(entries);
   }
