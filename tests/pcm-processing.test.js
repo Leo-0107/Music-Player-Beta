@@ -4110,6 +4110,102 @@ test("normal IndexedDB open success resolves without closing the connection", as
   assert.equal(closeCount, 0);
 });
 
+test("persisted JSON loaders reject mismatched root container types", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  assert.ok(start >= 0 && end > start, "persisted JSON validation helpers must exist");
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    arrayStoredAsObject: "[]",
+    objectStoredAsArray: "{\"unexpected\":true}",
+    mixedStrings: "[\"track-a\",7,\"track-b\"]"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(
+    helperSource + "\nthis.loadJSON = loadJSON; this.loadStringArray = loadStringArray;",
+    sandbox
+  );
+  const objectFallback = vm.runInNewContext("({ safe: true })", sandbox);
+  assert.equal(JSON.stringify(sandbox.loadJSON("arrayStoredAsObject", objectFallback)), JSON.stringify(objectFallback));
+  assert.equal(JSON.stringify(sandbox.loadJSON("objectStoredAsArray", [])), "[]");
+  assert.equal(JSON.stringify(sandbox.loadStringArray("mixedStrings")), "[\"track-a\",\"track-b\"]");
+});
+
+test("invalid persisted speaker routing settings fail closed and valid legacy settings remain usable", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    malformedFlag: "{\"outputRoutingBlocked\":\"false\",\"mainDelayMs\":2000,\"channelMode\":\"invalid\"}",
+    malformedRoot: "[]",
+    malformedJson: "{",
+    validLegacy: "{\"outputRoutingBlocked\":false,\"multipleOutputEnabled\":true,\"mainEnabled\":false,\"channelMode\":\"left\",\"mainDelayMs\":12.5}"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(helperSource + "\nthis.loadSpeakerSettings = loadSpeakerSettings;", sandbox);
+  const defaults = { multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true };
+  const malformed = sandbox.loadSpeakerSettings("malformedFlag", defaults);
+  assert.equal(malformed.outputRoutingBlocked, true);
+  assert.equal(malformed.mainDelayMs, 1000);
+  assert.equal(malformed.channelMode, "stereo");
+  assert.equal(sandbox.loadSpeakerSettings("malformedRoot", defaults).outputRoutingBlocked, true);
+  assert.equal(sandbox.loadSpeakerSettings("malformedJson", defaults).outputRoutingBlocked, true);
+  const valid = sandbox.loadSpeakerSettings("validLegacy", defaults);
+  assert.equal(valid.outputRoutingBlocked, false);
+  assert.equal(valid.multipleOutputEnabled, true);
+  assert.equal(valid.mainEnabled, false);
+  assert.equal(valid.channelMode, "left");
+  assert.equal(valid.mainDelayMs, 12.5);
+});
+
+test("persisted EQ, playlist and visualizer values are normalized without dropping valid entries", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    eq: "{\"preset\":\"Custom\",\"gains\":[-40,-12,0,12,40]}",
+    badEq: "{\"preset\":\"Custom\",\"gains\":{\"left\":1}}",
+    playlists: "{\"Favorites\":[\"song-a\",4,\"song-b\"],\"Broken\":\"not-an-array\"}",
+    playlistSettings: "{\"Favorites\":{\"shuffle\":true,\"repeat\":\"yes\"},\"Broken\":[]}",
+    visualizer: "{\"2d\":{\"particleCount\":5000},\"3d\":\"broken\"}"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(
+    helperSource + "\nthis.loadEqState = loadEqState; this.loadPlaylists = loadPlaylists; this.loadPlaylistSettings = loadPlaylistSettings; this.loadVisualizerModeSettings = loadVisualizerModeSettings;",
+    sandbox
+  );
+  const fallbackEq = vm.runInNewContext("({ preset: 'Normal', gains: [0,0,0,0,0] })", sandbox);
+  const eq = sandbox.loadEqState("eq", fallbackEq);
+  assert.equal(JSON.stringify(eq.gains), "[-24,-12,0,12,24]");
+  assert.equal(JSON.stringify(sandbox.loadEqState("badEq", fallbackEq)), JSON.stringify(fallbackEq));
+  assert.equal(JSON.stringify(sandbox.loadPlaylists("playlists")), "{\"Favorites\":[\"song-a\",\"song-b\"]}");
+  const settings = sandbox.loadPlaylistSettings("playlistSettings");
+  assert.equal(settings.Favorites.shuffle, true);
+  assert.equal(settings.Favorites.repeat, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "Broken"), false);
+  const visualizer = sandbox.loadVisualizerModeSettings("visualizer");
+  assert.equal(visualizer["2d"].particleCount, 1200);
+  assert.equal(Object.prototype.hasOwnProperty.call(visualizer, "3d"), false);
+});
+
 test("newly connected output selection prefers the new OS-default physical device", () => {
   const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
   const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
