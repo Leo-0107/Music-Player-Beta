@@ -2061,12 +2061,14 @@ body.output-device-modal-open .sidebar {
   .settingsGrid { grid-template-columns: 1fr; }
   .settingsDataTools {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
     gap: 8px;
   }
   .settingsTools { padding: 10px; }
   .settingsTools .sectionTitle { font-size: .9rem; }
+  .settingsTools:first-child .settingsToolRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settingsTools .settingsToolRow .btn:only-child { grid-column: 1 / -1; }
 }
 @media (max-width: 420px) {
   .settingsDataTools .settingsTools:first-child .settingsToolRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
