@@ -4163,7 +4163,7 @@ test("invalid persisted speaker routing settings fail closed and valid legacy se
   assert.equal(sandbox.loadSpeakerSettings("malformedRoot", defaults).outputRoutingBlocked, true);
   assert.equal(sandbox.loadSpeakerSettings("malformedJson", defaults).outputRoutingBlocked, true);
   const unavailableSandbox = { localStorage: { getItem() { throw new Error("storage unavailable"); } } };
-  vm.runInNewContext(helperSource + "\\nthis.loadSpeakerSettings = loadSpeakerSettings;", unavailableSandbox);
+  vm.runInNewContext(helperSource + "\nthis.loadSpeakerSettings = loadSpeakerSettings;", unavailableSandbox);
   assert.equal(unavailableSandbox.loadSpeakerSettings("speaker", defaults).outputRoutingBlocked, true);
   const valid = sandbox.loadSpeakerSettings("validLegacy", defaults);
   assert.equal(valid.outputRoutingBlocked, false);
