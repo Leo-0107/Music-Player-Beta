@@ -141,7 +141,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "0bfdb6b05eff0fa25ebbfcc80d41eb124119efa2"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "86e300baea2ed9b1f28299be80ff955342b3744d"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
@@ -201,8 +201,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.29";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 29"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.30";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 30"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -210,12 +210,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 29;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.29"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.29-r29'));
-  assert.ok(indexSource.includes("7.5.29-r29"));
-  assert.ok(controllerSource.includes("7.5.29-r29"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.29-r29"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 30;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.30"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.30-r30'));
+  assert.ok(indexSource.includes("7.5.30-r30"));
+  assert.ok(controllerSource.includes("7.5.30-r30"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.30-r30"));
 });
 
 test("video tracks display the active playback element in the cover and restore still artwork for audio tracks", () => {
@@ -449,14 +449,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.29-r29"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.29-r29"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.29-r29"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.29-r29"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.30-r30"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.30-r30"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.30-r30"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.30-r30"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.29-r29"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.30-r30"));
 });
 
 
@@ -4110,6 +4110,125 @@ test("normal IndexedDB open success resolves without closing the connection", as
   assert.equal(closeCount, 0);
 });
 
+test("persisted JSON loaders reject mismatched root container types", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  assert.ok(start >= 0 && end > start, "persisted JSON validation helpers must exist");
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    arrayStoredAsObject: "[]",
+    objectStoredAsArray: "{\"unexpected\":true}",
+    mixedStrings: "[\"track-a\",7,\"track-b\"]"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(
+    helperSource + "\nthis.loadJSON = loadJSON; this.loadStringArray = loadStringArray;",
+    sandbox
+  );
+  const objectFallback = vm.runInNewContext("({ safe: true })", sandbox);
+  assert.equal(JSON.stringify(sandbox.loadJSON("arrayStoredAsObject", objectFallback)), JSON.stringify(objectFallback));
+  assert.equal(JSON.stringify(sandbox.loadJSON("objectStoredAsArray", [])), "[]");
+  assert.equal(JSON.stringify(sandbox.loadStringArray("mixedStrings")), "[\"track-a\",\"track-b\"]");
+});
+
+test("invalid persisted speaker routing settings fail closed and valid legacy settings remain usable", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    malformedFlag: "{\"outputRoutingBlocked\":\"false\",\"mainDelayMs\":2000,\"channelMode\":\"invalid\"}",
+    malformedRoot: "[]",
+    malformedJson: "{",
+    validLegacy: "{\"outputRoutingBlocked\":false,\"multipleOutputEnabled\":true,\"mainEnabled\":false,\"channelMode\":\"left\",\"mainDelayMs\":12.5}"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(helperSource + "\nthis.loadSpeakerSettings = loadSpeakerSettings;", sandbox);
+  const defaults = { multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true };
+  const malformed = sandbox.loadSpeakerSettings("malformedFlag", defaults);
+  assert.equal(malformed.outputRoutingBlocked, true);
+  assert.equal(malformed.mainDelayMs, 1000);
+  assert.equal(malformed.channelMode, "stereo");
+  assert.equal(sandbox.loadSpeakerSettings("malformedRoot", defaults).outputRoutingBlocked, true);
+  assert.equal(sandbox.loadSpeakerSettings("malformedJson", defaults).outputRoutingBlocked, true);
+  const unavailableSandbox = { localStorage: { getItem() { throw new Error("storage unavailable"); } } };
+  vm.runInNewContext(helperSource + "\nthis.loadSpeakerSettings = loadSpeakerSettings;", unavailableSandbox);
+  assert.equal(unavailableSandbox.loadSpeakerSettings("speaker", defaults).outputRoutingBlocked, true);
+  const valid = sandbox.loadSpeakerSettings("validLegacy", defaults);
+  assert.equal(valid.outputRoutingBlocked, false);
+  assert.equal(valid.multipleOutputEnabled, true);
+  assert.equal(valid.mainEnabled, false);
+  assert.equal(valid.channelMode, "left");
+  assert.equal(valid.mainDelayMs, 12.5);
+});
+
+test("persisted EQ, playlist and visualizer values are normalized without dropping valid entries", () => {
+  const start = stateSource.indexOf("  function isPlainObject(");
+  const end = stateSource.indexOf("\n  function loadBool(", start);
+  const helperSource = stateSource.slice(start, end);
+  const values = {
+    eq: "{\"preset\":\"Custom\",\"gains\":[-40,-12,0,12,40]}",
+    badEq: "{\"preset\":\"Custom\",\"gains\":{\"left\":1}}",
+    playlists: "{\"Favorites\":[\"song-a\",4,\"song-b\"],\"Broken\":\"not-an-array\"}",
+    playlistSettings: "{\"Favorites\":{\"shuffle\":true,\"repeat\":\"yes\"},\"Broken\":[]}",
+    visualizer: "{\"2d\":{\"particleCount\":5000},\"3d\":\"broken\"}",
+    visualizerSettings: "{\"lowPerformanceMode\":\"yes\",\"showFps\":true,\"showLoad\":false}",
+    customTheme: "{\"c1\":\"red\",\"c2\":\"#123456\",\"text\":\"#ffffff\",\"l1\":150,\"l2\":-20,\"lText\":75,\"dir\":\"999deg\"}",
+    numericMap: "{\"play\":3,\"negative\":-2,\"bad\":\"x\",\"bool\":true}",
+    statsMap: "{\"good\":{\"lastPlayed\":100,\"totalPlayback\":50,\"partialPlays\":2},\"bad\":\"oops\"}"
+  };
+  const sandbox = {
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(
+    helperSource + "\nthis.loadEqState = loadEqState; this.loadPlaylists = loadPlaylists; this.loadPlaylistSettings = loadPlaylistSettings; this.loadVisualizerModeSettings = loadVisualizerModeSettings; this.loadVisualizerSettings = loadVisualizerSettings; this.loadCustomTheme = loadCustomTheme; this.loadNonNegativeNumberMap = loadNonNegativeNumberMap; this.loadPlayStatsMap = loadPlayStatsMap;",
+    sandbox
+  );
+  const fallbackEq = vm.runInNewContext("({ preset: 'Normal', gains: [0,0,0,0,0] })", sandbox);
+  const eq = sandbox.loadEqState("eq", fallbackEq);
+  assert.equal(JSON.stringify(eq.gains), "[-24,-12,0,12,24]");
+  assert.equal(JSON.stringify(sandbox.loadEqState("badEq", fallbackEq)), JSON.stringify(fallbackEq));
+  assert.equal(JSON.stringify(sandbox.loadPlaylists("playlists")), "{\"Favorites\":[\"song-a\",\"song-b\"]}");
+  const settings = sandbox.loadPlaylistSettings("playlistSettings");
+  assert.equal(settings.Favorites.shuffle, true);
+  assert.equal(settings.Favorites.repeat, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "Broken"), false);
+  const visualizer = sandbox.loadVisualizerModeSettings("visualizer");
+  assert.equal(visualizer["2d"].particleCount, 1200);
+  assert.equal(Object.prototype.hasOwnProperty.call(visualizer, "3d"), false);
+  const visualizerSettings = sandbox.loadVisualizerSettings("visualizerSettings", { lowPerformanceMode: false, showFps: false, showLoad: false });
+  assert.equal(visualizerSettings.lowPerformanceMode, false);
+  assert.equal(visualizerSettings.showFps, true);
+  const fallbackTheme = vm.runInNewContext("({ c1: '#1d3557', l1: 100, c2: '#121212', l2: 100, text: '#ffffff', lText: 100, dir: '180deg' })", sandbox);
+  const customTheme = sandbox.loadCustomTheme("customTheme", fallbackTheme);
+  assert.equal(customTheme.c1, "#1d3557");
+  assert.equal(customTheme.c2, "#123456");
+  assert.equal(customTheme.l1, 100);
+  assert.equal(customTheme.l2, 0);
+  assert.equal(customTheme.lText, 75);
+  assert.equal(customTheme.dir, "180deg");
+  const numericMap = sandbox.loadNonNegativeNumberMap("numericMap");
+  assert.equal(JSON.stringify(numericMap), "{\"play\":3,\"negative\":0}");
+  const statsMap = sandbox.loadPlayStatsMap("statsMap");
+  assert.equal(statsMap.good.totalPlayback, 50);
+  assert.equal(Object.prototype.hasOwnProperty.call(statsMap, "bad"), false);
+});
+
 test("newly connected output selection prefers the new OS-default physical device", () => {
   const start = outputSource.indexOf("  let latestEnumeratedOutputDevices = [];");
   const end = outputSource.indexOf("\n  let recentlyGrantedOutputDevice", start);
@@ -4576,7 +4695,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.29-r29",
+        "music-player-app-v7.5.30-r30",
         "another-app-cache",
         "shared-site-cache"
       ],

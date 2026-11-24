@@ -581,7 +581,187 @@
   let sleepTimerPendingStop = false;
   let hasCountedCurrentSong = false;
 
-  function loadJSON(k, f){ try{ const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; }catch{ return f; } }
+  function isPlainObject(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  }
+
+  function loadJSON(k, fallback, validator = null) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw === null || raw === "") return fallback;
+      const value = JSON.parse(raw);
+      if (Array.isArray(fallback) && !Array.isArray(value)) return fallback;
+      if (isPlainObject(fallback) && !isPlainObject(value)) return fallback;
+      if (typeof validator === "function" && !validator(value)) return fallback;
+      return value;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function normalizeStoredNumber(value, fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER) {
+    if (typeof value !== "number" && !(typeof value === "string" && value.trim() !== "")) return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+  }
+
+  function loadStringArray(k) {
+    return loadJSON(k, []).filter(value => typeof value === "string" && value.length > 0 && value.length <= 1024);
+  }
+
+  function loadNonNegativeNumberMap(k) {
+    const stored = loadJSON(k, {});
+    const entries = Object.entries(stored)
+      .filter(([key]) => key.length > 0)
+      .map(([key, value]) => [key, normalizeStoredNumber(value, NaN)]);
+    return Object.fromEntries(entries.filter(([, value]) => Number.isFinite(value)));
+  }
+
+  function loadPlayStatsMap(k) {
+    const stored = loadJSON(k, {});
+    const entries = [];
+    for (const [key, value] of Object.entries(stored)) {
+      if (!key || !isPlainObject(value)) continue;
+      entries.push([key, {
+        ...value,
+        lastPlayed: normalizeStoredNumber(value.lastPlayed),
+        totalPlayback: normalizeStoredNumber(value.totalPlayback),
+        partialPlays: normalizeStoredNumber(value.partialPlays)
+      }]);
+    }
+    return Object.fromEntries(entries);
+  }
+
+  function loadEqState(k, fallback) {
+    const stored = loadJSON(k, fallback);
+    if (
+      typeof stored.preset !== "string" ||
+      !Array.isArray(stored.gains) ||
+      stored.gains.length !== 5
+    ) return fallback;
+    const gains = stored.gains.map(value => normalizeStoredNumber(value, NaN, -24, 24));
+    if (!gains.every(Number.isFinite)) return fallback;
+    return { ...stored, preset: stored.preset.slice(0, 40), gains };
+  }
+
+  function loadCustomTheme(k, fallback) {
+    const stored = loadJSON(k, fallback);
+    const color = (value, defaultValue) =>
+      typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : defaultValue;
+    const lightness = (value, defaultValue) => normalizeStoredNumber(value, defaultValue, 0, 100);
+    const direction = ["45deg", "90deg", "135deg", "180deg"].includes(stored.dir)
+      ? stored.dir
+      : fallback.dir;
+    return {
+      ...fallback,
+      ...stored,
+      c1: color(stored.c1, fallback.c1),
+      c2: color(stored.c2, fallback.c2),
+      text: color(stored.text, fallback.text),
+      l1: lightness(stored.l1, fallback.l1),
+      l2: lightness(stored.l2, fallback.l2),
+      lText: lightness(stored.lText, fallback.lText),
+      dir: direction
+    };
+  }
+
+  function loadPlaylists(k) {
+    const stored = loadJSON(k, {});
+    const entries = [];
+    for (const [name, tracks] of Object.entries(stored)) {
+      if (!name.trim() || name.length > 200 || !Array.isArray(tracks)) continue;
+      entries.push([name, tracks.filter(track => typeof track === "string" && track.length > 0 && track.length <= 1024)]);
+    }
+    return Object.fromEntries(entries);
+  }
+
+  function loadPlaylistSettings(k) {
+    const stored = loadJSON(k, {});
+    const entries = [];
+    for (const [name, settings] of Object.entries(stored)) {
+      if (!name.trim() || !isPlainObject(settings)) continue;
+      entries.push([name, {
+        ...settings,
+        shuffle: typeof settings.shuffle === "boolean" ? settings.shuffle : false,
+        repeat: typeof settings.repeat === "boolean" ? settings.repeat : false
+      }]);
+    }
+    return Object.fromEntries(entries);
+  }
+
+  function loadVisualizerSettings(k, fallback) {
+    const stored = loadJSON(k, fallback);
+    return {
+      ...fallback,
+      ...stored,
+      lowPerformanceMode: typeof stored.lowPerformanceMode === "boolean" ? stored.lowPerformanceMode : fallback.lowPerformanceMode,
+      showFps: typeof stored.showFps === "boolean" ? stored.showFps : fallback.showFps,
+      showLoad: typeof stored.showLoad === "boolean" ? stored.showLoad : fallback.showLoad
+    };
+  }
+
+  function loadVisualizerModeSettings(k) {
+    const stored = loadJSON(k, {});
+    const entries = [];
+    for (const [mode, settings] of Object.entries(stored)) {
+      if (!mode.trim() || !isPlainObject(settings)) continue;
+      const normalized = { ...settings };
+      if (Object.prototype.hasOwnProperty.call(normalized, "particleCount")) {
+        const particleCount = normalizeStoredNumber(normalized.particleCount, NaN, 0, 1200);
+        if (Number.isFinite(particleCount)) normalized.particleCount = Math.round(particleCount);
+        else delete normalized.particleCount;
+      }
+      entries.push([mode, normalized]);
+    }
+    return Object.fromEntries(entries);
+  }
+
+  function loadSpeakerSettings(k, fallback) {
+    let raw;
+    try {
+      raw = localStorage.getItem(k);
+    } catch {
+      return { ...fallback, outputRoutingBlocked: true };
+    }
+    if (raw === null || raw === "") return { ...fallback };
+    let stored;
+    try {
+      stored = JSON.parse(raw);
+    } catch {
+      return { ...fallback, outputRoutingBlocked: true };
+    }
+    if (!isPlainObject(stored)) return { ...fallback, outputRoutingBlocked: true };
+
+    const settings = { ...fallback, ...stored };
+    if (Object.prototype.hasOwnProperty.call(stored, "outputRoutingBlocked")) {
+      settings.outputRoutingBlocked = typeof stored.outputRoutingBlocked === "boolean"
+        ? stored.outputRoutingBlocked
+        : true;
+    }
+    if (typeof stored.multipleOutputEnabled !== "boolean") settings.multipleOutputEnabled = fallback.multipleOutputEnabled;
+    if (typeof stored.mainEnabled !== "boolean") settings.mainEnabled = fallback.mainEnabled;
+    if (typeof stored.autoDelayEnabled !== "boolean") settings.autoDelayEnabled = fallback.autoDelayEnabled;
+    if (!["stereo", "left", "right"].includes(settings.channelMode)) settings.channelMode = fallback.channelMode;
+    for (const key of ["leftChannel", "rightChannel"]) {
+      if (Object.prototype.hasOwnProperty.call(settings, key) && !["left", "right", "off"].includes(settings[key])) {
+        delete settings[key];
+      }
+    }
+    settings.mainDelayMs = normalizeStoredNumber(settings.mainDelayMs, 0, 0, 1000);
+    for (const key of ["mainOutputLabel", "mainOutputGroupId"]) {
+      if (typeof settings[key] !== "string") settings[key] = "";
+      else settings[key] = settings[key].slice(0, 256);
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, "lastRouteMeasurements")) {
+      settings.lastRouteMeasurements = Array.isArray(settings.lastRouteMeasurements)
+        ? settings.lastRouteMeasurements.filter(isPlainObject)
+        : [];
+    }
+    return settings;
+  }
+
   function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
   function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
   function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
@@ -593,28 +773,28 @@
   const state = {
     playlist: [],
     currentSong: null,
-    favorites: loadJSON(STORAGE.favorites, []),
-    queue: loadJSON(STORAGE.queue, []),
-    playCounts: loadJSON(STORAGE.playCounts, {}),
-    playHistory: loadJSON(STORAGE.playHistory, {}),
-    playStats: loadJSON(STORAGE.playStats, {}),
-    playbackMonthly: loadJSON(STORAGE.playbackMonthly, {}),
-    eqState: loadJSON(STORAGE.eqState, { preset: "Normal", gains: [0,0,0,0,0] }),
+    favorites: loadStringArray(STORAGE.favorites),
+    queue: loadStringArray(STORAGE.queue),
+    playCounts: loadNonNegativeNumberMap(STORAGE.playCounts),
+    playHistory: loadNonNegativeNumberMap(STORAGE.playHistory),
+    playStats: loadPlayStatsMap(STORAGE.playStats),
+    playbackMonthly: loadNonNegativeNumberMap(STORAGE.playbackMonthly),
+    eqState: loadEqState(STORAGE.eqState, { preset: "Normal", gains: [0,0,0,0,0] }),
     shuffle: loadBool(STORAGE.shuffle, true),
     repeat: loadBool(STORAGE.repeat, false),
     favOnly: loadBool(STORAGE.favOnly, false),
     search: "",
     themeMode: loadStr(STORAGE.themeMode, "system"),
     accentColor: loadStr(STORAGE.accentColor, "#35D977"),
-    customTheme: loadJSON(STORAGE.customTheme, { 
-      c1: "#1d3557", l1: 100, 
-      c2: "#121212", l2: 100, 
-      text: "#ffffff", lText: 100, 
-      dir: "180deg" 
+    customTheme: loadCustomTheme(STORAGE.customTheme, {
+      c1: "#1d3557", l1: 100,
+      c2: "#121212", l2: 100,
+      text: "#ffffff", lText: 100,
+      dir: "180deg"
     }),
     pitchSemitones: loadNum(STORAGE.pitch, 0),
-    playlists: loadJSON(STORAGE.playlists, {}),
-    playlistOrder: loadJSON(STORAGE.playlistOrder, []),
+    playlists: loadPlaylists(STORAGE.playlists),
+    playlistOrder: loadStringArray(STORAGE.playlistOrder),
     crossfade: loadBool(STORAGE.crossfade, true),
     silenceSkip: loadBool(STORAGE.silenceSkip, true),
     dMode: loadSpatialMode(),
@@ -629,8 +809,8 @@
     outputLevelDb: Math.max(-12, Math.min(0, loadNum(STORAGE.outputLevelDb, 0))),
     loudnessCompression: Math.max(0, Math.min(100, Math.round(loadNum(STORAGE.loudnessCompression, 0)))),
     speakerPairSwap: loadBool(STORAGE.speakerPairSwap, false),
-    visualizerSettings: loadJSON(STORAGE.visualizerSettings, { lowPerformanceMode:false, showFps:false, showLoad:false }),
-    visualizerModeSettings: loadJSON(STORAGE.visualizerModeSettings, {}),
+    visualizerSettings: loadVisualizerSettings(STORAGE.visualizerSettings, { lowPerformanceMode:false, showFps:false, showLoad:false }),
+    visualizerModeSettings: loadVisualizerModeSettings(STORAGE.visualizerModeSettings),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, [])
@@ -641,8 +821,8 @@
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
-    speakerSettings: Object.assign({ multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
-    playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
+    speakerSettings: loadSpeakerSettings(STORAGE.speakerSettings, { multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }),
+    playlistSettings: loadPlaylistSettings(STORAGE.playlistSettings),
     activePlaylistName: null,
     playlistCycleOrder: [],
     playlistCycleIndex: -1,
