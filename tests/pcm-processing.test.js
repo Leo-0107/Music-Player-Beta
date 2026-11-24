@@ -1986,11 +1986,60 @@ test("PCM pump loop waits for an in-flight read before starting a replacement se
 });
 
 
+function createStreamingResponse(buffer, options = {}) {
+  const chunks = options.chunks || [new Uint8Array(buffer)];
+  const contentLength = Object.prototype.hasOwnProperty.call(options, "contentLength")
+    ? options.contentLength
+    : buffer.byteLength;
+  let chunkIndex = 0;
+  let readCount = 0;
+  let cancelled = false;
+  let readerCreated = false;
+  let arrayBufferCalls = 0;
+  const body = {
+    getReader() {
+      readerCreated = true;
+      return {
+        async read() {
+          readCount++;
+          if (cancelled || chunkIndex >= chunks.length) return { done: true };
+          return { done: false, value: chunks[chunkIndex++] };
+        },
+        async cancel() { cancelled = true; },
+        releaseLock() {}
+      };
+    },
+    async cancel() { cancelled = true; }
+  };
+  const response = {
+    ok: true,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === "content-length" && contentLength !== null
+          ? String(contentLength)
+          : null;
+      }
+    },
+    body,
+    async arrayBuffer() {
+      arrayBufferCalls++;
+      return buffer;
+    }
+  };
+  response.stats = {
+    get readCount() { return readCount; },
+    get cancelled() { return cancelled; },
+    get readerCreated() { return readerCreated; },
+    get arrayBufferCalls() { return arrayBufferCalls; }
+  };
+  return response;
+}
+
 test("PCM preparation budgets compressed copies together with estimated decoded PCM", async () => {
   let decodeCalls = 0;
   const compressed = new ArrayBuffer(60);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2015,6 +2064,67 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
   );
   assert.equal(decodeCalls, 0);
   assert.equal(engine.buffer, null);
+});
+
+test("PCM preparation cancels an oversized Content-Length before reading or allocating the body", async () => {
+  const compressed = new ArrayBuffer(120);
+  const response = createStreamingResponse(compressed);
+  let decodeCalls = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => response,
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() { decodeCalls++; throw new Error("decode must not run"); }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "oversized.mp3", duration: 1 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/oversized";
+  engine.maxPcmBytes = 200;
+
+  await assert.rejects(() => engine.prepare(), /Compressed source exceeds the PCM memory budget/);
+  assert.equal(response.stats.readerCreated, false);
+  assert.equal(response.stats.readCount, 0);
+  assert.equal(response.stats.cancelled, true);
+  assert.equal(response.stats.arrayBufferCalls, 0);
+  assert.equal(decodeCalls, 0);
+});
+
+test("PCM preparation enforces a cumulative byte cap when Content-Length is unknown", async () => {
+  const compressed = new ArrayBuffer(120);
+  const response = createStreamingResponse(compressed, {
+    contentLength: null,
+    chunks: [new Uint8Array(60), new Uint8Array(60)]
+  });
+  let decodeCalls = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => response,
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() { decodeCalls++; throw new Error("decode must not run"); }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "unknown-length.mp3", duration: 1 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/unknown-length";
+  engine.maxPcmBytes = 200;
+
+  await assert.rejects(() => engine.prepare(), /Compressed source exceeds the PCM memory budget/);
+  assert.equal(response.stats.readerCreated, true);
+  assert.equal(response.stats.readCount, 2);
+  assert.equal(response.stats.cancelled, true);
+  assert.equal(response.stats.arrayBufferCalls, 0);
+  assert.equal(decodeCalls, 0);
 });
 
 function makeWaveHeader(channels) {
@@ -2043,7 +2153,7 @@ test("PCM preparation detects multichannel WAV and falls back before decoding", 
   let decodeCalls = 0;
   const compressed = makeWaveHeader(6);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2070,7 +2180,7 @@ test("PCM preparation uses a conservative 32-channel estimate for unknown contai
   let decodeCalls = 0;
   const compressed = new ArrayBuffer(128);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2137,7 +2247,7 @@ test("PCM preparation refuses an unknown duration before allocating decoded audi
   const compressed = new ArrayBuffer(100);
   let decodeCalls = 0;
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2168,7 +2278,7 @@ test("PCM preparation checks actual compressed-plus-decoded peak if duration met
   let decodeCalls = 0;
   const samples = new Float32Array(101);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2206,7 +2316,7 @@ test("fallback invalidates an in-flight decode without surfacing a stale play fa
   let markDecodeStarted;
   const decodeStarted = new Promise(resolve => { markDecodeStarted = resolve; });
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(100) }),
+    fetch: async () => createStreamingResponse(new ArrayBuffer(100)),
     audioCtx: {
       sampleRate: 48000,
       decodeAudioData() {
