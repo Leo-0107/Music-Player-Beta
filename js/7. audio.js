@@ -633,6 +633,17 @@ let mainOutputUsesNativeDestination = false;
     saveState();
   }
 
+  function enableMainOutputAfterSinkConfirmed(expectedSinkId) {
+    if (!audioCtx || !mainOutputDirectGainNode?.gain) return false;
+    if (state.speakerSettings?.outputRoutingBlocked === true) return false;
+    if ((state.mainOutputDeviceId || "") !== expectedSinkId) return false;
+    const actualSinkId = audioCtx.sinkId;
+    if (typeof actualSinkId === "string" && actualSinkId !== expectedSinkId) return false;
+    const targetGain = state.speakerSettings?.mainEnabled === false ? 0 : 1;
+    mainOutputDirectGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.01);
+    return true;
+  }
+
   function ensureGraph(){
     if(audioGraphReady) return;
     try {
@@ -901,7 +912,11 @@ let mainOutputUsesNativeDestination = false;
       // メイン出力は対応ブラウザではAudioContext.setSinkId()を優先する。
       // MediaStreamDestination + HTMLMediaElement はフォールバックとして残す。
       mainOutputDirectGainNode = audioCtx.createGain();
-      mainOutputDirectGainNode.gain.value = state.speakerSettings?.outputRoutingBlocked === true || state.speakerSettings?.mainEnabled === false ? 0 : 1;
+      // 保存済みの明示出力先がある場合、setSinkId成功を確認するまでdirect経路を開かない。
+      mainOutputDirectGainNode.gain.value =
+        state.speakerSettings?.outputRoutingBlocked === true ||
+        state.speakerSettings?.mainEnabled === false ||
+        !!state.mainOutputDeviceId ? 0 : 1;
 
       // Androidのホーム画面追加PWAでは、AudioContext.setSinkId()を使うと
       // Chromeのスタンドアロン音声経路で出力が途切れたり音が不安定になる場合がある。
@@ -930,7 +945,12 @@ let mainOutputUsesNativeDestination = false;
         analyser.connect(mainOutputDirectGainNode);
         // AudioContext.setSinkId() は出力先を選ぶだけなので、destination への接続も必要。
         mainOutputDirectGainNode.connect(audioCtx.destination);
-        audioCtx.setSinkId(state.mainOutputDeviceId || "").catch(error => {
+        const initialMainOutputDeviceId = state.mainOutputDeviceId || "";
+        audioCtx.setSinkId(initialMainOutputDeviceId).then(() => {
+          if (initialMainOutputDeviceId) {
+            enableMainOutputAfterSinkConfirmed(initialMainOutputDeviceId);
+          }
+        }).catch(error => {
           mainOutputUsesDirectSink = false;
           mainOutputUsesNativeDestination = false;
           try { mainOutputDirectGainNode.disconnect(); } catch (e) {}
