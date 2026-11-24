@@ -1,19 +1,19 @@
 // ctrl.js
 (() => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js?v=7.5.29-r29', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
+    navigator.serviceWorker.register('./sw.js?v=7.5.30-r30', { updateViaCache: 'none' }).catch(err => { console.error('Service Worker registration failed:', err); window.__musicPlayerReportError?.('SW', 'registration', err); });
   }
 
   const base = new URL('.', document.currentScript?.src || 'js/1.%20ctrl.js');
   const files = [
-    '3. storage.js?v=7.5.29-r29',
-    '2. state.js?v=7.5.29-r29',
-    '7. audio.js?v=7.5.29-r29',
-    '11. audio-output.js?v=7.5.29-r29',
-    '9. buffered-playback-engine.js?v=7.5.29-r29',
-    '4. library.js?v=7.5.29-r29',
-    '6. ui.js?v=7.5.29-r29',
-    '5. youtube.js?v=7.5.29-r29'
+    '3. storage.js?v=7.5.30-r30',
+    '2. state.js?v=7.5.30-r30',
+    '7. audio.js?v=7.5.30-r30',
+    '11. audio-output.js?v=7.5.30-r30',
+    '9. buffered-playback-engine.js?v=7.5.30-r30',
+    '4. library.js?v=7.5.30-r30',
+    '6. ui.js?v=7.5.30-r30',
+    '5. youtube.js?v=7.5.30-r30'
   ];
 
   const LOAD_TIMEOUT_MS = 20000;
