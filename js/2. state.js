@@ -582,6 +582,46 @@
   let hasCountedCurrentSong = false;
 
   function loadJSON(k, f){ try{ const r = localStorage.getItem(k); return r ? JSON.parse(r) : f; }catch{ return f; } }
+  function isPlainRecord(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  }
+  function loadJSONValidated(k, fallback, validator, invalidFallback = fallback) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw === null) return fallback;
+      const parsed = JSON.parse(raw);
+      return validator(parsed) ? parsed : invalidFallback;
+    } catch {
+      return invalidFallback;
+    }
+  }
+  function loadSpeakerSettings() {
+    const defaults = {
+      multipleOutputEnabled: false,
+      outputRoutingBlocked: false,
+      mainEnabled: true,
+      channelMode: "stereo",
+      autoDelayEnabled: true
+    };
+    const failClosedDefaults = { ...defaults, outputRoutingBlocked: true };
+    const isValid = value => {
+      if (!isPlainRecord(value)) return false;
+      for (const key of ["multipleOutputEnabled", "outputRoutingBlocked", "mainEnabled", "autoDelayEnabled"]) {
+        if (Object.prototype.hasOwnProperty.call(value, key) && typeof value[key] !== "boolean") return false;
+      }
+      if (Object.prototype.hasOwnProperty.call(value, "channelMode") && typeof value.channelMode !== "string") return false;
+      if (Object.prototype.hasOwnProperty.call(value, "mainOutputLabel") && typeof value.mainOutputLabel !== "string") return false;
+      if (Object.prototype.hasOwnProperty.call(value, "mainOutputGroupId") && typeof value.mainOutputGroupId !== "string") return false;
+      if (Object.prototype.hasOwnProperty.call(value, "mainDelayMs") &&
+          (!Number.isFinite(Number(value.mainDelayMs)) || Number(value.mainDelayMs) < 0 || Number(value.mainDelayMs) > 1000)) return false;
+      return true;
+    };
+    return Object.assign({}, defaults,
+      loadJSONValidated(STORAGE.speakerSettings, defaults, isValid, failClosedDefaults)
+    );
+  }
   function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
   function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
   function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
@@ -633,7 +673,7 @@
     visualizerModeSettings: loadJSON(STORAGE.visualizerModeSettings, {}),
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
-    outputRoutes: loadJSON(STORAGE.outputRoutes, [])
+    outputRoutes: loadJSONValidated(STORAGE.outputRoutes, [], Array.isArray)
       .filter(route => route && typeof route.deviceId === "string" && String(route.label || "").trim())
       .map(route => ({
       ...route,
@@ -641,7 +681,7 @@
       delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
     })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
-    speakerSettings: Object.assign({ multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }, loadJSON(STORAGE.speakerSettings, {})),
+    speakerSettings: loadSpeakerSettings(),
     playlistSettings: loadJSON(STORAGE.playlistSettings, {}),
     activePlaylistName: null,
     playlistCycleOrder: [],
