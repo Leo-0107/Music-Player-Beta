@@ -4179,7 +4179,11 @@ test("persisted EQ, playlist and visualizer values are normalized without droppi
     badEq: "{\"preset\":\"Custom\",\"gains\":{\"left\":1}}",
     playlists: "{\"Favorites\":[\"song-a\",4,\"song-b\"],\"Broken\":\"not-an-array\"}",
     playlistSettings: "{\"Favorites\":{\"shuffle\":true,\"repeat\":\"yes\"},\"Broken\":[]}",
-    visualizer: "{\"2d\":{\"particleCount\":5000},\"3d\":\"broken\"}"
+    visualizer: "{\"2d\":{\"particleCount\":5000},\"3d\":\"broken\"}",
+    visualizerSettings: "{\"lowPerformanceMode\":\"yes\",\"showFps\":true,\"showLoad\":false}",
+    customTheme: "{\"c1\":\"red\",\"c2\":\"#123456\",\"text\":\"#ffffff\",\"l1\":150,\"l2\":-20,\"lText\":75,\"dir\":\"999deg\"}",
+    numericMap: "{\"play\":3,\"negative\":-2,\"bad\":\"x\",\"bool\":true}",
+    statsMap: "{\"good\":{\"lastPlayed\":100,\"totalPlayback\":50,\"partialPlays\":2},\"bad\":\"oops\"}"
   };
   const sandbox = {
     localStorage: {
@@ -4189,7 +4193,7 @@ test("persisted EQ, playlist and visualizer values are normalized without droppi
     }
   };
   vm.runInNewContext(
-    helperSource + "\nthis.loadEqState = loadEqState; this.loadPlaylists = loadPlaylists; this.loadPlaylistSettings = loadPlaylistSettings; this.loadVisualizerModeSettings = loadVisualizerModeSettings;",
+    helperSource + "\nthis.loadEqState = loadEqState; this.loadPlaylists = loadPlaylists; this.loadPlaylistSettings = loadPlaylistSettings; this.loadVisualizerModeSettings = loadVisualizerModeSettings; this.loadVisualizerSettings = loadVisualizerSettings; this.loadCustomTheme = loadCustomTheme; this.loadNonNegativeNumberMap = loadNonNegativeNumberMap; this.loadPlayStatsMap = loadPlayStatsMap;",
     sandbox
   );
   const fallbackEq = vm.runInNewContext("({ preset: 'Normal', gains: [0,0,0,0,0] })", sandbox);
@@ -4204,6 +4208,22 @@ test("persisted EQ, playlist and visualizer values are normalized without droppi
   const visualizer = sandbox.loadVisualizerModeSettings("visualizer");
   assert.equal(visualizer["2d"].particleCount, 1200);
   assert.equal(Object.prototype.hasOwnProperty.call(visualizer, "3d"), false);
+  const visualizerSettings = sandbox.loadVisualizerSettings("visualizerSettings", { lowPerformanceMode: false, showFps: false, showLoad: false });
+  assert.equal(visualizerSettings.lowPerformanceMode, false);
+  assert.equal(visualizerSettings.showFps, true);
+  const fallbackTheme = vm.runInNewContext("({ c1: '#1d3557', l1: 100, c2: '#121212', l2: 100, text: '#ffffff', lText: 100, dir: '180deg' })", sandbox);
+  const customTheme = sandbox.loadCustomTheme("customTheme", fallbackTheme);
+  assert.equal(customTheme.c1, "#1d3557");
+  assert.equal(customTheme.c2, "#123456");
+  assert.equal(customTheme.l1, 100);
+  assert.equal(customTheme.l2, 0);
+  assert.equal(customTheme.lText, 75);
+  assert.equal(customTheme.dir, "180deg");
+  const numericMap = sandbox.loadNonNegativeNumberMap("numericMap");
+  assert.equal(JSON.stringify(numericMap), "{\"play\":3,\"negative\":0}");
+  const statsMap = sandbox.loadPlayStatsMap("statsMap");
+  assert.equal(statsMap.good.totalPlayback, 50);
+  assert.equal(Object.prototype.hasOwnProperty.call(statsMap, "bad"), false);
 });
 
 test("newly connected output selection prefers the new OS-default physical device", () => {
