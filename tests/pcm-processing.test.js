@@ -4007,6 +4007,8 @@ test("unresolved OS default identity is treated as unsafe when device changes oc
   assert.equal(sandbox.isDefaultOutputIdentityUnresolved(identifiedDefault), false);
   assert.ok(outputSource.includes("lastSystemDefaultOutputIdentityUnresolved"));
   assert.ok(outputSource.includes("previousDefaultIdentityUnresolved"));
+  assert.ok(outputSource.includes("hadOutputDeviceBaseline"));
+  assert.ok(outputSource.includes("!hadOutputDeviceBaseline || lastSystemDefaultOutputIdentityUnresolved"));
   assert.ok(outputSource.includes("unresolvedDefaultDeviceChange"));
   assert.ok(outputSource.includes("disconnectedSelectedMainOutputId || defaultChanged || unresolvedDefaultDeviceChange"));
 });
