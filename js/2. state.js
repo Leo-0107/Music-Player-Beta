@@ -649,9 +649,9 @@
   function loadCustomTheme(k, fallback) {
     const stored = loadJSON(k, fallback);
     const color = (value, defaultValue) =>
-      typeof value === "string" && value.trim() !== "" && value.length <= 64 ? value : defaultValue;
+      typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : defaultValue;
     const lightness = (value, defaultValue) => normalizeStoredNumber(value, defaultValue, 0, 100);
-    const direction = typeof stored.dir === "string" && /^-?\d{1,4}(?:\.\d+)?deg$/.test(stored.dir)
+    const direction = ["45deg", "90deg", "135deg", "180deg"].includes(stored.dir)
       ? stored.dir
       : fallback.dir;
     return {
