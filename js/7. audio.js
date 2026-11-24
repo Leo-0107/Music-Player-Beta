@@ -613,6 +613,7 @@ let graphInputOwnership = null;
 
   let outputTransitionPromise = Promise.resolve();
   let mainOutputDirectGainNode = null;
+let mainOutputSinkInitializationPromise = null;
 let mainOutputUsesDirectSink = false;
 let mainOutputUsesNativeDestination = false;
 
@@ -946,45 +947,54 @@ let mainOutputUsesNativeDestination = false;
         // AudioContext.setSinkId() は出力先を選ぶだけなので、destination への接続も必要。
         mainOutputDirectGainNode.connect(audioCtx.destination);
         const initialMainOutputDeviceId = state.mainOutputDeviceId || "";
-        audioCtx.setSinkId(initialMainOutputDeviceId).then(() => {
+        mainOutputSinkInitializationPromise = audioCtx.setSinkId(initialMainOutputDeviceId).then(() => {
           if (initialMainOutputDeviceId) {
             enableMainOutputAfterSinkConfirmed(initialMainOutputDeviceId);
           }
-        }).catch(error => {
+        }).catch(async error => {
           mainOutputUsesDirectSink = false;
           mainOutputUsesNativeDestination = false;
           try { mainOutputDirectGainNode.disconnect(); } catch (e) {}
           ensureOutputBridge();
           if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
             outputBridgeAudio.volume = 0;
-            outputBridgeAudio.setSinkId(state.mainOutputDeviceId || "").then(() => {
+            try {
+              await outputBridgeAudio.setSinkId(initialMainOutputDeviceId);
               if (state.speakerSettings?.outputRoutingBlocked !== true) {
                 outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
               }
-            }).catch(fallbackError => {
-              failClosedMainOutputRouting(state.mainOutputDeviceId || "");
+            } catch (fallbackError) {
+              failClosedMainOutputRouting(initialMainOutputDeviceId);
               console.warn("Music Player output bridge fallback unavailable:", fallbackError);
-            });
-          } else if (state.mainOutputDeviceId) {
-            failClosedMainOutputRouting(state.mainOutputDeviceId);
+            }
+          } else if (initialMainOutputDeviceId) {
+            failClosedMainOutputRouting(initialMainOutputDeviceId);
           } else if (outputBridgeAudio) {
             outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
           }
           applyAllSpeakerDelayNodes();
           console.warn("Music Player direct AudioContext output unavailable:", error);
+        }).finally(() => {
+          mainOutputSinkInitializationPromise = null;
         });
       } else {
         ensureOutputBridge();
         if (state.mainOutputDeviceId) {
           if (outputBridgeAudio && typeof outputBridgeAudio.setSinkId === "function") {
+            const initialMainOutputDeviceId = state.mainOutputDeviceId;
             outputBridgeAudio.volume = 0;
-            outputBridgeAudio.setSinkId(state.mainOutputDeviceId).then(() => {
-              if (state.speakerSettings?.outputRoutingBlocked !== true) {
+            mainOutputSinkInitializationPromise = outputBridgeAudio.setSinkId(initialMainOutputDeviceId).then(() => {
+              if (
+                state.speakerSettings?.outputRoutingBlocked !== true &&
+                state.mainOutputDeviceId === initialMainOutputDeviceId
+              ) {
                 outputBridgeAudio.volume = state.speakerSettings?.mainEnabled === false ? 0 : 1;
               }
             }).catch(error => {
-              failClosedMainOutputRouting(state.mainOutputDeviceId);
+              failClosedMainOutputRouting(initialMainOutputDeviceId);
               console.warn("Music Player output device restore failed:", error);
+            }).finally(() => {
+              mainOutputSinkInitializationPromise = null;
             });
           } else {
             failClosedMainOutputRouting(state.mainOutputDeviceId);
