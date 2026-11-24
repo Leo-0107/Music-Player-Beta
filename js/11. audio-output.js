@@ -1071,6 +1071,10 @@
 
   async function setMainOutputDevice(deviceId, options = {}) {
     ensureGraph();
+    // 起動時の保存済みsink復元が完了してから、ユーザーの新しい選択を適用する。
+    if (mainOutputSinkInitializationPromise) {
+      try { await mainOutputSinkInitializationPromise; } catch (e) {}
+    }
     const requestedId = deviceId || "";
     const normalized = isMultipleOutputEnabled() ? requestedId : "";
     if (requestedId && !isMultipleOutputEnabled()) {
