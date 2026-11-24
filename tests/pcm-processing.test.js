@@ -3937,6 +3937,51 @@ test("unsupported settings during pending playback startup preserve the play req
 });
 
 
+test("invalid persisted output settings are validated and fail closed", () => {
+  const start = stateSource.indexOf("function isPlainRecord(value)");
+  const end = stateSource.indexOf("\n  function loadSpatialMode()", start);
+  assert.ok(start >= 0 && end > start, "persisted output setting validators must exist");
+  const helperSource = stateSource.slice(start, end);
+  let stored = {};
+  const sandbox = {
+    STORAGE: { speakerSettings: "speaker-settings", outputRoutes: "output-routes" },
+    localStorage: {
+      getItem(key) {
+        return Object.prototype.hasOwnProperty.call(stored, key) ? stored[key] : null;
+      }
+    }
+  };
+  vm.runInNewContext(
+    helperSource + "\nthis.loadSpeakerSettings = loadSpeakerSettings; this.loadJSONValidated = loadJSONValidated;",
+    sandbox
+  );
+
+  assert.equal(sandbox.loadSpeakerSettings().outputRoutingBlocked, false, "missing legacy settings keep the normal default");
+  for (const invalid of ["{", "null", "[]", '"bad"', '{"outputRoutingBlocked":"false"}']) {
+    stored["speaker-settings"] = invalid;
+    const settings = sandbox.loadSpeakerSettings();
+    assert.equal(settings.outputRoutingBlocked, true, "invalid persisted settings must block audio output");
+    assert.equal(settings.multipleOutputEnabled, false);
+    assert.equal(settings.mainEnabled, true);
+  }
+
+  stored["speaker-settings"] = '{"multipleOutputEnabled":true,"outputRoutingBlocked":true,"mainEnabled":false}';
+  const valid = sandbox.loadSpeakerSettings();
+  assert.equal(valid.multipleOutputEnabled, true);
+  assert.equal(valid.outputRoutingBlocked, true);
+  assert.equal(valid.mainEnabled, false);
+
+  stored["speaker-settings"] = '{"multipleOutputEnabled":true}';
+  assert.equal(sandbox.loadSpeakerSettings().outputRoutingBlocked, false, "valid legacy settings without the new field remain compatible");
+
+  stored["output-routes"] = '{"deviceId":"not-an-array"}';
+  assert.deepEqual(Array.from(sandbox.loadJSONValidated("output-routes", [], Array.isArray)), []);
+  stored["output-routes"] = '[{"deviceId":"speaker","label":"Speaker"}]';
+  assert.equal(sandbox.loadJSONValidated("output-routes", [], Array.isArray).length, 1);
+  assert.match(stateSource, /outputRoutes:\s*loadJSONValidated\(STORAGE\.outputRoutes, \[\], Array\.isArray\)/);
+  assert.match(stateSource, /speakerSettings:\s*loadSpeakerSettings\(\)/);
+});
+
 test("multiple speaker output is opt-in and defaults to OFF", () => {
   const start = outputSource.indexOf("function isMultipleOutputEnabled()");
   const end = outputSource.indexOf("\n  }", start) + 4;
