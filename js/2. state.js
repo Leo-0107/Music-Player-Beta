@@ -719,7 +719,12 @@
   }
 
   function loadSpeakerSettings(k, fallback) {
-    const raw = localStorage.getItem(k);
+    let raw;
+    try {
+      raw = localStorage.getItem(k);
+    } catch {
+      return { ...fallback, outputRoutingBlocked: true };
+    }
     if (raw === null || raw === "") return { ...fallback };
     let stored;
     try {
