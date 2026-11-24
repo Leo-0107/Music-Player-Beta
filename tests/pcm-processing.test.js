@@ -141,7 +141,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "86e300baea2ed9b1f28299be80ff955342b3744d"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "9eed2adf77dcc77cf5fba8c1f18cf39845d0ca5e"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
@@ -201,8 +201,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.30";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 30"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.31";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 31"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -210,12 +210,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 30;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.30"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.30-r30'));
-  assert.ok(indexSource.includes("7.5.30-r30"));
-  assert.ok(controllerSource.includes("7.5.30-r30"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.30-r30"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 31;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.31"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.31-r31'));
+  assert.ok(indexSource.includes("7.5.31-r31"));
+  assert.ok(controllerSource.includes("7.5.31-r31"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.31-r31"));
 });
 
 test("video tracks display the active playback element in the cover and restore still artwork for audio tracks", () => {
@@ -449,14 +449,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.30-r30"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.30-r30"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.30-r30"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.30-r30"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.31-r31"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.31-r31"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.31-r31"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.31-r31"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.30-r30"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.31-r31"));
 });
 
 
@@ -1986,11 +1986,60 @@ test("PCM pump loop waits for an in-flight read before starting a replacement se
 });
 
 
+function createStreamingResponse(buffer, options = {}) {
+  const chunks = options.chunks || [new Uint8Array(buffer)];
+  const contentLength = Object.prototype.hasOwnProperty.call(options, "contentLength")
+    ? options.contentLength
+    : buffer.byteLength;
+  let chunkIndex = 0;
+  let readCount = 0;
+  let cancelled = false;
+  let readerCreated = false;
+  let arrayBufferCalls = 0;
+  const body = {
+    getReader() {
+      readerCreated = true;
+      return {
+        async read() {
+          readCount++;
+          if (cancelled || chunkIndex >= chunks.length) return { done: true };
+          return { done: false, value: chunks[chunkIndex++] };
+        },
+        async cancel() { cancelled = true; },
+        releaseLock() {}
+      };
+    },
+    async cancel() { cancelled = true; }
+  };
+  const response = {
+    ok: true,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === "content-length" && contentLength !== null
+          ? String(contentLength)
+          : null;
+      }
+    },
+    body,
+    async arrayBuffer() {
+      arrayBufferCalls++;
+      return buffer;
+    }
+  };
+  response.stats = {
+    get readCount() { return readCount; },
+    get cancelled() { return cancelled; },
+    get readerCreated() { return readerCreated; },
+    get arrayBufferCalls() { return arrayBufferCalls; }
+  };
+  return response;
+}
+
 test("PCM preparation budgets compressed copies together with estimated decoded PCM", async () => {
   let decodeCalls = 0;
   const compressed = new ArrayBuffer(60);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2015,6 +2064,67 @@ test("PCM preparation budgets compressed copies together with estimated decoded 
   );
   assert.equal(decodeCalls, 0);
   assert.equal(engine.buffer, null);
+});
+
+test("PCM preparation cancels an oversized Content-Length before reading or allocating the body", async () => {
+  const compressed = new ArrayBuffer(120);
+  const response = createStreamingResponse(compressed);
+  let decodeCalls = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => response,
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() { decodeCalls++; throw new Error("decode must not run"); }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "oversized.mp3", duration: 1 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/oversized";
+  engine.maxPcmBytes = 200;
+
+  await assert.rejects(() => engine.prepare(), /Compressed source exceeds the PCM memory budget/);
+  assert.equal(response.stats.readerCreated, false);
+  assert.equal(response.stats.readCount, 0);
+  assert.equal(response.stats.cancelled, true);
+  assert.equal(response.stats.arrayBufferCalls, 0);
+  assert.equal(decodeCalls, 0);
+});
+
+test("PCM preparation enforces a cumulative byte cap when Content-Length is unknown", async () => {
+  const compressed = new ArrayBuffer(120);
+  const response = createStreamingResponse(compressed, {
+    contentLength: null,
+    chunks: [new Uint8Array(60), new Uint8Array(60)]
+  });
+  let decodeCalls = 0;
+  const { Engine } = createEngineClass(MockWorker, {
+    fetch: async () => response,
+    audioCtx: {
+      sampleRate: 48000,
+      async decodeAudioData() { decodeCalls++; throw new Error("decode must not run"); }
+    },
+    state: {
+      eqState: { gains: [0, 0, 0, 0, 0] },
+      pitchSemitones: 0,
+      currentSong: { name: "unknown-length.mp3", duration: 1 }
+    },
+    ensureGraph() {}
+  });
+  const engine = new Engine();
+  engine.sourceUrl = "https://music-player.invalid/unknown-length";
+  engine.maxPcmBytes = 200;
+
+  await assert.rejects(() => engine.prepare(), /Compressed source exceeds the PCM memory budget/);
+  assert.equal(response.stats.readerCreated, true);
+  assert.equal(response.stats.readCount, 2);
+  assert.equal(response.stats.cancelled, true);
+  assert.equal(response.stats.arrayBufferCalls, 0);
+  assert.equal(decodeCalls, 0);
 });
 
 function makeWaveHeader(channels) {
@@ -2043,7 +2153,7 @@ test("PCM preparation detects multichannel WAV and falls back before decoding", 
   let decodeCalls = 0;
   const compressed = makeWaveHeader(6);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2070,7 +2180,7 @@ test("PCM preparation uses a conservative 32-channel estimate for unknown contai
   let decodeCalls = 0;
   const compressed = new ArrayBuffer(128);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2137,7 +2247,7 @@ test("PCM preparation refuses an unknown duration before allocating decoded audi
   const compressed = new ArrayBuffer(100);
   let decodeCalls = 0;
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2168,7 +2278,7 @@ test("PCM preparation checks actual compressed-plus-decoded peak if duration met
   let decodeCalls = 0;
   const samples = new Float32Array(101);
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => compressed }),
+    fetch: async () => createStreamingResponse(compressed),
     audioCtx: {
       sampleRate: 48000,
       async decodeAudioData() {
@@ -2206,7 +2316,7 @@ test("fallback invalidates an in-flight decode without surfacing a stale play fa
   let markDecodeStarted;
   const decodeStarted = new Promise(resolve => { markDecodeStarted = resolve; });
   const { Engine } = createEngineClass(MockWorker, {
-    fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(100) }),
+    fetch: async () => createStreamingResponse(new ArrayBuffer(100)),
     audioCtx: {
       sampleRate: 48000,
       decodeAudioData() {
@@ -4695,7 +4805,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.30-r30",
+        "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
       ],

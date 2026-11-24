@@ -1261,6 +1261,72 @@ class PcmPlaybackSessionController {
   }
 }
 
+// Stream compressed media with a hard byte ceiling before allocating a complete ArrayBuffer.
+async function readResponseArrayBufferWithLimit(response, maxBytes, shouldCancel = () => false) {
+  const limit = Math.max(0, Math.floor(Number(maxBytes) || 0));
+  const rawContentLength = response?.headers?.get?.("content-length");
+  const contentLength = rawContentLength !== null && rawContentLength !== undefined &&
+    String(rawContentLength).trim() !== ""
+    ? Number(rawContentLength)
+    : NaN;
+  const body = response?.body;
+
+  if (Number.isFinite(contentLength) && contentLength > limit) {
+    try { await body?.cancel?.(); } catch (e) {}
+    throw new Error("Compressed source exceeds the PCM memory budget");
+  }
+  if (!body || typeof body.getReader !== "function") {
+    try { await body?.cancel?.(); } catch (e) {}
+    throw new Error("Streaming response is unavailable; use MediaElement playback");
+  }
+
+  const reader = body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  let retainedBufferBytes = 0;
+  try {
+    while (true) {
+      if (shouldCancel()) throw new Error("PCM preparation was cancelled");
+      const result = await reader.read();
+      if (result.done) break;
+      if (!result.value) continue;
+      const value = result.value;
+      const chunk = value instanceof Uint8Array
+        ? value
+        : value instanceof ArrayBuffer
+          ? new Uint8Array(value)
+          : ArrayBuffer.isView(value)
+            ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+            : null;
+      if (!chunk) throw new Error("Audio response returned an unsupported stream chunk");
+      if (!chunk.byteLength) continue;
+
+      totalBytes += chunk.byteLength;
+      retainedBufferBytes += Math.max(chunk.byteLength, Number(chunk.buffer?.byteLength) || chunk.byteLength);
+      // Account for both retained stream chunks and the contiguous buffer built below.
+      if (totalBytes > limit || retainedBufferBytes + totalBytes > limit * 2) {
+        throw new Error("Compressed source exceeds the PCM memory budget");
+      }
+      chunks.push(chunk);
+    }
+
+    if (shouldCancel()) throw new Error("PCM preparation was cancelled");
+    const combined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    chunks.length = 0;
+    return combined.buffer;
+  } catch (error) {
+    try { await reader.cancel(error); } catch (e) {}
+    throw error;
+  } finally {
+    try { reader.releaseLock(); } catch (e) {}
+  }
+}
+
 // Read a reliable channel-count hint before decodeAudioData allocates the AudioBuffer.
 // Unknown containers are budgeted at the Web Audio maximum (32 channels).
 function getPcmSourceChannelHint(compressed) {
@@ -1634,18 +1700,20 @@ class BufferedPlaybackEngine {
 
     const generation = this.generation;
     this.decodePromise = (async () => {
-      const response = await fetch(this.sourceUrl);
-      if (!response.ok) throw new Error("Local audio data could not be read");
-      const compressed = await response.arrayBuffer();
-      if (generation !== this.generation) throw new Error("PCM preparation was cancelled");
-      if (compressed.byteLength > this.maxPcmBytes) {
-        throw new Error("Compressed source exceeds the PCM memory budget");
-      }
-
       const durationHint = Number(state.currentSong?.duration);
       if (!Number.isFinite(durationHint) || durationHint <= 0) {
         throw new Error("Track duration is unavailable; PCM memory use cannot be estimated safely");
       }
+      const response = await fetch(this.sourceUrl);
+      if (!response.ok) throw new Error("Local audio data could not be read");
+      // Peak estimation counts both the retained compressed bytes and the decode copy.
+      // Therefore compressed input alone may use at most half of the PCM memory budget.
+      const compressed = await readResponseArrayBufferWithLimit(
+        response,
+        Math.floor(this.maxPcmBytes / 2),
+        () => generation !== this.generation
+      );
+      if (generation !== this.generation) throw new Error("PCM preparation was cancelled");
       const channelHint = getPcmSourceChannelHint(compressed);
       if (channelHint.exact && channelHint.channels > 2) {
         throw new Error(`PCM playback supports mono/stereo only; source has ${channelHint.channels} channels and requires MediaElement playback`);
