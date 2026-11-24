@@ -373,9 +373,9 @@ test("menu tools stay hidden after entering the first category level", () => {
   assert.ok(categorySource.includes('node.hidden = true'));
 });
 
-test("mobile music data actions stay in two columns at narrow widths", () => {
-  assert.ok(styleSource.includes(".settingsDataTools .settingsTools:first-child .settingsToolRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }"));
-  assert.ok(!styleSource.includes(".settingsToolRow { grid-template-columns: 1fr; }"));
+test("mobile music data actions stack vertically at narrow widths", () => {
+  assert.ok(styleSource.includes(".settingsTools:first-child .settingsToolRow { grid-template-columns: minmax(0, 1fr); }"));
+  assert.ok(!styleSource.includes(".settingsDataTools .settingsTools:first-child .settingsToolRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }"));
 });
 
 test("settings detail header uses the selected operation title", () => {
