@@ -2,6 +2,8 @@
 // Runs stateful EQ and pitch processing on bounded chunks ahead of playback.
 "use strict";
 
+const PCM_WORKER_PROTOCOL_VERSION = 1;
+
 const SAMPLE_RATE_DEFAULT = 48000;
 const BAND_FREQUENCIES = [60, 250, 1000, 4000, 12000];
 const BAND_TYPES = ["lowshelf", "peaking", "peaking", "peaking", "highshelf"];
@@ -213,8 +215,11 @@ self.onmessage = event => {
   const message = event.data || {};
   try {
     if (message.type === "init") {
+      if (message.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION) {
+        throw new Error("PCM worker protocol version mismatch");
+      }
       initialize(message);
-      self.postMessage({ type: "ready", id: message.id });
+      self.postMessage({ type: "ready", id: message.id, protocolVersion: PCM_WORKER_PROTOCOL_VERSION });
       return;
     }
     if (!initialized) throw new Error("PCM processor worker is not initialized");
