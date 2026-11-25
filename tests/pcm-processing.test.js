@@ -5126,6 +5126,16 @@ test("Pitch Worklet becomes inactive and clears stale grain state when input cha
   assert.equal(outputRight[0], -0.25);
 });
 
+test("AudioContext error events are captured in output diagnostics", () => {
+  assert.match(audioSource, /audioCtx\.addEventListener\("error", event =>/);
+  assert.match(audioSource, /__musicPlayerAudioContextErrorDiagnostics/);
+  assert.match(audioSource, /lastErrorName/);
+  assert.match(audioSource, /lastErrorMessage/);
+  assert.match(outputSource, /audioContextErrorDiagnostics,/);
+  assert.match(outputSource, /audioContextErrorListener:/);
+  assert.match(outputSource, /count: 0, lastAtMs: null, lastErrorName: null, lastErrorMessage: null/);
+});
+
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
   assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
   assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
