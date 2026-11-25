@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 40;
+  const BUILD_REVISION = 41;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -666,6 +666,22 @@ let mainOutputUsesNativeDestination = false;
               : (sinkId ? "explicit" : "default");
             window.__musicPlayerSinkChangeDiagnostics = diagnostics;
           });
+          if (!audioCtx._musicPlayerAudioContextErrorListenerInstalled) {
+            audioCtx._musicPlayerAudioContextErrorListenerInstalled = true;
+            audioCtx.addEventListener("error", event => {
+              const diagnostics = window.__musicPlayerAudioContextErrorDiagnostics || {
+                count: 0, lastAtMs: null, lastErrorName: null, lastErrorMessage: null
+              };
+              diagnostics.count = (Number(diagnostics.count) || 0) + 1;
+              diagnostics.lastAtMs = Date.now();
+              const error = event?.error || null;
+              diagnostics.lastErrorName = error?.name ? String(error.name).slice(0, 80) : "UnknownError";
+              diagnostics.lastErrorMessage = String(error?.message || event?.message || "AudioContext error")
+                .replace(/https?:\\/\\/[^\\s]+/g, "[URL]")
+                .slice(0, 240);
+              window.__musicPlayerAudioContextErrorDiagnostics = diagnostics;
+            });
+          }
         }
         // バックグラウンド移行などでAudioContextだけが停止した場合も、
         // 再生意図が残っていれば状態変化を検知して音声経路を復帰させる。
