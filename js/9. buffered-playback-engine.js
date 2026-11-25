@@ -126,6 +126,8 @@ class PcmProcessingWorkerSession {
         pending.reject(new Error(`Unexpected PCM worker response: expected ${pending.expectedType}, received ${String(message.type)}`));
       } else if (pending.type === "init" && message.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION) {
         pending.reject(new Error("PCM worker protocol version mismatch"));
+      } else if (pending.type === "init" && message.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION) {
+        pending.reject(new Error("PCM worker protocol version mismatch"));
       } else if (pending.sequence !== null && message.sequence !== pending.sequence) {
         pending.reject(new Error("PCM worker response sequence does not match the request"));
       } else {
@@ -1458,7 +1460,7 @@ class BufferedPlaybackEngine {
   async ensureProcessorWorker(settings = {}) {
     if (this.processorWorker && this.processorReady) return this.processorReady;
     if (typeof Worker !== "function") throw new Error("Web Worker is unavailable");
-    const worker = new Worker(new URL("js/10. pcm-processing-worker.js", document.baseURI));
+    const worker = new Worker(new URL("js/10. pcm-processing-worker.js?v=7.5.39-r39", document.baseURI));
     this.processorWorker = worker;
     const failWorker = error => {
       for (const pending of this.processorRequests.values()) pending.reject(error);
@@ -1491,7 +1493,7 @@ class BufferedPlaybackEngine {
     const pitch = Number.isFinite(Number(settings.pitch))
       ? Number(settings.pitch)
       : Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, this.playbackRate);
-    this.processorReady = this.sendProcessorMessage("init", { sampleRate, eqGains, pitch })
+    this.processorReady = this.sendProcessorMessage("init", { sampleRate, eqGains, pitch, protocolVersion: PCM_WORKER_PROTOCOL_VERSION })
       .catch(error => {
         this.disposeProcessorWorker();
         throw error;
@@ -1514,7 +1516,7 @@ class BufferedPlaybackEngine {
     const id = ++this.processorRequestId;
     const sequence = type === "process" ? payload.sequence : null;
     return new Promise((resolve, reject) => {
-      this.processorRequests.set(id, { resolve, reject, expectedType, sequence });
+      this.processorRequests.set(id, { resolve, reject, expectedType, sequence, type });
       try {
         worker.postMessage({ type, id, ...payload }, transfer);
       } catch (error) {
