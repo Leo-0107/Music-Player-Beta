@@ -5127,17 +5127,17 @@ test("Pitch Worklet becomes inactive and clears stale grain state when input cha
 });
 
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
-  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.39-r40"/);
-  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.39-r40"/);
+  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
+  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
   assert.match(engineSource, /PCM_WORKER_PROTOCOL_VERSION = 1/);
   assert.match(engineSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /message\.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
-  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.39-r40/);
+  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.40-r40/);
   assert.match(audioSource, /processorOptions: \{ protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(audioSource, /type: "hello", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION/);
   assert.match(pitchWorkletSource, /Pitch Worklet protocol version mismatch/);
-  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.39-r40/);
+  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.40-r40/);
   assert.match(outputSource, /processorOptions: \{ protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(outputSource, /type: "hello",[\s\S]*?protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION/);
   assert.match(delayWorkletSource, /Speaker delay Worklet protocol version mismatch/);
