@@ -202,7 +202,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.36";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 35"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 36"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -210,7 +210,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 35;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 36;"));
   assert.ok(manifestSource.includes("Music Player v7.5.36"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.36-r36'));
   assert.ok(indexSource.includes("7.5.36-r36"));
