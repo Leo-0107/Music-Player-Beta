@@ -8,6 +8,7 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
     this.bufferLength = this.grainSize * 6;
     this.buffers = [new Float32Array(this.bufferLength), new Float32Array(this.bufferLength)];
     this.pitch = 1;
+    this.hasInputState = false;
     this.writeIndex = 0;
     this.spawnCountdown = 0;
     this.nextSlot = 0;
@@ -19,6 +20,7 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
       if (event.data?.type === "reset") {
         this.buffers[0].fill(0);
         this.buffers[1].fill(0);
+        this.hasInputState = false;
         this.writeIndex = 0;
         this.spawnCountdown = 0;
         this.nextSlot = 0;
@@ -91,10 +93,28 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
     const output = outputs[0] || [];
     const outputLeft = output[0];
     const outputRight = output[1] || outputLeft;
-    if (!outputLeft) return true;
+    if (!outputLeft) return false;
 
     const inputLeft = input[0] || null;
     const inputRight = input[1] || inputLeft;
+    if (!inputLeft) {
+      outputLeft.fill(0);
+      if (outputRight && outputRight !== outputLeft) outputRight.fill(0);
+      if (this.hasInputState) {
+        this.buffers[0].fill(0);
+        this.buffers[1].fill(0);
+        this.writeIndex = 0;
+        this.spawnCountdown = 0;
+        this.nextSlot = 0;
+        this.grains[0].active = false;
+        this.grains[0].phase = 0;
+        this.grains[1].active = false;
+        this.grains[1].phase = 0;
+        this.hasInputState = false;
+      }
+      return false;
+    }
+    this.hasInputState = true;
     const pitch = Math.max(0.5, Math.min(2, Number(this.pitch) || 1));
 
     for (let i = 0; i < outputLeft.length; i++) {
