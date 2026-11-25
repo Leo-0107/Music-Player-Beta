@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, "..");
 const engineSource = fs.readFileSync(path.join(root, "js/9. buffered-playback-engine.js"), "utf8");
 const workerSource = fs.readFileSync(path.join(root, "js/10. pcm-processing-worker.js"), "utf8");
 const audioSource = fs.readFileSync(path.join(root, "js/7. audio.js"), "utf8");
+const pitchWorkletSource = fs.readFileSync(path.join(root, "js/8. pitch-worklet.js"), "utf8");
 const outputSource = fs.readFileSync(path.join(root, "js/11. audio-output.js"), "utf8");
 const stateSource = fs.readFileSync(path.join(root, "js/2. state.js"), "utf8");
 const uiSource = fs.readFileSync(path.join(root, "js/6. ui.js"), "utf8");
@@ -5064,6 +5065,50 @@ test("output devicechange processing is serialized and ignores stale events", ()
   assert.match(outputSource, /sequence !== outputDeviceChangeSequence/);
   assert.doesNotMatch(outputSource, /selectedMainOutputDeviceIdBeforeChange/);
   assert.match(outputSource, /muteAllAppOutputsForRoutingFailure\(state\.mainOutputDeviceId/);
+});
+
+test("Pitch Worklet becomes inactive and clears stale grain state when input channels disappear", () => {
+  let ProcessorClass = null;
+  class MockAudioWorkletProcessor {
+    constructor() {
+      this.port = { onmessage: null };
+    }
+  }
+  const workletScope = {
+    AudioWorkletProcessor: MockAudioWorkletProcessor,
+    sampleRate: 48000,
+    Float32Array,
+    Math,
+    Number,
+    registerProcessor: (name, processorClass) => {
+      assert.equal(name, "music-player-pitch-shifter");
+      ProcessorClass = processorClass;
+    }
+  };
+  vm.runInNewContext(pitchWorkletSource, workletScope);
+  const processor = new ProcessorClass();
+  processor.hasInputState = true;
+  processor.buffers[0][0] = 0.5;
+  processor.grains[0].active = true;
+  processor.grains[0].phase = 0.4;
+  const outputLeft = new Float32Array(128);
+  const outputRight = new Float32Array(128);
+  outputLeft.fill(1);
+  outputRight.fill(1);
+  assert.equal(processor.process([[]], [[outputLeft, outputRight]]), false);
+  assert.equal(outputLeft[0], 0);
+  assert.equal(outputRight[0], 0);
+  assert.equal(processor.buffers[0][0], 0);
+  assert.equal(processor.grains[0].active, false);
+  assert.equal(processor.hasInputState, false);
+
+  const inputLeft = new Float32Array(128);
+  const inputRight = new Float32Array(128);
+  inputLeft.fill(0.25);
+  inputRight.fill(-0.25);
+  assert.equal(processor.process([[inputLeft, inputRight]], [[outputLeft, outputRight]]), true);
+  assert.equal(outputLeft[0], 0.25);
+  assert.equal(outputRight[0], -0.25);
 });
 
 test("AudioWorklet processorerror restores the ScriptProcessor pitch path", () => {
