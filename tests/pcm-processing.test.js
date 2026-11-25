@@ -5067,7 +5067,7 @@ test("AudioWorklet processorerror restores the ScriptProcessor pitch path", () =
  
 test("main progress scrub clears sliding state on cancellation and page interruption", () => {
   assert.match(uiSource, /let mainProgressPointerId = null/);
-  assert.match(uiSource, /function finishMainProgressScrub\(event\)/);
+  assert.match(uiSource, /const finishMainProgressScrub = event =>/);
   assert.match(uiSource, /window\.addEventListener\("pointercancel", finishMainProgressScrub, true\)/);
   assert.match(uiSource, /el\.progress\.addEventListener\("lostpointercapture", finishMainProgressScrub\)/);
   assert.match(uiSource, /window\.addEventListener\("blur", finishMainProgressScrub\)/);
