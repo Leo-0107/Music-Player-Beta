@@ -2864,14 +2864,18 @@
   }
 
   function getOutputLatencyDiagnostics() {
+    const audioContextErrorDiagnostics = window.__musicPlayerAudioContextErrorDiagnostics
+      ? { ...window.__musicPlayerAudioContextErrorDiagnostics }
+      : { count: 0, lastAtMs: null, lastErrorName: null, lastErrorMessage: null };
     const apiCapabilities = {
       audioContextSetSinkId: typeof AudioContext !== "undefined" && typeof AudioContext.prototype.setSinkId === "function",
       mediaElementSetSinkId: typeof HTMLMediaElement !== "undefined" && typeof HTMLMediaElement.prototype.setSinkId === "function",
       selectAudioOutput: typeof navigator.mediaDevices?.selectAudioOutput === "function",
       audioPlaybackStats: !!audioCtx && "playbackStats" in audioCtx,
-      audioContextSinkChange: !!audioCtx && typeof audioCtx.addEventListener === "function"
+      audioContextSinkChange: !!audioCtx && typeof audioCtx.addEventListener === "function",
+      audioContextErrorListener: !!audioCtx?._musicPlayerAudioContextErrorListenerInstalled
     };
-    if (!audioCtx) return { available: false, apiCapabilities };
+    if (!audioCtx) return { available: false, apiCapabilities, audioContextErrorDiagnostics };
     const baseLatency = Number.isFinite(Number(audioCtx.baseLatency)) ? Number(audioCtx.baseLatency) : null;
     const outputLatency = Number.isFinite(Number(audioCtx.outputLatency)) ? Number(audioCtx.outputLatency) : null;
     const manualDelay = Number(mainDelayNode?.delayTime?.value) || 0;
@@ -2891,6 +2895,7 @@
     const diagnostics = {
       available: true,
       apiCapabilities,
+      audioContextErrorDiagnostics,
       sampleRate: Number(audioCtx.sampleRate) || null,
       baseLatencyMs: baseLatency == null ? null : Math.round(baseLatency * 1000 * 10) / 10,
       outputLatencyMs: outputLatency == null ? null : Math.round(outputLatency * 1000 * 10) / 10,
