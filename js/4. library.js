@@ -311,9 +311,9 @@
 
   async function loadFiles(fileList){
     const files=Array.from(fileList||[]); if(!files.length)return;
-    const MAX_ZIP_BYTES = 256 * 1024 * 1024;
-    const MAX_EXTRACTED_BYTES = 256 * 1024 * 1024;
-    const MAX_SINGLE_EXTRACTED_BYTES = 128 * 1024 * 1024;
+    const MAX_ZIP_BYTES = 128 * 1024 * 1024;
+    const MAX_EXTRACTED_BYTES = 128 * 1024 * 1024;
+    const MAX_SINGLE_EXTRACTED_BYTES = 64 * 1024 * 1024;
     const MAX_MEDIA_FILES = 500;
     const progressEl = document.getElementById("fileLoadProgress");
     const progressFill = document.getElementById("fileLoadProgressFill");
@@ -408,7 +408,7 @@
           }
         }
         if (preflightFailed) {
-          toast("ZIP内の展開予定容量を安全に確認できないか、上限（合計256MB・1ファイル128MB）を超えています");
+          toast("ZIP内の展開予定容量を安全に確認できないか、上限（合計128MB・1ファイル64MB）を超えています");
           zip = null;
           continue;
         }
@@ -431,6 +431,9 @@
           const cleanName=filename.split("/").pop();
           const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
           incoming.push({file:new File([blob],cleanName,{type:/\.opus$/i.test(cleanName)?mediaInfo.mimeType:(blob.type||mediaInfo.mimeType)}),storageName:cleanName,zipName:zipFile.name});
+          // 展開済みファイルをincomingへ移したら、JSZip側の圧縮entry参照を解放する。
+          // これにより読み込み済み分の圧縮データと展開Blobが同時に残り続けるのを防ぐ。
+          delete zip.files[filename];
           const percent = 25 + ((entryIndex + 1) / Math.max(1, mediaEntries.length)) * 45;
           updateProgress(percent, "ZIP内ファイルを読み込んでいます...");
           await yieldToUI();
