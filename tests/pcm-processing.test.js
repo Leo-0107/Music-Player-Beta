@@ -40,7 +40,7 @@ test("Android installed PWA uses app-colored system bars and maskable launcher i
   assert.ok(themeColorMeta, "index.html declares the PWA theme color");
   assert.equal(themeColorMeta[1], manifest.theme_color);
   assert.match(indexSource, /viewport-fit=cover/);
-  assert.equal(manifest.icons.length, 2);
+  assert.equal(manifest.icons.length, 3);
   for (const icon of manifest.icons) {
     assert.equal(icon.purpose, "any maskable");
     assert.match(icon.src, /^\.\/icon-(192|512)\.png$/);
@@ -141,7 +141,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "900c513af41fbc6eb7bc815ef0209b98f82da42e"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "b069d690509674d712556f54a91781e0279f9cda"'));
 });
 
 test("peak compression UI does not promise a True Peak ceiling", () => {
