@@ -143,12 +143,12 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "3247cd1cf4eabf153b7f4c18bff7d5245010f8e6"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "8fa3253e5bbda6016f07cd2e391e344e4b6855d4"'));
 });
 
 test("Build implementation commit and main source base commit are separately reported", () => {
   assert.match(indexSource, /const BUILD_SOURCE_BASE_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "781bc0c045d51a19be69426e0c89fd3d672aadb8"'));
+  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "85c66e8a827a257621678ca84f891304a6b6ba84"'));
   assert.match(indexSource, /Build implementation commit: " \+ BUILD_COMMIT_ID/);
   assert.match(indexSource, /Build source base commit: " \+ BUILD_SOURCE_BASE_COMMIT_ID/);
   assert.match(indexSource, /previousBuildId !== BUILD_SOURCE_BASE_COMMIT_ID/);
@@ -211,8 +211,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.40";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 40"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.41";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 41"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -220,12 +220,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 40;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.40"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.40-r40'));
-  assert.ok(indexSource.includes("7.5.40-r40"));
-  assert.ok(controllerSource.includes("7.5.40-r40"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.40-r40"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 41;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.41"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.41-r41'));
+  assert.ok(indexSource.includes("7.5.41-r41"));
+  assert.ok(controllerSource.includes("7.5.41-r41"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.41-r41"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -462,14 +462,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.40-r40"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.40-r40"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.40-r40"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.40-r40"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.41-r41"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.41-r41"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.41-r41"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.41-r41"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.40-r40"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.41-r41"));
 });
 
 
@@ -4818,7 +4818,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.40-r40",
+        "music-player-app-v7.5.41-r41",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -5137,17 +5137,17 @@ test("AudioContext error events are captured in output diagnostics", () => {
 });
 
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
-  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
-  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.40-r40"/);
+  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.41-r41"/);
+  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.41-r41"/);
   assert.match(engineSource, /PCM_WORKER_PROTOCOL_VERSION = 1/);
   assert.match(engineSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /message\.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
-  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.40-r40/);
+  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.41-r41/);
   assert.match(audioSource, /processorOptions: \{ protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(audioSource, /type: "hello", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION/);
   assert.match(pitchWorkletSource, /Pitch Worklet protocol version mismatch/);
-  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.40-r40/);
+  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.41-r41/);
   assert.match(outputSource, /processorOptions: \{ protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(outputSource, /type: "hello",[\s\S]*?protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION/);
   assert.match(delayWorkletSource, /Speaker delay Worklet protocol version mismatch/);
