@@ -4826,7 +4826,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
   let activation;
   listeners.get("activate")({ waitUntil(promise) { activation = promise; } });
   await activation;
-  assert.deepEqual(deleted, ["music-player-app-v7.5.16-r16", "music-player-app-v7.5.32-r32", "music-player-app-v7.5.31-r31"]);
+  assert.deepEqual(deleted, ["music-player-app-v7.5.16-r16", "music-player-app-v7.5.31-r31"]);
   assert.ok(serviceWorkerSource.includes('key.startsWith(CACHE_PREFIX)'));
 });
 
