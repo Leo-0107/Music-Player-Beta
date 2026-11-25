@@ -1,6 +1,12 @@
+const SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION = 1;
+
 class SpeakerDelayCaptureProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options = {}) {
     super();
+    if (Number(options?.processorOptions?.protocolVersion) !== SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION) {
+      throw new Error("Speaker delay Worklet protocol version mismatch");
+    }
+    this.protocolReady = false;
     this.capacity = Math.max(1, Math.round(sampleRate * 5));
     this.buffer = new Float32Array(this.capacity);
     this.writeIndex = 0;
@@ -8,7 +14,16 @@ class SpeakerDelayCaptureProcessor extends AudioWorkletProcessor {
     this.totalFrames = 0;
     this.port.onmessage = event => {
       const data = event.data || {};
-      if (data.type !== "capture") return;
+      if (data.type === "hello") {
+        if (Number(data.protocolVersion) !== SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION) {
+          this.port.postMessage({ type: "protocol-error", protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION });
+          return;
+        }
+        this.protocolReady = true;
+        this.port.postMessage({ type: "ready", protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION });
+        return;
+      }
+      if (!this.protocolReady || data.type !== "capture") return;
       const samples = new Float32Array(this.filled);
       const start = (this.writeIndex - this.filled + this.capacity) % this.capacity;
       for (let i = 0; i < this.filled; i++) samples[i] = this.buffer[(start + i) % this.capacity];
@@ -26,6 +41,10 @@ class SpeakerDelayCaptureProcessor extends AudioWorkletProcessor {
     const input = inputs[0] || [];
     const channel = input[0] || input[1] || null;
     const output = outputs[0] || [];
+    if (!this.protocolReady) {
+      for (const outputChannel of output) outputChannel.fill(0);
+      return false;
+    }
     const frameCount = output[0]?.length || channel?.length || 128;
     for (let i = 0; i < frameCount; i++) {
       this.buffer[this.writeIndex] = channel ? (Number(channel[i]) || 0) : 0;
