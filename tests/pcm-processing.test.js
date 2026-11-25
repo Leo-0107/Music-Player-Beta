@@ -5053,7 +5053,8 @@ test("ZIP import queues metadata and extracts one file at a time within estimate
   assert.match(librarySource, /const MAX_DIRECT_FILE_BYTES = IMPORT_MEMORY_BUDGET_BYTES - 32 \* 1024 \* 1024/);
   assert.match(librarySource, /const estimatedPeakBytes = Math\.ceil\(zipFile\.size \* 1\.25\)[\s\S]*?largestEntryBytes \+ 24 \* 1024 \* 1024/);
   assert.match(librarySource, /incoming\.push\(\{[\s\S]*?file:null,[\s\S]*?entryName:filename,[\s\S]*?declaredSize/);
-  assert.match(librarySource, /const chosen=await chooseDuplicateFiles\(conflicts\);[\s\S]*?activeZip = await JSZip\.loadAsync\(activeZipFile\);[\s\S]*?const blob=await entry\.async\("blob"\)/);
+  assert.match(librarySource, /const chosen=await chooseDuplicateFiles\(conflicts\);[\s\S]*?activeZip = await JSZip\.loadAsync\(activeZipFile\);/);
+  assert.match(librarySource, /blob = await entry\.async\("blob"\)/);
   assert.doesNotMatch(librarySource, /incoming\.push\(\{file:new File\(\[blob\]/);
 });
 
