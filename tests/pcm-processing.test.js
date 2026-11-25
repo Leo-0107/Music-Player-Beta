@@ -5085,3 +5085,11 @@ test("full file reset clears playback history and statistics", () => {
   assert.match(audioSource, /state\.playCounts = \{\};[\s\S]*?state\.playHistory = \{\};[\s\S]*?state\.playStats = \{\};[\s\S]*?state\.playbackMonthly = \{\};/);
   assert.match(audioSource, /state\.playbackMonthly = \{\};[\s\S]*?saveState\(\)/);
 });
+
+test("Service Worker cache writes are attached to fetch event lifetime", () => {
+  assert.match(serviceWorkerSource, /function cacheNetworkResponseForEvent\(event, networkPromise, cacheKey, shouldCache\)/);
+  assert.match(serviceWorkerSource, /event\.waitUntil\(cacheUpdate\)/);
+  assert.match(serviceWorkerSource, /cache\.put\(cacheKey, response\.clone\(\)\)/);
+  assert.equal((serviceWorkerSource.match(/cacheNetworkResponseForEvent\(event, networkPromise/g) || []).length, 2);
+  assert.match(serviceWorkerSource, /cacheNetworkResponseForEvent\(\s*event,\s*networkPromise,\s*request,/);
+});
