@@ -314,6 +314,15 @@
     const MAX_ZIP_BYTES = 128 * 1024 * 1024;
     const MAX_EXTRACTED_BYTES = 128 * 1024 * 1024;
     const MAX_SINGLE_EXTRACTED_BYTES = 64 * 1024 * 1024;
+    const IMPORT_MEMORY_BUDGET_BYTES = (() => {
+      const memoryGiB = Number(navigator.deviceMemory);
+      if (!Number.isFinite(memoryGiB) || memoryGiB <= 0) return 192 * 1024 * 1024;
+      if (memoryGiB <= 2) return 192 * 1024 * 1024;
+      if (memoryGiB <= 4) return 256 * 1024 * 1024;
+      if (memoryGiB <= 8) return 384 * 1024 * 1024;
+      return 512 * 1024 * 1024;
+    })();
+    const MAX_DIRECT_FILE_BYTES = IMPORT_MEMORY_BUDGET_BYTES - 32 * 1024 * 1024;
     const MAX_MEDIA_FILES = 500;
     const progressEl = document.getElementById("fileLoadProgress");
     const progressFill = document.getElementById("fileLoadProgressFill");
@@ -367,10 +376,15 @@
         toast("追加できるファイル数の上限（500件）に達しました");
         break;
       }
+      if (Number(f.size) > MAX_DIRECT_FILE_BYTES) {
+        const maxMb = Math.floor(MAX_DIRECT_FILE_BYTES / (1024 * 1024));
+        toast(`ファイルが大きすぎるため読み込みを停止しました（端末メモリに応じた1ファイル上限${maxMb}MB）`);
+        continue;
+      }
       const directFile = /\.opus$/i.test(f.name)
         ? new File([f], f.name, { type: "audio/ogg; codecs=opus" })
         : f;
-      incoming.push({file:directFile,storageName:f.name});
+      incoming.push({file:directFile,storageName:f.name,zipName:null});
       processedMediaFiles++;
       updateProgress((processedMediaFiles / Math.max(1, directMediaFiles.length + zipFiles.length)) * 20, "ファイルを確認しています...");
       await yieldToUI();
@@ -389,8 +403,9 @@
         const entries=Object.keys(zip.files);
         const mediaEntries=entries.filter(filename=>!zip.files[filename].dir&&/\.(mp3|m4a|wav|ogg|opus|flac|aac|mp4|webm)$/i.test(filename));
 
-        // 展開前にZIP中央ディレクトリの非圧縮サイズを確認し、ZIP爆弾による大量展開を防ぐ。
+        // 展開前に中央ディレクトリのサイズを検証し、全件展開せずメタデータだけをqueueへ積む。
         let zipExpandedBytes = 0;
+        let largestEntryBytes = 0;
         let preflightFailed = false;
         for (const filename of mediaEntries) {
           const entry = zip.files[filename];
@@ -401,18 +416,24 @@
             break;
           }
           zipExpandedBytes += declaredSize;
+          largestEntryBytes = Math.max(largestEntryBytes, declaredSize);
           if (zipExpandedBytes > MAX_EXTRACTED_BYTES ||
               extractedBytes + zipExpandedBytes > MAX_EXTRACTED_BYTES) {
             preflightFailed = true;
             break;
           }
         }
+        const estimatedPeakBytes = Math.ceil(zipFile.size * 1.25) +
+          largestEntryBytes + 24 * 1024 * 1024;
+        if (estimatedPeakBytes > IMPORT_MEMORY_BUDGET_BYTES) preflightFailed = true;
         if (preflightFailed) {
-          toast("ZIP内の展開予定容量を安全に確認できないか、上限（合計128MB・1ファイル64MB）を超えています");
+          const budgetMb = Math.floor(IMPORT_MEMORY_BUDGET_BYTES / (1024 * 1024));
+          toast(`ZIP内の展開予定容量または推定ピークメモリが端末予算（約${budgetMb}MB）を超えています`);
           zip = null;
           continue;
         }
 
+        extractedBytes += zipExpandedBytes;
         for(let entryIndex=0; entryIndex<mediaEntries.length; entryIndex++){
           if(incoming.length >= MAX_MEDIA_FILES) {
             toast("追加できるファイル数の上限（500件）に達したため、残りのZIP内ファイルを停止しました");
@@ -421,23 +442,20 @@
           const filename=mediaEntries[entryIndex];
           const entry=zip.files[filename];
           const declaredSize = Number(entry?._data?.uncompressedSize);
-          const blob=await entry.async("blob");
-          if (blob.size !== declaredSize || blob.size > MAX_SINGLE_EXTRACTED_BYTES ||
-              extractedBytes + blob.size > MAX_EXTRACTED_BYTES) {
-            toast("ZIP展開サイズが事前確認と一致しないため、読み込みを停止しました");
-            break;
-          }
-          extractedBytes += blob.size;
           const cleanName=filename.split("/").pop();
-          const mediaInfo=getMediaInfo({name:cleanName,type:blob.type});
-          incoming.push({file:new File([blob],cleanName,{type:/\.opus$/i.test(cleanName)?mediaInfo.mimeType:(blob.type||mediaInfo.mimeType)}),storageName:cleanName,zipName:zipFile.name});
-          // 展開済みファイルをincomingへ移したら、JSZip側の圧縮entry参照を解放する。
-          // これにより読み込み済み分の圧縮データと展開Blobが同時に残り続けるのを防ぐ。
-          delete zip.files[filename];
+          incoming.push({
+            file:null,
+            storageName:cleanName,
+            zipName:zipFile.name,
+            zipFile,
+            entryName:filename,
+            declaredSize
+          });
           const percent = 25 + ((entryIndex + 1) / Math.max(1, mediaEntries.length)) * 45;
-          updateProgress(percent, "ZIP内ファイルを読み込んでいます...");
+          updateProgress(percent, "ZIP内ファイルを確認しています...");
           await yieldToUI();
         }
+        // JSZipのarchive/entryデータは保存段階まで保持せず、必要なZIPだけ後で再読込する。
         zip = null;
       }catch{toast("Zipファイルの解析エラーが発生しました");}
     }
@@ -458,13 +476,55 @@
     const zipPlaylistTracks = new Map();
     let savedCount = 0;
     let failedSaveCount = 0;
+    let activeZipFile = null;
+    let activeZip = null;
+    let actualExtractedBytes = 0;
     for(let index=0;index<incoming.length;index++){
       const item=incoming[index];
       const conflictNo=conflictIndex.get(index);
       if(conflictNo!==undefined&&!chosen.get(conflictNo))continue;
       let saveName=item.storageName;
       if(usedNames.has(saveName))saveName=makeUniqueTrackName(saveName,usedNames);
-      const f=item.file, mediaInfo=getMediaInfo(f);
+      let f=item.file;
+      let blob=null;
+      if (item.zipFile) {
+        try {
+          if (activeZipFile !== item.zipFile) {
+            activeZip = null;
+            activeZipFile = item.zipFile;
+            activeZip = await JSZip.loadAsync(activeZipFile);
+          }
+          const entry = activeZip?.files?.[item.entryName];
+          if (!entry) throw new Error("ZIP entry disappeared before extraction");
+          blob = await entry.async("blob");
+          if (blob.size !== item.declaredSize ||
+              blob.size > MAX_SINGLE_EXTRACTED_BYTES ||
+              actualExtractedBytes + blob.size > MAX_EXTRACTED_BYTES) {
+            throw new Error("ZIP extracted size differs from preflight");
+          }
+          actualExtractedBytes += blob.size;
+          const zipMediaInfo = getMediaInfo({name:item.storageName,type:blob.type});
+          f = new File([blob], item.storageName, {
+            type:/\.opus$/i.test(item.storageName)
+              ? zipMediaInfo.mimeType
+              : (blob.type || zipMediaInfo.mimeType)
+          });
+          delete activeZip.files[item.entryName];
+        } catch (zipError) {
+          failedSaveCount++;
+          toast("ZIP内ファイルの展開に失敗したため、その曲をスキップしました");
+          blob = null;
+          f = null;
+          updateProgress(70 + ((index + 1) / incoming.length) * 28, "ZIP内ファイルを展開しています...");
+          await yieldToUI();
+          continue;
+        }
+      }
+      if (!f) {
+        failedSaveCount++;
+        continue;
+      }
+      const mediaInfo=getMediaInfo(f);
       const meta=mediaInfo.mediaType==="video"?{title:f.name.replace(/\.[^/.]+$/,""),artist:"不明なアーティスト",coverBlob:null}:await parseID3(f);
       const isOggAudio = /\.(ogg|oga|opus)$/i.test(String(f.name || "")) ||
         String(mediaInfo.mimeType || f.type || "").toLowerCase().includes("ogg") ||
@@ -472,6 +532,9 @@
       const saved = await saveTrackToDB({name:saveName,title:meta.title,artist:meta.artist,blob:f,coverBlob:meta.coverBlob,oggMetadataChecked:isOggAudio,duration:await readAudioDuration(f),mediaType:mediaInfo.mediaType,mimeType:mediaInfo.mimeType});
       if (!saved) {
         failedSaveCount++;
+        blob = null;
+        f = null;
+        item.file = null;
         updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
         await yieldToUI();
         continue;
@@ -483,9 +546,18 @@
         if (!zipPlaylistTracks.has(playlistName)) zipPlaylistTracks.set(playlistName, []);
         zipPlaylistTracks.get(playlistName).push(saveName);
       }
+      blob = null;
+      f = null;
+      item.file = null;
+      if (incoming[index + 1]?.zipFile !== item.zipFile) {
+        activeZip = null;
+        activeZipFile = null;
+      }
       updateProgress(70 + ((index + 1) / incoming.length) * 28, "曲を保存しています...");
       await yieldToUI();
     }
+    activeZip = null;
+    activeZipFile = null;
     if (savedCount > 0) {
       for (const [playlistName, trackNames] of zipPlaylistTracks) {
         if (!trackNames.length) continue;
