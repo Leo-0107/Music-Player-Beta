@@ -100,12 +100,14 @@ class ProcessedPcmRingBuffer {
   }
 }
 
+const PCM_WORKER_PROTOCOL_VERSION = 1;
+
 // Owns an isolated stateful PCM Worker for one processing session.
 // Separate instances prevent configure/reset messages from corrupting another queue's DSP state.
 class PcmProcessingWorkerSession {
   constructor(options = {}) {
     const WorkerConstructor = options.WorkerClass || Worker;
-    const workerUrl = options.workerUrl || new URL("js/10. pcm-processing-worker.js", document.baseURI);
+    const workerUrl = options.workerUrl || new URL("js/10. pcm-processing-worker.js?v=7.5.39-r39", document.baseURI);
     if (typeof WorkerConstructor !== "function") throw new Error("Web Worker is unavailable");
     this.worker = new WorkerConstructor(workerUrl);
     this.requests = new Map();
@@ -122,6 +124,8 @@ class PcmProcessingWorkerSession {
         pending.reject(new Error(message.message || "PCM processing failed"));
       } else if (message.type !== pending.expectedType) {
         pending.reject(new Error(`Unexpected PCM worker response: expected ${pending.expectedType}, received ${String(message.type)}`));
+      } else if (pending.type === "init" && message.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION) {
+        pending.reject(new Error("PCM worker protocol version mismatch"));
       } else if (pending.sequence !== null && message.sequence !== pending.sequence) {
         pending.reject(new Error("PCM worker response sequence does not match the request"));
       } else {
@@ -149,7 +153,7 @@ class PcmProcessingWorkerSession {
     const id = ++this.requestId;
     const sequence = type === "process" ? payload.sequence : null;
     return new Promise((resolve, reject) => {
-      this.requests.set(id, { resolve, reject, expectedType, sequence });
+      this.requests.set(id, { resolve, reject, expectedType, sequence, type });
       try {
         this.worker.postMessage({ type, id, ...payload }, transfer);
       } catch (error) {
@@ -163,7 +167,7 @@ class PcmProcessingWorkerSession {
     if (this.disposed) return Promise.reject(new Error("PCM processing session is disposed"));
     if (this.initialized) return Promise.resolve(true);
     if (this.readyPromise) return this.readyPromise;
-    this.readyPromise = this.send("init", settings).then(() => {
+    this.readyPromise = this.send("init", { ...settings, protocolVersion: PCM_WORKER_PROTOCOL_VERSION }).then(() => {
       if (this.disposed) throw new Error("PCM processing session was disposed during initialization");
       this.initialized = true;
       return true;
