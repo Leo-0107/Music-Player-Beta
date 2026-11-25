@@ -1071,6 +1071,56 @@ let mainOutputUsesNativeDestination = false;
       });
       workletNode.pitch = pitchValue;
 
+      // Workletがアップグレード後にprocessorerrorを起こした場合に備え、
+      // 旧ScriptProcessorノードを保持して再接続可能にしておく。
+      ctx._musicPlayerPitchFallbackShifter = oldShifter;
+      ctx._musicPlayerPitchFallbackGain = oldGain;
+      if (!workletNode._musicPlayerProcessorErrorHandlerInstalled) {
+        workletNode._musicPlayerProcessorErrorHandlerInstalled = true;
+        workletNode.addEventListener("processorerror", () => {
+          if (ctx !== audioCtx || !ctx._musicPlayerPitchWorkletReady ||
+              ctx._musicPlayerPitchFallbackActive) return;
+          ctx._musicPlayerPitchFallbackActive = true;
+          ctx._musicPlayerPitchWorkletReady = false;
+          ctx._musicPlayerPitchWorkletFailed = true;
+
+          const now = ctx.currentTime;
+          const currentPitchRatio = Math.max(0.5, Math.min(2,
+            bufferedPlaybackMode
+              ? Math.pow(2, Number(state.pitchSemitones || 0) / 12) / Math.max(0.1, Number(currentRate) || 1)
+              : Math.pow(2, Number(state.pitchSemitones || 0) / 12)));
+          const isNeutral = Math.abs(currentPitchRatio - 1) < 0.0001;
+          try { sourceNode.disconnect(workletNode); } catch (e) {}
+          try { workletNode.disconnect(); } catch (e) {}
+          try { nextGain.disconnect(); } catch (e) {}
+
+          try {
+            sourceNode.connect(oldShifter);
+            oldShifter.connect(oldGain);
+            oldGain.connect(routeNode);
+            oldShifter.pitch = currentPitchRatio;
+            oldGain.gain.cancelScheduledValues(now);
+            oldGain.gain.setValueAtTime(0, now);
+            oldGain.gain.linearRampToValueAtTime(isNeutral ? 0 : 1, now + 0.05);
+            if (ctx._musicPlayerPitchBypassGain) {
+              ctx._musicPlayerPitchBypassGain.gain.cancelScheduledValues(now);
+              ctx._musicPlayerPitchBypassGain.gain.setValueAtTime(
+                Number(ctx._musicPlayerPitchBypassGain.gain.value) || 0, now);
+              ctx._musicPlayerPitchBypassGain.gain.linearRampToValueAtTime(isNeutral ? 1 : 0, now + 0.05);
+            }
+            ctx._musicPlayerPitchShifter = oldShifter;
+            ctx._musicPlayerPitchProcessedGain = oldGain;
+            updatePitchShiftNode();
+            console.warn("Music Player AudioWorklet processor failed; restored ScriptProcessor pitch path.");
+          } catch (fallbackError) {
+            // 代替経路の復旧にも失敗した場合は、無音／誤出力より安全停止を優先。
+            try { oldGain.gain.setValueAtTime(0, now); } catch (e) {}
+            try { ctx._musicPlayerPitchBypassGain?.gain.setValueAtTime(0, now); } catch (e) {}
+            console.error("Music Player ScriptProcessor pitch fallback failed:", fallbackError);
+          }
+        }, { once: true });
+      }
+
       const nextGain = ctx.createGain();
       nextGain.gain.value = 0;
       workletNode.connect(nextGain);
@@ -1093,6 +1143,7 @@ let mainOutputUsesNativeDestination = false;
       ctx._musicPlayerPitchWorkletReady = true;
 
       setTimeout(() => {
+        if (!ctx._musicPlayerPitchWorkletReady) return;
         try { sourceNode.disconnect(oldShifter); } catch (e) {}
         try { oldShifter.disconnect(oldGain); } catch (e) {}
         try { oldGain.disconnect(routeNode); } catch (e) {}
