@@ -1,3 +1,5 @@
+  const SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION = 1;
+
   // 出力先の切替直後に発生する一時的な音声経路の不安定化を防ぐ。
   // 再生位置・再生速度・ピッチは変更せず、最終ミックスだけをごく短時間フェードアウトしてから復帰させる。
 
@@ -340,7 +342,7 @@
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
         try {
           if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
-            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js", document.baseURI).href);
+            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.39-r39", document.baseURI).href);
             audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
           }
           captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
@@ -348,22 +350,53 @@
             numberOfOutputs: 1,
             outputChannelCount: [1],
             channelCount: 1,
-            channelCountMode: "explicit"
+            channelCountMode: "explicit",
+            processorOptions: { protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION }
           });
           captureMuteNode = audioCtx.createGain();
           captureMuteNode.gain.value = 0;
+          const speakerWorkletProtocolReady = new Promise((resolve, reject) => {
+            let timeoutId = null;
+            let settled = false;
+            const finish = (callback, value) => {
+              if (settled) return;
+              settled = true;
+              if (timeoutId !== null) clearTimeout(timeoutId);
+              callback(value);
+            };
+            timeoutId = setTimeout(() => {
+              finish(reject, new Error("Speaker delay Worklet protocol handshake timed out"));
+            }, 1200);
+            captureNode.port.onmessage = event => {
+              const data = event.data || {};
+              if (data.type === "ready" || data.type === "protocol-error") {
+                if (data.type === "ready" && data.protocolVersion === SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION) {
+                  finish(resolve, true);
+                } else {
+                  finish(reject, new Error("Speaker delay Worklet protocol version mismatch"));
+                }
+                return;
+              }
+              if (data.type !== "capture") return;
+              const resolveCapture = captureResolvers.get(data.id);
+              if (resolveCapture) {
+                captureResolvers.delete(data.id);
+                resolveCapture(data);
+              }
+            };
+            try {
+              captureNode.port.postMessage({
+                type: "hello",
+                protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION
+              });
+            } catch (error) {
+              finish(reject, error);
+            }
+          });
+          await speakerWorkletProtocolReady;
           measurementMicGainNode.connect(captureNode);
           captureNode.connect(captureMuteNode);
           captureMuteNode.connect(audioCtx.destination);
-          captureNode.port.onmessage = event => {
-            const data = event.data || {};
-            if (data.type !== "capture") return;
-            const resolve = captureResolvers.get(data.id);
-            if (resolve) {
-              captureResolvers.delete(data.id);
-              resolve(data);
-            }
-          };
         } catch (workletError) {
           try { captureNode?.disconnect(); } catch {}
           try { captureMuteNode?.disconnect(); } catch {}
