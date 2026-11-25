@@ -213,9 +213,9 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(audioSource.includes("const BUILD_REVISION = 35;"));
   assert.ok(manifestSource.includes("Music Player v7.5.35"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.35-r35'));
-  assert.ok(indexSource.includes("7.5.32-r32"));
-  assert.ok(controllerSource.includes("7.5.32-r32"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.32-r32"));
+  assert.ok(indexSource.includes("7.5.35-r35"));
+  assert.ok(controllerSource.includes("7.5.35-r35"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.35-r35"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -452,14 +452,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.32-r32"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.32-r32"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.32-r32"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.32-r32"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.35-r35"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.35-r35"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.35-r35"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.35-r35"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.32-r32"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.35-r35"));
 });
 
 
@@ -4808,7 +4808,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.32-r32",
+        "music-player-app-v7.5.35-r35",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -4826,7 +4826,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
   let activation;
   listeners.get("activate")({ waitUntil(promise) { activation = promise; } });
   await activation;
-  assert.deepEqual(deleted, ["music-player-app-v7.5.16-r16", "music-player-app-v7.5.31-r31"]);
+  assert.deepEqual(deleted, ["music-player-app-v7.5.16-r16", "music-player-app-v7.5.32-r32", "music-player-app-v7.5.31-r31"]);
   assert.ok(serviceWorkerSource.includes('key.startsWith(CACHE_PREFIX)'));
 });
 
