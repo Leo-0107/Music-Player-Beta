@@ -201,8 +201,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.33";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 33"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.34";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 34"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -210,9 +210,9 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 33;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.33"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.33-r33'));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 34;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.34"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.34-r34'));
   assert.ok(indexSource.includes("7.5.32-r32"));
   assert.ok(controllerSource.includes("7.5.32-r32"));
   assert.ok(rootServiceWorkerSource.includes("7.5.32-r32"));
@@ -5027,4 +5027,20 @@ test("manual dynamic-range compression control is persisted and inserted in the 
   assert.match(audioSource, /localStorage\.setItem\(STORAGE\.loudnessCompression, String\(state\.loudnessCompression\)\)/);
   assert.match(audioSource, /outputLevelGainNode\.connect\(loudnessCompressorNode\);[\s\S]*?loudnessCompressorNode\.connect\(loudnessMakeupGainNode\);[\s\S]*?loudnessMakeupGainNode\.connect\(speakerBusNode\);/);
   assert.match(audioSource, /STORAGE\.loudnessCompression,/);
+});
+
+
+test("persisted output routes clamp gains and reject non-boolean enabled flags", () => {
+  assert.match(stateSource, /enabled: route\.enabled === true/);
+  assert.match(stateSource, /left: normalizeStoredNumber\(route\.left, 1, 0, 2\)/);
+  assert.match(stateSource, /right: normalizeStoredNumber\(route\.right, 1, 0, 2\)/);
+  assert.match(stateSource, /delayMs: normalizeStoredNumber\(route\.delayMs, 0, 0, 1000\)/);
+  assert.match(stateSource, /currentLeftVolumeTarget = .*Math\.max\(0, Math\.min\(2,/);
+  assert.match(stateSource, /currentRightVolumeTarget = .*Math\.max\(0, Math\.min\(2,/);
+});
+
+test("ZIP importer bounds extracted data and releases consumed JSZip entries", () => {
+  assert.match(librarySource, /const MAX_EXTRACTED_BYTES = 128 \* 1024 \* 1024/);
+  assert.match(librarySource, /const MAX_SINGLE_EXTRACTED_BYTES = 64 \* 1024 \* 1024/);
+  assert.match(librarySource, /delete zip\.files\[filename\]/);
 });
