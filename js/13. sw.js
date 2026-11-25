@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.5.33-r33";
+const CACHE_NAME = "music-player-app-v7.5.34-r34";
 const CACHE_PREFIX = "music-player-app-v";
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
