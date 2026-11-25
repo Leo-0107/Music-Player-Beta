@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.39</title>
+<title>Music Player v7.5.40</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.39-r39">
+<link rel="stylesheet" href="style.css?v=7.5.39-r40">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -965,9 +965,11 @@
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
   const APP_VERSION = "v7.5.39";
-  const BUILD_REVISION = 39
+  const BUILD_REVISION = 40
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
   const BUILD_COMMIT_ID = "3247cd1cf4eabf153b7f4c18bff7d5245010f8e6";
+  // Source snapshot on main used for this release; distinct from the implementation commit above.
+  const BUILD_SOURCE_BASE_COMMIT_ID = "7bab7afb4b0f07afb3ef24dcc01616f7c53f1a09";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1020,8 +1022,8 @@
 
   try {
     const previousBuildId = localStorage.getItem("mp_last_loaded_build_id_v1");
-    if (previousBuildId && previousBuildId !== BUILD_COMMIT_ID) showUpdateNotice();
-    localStorage.setItem("mp_last_loaded_build_id_v1", BUILD_COMMIT_ID);
+    if (previousBuildId && previousBuildId !== BUILD_SOURCE_BASE_COMMIT_ID) showUpdateNotice();
+    localStorage.setItem("mp_last_loaded_build_id_v1", BUILD_SOURCE_BASE_COMMIT_ID);
   } catch {}
 
   if ("serviceWorker" in navigator) {
@@ -1267,7 +1269,8 @@
       "Music Player 診断情報",
       "診断レポート作成時Version: " + APP_VERSION,
       "診断レポート作成時BUILD_REVISION: " + BUILD_REVISION,
-      "診断レポート作成時Build commit: " + BUILD_COMMIT_ID,
+      "診断レポート作成時Build implementation commit: " + BUILD_COMMIT_ID,
+      "診断レポート作成時Build source base commit: " + BUILD_SOURCE_BASE_COMMIT_ID,
       "Browser: " + sanitize(navigator.userAgent),
       "Page: " + location.pathname,
       ""
