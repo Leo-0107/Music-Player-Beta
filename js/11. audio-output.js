@@ -2654,11 +2654,15 @@
 
   let outputDeviceChangeSequence = 0;
   let outputDeviceChangeQueue = Promise.resolve();
+  let outputDeviceChangeOriginalBlocked = null;
 
   if (navigator.mediaDevices?.addEventListener) {
     navigator.mediaDevices.addEventListener("devicechange", () => {
       const sequence = ++outputDeviceChangeSequence;
-      const wasBlockedBeforeChange = state.speakerSettings?.outputRoutingBlocked === true;
+      if (outputDeviceChangeOriginalBlocked === null) {
+        outputDeviceChangeOriginalBlocked = state.speakerSettings?.outputRoutingBlocked === true;
+      }
+      const wasBlockedBeforeChange = outputDeviceChangeOriginalBlocked;
       const selectedMainOutputIdBeforeChange = state.mainOutputDeviceId || "";
       const hadOutputDeviceBaseline = hasOutputDeviceBaseline;
       const previousDefaultWasExternal = getOutputDevicePriority(lastSystemDefaultOutputDevice) === 0;
@@ -2744,10 +2748,14 @@
         await renderOutputDeviceAddPicker();
         await updateOutputPermissionStatus();
         await syncAdditionalOutputRuntimes();
-        if (sequence === outputDeviceChangeSequence) renderAdditionalOutputSpeakers();
+        if (sequence === outputDeviceChangeSequence) {
+          renderAdditionalOutputSpeakers();
+          outputDeviceChangeOriginalBlocked = null;
+        }
       }).catch(error => {
         // ルーティング状態が不明な場合は必ず遮断したままにする。
         muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || selectedMainOutputIdBeforeChange);
+        if (sequence === outputDeviceChangeSequence) outputDeviceChangeOriginalBlocked = null;
         console.warn("Music Player output device change processing failed:", error);
       });
     });
