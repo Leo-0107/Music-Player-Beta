@@ -2652,9 +2652,17 @@
   let lastSystemDefaultOutputIdentityUnresolved = false;
   let hasOutputDeviceBaseline = false;
 
+  let outputDeviceChangeSequence = 0;
+  let outputDeviceChangeQueue = Promise.resolve();
+  let outputDeviceChangeOriginalBlocked = null;
+
   if (navigator.mediaDevices?.addEventListener) {
-    navigator.mediaDevices.addEventListener("devicechange", async () => {
-      const wasBlockedBeforeChange = state.speakerSettings?.outputRoutingBlocked === true;
+    navigator.mediaDevices.addEventListener("devicechange", () => {
+      const sequence = ++outputDeviceChangeSequence;
+      if (outputDeviceChangeOriginalBlocked === null) {
+        outputDeviceChangeOriginalBlocked = state.speakerSettings?.outputRoutingBlocked === true;
+      }
+      const wasBlockedBeforeChange = outputDeviceChangeOriginalBlocked;
       const selectedMainOutputIdBeforeChange = state.mainOutputDeviceId || "";
       const hadOutputDeviceBaseline = hasOutputDeviceBaseline;
       const previousDefaultWasExternal = getOutputDevicePriority(lastSystemDefaultOutputDevice) === 0;
@@ -2663,69 +2671,93 @@
       const preemptiveFailClosed = !wasBlockedBeforeChange &&
         (!!selectedMainOutputIdBeforeChange || previousDefaultWasExternal || previousDefaultIdentityUnresolved);
       if (preemptiveFailClosed) {
-        // enumerateDevices()は非同期のため、OSの既定出力切替より先にアプリ側を遮断する。
+        // enumerateDevices()が返る前に遮断し、OSの既定出力切替との競合を防ぐ。
         muteAllAppOutputsForRoutingFailure(selectedMainOutputIdBeforeChange);
       }
       if (document.visibilityState !== "visible") {
         pendingOutputDeviceRefresh = true;
         return;
       }
-      const outputs = await enumerateAudioOutputs();
-      const disconnectedSelectedMainOutputId = getDisconnectedSelectedMainOutputId(
-        outputs,
-        knownPhysicalOutputDeviceIds,
-        selectedMainOutputIdBeforeChange,
-        hasOutputDeviceBaseline
-      );
-      await rebindStoredOutputRoutes(outputs);
-      const physicalOutputs = outputs.filter(device =>
-        device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
-      );
-      const newlyConnectedOutput = hasOutputDeviceBaseline
-        ? getNewlyConnectedOutputDevice(outputs, knownPhysicalOutputDeviceIds)
-        : null;
-      knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
-      hasOutputDeviceBaseline = true;
 
-      const defaultPhysical = getDefaultPhysicalOutput(outputs);
-      const nextDefaultId = defaultPhysical?.deviceId || "";
-      const defaultChanged = lastSystemDefaultOutputDeviceId !== null &&
-        nextDefaultId !== lastSystemDefaultOutputDeviceId;
-      const nextDefaultIdentityUnresolved = isDefaultOutputIdentityUnresolved(outputs);
-      // defaultの物理機器を識別できない環境では、devicechangeが入力機器だけの変更か
-      // OS既定出力の変更かを判別できない。誤った出力先へ流さないため明示再選択まで遮断する。
-      const unresolvedDefaultDeviceChange = !selectedMainOutputDeviceIdBeforeChange &&
-        (lastSystemDefaultOutputIdentityUnresolved || nextDefaultIdentityUnresolved);
+      // devicechangeは短時間に複数回発火するため直列化し、古い調査結果は適用しない。
+      outputDeviceChangeQueue = outputDeviceChangeQueue.then(async () => {
+        if (sequence !== outputDeviceChangeSequence) return;
+        const outputs = await enumerateAudioOutputs();
+        if (sequence !== outputDeviceChangeSequence) return;
 
-      if (disconnectedSelectedMainOutputId || defaultChanged || unresolvedDefaultDeviceChange) {
-        // 選択中の出力消失、またはOS既定出力の変更時は、既定出力へ自動復帰しない。
-        // 既定出力がBluetoothから端末スピーカーへ変わるケースも遮断する。
-        muteAllAppOutputsForRoutingFailure(disconnectedSelectedMainOutputId || selectedMainOutputIdBeforeChange);
-        toast("出力機器またはOSの既定出力が変更されたため、音漏れ防止のため音声出力を停止しました。出力先を選び直してください");
-      } else if (wasBlockedBeforeChange) {
-        // 既に遮断中の場合は、接続変化だけで解除しない。
-      } else if (preemptiveFailClosed) {
-        // 出力機器一覧に変化がなければ、一時遮断を解除して元の出力先へ戻す。
-        if (isMultipleOutputEnabled() && newlyConnectedOutput) {
-          await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
-        } else {
-          await setMainOutputDevice(selectedMainOutputIdBeforeChange, { failClosed: true });
+        const disconnectedSelectedMainOutputId = getDisconnectedSelectedMainOutputId(
+          outputs,
+          knownPhysicalOutputDeviceIds,
+          selectedMainOutputIdBeforeChange,
+          hadOutputDeviceBaseline
+        );
+        await rebindStoredOutputRoutes(outputs);
+        if (sequence !== outputDeviceChangeSequence) {
+          muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || selectedMainOutputIdBeforeChange);
+          return;
         }
-      } else if (isMultipleOutputEnabled() && newlyConnectedOutput) {
-        await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
-      }
 
-      lastSystemDefaultOutputDeviceId = nextDefaultId;
-      lastSystemDefaultOutputDevice = defaultPhysical;
-      lastSystemDefaultOutputIdentityUnresolved = nextDefaultIdentityUnresolved;
-      pendingOutputDeviceRefresh = false;
-      await updateOutputDeviceName();
-      await updateDisconnectedOutputDeviceIds();
-      await renderOutputDevicePicker();
-      await renderOutputDeviceAddPicker();
-      await updateOutputPermissionStatus();
-      await syncAdditionalOutputRuntimes();
-      renderAdditionalOutputSpeakers();
+        const physicalOutputs = outputs.filter(device =>
+          device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
+        );
+        const newlyConnectedOutput = hadOutputDeviceBaseline
+          ? getNewlyConnectedOutputDevice(outputs, knownPhysicalOutputDeviceIds)
+          : null;
+        knownPhysicalOutputDeviceIds = new Set(physicalOutputs.map(device => device.deviceId));
+        hasOutputDeviceBaseline = true;
+
+        const defaultPhysical = getDefaultPhysicalOutput(outputs);
+        const nextDefaultId = defaultPhysical?.deviceId || "";
+        const defaultChanged = lastSystemDefaultOutputDeviceId !== null &&
+          nextDefaultId !== lastSystemDefaultOutputDeviceId;
+        const nextDefaultIdentityUnresolved = isDefaultOutputIdentityUnresolved(outputs);
+        const unresolvedDefaultDeviceChange = !selectedMainOutputIdBeforeChange &&
+          (lastSystemDefaultOutputIdentityUnresolved || nextDefaultIdentityUnresolved);
+
+        if (disconnectedSelectedMainOutputId || defaultChanged || unresolvedDefaultDeviceChange) {
+          muteAllAppOutputsForRoutingFailure(disconnectedSelectedMainOutputId || selectedMainOutputIdBeforeChange);
+          toast("出力機器またはOSの既定出力が変更されたため、音漏れ防止のため音声出力を停止しました。出力先を選び直してください");
+        } else if (wasBlockedBeforeChange) {
+          // 明示的に遮断済みの出力は機器変化だけで解除しない。
+        } else if (preemptiveFailClosed) {
+          if (isMultipleOutputEnabled() && newlyConnectedOutput) {
+            await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
+          } else {
+            await setMainOutputDevice(selectedMainOutputIdBeforeChange, { failClosed: true });
+          }
+          if (sequence !== outputDeviceChangeSequence) {
+            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || selectedMainOutputIdBeforeChange);
+            return;
+          }
+        } else if (isMultipleOutputEnabled() && newlyConnectedOutput) {
+          await switchToExclusiveOutputDevice(newlyConnectedOutput, outputs);
+          if (sequence !== outputDeviceChangeSequence) {
+            muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || selectedMainOutputIdBeforeChange);
+            return;
+          }
+        }
+
+        lastSystemDefaultOutputDeviceId = nextDefaultId;
+        lastSystemDefaultOutputDevice = defaultPhysical;
+        lastSystemDefaultOutputIdentityUnresolved = nextDefaultIdentityUnresolved;
+        pendingOutputDeviceRefresh = false;
+        await updateOutputDeviceName();
+        if (sequence !== outputDeviceChangeSequence) return;
+        await updateDisconnectedOutputDeviceIds();
+        await renderOutputDevicePicker();
+        await renderOutputDeviceAddPicker();
+        await updateOutputPermissionStatus();
+        await syncAdditionalOutputRuntimes();
+        if (sequence === outputDeviceChangeSequence) {
+          renderAdditionalOutputSpeakers();
+          outputDeviceChangeOriginalBlocked = null;
+        }
+      }).catch(error => {
+        // ルーティング状態が不明な場合は必ず遮断したままにする。
+        muteAllAppOutputsForRoutingFailure(state.mainOutputDeviceId || selectedMainOutputIdBeforeChange);
+        if (sequence === outputDeviceChangeSequence) outputDeviceChangeOriginalBlocked = null;
+        console.warn("Music Player output device change processing failed:", error);
+      });
     });
   }
 
