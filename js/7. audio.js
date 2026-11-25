@@ -1,4 +1,5 @@
-  const BUILD_REVISION = 38;
+  const BUILD_REVISION = 39;
+  const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -1043,7 +1044,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.39-r39", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 
@@ -1053,7 +1054,8 @@ let mainOutputUsesNativeDestination = false;
         outputChannelCount: [2],
         channelCount: 2,
         channelCountMode: "explicit",
-        channelInterpretation: "speakers"
+        channelInterpretation: "speakers",
+        processorOptions: { protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION }
       });
       const userPitchRatio = Math.pow(2, Number(state.pitchSemitones || 0) / 12);
       let pitchValue = Math.max(0.5, Math.min(2, bufferedPlaybackMode
@@ -1069,8 +1071,6 @@ let mainOutputUsesNativeDestination = false;
           workletNode.port.postMessage({ type: "pitch", value: next });
         }
       });
-      workletNode.pitch = pitchValue;
-
       // Workletがアップグレード後にprocessorerrorを起こした場合に備え、
       // 旧ScriptProcessorノードを保持して再接続可能にしておく。
       ctx._musicPlayerPitchFallbackShifter = oldShifter;
@@ -1124,6 +1124,42 @@ let mainOutputUsesNativeDestination = false;
           }
         }, { once: true });
       }
+
+      const pitchProtocolReady = new Promise((resolve, reject) => {
+        let timeoutId = null;
+        let settled = false;
+        const finish = (callback, value) => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId !== null) clearTimeout(timeoutId);
+          callback(value);
+        };
+        timeoutId = setTimeout(() => {
+          finish(reject, new Error("Pitch Worklet protocol handshake timed out"));
+        }, 1500);
+        workletNode.port.onmessage = event => {
+          const data = event.data || {};
+          if (data.type !== "ready" && data.type !== "protocol-error") return;
+          if (data.type === "ready" && data.protocolVersion === PITCH_WORKLET_PROTOCOL_VERSION) {
+            finish(resolve, true);
+          } else {
+            finish(reject, new Error("Pitch Worklet protocol version mismatch"));
+          }
+        };
+        try {
+          workletNode.port.postMessage({ type: "hello", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION });
+        } catch (error) {
+          finish(reject, error);
+        }
+      });
+      try {
+        await pitchProtocolReady;
+      } catch (protocolError) {
+        try { workletNode.disconnect(); } catch (e) {}
+        try { workletNode.port.close(); } catch (e) {}
+        throw protocolError;
+      }
+      workletNode.pitch = pitchValue;
 
       const nextGain = ctx.createGain();
       nextGain.gain.value = 0;
