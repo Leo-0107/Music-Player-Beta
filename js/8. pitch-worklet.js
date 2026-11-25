@@ -1,8 +1,14 @@
+const PITCH_WORKLET_PROTOCOL_VERSION = 1;
+
 // Music Player pitch shifter AudioWorklet.
 // Uses the same two-grain overlap-add method as the ScriptProcessor fallback.
 class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options = {}) {
     super();
+    if (Number(options?.processorOptions?.protocolVersion) !== PITCH_WORKLET_PROTOCOL_VERSION) {
+      throw new Error("Pitch Worklet protocol version mismatch");
+    }
+    this.protocolReady = false;
     this.grainSize = Math.max(2048, Math.round(sampleRate * 0.09));
     this.hopSize = Math.floor(this.grainSize / 2);
     this.bufferLength = this.grainSize * 6;
@@ -17,6 +23,16 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
       { active: false, readPos: 0, phase: 0 }
     ];
     this.port.onmessage = event => {
+      if (event.data?.type === "hello") {
+        if (Number(event.data.protocolVersion) !== PITCH_WORKLET_PROTOCOL_VERSION) {
+          this.port.postMessage({ type: "protocol-error", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION });
+          return;
+        }
+        this.protocolReady = true;
+        this.port.postMessage({ type: "ready", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION });
+        return;
+      }
+      if (!this.protocolReady) return;
       if (event.data?.type === "reset") {
         this.buffers[0].fill(0);
         this.buffers[1].fill(0);
@@ -94,6 +110,11 @@ class MusicPlayerPitchProcessor extends AudioWorkletProcessor {
     const outputLeft = output[0];
     const outputRight = output[1] || outputLeft;
     if (!outputLeft) return false;
+    if (!this.protocolReady) {
+      outputLeft.fill(0);
+      if (outputRight && outputRight !== outputLeft) outputRight.fill(0);
+      return false;
+    }
 
     const inputLeft = input[0] || null;
     const inputRight = input[1] || inputLeft;
