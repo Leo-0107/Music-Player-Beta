@@ -40,7 +40,7 @@ test("Android installed PWA uses app-colored system bars and maskable launcher i
   assert.ok(themeColorMeta, "index.html declares the PWA theme color");
   assert.equal(themeColorMeta[1], manifest.theme_color);
   assert.match(indexSource, /viewport-fit=cover/);
-  assert.equal(manifest.icons.length, 3);
+  assert.equal(manifest.icons.length, 2);
   for (const icon of manifest.icons) {
     assert.equal(icon.purpose, "any maskable");
     assert.match(icon.src, /^\.\/icon-(192|512)\.png$/);
@@ -5090,6 +5090,6 @@ test("Service Worker cache writes are attached to fetch event lifetime", () => {
   assert.match(serviceWorkerSource, /function cacheNetworkResponseForEvent\(event, networkPromise, cacheKey, shouldCache\)/);
   assert.match(serviceWorkerSource, /event\.waitUntil\(cacheUpdate\)/);
   assert.match(serviceWorkerSource, /cache\.put\(cacheKey, response\.clone\(\)\)/);
-  assert.equal((serviceWorkerSource.match(/cacheNetworkResponseForEvent\(event, networkPromise/g) || []).length, 2);
+  assert.equal((serviceWorkerSource.match(/cacheNetworkResponseForEvent\(event, networkPromise/g) || []).length, 3);
   assert.match(serviceWorkerSource, /cacheNetworkResponseForEvent\(\s*event,\s*networkPromise,\s*request,/);
 });
