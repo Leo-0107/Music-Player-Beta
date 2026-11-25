@@ -1108,9 +1108,13 @@ let mainOutputUsesNativeDestination = false;
                 Number(ctx._musicPlayerPitchBypassGain.gain.value) || 0, now);
               ctx._musicPlayerPitchBypassGain.gain.linearRampToValueAtTime(isNeutral ? 1 : 0, now + 0.05);
             }
+            if (isNeutral) {
+              try { sourceNode.disconnect(oldShifter); } catch (e) {}
+            } else {
+              try { sourceNode.connect(oldShifter); } catch (e) {}
+            }
             ctx._musicPlayerPitchShifter = oldShifter;
             ctx._musicPlayerPitchProcessedGain = oldGain;
-            updatePitchShiftNode();
             console.warn("Music Player AudioWorklet processor failed; restored ScriptProcessor pitch path.");
           } catch (fallbackError) {
             // 代替経路の復旧にも失敗した場合は、無音／誤出力より安全停止を優先。
