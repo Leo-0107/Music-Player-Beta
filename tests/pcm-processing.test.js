@@ -5120,6 +5120,7 @@ test("Pitch Worklet becomes inactive and clears stale grain state when input cha
 
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
   assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.39-r39"/);
+  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.39-r39"/);
   assert.match(engineSource, /PCM_WORKER_PROTOCOL_VERSION = 1/);
   assert.match(engineSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /message\.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION/);
