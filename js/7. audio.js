@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 35;
+  const BUILD_REVISION = 36;
 
   const titleObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -2127,10 +2127,12 @@ let mainOutputUsesNativeDestination = false;
     });
   }
 
+  let artworkRenderGeneration = 0;
+
   function updateArtwork(song) {
+    const renderGeneration = ++artworkRenderGeneration;
     const showVideo = song?.mediaType === "video" &&
       el.nowCoverBox && mediaElement instanceof HTMLVideoElement;
-
     if (showVideo) {
       mediaElement.classList.add("coverVideo");
       mediaElement.controls = false;
@@ -2139,13 +2141,8 @@ let mainOutputUsesNativeDestination = false;
       mediaElement.setAttribute("webkit-playsinline", "");
       if (song.coverUrl) mediaElement.poster = song.coverUrl;
       else mediaElement.removeAttribute("poster");
-
-      if (mediaElement.parentElement !== el.nowCoverBox) {
-        el.nowCoverBox.insertBefore(mediaElement, el.btnVideoFullscreen || null);
-      }
-      if (el.nowCoverCanvas) {
-        el.nowCoverCanvas.hidden = mediaElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
-      }
+      if (mediaElement.parentElement !== el.nowCoverBox) el.nowCoverBox.insertBefore(mediaElement, el.btnVideoFullscreen || null);
+      if (el.nowCoverCanvas) el.nowCoverCanvas.hidden = mediaElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
       if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = false;
     } else {
       if (mediaElement.parentElement === el.nowCoverBox) mediaElement.remove();
@@ -2154,22 +2151,21 @@ let mainOutputUsesNativeDestination = false;
       if (el.nowCoverCanvas) el.nowCoverCanvas.hidden = false;
       if (el.btnVideoFullscreen) el.btnVideoFullscreen.hidden = true;
     }
-
     const drawCanvas = (canvas, size) => {
-      if(!canvas) return;
+      if (!canvas) return;
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       canvas.width = Math.round(size * dpr);
       canvas.height = Math.round(size * dpr);
       canvas.style.width = `${size}px`;
       canvas.style.height = `${size}px`;
-
       const ctx = canvas.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
-
       if (song?.coverUrl) {
+        const coverUrl = song.coverUrl;
         const img = new Image();
         img.onload = () => {
+          if (renderGeneration !== artworkRenderGeneration || song.coverUrl !== coverUrl) return;
           ctx.clearRect(0, 0, size, size);
           const scale = Math.max(size / img.width, size / img.height);
           const drawW = img.width * scale;
@@ -2178,10 +2174,9 @@ let mainOutputUsesNativeDestination = false;
           const dy = (size - drawH) / 2;
           ctx.drawImage(img, dx, dy, drawW, drawH);
         };
-        img.src = song.coverUrl;
+        img.src = coverUrl;
         return;
       }
-
       const isLightTheme = document.body.classList.contains("theme-light");
       ctx.fillStyle = isLightTheme ? "#e9edf2" : "rgba(35, 35, 40, 0.9)";
       ctx.fillRect(0, 0, size, size);
@@ -2191,11 +2186,9 @@ let mainOutputUsesNativeDestination = false;
       ctx.textBaseline = "middle";
       ctx.fillText(`NO IMAGE #${BUILD_REVISION}`, size / 2, size / 2);
     };
-
     drawCanvas(el.nowCoverCanvas, 160);
     drawCanvas(el.miniCoverCanvas, 32);
   }
-
   // 同じ再生要素の映像データが準備できたら、静止サムネイルから動画表示へ切り替える。
   mediaElement.addEventListener("loadeddata", () => {
     if (state.currentSong?.mediaType !== "video" ||
@@ -2267,6 +2260,10 @@ let mainOutputUsesNativeDestination = false;
     resetTrackLoudnessNormalization();
     state.queue = [];
     state.favorites = [];
+    state.playCounts = {};
+    state.playHistory = {};
+    state.playStats = {};
+    state.playbackMonthly = {};
     state.playlists = {};
     state.playlistSettings = {};
     clearPlaylistContext();

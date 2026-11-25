@@ -1,4 +1,4 @@
-const CACHE_NAME = "music-player-app-v7.5.35-r35";
+const CACHE_NAME = "music-player-app-v7.5.36-r36";
 const CACHE_PREFIX = "music-player-app-v";
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 const APP_SHELL = [
@@ -68,12 +68,23 @@ function matchCachedRequest(request) {
   );
 }
 
+function cacheNetworkResponseForEvent(event, networkPromise, cacheKey, shouldCache) {
+  const cacheUpdate = networkPromise
+    .then(response => {
+      if (!shouldCache(response)) return;
+      return caches.open(CACHE_NAME).then(cache => cache.put(cacheKey, response.clone()));
+    })
+    .catch(() => {
+      // Cache failure must not change the network response.
+    });
+  event.waitUntil(cacheUpdate);
+  return networkPromise;
+}
+
 self.addEventListener("fetch", event => {
   const request = event.request;
   const requestUrl = new URL(request.url);
 
-  // 接続状態の確認は必ず実ネットワークへ到達させる。
-  // キャッシュへの保存・オフライン時のキャッシュ返却を行わない。
   if (request.method === "GET" &&
       requestUrl.origin === self.location.origin &&
       requestUrl.searchParams.has("mp-network-check")) {
@@ -83,48 +94,31 @@ self.addEventListener("fetch", event => {
 
   if (request.method !== "GET") return;
 
-  // 外部API・YouTubeなどのレスポンスやAPIキー付きURLはアプリキャッシュへ保存しない。
-  // このService Workerは同一オリジンのアプリ資産と画面だけを扱う。
   if (requestUrl.href === JSZIP_URL) {
+    const networkPromise = fetch(request);
+    cacheNetworkResponseForEvent(event, networkPromise, request, response => response.ok);
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(request)))
+      networkPromise.catch(() => caches.open(CACHE_NAME).then(cache => cache.match(request)))
     );
     return;
   }
   if (requestUrl.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
+    const networkPromise = fetch(new Request(request, { cache: "no-store" }));
+    cacheNetworkResponseForEvent(event, networkPromise, "./index.html", response => response.ok);
     event.respondWith(
-      fetch(new Request(request, { cache: "no-store" }))
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put("./index.html", copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match("./index.html"))
+      networkPromise.catch(() => caches.open(CACHE_NAME).then(cache => cache.match("./index.html")))
     );
     return;
   }
 
-  event.respondWith(
-    fetch(request)
-      .then(response => {
-        if (response.ok || response.type === "opaque") {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(() => matchCachedRequest(request))
+  const networkPromise = fetch(request);
+  cacheNetworkResponseForEvent(
+    event,
+    networkPromise,
+    request,
+    response => response.ok || response.type === "opaque"
   );
+  event.respondWith(networkPromise.catch(() => matchCachedRequest(request)));
 });

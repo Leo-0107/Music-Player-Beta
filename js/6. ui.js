@@ -339,8 +339,24 @@
   });
 
   if (el.progress) {
-    el.progress.addEventListener("pointerdown", () => isSlidingRange = true);
-    el.progress.addEventListener("pointerup", () => isSlidingRange = false);
+    let mainProgressPointerId = null;
+    const finishMainProgressScrub = event => {
+      if (mainProgressPointerId === null) return;
+      if (Number.isFinite(event?.pointerId) && event.pointerId !== mainProgressPointerId) return;
+      mainProgressPointerId = null;
+      isSlidingRange = false;
+    };
+    el.progress.addEventListener("pointerdown", event => {
+      mainProgressPointerId = event.pointerId;
+      isSlidingRange = true;
+    });
+    window.addEventListener("pointerup", finishMainProgressScrub, true);
+    window.addEventListener("pointercancel", finishMainProgressScrub, true);
+    el.progress.addEventListener("lostpointercapture", finishMainProgressScrub);
+    window.addEventListener("blur", finishMainProgressScrub);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") finishMainProgressScrub();
+    });
     el.progress.addEventListener("input", () => {
       const value = Number(el.progress.value) || 0;
       syncProgressBars(value, "main");
