@@ -148,7 +148,7 @@ test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () =>
 
 test("Build implementation commit and main source base commit are separately reported", () => {
   assert.match(indexSource, /const BUILD_SOURCE_BASE_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "7bab7afb4b0f07afb3ef24dcc01616f7c53f1a09"'));
+  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "781bc0c045d51a19be69426e0c89fd3d672aadb8"'));
   assert.match(indexSource, /Build implementation commit: " \+ BUILD_COMMIT_ID/);
   assert.match(indexSource, /Build source base commit: " \+ BUILD_SOURCE_BASE_COMMIT_ID/);
   assert.match(indexSource, /previousBuildId !== BUILD_SOURCE_BASE_COMMIT_ID/);
