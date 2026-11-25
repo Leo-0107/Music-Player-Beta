@@ -677,7 +677,7 @@ let mainOutputUsesNativeDestination = false;
               const error = event?.error || null;
               diagnostics.lastErrorName = error?.name ? String(error.name).slice(0, 80) : "UnknownError";
               diagnostics.lastErrorMessage = String(error?.message || event?.message || "AudioContext error")
-                .replace(/https?:\\/\\/[^\\s]+/g, "[URL]")
+                .replace(/https?:\/\/[^\s]+/g, "[URL]")
                 .slice(0, 240);
               window.__musicPlayerAudioContextErrorDiagnostics = diagnostics;
             });
