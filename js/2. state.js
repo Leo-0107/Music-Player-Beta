@@ -563,9 +563,9 @@
   let currentVolumeTarget = localStorage.getItem(STORAGE.volume) === null
     ? 1.0
     : Math.max(0, Math.min(2, loadNum(STORAGE.volume, 1.0)));
-  let currentLeftVolumeTarget = localStorage.getItem(STORAGE.channelLeft) === null ? 1.0 : loadNum(STORAGE.channelLeft, 1.0);
-  let currentRightVolumeTarget = localStorage.getItem(STORAGE.channelRight) === null ? 1.0 : loadNum(STORAGE.channelRight, 1.0);
-  let currentMicMonitorVolumeTarget = loadNum(STORAGE.micMonitorVolume, 1.0);
+  let currentLeftVolumeTarget = localStorage.getItem(STORAGE.channelLeft) === null ? 1.0 : Math.max(0, Math.min(2, loadNum(STORAGE.channelLeft, 1.0)));
+  let currentRightVolumeTarget = localStorage.getItem(STORAGE.channelRight) === null ? 1.0 : Math.max(0, Math.min(2, loadNum(STORAGE.channelRight, 1.0)));
+  let currentMicMonitorVolumeTarget = Math.max(0, Math.min(2, loadNum(STORAGE.micMonitorVolume, 1.0)));
   let eqAnimId = null;
   let wakeLock = null;
   
@@ -814,12 +814,15 @@
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, [])
-      .filter(route => route && typeof route.deviceId === "string" && String(route.label || "").trim())
+      .filter(route => route && typeof route.deviceId === "string" && route.deviceId.length > 0 &&
+        typeof route.label === "string" && route.label.trim().length > 0)
       .map(route => ({
-      ...route,
-      enabled: route.enabled !== false,
-      delayMs: Math.max(0, Math.min(1000, Math.round((Number(route.delayMs) || 0) * 10) / 10))
-    })),
+        ...route,
+        enabled: route.enabled === true,
+        left: normalizeStoredNumber(route.left, 1, 0, 2),
+        right: normalizeStoredNumber(route.right, 1, 0, 2),
+        delayMs: normalizeStoredNumber(route.delayMs, 0, 0, 1000)
+      })),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
     speakerSettings: loadSpeakerSettings(STORAGE.speakerSettings, { multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }),
     playlistSettings: loadPlaylistSettings(STORAGE.playlistSettings),
