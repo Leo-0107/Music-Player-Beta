@@ -342,7 +342,7 @@
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
         try {
           if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
-            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.43-r43", document.baseURI).href);
+            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.44-r44", document.baseURI).href);
             audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
           }
           captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
