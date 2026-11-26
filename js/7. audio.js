@@ -421,6 +421,8 @@
     node.channelCount = 2;
     node.channelCountMode = "explicit";
     node.channelInterpretation = "speakers";
+    const lookaheadFrames = 128;
+    const lookaheadBuffer = [new Float32Array(lookaheadFrames), new Float32Array(lookaheadFrames)];
     let releaseGain = 1;
     node.onaudioprocess = event => {
       const input = event.inputBuffer;
@@ -433,11 +435,14 @@
       let estimatedPeak = 0;
       for (let channel = 0; channel < output.numberOfChannels; channel++) {
         const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
-        for (let i = 0; i < frames; i++) {
-          const current = source[i] || 0;
+        const ring = lookaheadBuffer[channel];
+        const sampleAt = index => index < lookaheadFrames ? ring[index] : (source[index - lookaheadFrames] || 0);
+        const scanLength = lookaheadFrames + frames;
+        for (let i = 0; i < scanLength; i++) {
+          const current = sampleAt(i);
           estimatedPeak = Math.max(estimatedPeak, Math.abs(current));
-          if (i + 1 < frames) {
-            const next = source[i + 1] || 0;
+          if (i + 1 < scanLength) {
+            const next = sampleAt(i + 1);
             for (let step = 1; step < 4; step++) {
               const interpolated = current + (next - current) * (step / 4);
               estimatedPeak = Math.max(estimatedPeak, Math.abs(interpolated));
@@ -456,8 +461,15 @@
       const blockGain = state.truePeakLimiterEnabled === false ? 1 : Math.min(releaseGain, desiredGain);
       for (let channel = 0; channel < output.numberOfChannels; channel++) {
         const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
+        const ring = lookaheadBuffer[channel];
         const destination = output.getChannelData(channel);
-        for (let i = 0; i < frames; i++) destination[i] = (source[i] || 0) * blockGain;
+        for (let i = 0; i < frames; i++) {
+          const delayed = i < lookaheadFrames ? ring[i] : (source[i - lookaheadFrames] || 0);
+          destination[i] = delayed * blockGain;
+        }
+        for (let i = 0; i < lookaheadFrames; i++) {
+          ring[i] = source[Math.max(0, frames - lookaheadFrames) + i] || 0;
+        }
       }
       if (++truePeakMeterUpdateCount % 8 === 0 && el.truePeakMeter) {
         el.truePeakMeter.textContent = (truePeakMeterValue <= -120 ? "−∞" : truePeakMeterValue.toFixed(1)) + " dBTP";
