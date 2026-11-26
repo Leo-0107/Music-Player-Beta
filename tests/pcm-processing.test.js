@@ -81,13 +81,14 @@ test("permanently disposed additional output runtimes disconnect every audio sta
     rightGain: makeNode(),
     merger: makeNode(),
     limiterNode: makeNode(),
+    truePeakLimiterNode: makeNode(),
     delayNode: makeNode()
   };
   const sandbox = { speakerBusNode };
   vm.runInNewContext(helperSource + "\nthis.disposeRuntime = disposeAdditionalOutputRuntime;", sandbox);
   sandbox.disposeRuntime(runtime);
   assert.equal(speakerBusNode.disconnected, true);
-  for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.delayNode]) {
+  for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.truePeakLimiterNode, runtime.delayNode]) {
     assert.equal(node.disconnected, true);
   }
   assert.equal(runtime.connected, false);
@@ -111,21 +112,25 @@ test("additional speaker route graph applies compression before optional delay",
   const limiterNode = makeNode("limiter");
   const delayNode = makeNode("delay");
   const destination = makeNode("destination");
-  const runtime = { merger, limiterNode, delayNode, destination };
+  const truePeakLimiterNode = makeNode("truePeak");
+  const runtime = { merger, limiterNode, truePeakLimiterNode, delayNode, destination };
   const sandbox = { state: { clippingProtection: true }, getEffectiveSpeakerDelay: value => value };
   vm.runInNewContext(helperSource + "\nthis.applyRouteGraph = applyAdditionalOutputRouteGraph;", sandbox);
   sandbox.applyRouteGraph(runtime, 0);
   assert.equal(merger.connections.has(limiterNode), true);
-  assert.equal(limiterNode.connections.has(destination), true);
+  assert.equal(limiterNode.connections.has(truePeakLimiterNode), true);
+  assert.equal(truePeakLimiterNode.connections.has(destination), true);
   assert.equal(limiterNode.connections.has(delayNode), false);
   sandbox.applyRouteGraph(runtime, 25);
   assert.equal(merger.connections.has(limiterNode), true);
-  assert.equal(limiterNode.connections.has(delayNode), true);
+  assert.equal(limiterNode.connections.has(truePeakLimiterNode), true);
+  assert.equal(truePeakLimiterNode.connections.has(delayNode), true);
   assert.equal(delayNode.connections.has(destination), true);
   sandbox.state.clippingProtection = false;
   sandbox.applyRouteGraph(runtime, 0);
   assert.equal(merger.connections.has(limiterNode), false);
-  assert.equal(merger.connections.has(destination), true);
+  assert.equal(merger.connections.has(truePeakLimiterNode), true);
+  assert.equal(truePeakLimiterNode.connections.has(destination), true);
   assert.equal(limiterNode.connections.has(delayNode), false);
 });
 
@@ -222,7 +227,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
   assert.ok(audioSource.includes("const BUILD_REVISION = 45;"));
   assert.ok(manifestSource.includes("Music Player v7.5.45"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.45-r44'));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.45-r45'));
   assert.ok(indexSource.includes("7.5.45-r45"));
   assert.ok(controllerSource.includes("7.5.45-r45"));
   assert.ok(rootServiceWorkerSource.includes("7.5.45-r45"));
@@ -3607,7 +3612,9 @@ test("PCM insertion boundary traverses the shared stereo output and optional cli
     "leftGainNode.connect(channelMerger, 0, 0);",
     "rightGainNode.connect(channelMerger, 0, 1);",
     "channelMerger.connect(limiterNode);",
-    "limiterNode.connect(analyser);"
+    "limiterNode.connect(truePeakLimiterNode);",
+    "truePeakLimiterNode.connect(outputSplitter);",
+    "truePeakLimiterNode.connect(analyser);"
   ];
   const positions = orderedMarkers.map(marker => audioSource.indexOf(marker));
   assert.ok(positions.every(position => position >= 0), "all shared output stages must exist");
@@ -4818,7 +4825,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.45-r44",
+        "music-player-app-v7.5.45-r45",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
