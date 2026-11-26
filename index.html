@@ -418,7 +418,7 @@
             </div>
             <label class="settingCheckRow" for="truePeakLimiterEnabled">
               <input type="checkbox" id="truePeakLimiterEnabled" checked>
-              <span><strong>True Peak推定リミッター</strong><small>4倍線形補間で推定したピークを基にブロック単位で抑制します。厳密な規格適合・全DACでの絶対保証ではありません。</small></span>
+              <span><strong>True Peak推定リミッター</strong><small>4倍線形補間でピークを推定し、128サンプルのlookaheadを使ってブロック単位で抑制します。厳密な規格適合・全DACでの絶対保証ではありません。</small></span>
             </label>
             <div class="field speakerOutputLevel">
               <label for="truePeakCeiling">ピーク上限: <span id="truePeakCeilingText">−1.0 dBTP</span></label>
