@@ -498,6 +498,11 @@
   if (el.normalizeTrackVolume) {
     el.normalizeTrackVolume.checked = state.normalizeTrackVolume !== false;
     el.normalizeTrackVolume.addEventListener("change", () => {
+      if (state.integratedLufsEnabled === true) {
+        el.normalizeTrackVolume.checked = false;
+        toast("Integrated LUFS補正中はRMS補正を同時に使えません");
+        return;
+      }
       state.normalizeTrackVolume = !!el.normalizeTrackVolume.checked;
       resetTrackLoudnessNormalization();
       saveState();
@@ -951,6 +956,24 @@ let mainOutputUsesNativeDestination = false;
       trackLoudnessAnalyser.fftSize = 4096;
       trackLoudnessAnalyser.smoothingTimeConstant = 0;
       trackLoudnessData = new Float32Array(trackLoudnessAnalyser.fftSize);
+      // BS.1770系K-weightingの近似（high-shelf + RLB high-pass）を測定専用の並列経路に置く。
+      integratedLufsHighShelf = audioCtx.createBiquadFilter();
+      integratedLufsHighShelf.type = "highshelf";
+      integratedLufsHighShelf.frequency.value = 1681.974;
+      integratedLufsHighShelf.gain.value = 3.9998;
+      integratedLufsHighShelf.Q.value = 0.707;
+      integratedLufsHighPass = audioCtx.createBiquadFilter();
+      integratedLufsHighPass.type = "highpass";
+      integratedLufsHighPass.frequency.value = 38.135;
+      integratedLufsHighPass.Q.value = 0.5003;
+      integratedLufsAnalyser = audioCtx.createAnalyser();
+      integratedLufsAnalyser.fftSize = 8192;
+      integratedLufsAnalyser.smoothingTimeConstant = 0;
+      integratedLufsAnalyser.channelCount = 2;
+      integratedLufsAnalyser.channelCountMode = "explicit";
+      integratedLufsData = new Float32Array(integratedLufsAnalyser.fftSize);
+      truePeakLimiterNode = createTruePeakLimiterNode(audioCtx);
+      truePeakLimiterGain = 1;
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       analyserData = new Uint8Array(analyser.frequencyBinCount);
@@ -1020,6 +1043,9 @@ let mainOutputUsesNativeDestination = false;
       // マスター音量・マイクを含む2chミックスを、各スピーカーの個別L/R調整より前で分岐する。
       // メイン側のL/R音量変更が登録スピーカーへ影響しないようにする。
       channelNormalizeNode.connect(trackLoudnessAnalyser);
+      channelNormalizeNode.connect(integratedLufsHighShelf);
+      integratedLufsHighShelf.connect(integratedLufsHighPass);
+      integratedLufsHighPass.connect(integratedLufsAnalyser);
       trackLoudnessAnalyser.connect(trackLoudnessGainNode);
       trackLoudnessGainNode.connect(masterGain);
       masterGain.connect(micReferenceAnalyser);
