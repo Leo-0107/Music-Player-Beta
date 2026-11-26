@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 41;
+  const BUILD_REVISION = 42;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -654,6 +654,7 @@ let mainOutputUsesNativeDestination = false;
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
         if (typeof audioCtx.addEventListener === "function") {
+          audioCtx._musicPlayerSinkChangeListenerInstalled = true;
           audioCtx.addEventListener("sinkchange", () => {
             const diagnostics = window.__musicPlayerSinkChangeDiagnostics || {
               requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0
@@ -1060,7 +1061,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.41-r41", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.42-r42", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 

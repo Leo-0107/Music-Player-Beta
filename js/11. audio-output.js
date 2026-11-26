@@ -342,7 +342,7 @@
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
         try {
           if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
-            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.41-r41", document.baseURI).href);
+            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.42-r42", document.baseURI).href);
             audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
           }
           captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
@@ -890,10 +890,11 @@
     const physical = outputs.filter(device =>
       device?.kind === "audiooutput" && device.deviceId && device.deviceId !== "default"
     );
-    return physical.length > 0 &&
-      !getDefaultPhysicalOutput(outputs) &&
-      !String(defaultDevice.label || "").trim() &&
-      !String(defaultDevice.groupId || "").trim();
+    // default aliasだけの列挙では物理出力を特定できないため、安全側で未解決と扱う。
+    return physical.length === 0 ||
+      (!getDefaultPhysicalOutput(outputs) &&
+        !String(defaultDevice.label || "").trim() &&
+        !String(defaultDevice.groupId || "").trim());
   }
 
   function getDefaultOutputLabel(outputs = latestEnumeratedOutputDevices) {
@@ -2792,6 +2793,16 @@
         console.warn("Music Player output device change processing failed:", error);
       });
     });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible" || !pendingOutputDeviceRefresh) return;
+      pendingOutputDeviceRefresh = false;
+      if (navigator.mediaDevices?.dispatchEvent && typeof Event === "function") {
+        navigator.mediaDevices.dispatchEvent(new Event("devicechange"));
+      } else {
+        pendingOutputDeviceRefresh = true;
+      }
+    });
   }
 
   enumerateAudioOutputs().then(outputs => {
@@ -2873,6 +2884,7 @@
       selectAudioOutput: typeof navigator.mediaDevices?.selectAudioOutput === "function",
       audioPlaybackStats: !!audioCtx && "playbackStats" in audioCtx,
       audioContextSinkChange: !!audioCtx && typeof audioCtx.addEventListener === "function",
+      audioContextSinkChangeListenerInstalled: !!audioCtx?._musicPlayerSinkChangeListenerInstalled,
       audioContextErrorListener: !!audioCtx?._musicPlayerAudioContextErrorListenerInstalled
     };
     if (!audioCtx) return { available: false, apiCapabilities, audioContextErrorDiagnostics };

@@ -762,9 +762,26 @@
     return settings;
   }
 
-  function loadBool(k, f){ const r = localStorage.getItem(k); return r === null ? f : r === "true"; }
-  function loadNum(k, f){ const r = localStorage.getItem(k); const n = Number(r); return Number.isFinite(n) ? n : f; }
-  function loadStr(k, f){ const r = localStorage.getItem(k); return r === null ? f : r; }
+  function readStoredPrimitive(k) {
+    try { return localStorage.getItem(k); } catch { return null; }
+  }
+  function loadBool(k, f) {
+    const r = readStoredPrimitive(k);
+    if (r === null) return f;
+    if (r === "true") return true;
+    if (r === "false") return false;
+    return f;
+  }
+  function loadNum(k, f) {
+    const r = readStoredPrimitive(k);
+    if (r === null || String(r).trim() === "") return f;
+    const n = Number(r);
+    return Number.isFinite(n) ? n : f;
+  }
+  function loadStr(k, f) {
+    const r = readStoredPrimitive(k);
+    return r === null ? f : r;
+  }
   function loadSpatialMode(){
     const savedMode = loadStr(STORAGE.dMode, "3D");
     return savedMode === "BINAURAL" ? "3D" : savedMode;

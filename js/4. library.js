@@ -572,9 +572,12 @@
       if (!reloaded) toast("曲は保存されましたが、一覧の更新に失敗しました。ページを再読み込みしてください。");
     }
     if (failedSaveCount > 0) {
-      toast(savedCount > 0
-        ? `${savedCount}曲を追加しました。保存できなかった曲が${failedSaveCount}曲あります。`
-        : `${failedSaveCount}曲を保存できませんでした。`);
+      const hasZipImport = incoming.some(item => !!item.zipFile);
+      toast(hasZipImport
+        ? `ZIP読み込み結果：追加 ${savedCount} 曲／失敗 ${failedSaveCount} 曲。失敗した曲はライブラリに保存されていません。`
+        : (savedCount > 0
+          ? `${savedCount}曲を追加しました。保存できなかった曲が${failedSaveCount}曲あります。`
+          : `${failedSaveCount}曲を保存できませんでした。`));
     } else if (savedCount === 0) {
       toast("追加する曲が選択されていません");
     } else if (zipPlaylistTracks.size) {
@@ -1947,6 +1950,9 @@
         const row = document.createElement("div");
         row.className = "song" + (song.name === state.currentSong?.name ? " active" : "");
         row.dataset.name = song.name;
+        row.setAttribute("role", "group");
+        row.setAttribute("tabindex", "0");
+        row.setAttribute("aria-label", `${song.title} — ${song.artist || "不明なアーティスト"}`);
         row.innerHTML = `
           <div class="songNowIndicator" aria-hidden="true"></div>
           <div class="songMain">
@@ -1998,6 +2004,15 @@
         row.querySelector(".starBtn").addEventListener("pointerdown", e => e.stopPropagation());
         row.querySelector(".starBtn").addEventListener("click", e => { e.stopPropagation(); toggleFav(song.name); });
         row.addEventListener("click", () => {
+          if (suppressNextSongClick || row._suppressClick) {
+            suppressNextSongClick = false;
+            return;
+          }
+          playSong(song);
+        });
+        row.addEventListener("keydown", event => {
+          if (event.target !== row || (event.key !== "Enter" && event.key !== " ")) return;
+          event.preventDefault();
           if (suppressNextSongClick || row._suppressClick) {
             suppressNextSongClick = false;
             return;
