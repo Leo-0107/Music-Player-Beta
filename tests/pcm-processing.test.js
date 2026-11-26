@@ -5237,3 +5237,30 @@ test("C6-14 Vercel config sets Permissions-Policy response header", () => {
     header.key.toLowerCase() === "permissions-policy" && header.value.includes("speaker-selection=(self)")
   )));
 });
+
+
+test("BR45 startup watchdog offers retry and continue actions", () => {
+  assert.ok(indexSource.includes("startupRecoveryActions"));
+  assert.ok(indexSource.includes("再読み込みして再試行"));
+  assert.ok(indexSource.includes("読み込み済みの画面を表示"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.45";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 45"));
+});
+
+test("BR45 Integrated LUFS measurement and optional normalization are wired", () => {
+  assert.ok(audioSource.includes("updateIntegratedLufsMeasurement"));
+  assert.ok(audioSource.includes("integratedLufsHighShelf.connect(integratedLufsHighPass)"));
+  assert.ok(audioSource.includes("integratedLufsEnabled"));
+  assert.ok(indexSource.includes('id="integratedLufsEnabled"'));
+  assert.ok(stateSource.includes('integratedLufsEnabled: loadBool(STORAGE.integratedLufsEnabled, false)'));
+});
+
+test("BR45 True Peak estimate limiter is wired to main and additional output", () => {
+  assert.ok(audioSource.includes("createTruePeakLimiterNode"));
+  assert.ok(audioSource.includes("for (let step = 1; step < 4; step++)"));
+  assert.ok(audioSource.includes("truePeakLimiterNode.connect(outputSplitter)"));
+  assert.ok(outputSource.includes("truePeakLimiterNode: routeTruePeakLimiterNode"));
+  assert.ok(outputSource.includes("runtime.truePeakLimiterNode.connect(target)"));
+  assert.ok(indexSource.includes('id="truePeakLimiterEnabled"'));
+  assert.ok(stateSource.includes('truePeakLimiterEnabled: loadBool(STORAGE.truePeakLimiterEnabled, true)'));
+});
