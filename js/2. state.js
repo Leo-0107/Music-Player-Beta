@@ -547,7 +547,7 @@
   let loudnessCompressorNode = null, loudnessMakeupGainNode = null;
   let trackLoudnessGainNode = null, trackLoudnessAnalyser = null, trackLoudnessData = null;
   let integratedLufsHighShelf = null, integratedLufsHighPass = null, integratedLufsAnalyser = null, integratedLufsRightAnalyser = null, integratedLufsSplitter = null, integratedLufsData = null, integratedLufsRightData = null;
-  let integratedLufsBlockEnergies = [], integratedLufsLastSampleAt = 0, integratedLufsTrackKey = "", integratedLufsValue = null;
+  let integratedLufsBlockEnergies = [], integratedLufsLastSampleAt = 0, integratedLufsLastMediaTime = 0, integratedLufsTrackKey = "", integratedLufsValue = null;
   let truePeakLimiterNode = null, truePeakLimiterGain = 1, truePeakMeterValue = null, truePeakMeterUpdateCount = 0;
   let trackLoudnessRms = 0, lastTrackLoudnessUpdateAt = 0;
 
