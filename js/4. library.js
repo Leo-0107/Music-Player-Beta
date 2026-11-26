@@ -1121,7 +1121,7 @@
         startWaveAnimation();
         updatePlayPauseUI(true);
         // 追加出力は本体再生のUI/開始を待たせない。
-        Promise.resolve(startOutputBridge?.()).catch(() => {});
+        try { Promise.resolve(startOutputBridge?.()).catch(() => {}); } catch {}
       } catch (error) {
         setPlaybackIntent(false);
         savePlaybackMemory?.(true);
