@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 46;
+  const BUILD_REVISION = 47;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -154,62 +154,20 @@
   function updateTitleTextAndScroll(element, text) {
     if (!element) return;
     const container = element.closest(".scroll-container");
-    const isTopSongTitle = element.id === "nowTitle";
     element.classList.remove("scrolling");
     element.style.animationPlayState = "paused";
     element.textContent = text;
 
-    let baseFontSize = 0;
-    if (isTopSongTitle) {
-      if (!element.dataset.fitBaseFontSize) {
-        element.dataset.fitBaseFontSize = String(parseFloat(getComputedStyle(element).fontSize) || 18.4);
-      }
-      baseFontSize = Number(element.dataset.fitBaseFontSize) || 18.4;
-      element.style.fontSize = `${baseFontSize}px`;
-    }
-
+    // #nowTitleはCSSの固定font-sizeを使用し、JSによる自動縮小・再計測を行わない。
+    // 長い曲名は安定したサイズのままmarqueeで表示する。
     requestAnimationFrame(() => {
       if (!container) return;
-
-      if (isTopSongTitle) {
-        const availableWidth = container.clientWidth;
-        if (availableWidth <= 0) return;
-
-        // まず標準サイズを試し、収まらない場合だけ読みやすさを保てる範囲で縮小する。
-        const minFontSize = Math.max(12, baseFontSize * 0.7);
-        const fits = size => {
-          element.style.fontSize = `${size}px`;
-          return element.scrollWidth <= availableWidth + 1;
-        };
-
-        let overflow = 0;
-        if (!fits(baseFontSize)) {
-          if (fits(minFontSize)) {
-            let low = minFontSize;
-            let high = baseFontSize;
-            for (let i = 0; i < 10; i++) {
-              const middle = (low + high) / 2;
-              if (fits(middle)) low = middle;
-              else high = middle;
-            }
-            fits(low);
-          } else {
-            element.style.fontSize = `${minFontSize}px`;
-            overflow = element.scrollWidth - availableWidth;
-          }
-        }
-
-        if (overflow <= 6) return;
-        element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
-      } else {
-        const overflow = element.scrollWidth - container.clientWidth;
-        if (overflow > 6) {
-          element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
-        } else {
-          return;
-        }
+      const overflow = element.scrollWidth - container.clientWidth;
+      if (overflow <= 6) {
+        element.style.removeProperty("--scroll-dist");
+        return;
       }
-
+      element.style.setProperty("--scroll-dist", `-${overflow + 12}px`);
       element.classList.add("scrolling");
       if (container._isIntersecting && document.visibilityState === "visible") {
         element.style.animationPlayState = "running";
@@ -441,6 +399,24 @@
         for (let channel = 0; channel < output.numberOfChannels; channel++) output.getChannelData(channel).fill(0);
         return;
       }
+
+      // Limiter OFF時は重いoversampling scanとlookahead delayを通さず、
+      // 入力をそのまま出力する。低性能端末の不要なmain-thread負荷と遅延を避ける。
+      if (state.truePeakLimiterEnabled === false) {
+        let samplePeak = 0;
+        for (let channel = 0; channel < output.numberOfChannels; channel++) {
+          const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
+          const destination = output.getChannelData(channel);
+          destination.set(source);
+          for (let i = 0; i < source.length; i++) samplePeak = Math.max(samplePeak, Math.abs(source[i]));
+        }
+        truePeakMeterValue = samplePeak > 0 ? 20 * Math.log10(samplePeak) : -120;
+        if (++truePeakMeterUpdateCount % 8 === 0 && el.truePeakMeter) {
+          el.truePeakMeter.textContent = (truePeakMeterValue <= -120 ? "−∞" : truePeakMeterValue.toFixed(1)) + " dBTP (sample)";
+        }
+        return;
+      }
+
       let estimatedPeak = 0;
       for (let channel = 0; channel < output.numberOfChannels; channel++) {
         const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
@@ -452,7 +428,7 @@
           estimatedPeak = Math.max(estimatedPeak, Math.abs(current));
           if (i + 1 < scanLength) {
             const next = sampleAt(i + 1);
-            for (let step = 1; step < 4; step++) {
+            for (let step = 1; step < 3; step++) {
               const interpolated = current + (next - current) * (step / 4);
               estimatedPeak = Math.max(estimatedPeak, Math.abs(interpolated));
             }
@@ -1262,7 +1238,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.46-r46", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.47-r47", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 
