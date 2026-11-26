@@ -550,9 +550,7 @@
   let integratedLufsBlockEnergies = [], integratedLufsLastSampleAt = 0, integratedLufsTrackKey = "", integratedLufsValue = null;
   let truePeakLimiterNode = null, truePeakLimiterGain = 1, truePeakMeterValue = null, truePeakMeterUpdateCount = 0;
   let trackLoudnessRms = 0, lastTrackLoudnessUpdateAt = 0;
-  let integratedLufsHighShelf = null, integratedLufsHighPass = null, integratedLufsAnalyser = null, integratedLufsData = null;
-  let integratedLufsBlockEnergies = [], integratedLufsLastSampleAt = 0, integratedLufsTrackKey = "", integratedLufsValue = null;
-  let truePeakLimiterNode = null, truePeakLimiterGain = 1, truePeakMeterValue = null, truePeakMeterUpdateCount = 0;
+
   let waveOutputSplitter = null, waveLeftOutputAnalyser = null, waveRightOutputAnalyser = null;
   let waveLeftOutputData = null, waveRightOutputData = null;
   let micMonitorRequestId = 0;
