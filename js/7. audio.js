@@ -268,6 +268,10 @@
     localStorage.setItem(STORAGE.normalizeTrackVolume, String(state.normalizeTrackVolume !== false));
     localStorage.setItem(STORAGE.outputLevelDb, String(state.outputLevelDb));
     localStorage.setItem(STORAGE.loudnessCompression, String(state.loudnessCompression));
+    localStorage.setItem(STORAGE.integratedLufsEnabled, String(state.integratedLufsEnabled === true));
+    localStorage.setItem(STORAGE.integratedLufsTarget, String(state.integratedLufsTarget));
+    localStorage.setItem(STORAGE.truePeakLimiterEnabled, String(state.truePeakLimiterEnabled !== false));
+    localStorage.setItem(STORAGE.truePeakCeiling, String(state.truePeakCeiling));
     localStorage.setItem(STORAGE.speakerPairSwap, "false");
     localStorage.setItem(STORAGE.visualizerSettings, JSON.stringify(state.visualizerSettings || {}));
     localStorage.setItem(STORAGE.visualizerModeSettings, JSON.stringify(state.visualizerModeSettings || {}));
@@ -326,7 +330,60 @@
       trackLoudnessGainNode.gain.setTargetAtTime(1, now, 0.12);
     }
   }
+  function resetIntegratedLufsMeasurement() {
+    integratedLufsBlockEnergies = [];
+    integratedLufsLastSampleAt = 0;
+    integratedLufsValue = null;
+    if (el.integratedLufsMeter) el.integratedLufsMeter.textContent = "測定中...";
+  }
+  function updateIntegratedLufsMeasurement() {
+    if (!integratedLufsAnalyser || !integratedLufsData || !audioCtx || audio.paused || !state.currentSong) return;
+    const trackKey = String(state.currentSong?.id || state.currentSong?.name || state.currentSong?.title || "");
+    if (trackKey && trackKey !== integratedLufsTrackKey) {
+      integratedLufsTrackKey = trackKey;
+      resetIntegratedLufsMeasurement();
+    }
+    const now = audioCtx.currentTime;
+    if (now - integratedLufsLastSampleAt < 0.38) return;
+    integratedLufsLastSampleAt = now;
+    integratedLufsAnalyser.getFloatTimeDomainData(integratedLufsData);
+    let energy = 0;
+    for (let i = 0; i < integratedLufsData.length; i++) {
+      const sample = integratedLufsData[i] || 0;
+      energy += sample * sample;
+    }
+    energy /= integratedLufsData.length;
+    if (!Number.isFinite(energy) || energy <= 1e-12) return;
+    const blockLufs = -0.691 + 10 * Math.log10(energy);
+    if (blockLufs > -70) integratedLufsBlockEnergies.push(energy);
+    if (integratedLufsBlockEnergies.length > 36000) integratedLufsBlockEnergies.splice(0, 1800);
+    if (!integratedLufsBlockEnergies.length) return;
+    const mean = integratedLufsBlockEnergies.reduce((sum, value) => sum + value, 0) / integratedLufsBlockEnergies.length;
+    const relativeGateLufs = -0.691 + 10 * Math.log10(mean) - 10;
+    const gateLufs = Math.max(-70, relativeGateLufs);
+    let gatedEnergy = 0;
+    let gatedCount = 0;
+    for (const value of integratedLufsBlockEnergies) {
+      if (-0.691 + 10 * Math.log10(value) >= gateLufs) {
+        gatedEnergy += value;
+        gatedCount++;
+      }
+    }
+    if (!gatedCount || gatedEnergy <= 0) return;
+    integratedLufsValue = -0.691 + 10 * Math.log10(gatedEnergy / gatedCount);
+    if (el.integratedLufsMeter) el.integratedLufsMeter.textContent = integratedLufsValue.toFixed(1) + " LUFS";
+  }
   function updateTrackLoudnessNormalization() {
+    updateIntegratedLufsMeasurement();
+    if (state.integratedLufsEnabled === true) {
+      if (integratedLufsValue !== null && trackLoudnessGainNode && audioCtx) {
+        const target = Math.max(-24, Math.min(-8, Number(state.integratedLufsTarget) || -16));
+        const correctionDb = Math.max(-12, Math.min(6, target - integratedLufsValue));
+        const gain = Math.max(0.25, Math.min(2, Math.pow(10, correctionDb / 20)));
+        trackLoudnessGainNode.gain.setTargetAtTime(gain, audioCtx.currentTime, 1.2);
+      }
+      return;
+    }
     if (state.normalizeTrackVolume === false) {
       if (trackLoudnessGainNode && audioCtx && Math.abs(trackLoudnessGainNode.gain.value - 1) > 0.01) resetTrackLoudnessNormalization();
       return;
@@ -349,6 +406,85 @@
     const targetGain = Math.max(0.5, Math.min(maxGain, 0.12 / trackLoudnessRms));
     trackLoudnessGainNode.gain.setTargetAtTime(targetGain, now, 1.6);
   }
+  function createTruePeakLimiterNode(ctx) {
+    const node = ctx.createScriptProcessor(256, 2, 2);
+    node.channelCount = 2;
+    node.channelCountMode = "explicit";
+    node.channelInterpretation = "speakers";
+    let releaseGain = 1;
+    node.onaudioprocess = event => {
+      const input = event.inputBuffer;
+      const output = event.outputBuffer;
+      const frames = output.length;
+      let estimatedPeak = 0;
+      for (let channel = 0; channel < output.numberOfChannels; channel++) {
+        const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
+        for (let i = 0; i < frames; i++) {
+          const current = source[i] || 0;
+          estimatedPeak = Math.max(estimatedPeak, Math.abs(current));
+          if (i + 1 < frames) {
+            const next = source[i + 1] || 0;
+            for (let step = 1; step < 4; step++) {
+              const interpolated = current + (next - current) * (step / 4);
+              estimatedPeak = Math.max(estimatedPeak, Math.abs(interpolated));
+            }
+          }
+        }
+      }
+      truePeakMeterValue = estimatedPeak > 0 ? 20 * Math.log10(estimatedPeak) : -120;
+      const ceilingDb = Math.max(-6, Math.min(-0.1, Number(state.truePeakCeiling) || -1));
+      const ceiling = Math.pow(10, ceilingDb / 20);
+      const desiredGain = state.truePeakLimiterEnabled === false || estimatedPeak <= ceiling
+        ? 1
+        : ceiling / estimatedPeak;
+      if (desiredGain < releaseGain) releaseGain = desiredGain;
+      else releaseGain += (1 - releaseGain) * (1 - Math.exp(-frames / (ctx.sampleRate * 0.08)));
+      const blockGain = state.truePeakLimiterEnabled === false ? 1 : Math.min(releaseGain, desiredGain);
+      for (let channel = 0; channel < output.numberOfChannels; channel++) {
+        const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
+        const destination = output.getChannelData(channel);
+        for (let i = 0; i < frames; i++) destination[i] = (source[i] || 0) * blockGain;
+      }
+      if (++truePeakMeterUpdateCount % 8 === 0 && el.truePeakMeter) {
+        el.truePeakMeter.textContent = (truePeakMeterValue <= -120 ? "−∞" : truePeakMeterValue.toFixed(1)) + " dBTP";
+      }
+    };
+    return node;
+  }
+  function applyIntegratedLufsSettings(persist = true) {
+    state.integratedLufsEnabled = !!el.integratedLufsEnabled?.checked;
+    state.integratedLufsTarget = Math.max(-24, Math.min(-8, Number(el.integratedLufsTarget?.value) || -16));
+    if (el.integratedLufsTarget) el.integratedLufsTarget.value = String(state.integratedLufsTarget);
+    if (el.integratedLufsTargetText) el.integratedLufsTargetText.textContent = "−" + Math.abs(state.integratedLufsTarget) + " LUFS";
+    if (state.integratedLufsEnabled) {
+      state.normalizeTrackVolume = false;
+      if (el.normalizeTrackVolume) el.normalizeTrackVolume.checked = false;
+      resetTrackLoudnessNormalization();
+    }
+    if (persist) saveState();
+  }
+  function applyTruePeakSettings(persist = true) {
+    state.truePeakLimiterEnabled = !!el.truePeakLimiterEnabled?.checked;
+    state.truePeakCeiling = Math.max(-6, Math.min(-0.1, Number(el.truePeakCeiling?.value) || -1));
+    if (el.truePeakCeiling) el.truePeakCeiling.value = String(state.truePeakCeiling);
+    if (el.truePeakCeilingText) el.truePeakCeilingText.textContent = "−" + Math.abs(state.truePeakCeiling).toFixed(1) + " dBTP";
+    if (persist) saveState();
+  }
+  if (el.integratedLufsEnabled || el.integratedLufsTarget) {
+    if (el.integratedLufsEnabled) el.integratedLufsEnabled.checked = state.integratedLufsEnabled === true;
+    if (el.integratedLufsTarget) el.integratedLufsTarget.value = String(state.integratedLufsTarget);
+    applyIntegratedLufsSettings(false);
+    el.integratedLufsEnabled?.addEventListener("change", () => applyIntegratedLufsSettings());
+    el.integratedLufsTarget?.addEventListener("input", () => applyIntegratedLufsSettings());
+  }
+  if (el.truePeakLimiterEnabled || el.truePeakCeiling) {
+    if (el.truePeakLimiterEnabled) el.truePeakLimiterEnabled.checked = state.truePeakLimiterEnabled !== false;
+    if (el.truePeakCeiling) el.truePeakCeiling.value = String(state.truePeakCeiling);
+    applyTruePeakSettings(false);
+    el.truePeakLimiterEnabled?.addEventListener("change", () => applyTruePeakSettings());
+    el.truePeakCeiling?.addEventListener("input", () => applyTruePeakSettings());
+  }
+
   if (el.outputLevelDb) {
     applyOutputLevelDb(state.outputLevelDb, false);
     el.outputLevelDb.addEventListener("input", () => applyOutputLevelDb(el.outputLevelDb.value));
@@ -2399,6 +2535,10 @@ let mainOutputUsesNativeDestination = false;
             STORAGE.normalizeTrackVolume,
             STORAGE.outputLevelDb,
             STORAGE.loudnessCompression,
+            STORAGE.integratedLufsEnabled,
+            STORAGE.integratedLufsTarget,
+            STORAGE.truePeakLimiterEnabled,
+            STORAGE.truePeakCeiling,
             STORAGE.speakerPairSwap,
             STORAGE.visualizerSettings,
             STORAGE.visualizerModeSettings,
