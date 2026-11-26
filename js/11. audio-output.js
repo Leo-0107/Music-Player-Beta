@@ -6,7 +6,7 @@
   function recordOutputSinkChange(role, result, sinkId, error = null) {
     if (typeof window === "undefined") return;
     const diagnostics = window.__musicPlayerSinkChangeDiagnostics || {
-      requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0
+      requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0, eventObserved: false
     };
     diagnostics.requestCount = (Number(diagnostics.requestCount) || 0) + 1;
     if (result === "success") diagnostics.successCount++;
@@ -342,7 +342,7 @@
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
         try {
           if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
-            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.42-r42", document.baseURI).href);
+            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.43-r43", document.baseURI).href);
             audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
           }
           captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
@@ -2933,7 +2933,7 @@
       })(),
       sinkChanges: window.__musicPlayerSinkChangeDiagnostics
         ? { ...window.__musicPlayerSinkChangeDiagnostics }
-        : { requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0 },
+        : { requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0, eventObserved: false },
       pcmQueue: window.__musicPlayerPcmQueueDiagnostics
         ? { ...window.__musicPlayerPcmQueueDiagnostics }
         : { active: false, availableFrames: null, capacityFrames: null, fillPercent: null, queuedMs: null, scheduledAheadMs: null, sampleRate: null },

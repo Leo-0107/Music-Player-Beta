@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 42;
+  const BUILD_REVISION = 43;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -654,12 +654,12 @@ let mainOutputUsesNativeDestination = false;
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
         if (typeof audioCtx.addEventListener === "function") {
-          audioCtx._musicPlayerSinkChangeListenerInstalled = true;
           audioCtx.addEventListener("sinkchange", () => {
             const diagnostics = window.__musicPlayerSinkChangeDiagnostics || {
-              requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0
+              requestCount: 0, successCount: 0, failureCount: 0, eventCount: 0, eventObserved: false
             };
             diagnostics.eventCount = (Number(diagnostics.eventCount) || 0) + 1;
+            diagnostics.eventObserved = true;
             diagnostics.lastEventAtMs = Date.now();
             const sinkId = audioCtx.sinkId;
             diagnostics.lastEventSinkKind = typeof sinkId === "object"
@@ -667,6 +667,7 @@ let mainOutputUsesNativeDestination = false;
               : (sinkId ? "explicit" : "default");
             window.__musicPlayerSinkChangeDiagnostics = diagnostics;
           });
+          audioCtx._musicPlayerSinkChangeListenerInstalled = true;
           if (!audioCtx._musicPlayerAudioContextErrorListenerInstalled) {
             audioCtx._musicPlayerAudioContextErrorListenerInstalled = true;
             audioCtx.addEventListener("error", event => {
@@ -1061,7 +1062,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.42-r42", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.43-r43", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 

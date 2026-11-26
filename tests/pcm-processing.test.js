@@ -211,8 +211,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.42";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 42"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.43";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 43"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -220,12 +220,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 42;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.42"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.42-r42'));
-  assert.ok(indexSource.includes("7.5.42-r42"));
-  assert.ok(controllerSource.includes("7.5.42-r42"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.42-r42"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 43;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.43"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.43-r43'));
+  assert.ok(indexSource.includes("7.5.43-r43"));
+  assert.ok(controllerSource.includes("7.5.43-r43"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.43-r43"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -462,14 +462,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.42-r42"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.42-r42"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.42-r42"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.42-r42"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.43-r43"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.43-r43"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.43-r43"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.43-r43"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.42-r42"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.43-r43"));
 });
 
 
@@ -4818,7 +4818,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.42-r42",
+        "music-player-app-v7.5.43-r43",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -5137,17 +5137,17 @@ test("AudioContext error events are captured in output diagnostics", () => {
 });
 
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
-  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.42-r42"/);
-  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.42-r42"/);
+  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.42-r43"/);
+  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.42-r43"/);
   assert.match(engineSource, /PCM_WORKER_PROTOCOL_VERSION = 1/);
   assert.match(engineSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /message\.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
-  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.42-r42/);
+  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.42-r43/);
   assert.match(audioSource, /processorOptions: \{ protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(audioSource, /type: "hello", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION/);
   assert.match(pitchWorkletSource, /Pitch Worklet protocol version mismatch/);
-  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.42-r42/);
+  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.42-r43/);
   assert.match(outputSource, /processorOptions: \{ protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(outputSource, /type: "hello",[\s\S]*?protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION/);
   assert.match(delayWorkletSource, /Speaker delay Worklet protocol version mismatch/);
@@ -5219,9 +5219,14 @@ test("C6-07 song rows support keyboard play and visible focus", () => {
 test("C6-03 ZIP partial import reports successful and failed item counts", () => {
   assert.match(librarySource, /ZIP読み込み結果：追加 \$\{savedCount\} 曲／失敗 \$\{failedSaveCount\} 曲/);
 });
-test("C6-12 sinkchange listener installation is exposed in diagnostics", () => {
-  assert.match(audioSource, /_musicPlayerSinkChangeListenerInstalled = true/);
+test("C6-12 sinkchange listener installation and event observation are distinguished", () => {
+  const listenerRegistrationIndex = audioSource.indexOf('audioCtx.addEventListener("sinkchange"');
+  const listenerInstalledIndex = audioSource.indexOf("audioCtx._musicPlayerSinkChangeListenerInstalled = true", listenerRegistrationIndex);
+  assert.ok(listenerRegistrationIndex >= 0);
+  assert.ok(listenerInstalledIndex > listenerRegistrationIndex, "listener-installed flag must be set after successful registration");
+  assert.match(audioSource, /diagnostics\.eventObserved = true/);
   assert.match(outputSource, /audioContextSinkChangeListenerInstalled: !!audioCtx\?\._musicPlayerSinkChangeListenerInstalled/);
+  assert.match(outputSource, /eventObserved: false/);
 });
 test("C6-14 Vercel config sets Permissions-Policy response header", () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
