@@ -407,6 +407,24 @@
               </div>
               <div class="settingsHelpText">小さい音を聞き取りやすくし、大きな音を圧縮して音量差を抑えます。0%でOFF、数値入力もできます。</div>
             </div>
+            <label class="settingCheckRow" for="integratedLufsEnabled">
+              <input type="checkbox" id="integratedLufsEnabled">
+              <span><strong>Integrated LUFSで曲間音量を補正</strong><small>BS.1770系のK-weightingとゲートを使って再生中の音量を測定し、目標LUFSへ補正します。既存のRMS補正より優先し、初期状態はOFFです。</small></span>
+            </label>
+            <div class="field speakerOutputLevel">
+              <label for="integratedLufsTarget">目標Integrated LUFS: <span id="integratedLufsTargetText">−16 LUFS</span></label>
+              <input type="range" id="integratedLufsTarget" min="-24" max="-8" step="1" value="-16">
+              <div class="settingsHelpText">曲全体の測定が進むと補正が徐々に適用されます。測定値: <strong id="integratedLufsMeter">未測定</strong></div>
+            </div>
+            <label class="settingCheckRow" for="truePeakLimiterEnabled">
+              <input type="checkbox" id="truePeakLimiterEnabled" checked>
+              <span><strong>True Peak推定リミッター</strong><small>4倍線形補間で推定したピークを基にブロック単位で抑制します。厳密な規格適合・全DACでの絶対保証ではありません。</small></span>
+            </label>
+            <div class="field speakerOutputLevel">
+              <label for="truePeakCeiling">ピーク上限: <span id="truePeakCeilingText">−1.0 dBTP</span></label>
+              <input type="range" id="truePeakCeiling" min="-6" max="-0.1" step="0.1" value="-1">
+              <div class="settingsHelpText">現在の推定ピーク: <strong id="truePeakMeter">未測定</strong></div>
+            </div>
           </div>
           
         </div>
