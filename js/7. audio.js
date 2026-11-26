@@ -669,7 +669,6 @@ let mainOutputUsesNativeDestination = false;
           });
           audioCtx._musicPlayerSinkChangeListenerInstalled = true;
           if (!audioCtx._musicPlayerAudioContextErrorListenerInstalled) {
-            audioCtx._musicPlayerAudioContextErrorListenerInstalled = true;
             audioCtx.addEventListener("error", event => {
               const diagnostics = window.__musicPlayerAudioContextErrorDiagnostics || {
                 count: 0, lastAtMs: null, lastErrorName: null, lastErrorMessage: null
@@ -683,6 +682,7 @@ let mainOutputUsesNativeDestination = false;
                 .slice(0, 240);
               window.__musicPlayerAudioContextErrorDiagnostics = diagnostics;
             });
+            audioCtx._musicPlayerAudioContextErrorListenerInstalled = true;
           }
         }
         // バックグラウンド移行などでAudioContextだけが停止した場合も、
