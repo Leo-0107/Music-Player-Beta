@@ -333,6 +333,7 @@
   function resetIntegratedLufsMeasurement() {
     integratedLufsBlockEnergies = [];
     integratedLufsLastSampleAt = 0;
+    integratedLufsLastMediaTime = 0;
     integratedLufsValue = null;
     if (el.integratedLufsMeter) el.integratedLufsMeter.textContent = "測定中...";
   }
@@ -343,6 +344,9 @@
       integratedLufsTrackKey = trackKey;
       resetIntegratedLufsMeasurement();
     }
+    const mediaTime = Number(audio.currentTime) || 0;
+    if (integratedLufsLastMediaTime > mediaTime + 1) resetIntegratedLufsMeasurement();
+    integratedLufsLastMediaTime = mediaTime;
     const now = audioCtx.currentTime;
     if (now - integratedLufsLastSampleAt < 0.38) return;
     integratedLufsLastSampleAt = now;
@@ -409,6 +413,10 @@
     trackLoudnessGainNode.gain.setTargetAtTime(targetGain, now, 1.6);
   }
   function createTruePeakLimiterNode(ctx) {
+    if (typeof ctx.createScriptProcessor !== "function") {
+      if (el.truePeakMeter) el.truePeakMeter.textContent = "ブラウザ非対応";
+      return ctx.createGain();
+    }
     const node = ctx.createScriptProcessor(256, 2, 2);
     node.channelCount = 2;
     node.channelCountMode = "explicit";
@@ -418,6 +426,10 @@
       const input = event.inputBuffer;
       const output = event.outputBuffer;
       const frames = output.length;
+      if (!input.numberOfChannels) {
+        for (let channel = 0; channel < output.numberOfChannels; channel++) output.getChannelData(channel).fill(0);
+        return;
+      }
       let estimatedPeak = 0;
       for (let channel = 0; channel < output.numberOfChannels; channel++) {
         const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
