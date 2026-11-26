@@ -383,8 +383,13 @@
       if (el.truePeakMeter) el.truePeakMeter.textContent = "ブラウザ非対応";
       return ctx.createGain();
     }
-    // 512-frame blocks reduce main-thread callback frequency while keeping added latency modest.
-    const node = ctx.createScriptProcessor(512, 2, 2);
+    // Low-core/mobile devices use 1024 frames to halve ScriptProcessor callback frequency.
+    // This trades roughly 11 ms additional block latency for fewer main-thread deadline misses.
+    const mobileOrLowCore = navigator.userAgentData?.mobile === true ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (Number(navigator.hardwareConcurrency) > 0 && Number(navigator.hardwareConcurrency) <= 4);
+    const callbackFrames = mobileOrLowCore ? 1024 : 512;
+    const node = ctx.createScriptProcessor(callbackFrames, 2, 2);
     node.channelCount = 2;
     node.channelCountMode = "explicit";
     node.channelInterpretation = "speakers";
@@ -1431,8 +1436,12 @@ let mainOutputUsesNativeDestination = false;
     // グレインの位相を読み出し位置から独立させ、常に50%オーバーラップで
     // クロスフェードする。これにより、旧実装で起きていた読み出し位置の
     // 不整合による「少しズレた音が重なる」症状と不規則なノイズを抑える。
-    // 512-frame blocks reduce main-thread callback frequency while keeping added latency modest.
-    const node = ctx.createScriptProcessor(512, 2, 2);
+    // Match the limiter's mobile/low-core callback sizing to reduce main-thread scheduling pressure.
+    const mobileOrLowCore = navigator.userAgentData?.mobile === true ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (Number(navigator.hardwareConcurrency) > 0 && Number(navigator.hardwareConcurrency) <= 4);
+    const callbackFrames = mobileOrLowCore ? 1024 : 512;
+    const node = ctx.createScriptProcessor(callbackFrames, 2, 2);
     const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.09));
     const hopSize = Math.floor(grainSize / 2);
     const bufferLength = grainSize * 6;
