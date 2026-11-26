@@ -148,12 +148,12 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "991c66f38d21d37a0b69d501e185145df6efc770"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "f17d016a78efd1b3e846addcfc61b1c528ba72af"'));
 });
 
 test("Build implementation commit and main source base commit are separately reported", () => {
   assert.match(indexSource, /const BUILD_SOURCE_BASE_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "64c9c30c549190049967df1c9d287cae785372d2"'));
+  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "309315a0a1768580749e5ae49b2f5d8093ef366d"'));
   assert.match(indexSource, /Build implementation commit: " \+ BUILD_COMMIT_ID/);
   assert.match(indexSource, /Build source base commit: " \+ BUILD_SOURCE_BASE_COMMIT_ID/);
   assert.match(indexSource, /previousBuildId !== BUILD_SOURCE_BASE_COMMIT_ID/);
@@ -5149,17 +5149,17 @@ test("AudioContext error listener flag is set only after successful registration
 });
 
 test("Worker and Worklet assets enforce matching versioned protocols", () => {
-  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.45-r45"/);
-  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.45-r45"/);
+  assert.match(engineSource, /new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.46-r46"/);
+  assert.match(engineSource, /new Worker\(new URL\("js\/10\. pcm-processing-worker\.js\?v=7\.5\.46-r46"/);
   assert.match(engineSource, /PCM_WORKER_PROTOCOL_VERSION = 1/);
   assert.match(engineSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /message\.protocolVersion !== PCM_WORKER_PROTOCOL_VERSION/);
   assert.match(workerSource, /protocolVersion: PCM_WORKER_PROTOCOL_VERSION/);
-  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.45-r45/);
+  assert.match(audioSource, /js\/8\. pitch-worklet\.js\?v=7\.5\.46-r46/);
   assert.match(audioSource, /processorOptions: \{ protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(audioSource, /type: "hello", protocolVersion: PITCH_WORKLET_PROTOCOL_VERSION/);
   assert.match(pitchWorkletSource, /Pitch Worklet protocol version mismatch/);
-  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.45-r45/);
+  assert.match(outputSource, /js\/12\. speaker-delay-worklet\.js\?v=7\.5\.46-r46/);
   assert.match(outputSource, /processorOptions: \{ protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION \}/);
   assert.match(outputSource, /type: "hello",[\s\S]*?protocolVersion: SPEAKER_DELAY_WORKLET_PROTOCOL_VERSION/);
   assert.match(delayWorkletSource, /Speaker delay Worklet protocol version mismatch/);
