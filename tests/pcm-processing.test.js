@@ -5246,10 +5246,10 @@ test("C6-14 Vercel config sets Permissions-Policy response header", () => {
 });
 
 
-test("BR46 True Peak ScriptProcessor uses a larger block to reduce callback frequency", () => {
+test("BR47 True Peak ScriptProcessor uses a larger block to reduce callback frequency", () => {
   assert.match(audioSource, /createScriptProcessor\(512, 2, 2\)/);
   assert.match(audioSource, /const lookaheadFrames = 128/);
-  assert.match(audioSource, /const BUILD_REVISION = 46;/);
+  assert.match(audioSource, /const BUILD_REVISION = 47;/);
 });
 
 test("button-origin vertical touch gestures retain browser pan behavior", () => {
@@ -5257,12 +5257,12 @@ test("button-origin vertical touch gestures retain browser pan behavior", () => 
   assert.match(styleSource, /#shell \{ touch-action: pan-y; \}/);
 });
 
-test("BR46 startup watchdog offers retry and continue actions", () => {
+test("BR47 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("startupRecoveryActions"));
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.47";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 46"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 47"));
 });
 
 test("BR46 Integrated LUFS measurement and optional normalization are wired", () => {
@@ -5273,7 +5273,7 @@ test("BR46 Integrated LUFS measurement and optional normalization are wired", ()
   assert.ok(stateSource.includes('integratedLufsEnabled: loadBool(STORAGE.integratedLufsEnabled, false)'));
 });
 
-test("BR46 True Peak estimate limiter is wired to main and additional output", () => {
+test("BR47 True Peak estimate limiter is wired to main and additional output", () => {
   assert.ok(audioSource.includes("createTruePeakLimiterNode"));
   assert.ok(audioSource.includes("for (let step = 1; step < 3; step++)"));
   assert.ok(audioSource.includes("const lookaheadFrames = 128"));
