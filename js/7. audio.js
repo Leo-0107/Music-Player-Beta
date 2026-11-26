@@ -1076,14 +1076,15 @@ let mainOutputUsesNativeDestination = false;
       rightGainNode.connect(channelMerger, 0, 1);
 
       // 最終クリッピング保護はL/R個別ゲインの「後」に置く。
+      // 既存DynamicsCompressorはclip protection、4x線形補間TP推定limiterは独立して後段に置く。
       if (state.clippingProtection) {
         channelMerger.connect(limiterNode);
-        limiterNode.connect(outputSplitter);
-        limiterNode.connect(analyser);
+        limiterNode.connect(truePeakLimiterNode);
       } else {
-        channelMerger.connect(outputSplitter);
-        channelMerger.connect(analyser);
+        channelMerger.connect(truePeakLimiterNode);
       }
+      truePeakLimiterNode.connect(outputSplitter);
+      truePeakLimiterNode.connect(analyser);
       outputSplitter.connect(leftLevelAnalyser, 0);
       outputSplitter.connect(rightLevelAnalyser, 1);
       outputSplitter.connect(waveOutputSplitter);
