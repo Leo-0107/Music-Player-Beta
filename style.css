@@ -1294,6 +1294,9 @@ kbd {
 .speakerOutputLevel input[type="range"] { width: 100%; }
 .speakerOutputControls .settingCheckRow { align-items: flex-start; }
 .speakerOutputControls .settingCheckRow small { display: block; margin-top: 3px; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.speakerOutputControls .field strong { font-variant-numeric: tabular-nums; }
+.speakerOutputControls input[type="range"] { accent-color: var(--accent); }
+#integratedLufsMeter, #truePeakMeter { font-variant-numeric: tabular-nums; }
 
 /* 出力スピーカー + L/R個別音量 */
 .speakerPanel {
