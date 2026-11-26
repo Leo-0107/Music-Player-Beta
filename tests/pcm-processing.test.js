@@ -148,7 +148,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "f17d016a78efd1b3e846addcfc61b1c528ba72af"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "5a1e32191cd626df6032d54da332f08e183767e3"'));
 });
 
 test("Build implementation commit and main source base commit are separately reported", () => {
@@ -216,8 +216,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.46";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 46"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.47";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 47"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*pointer-events:\s*none/);
@@ -225,12 +225,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 46;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.46"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.46-r46'));
-  assert.ok(indexSource.includes("7.5.46-r46"));
-  assert.ok(controllerSource.includes("7.5.46-r46"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.46-r46"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 47;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.47"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.47-r47'));
+  assert.ok(indexSource.includes("7.5.47-r47"));
+  assert.ok(controllerSource.includes("7.5.47-r47"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.47-r47"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -279,15 +279,13 @@ test("home and mini-player seek bars synchronize in both directions", () => {
   assert.ok(uiSource.includes("syncProgressBars(progress)"));
 });
 
-test("top song title auto-fits before preserving marquee for long titles", () => {
-  assert.match(audioSource, /const isTopSongTitle = element\.id === "nowTitle"/);
-  assert.match(audioSource, /const minFontSize = Math\.max\(12, baseFontSize \* 0\.7\)/);
-  assert.match(audioSource, /if \(overflow <= 6\) return/);
-  assert.match(audioSource, /new ResizeObserver\(refitNowTitle\)/);
-  assert.match(audioSource, /window\.addEventListener\("orientationchange", refitNowTitle/);
-  assert.match(audioSource, /lastNowTitleRefitText/);
-  assert.match(audioSource, /lastNowTitleRefitWidth/);
+test("top song title keeps a stable CSS font size and uses marquee without auto fitting", () => {
+  assert.match(audioSource, /function updateTitleTextAndScroll\(element, text\)/);
+  assert.match(audioSource, /const overflow = element\.scrollWidth - container\.clientWidth/);
   assert.match(audioSource, /element\.classList\.add\("scrolling"\)/);
+  assert.match(audioSource, /new ResizeObserver\(refitNowTitle\)/);
+  assert.doesNotMatch(audioSource, /fitBaseFontSize|minFontSize|baseFontSize/);
+  assert.match(styleSource, /#nowTitle\s*\{[^}]*font-size:\s*1\.15rem;/);
 });
 
 test("mini-player progress bar and thumb enlarge only while the pointer is held", () => {
@@ -469,14 +467,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.46-r46"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.46-r46"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.46-r46"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.46-r46"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.47-r47"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.47-r47"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.47-r47"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.47-r47"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.46-r46"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.47-r47"));
 });
 
 
@@ -4827,7 +4825,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.46-r46",
+        "music-player-app-v7.5.47-r47",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -5263,7 +5261,7 @@ test("BR46 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("startupRecoveryActions"));
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.46";'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.47";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 46"));
 });
 
@@ -5277,7 +5275,7 @@ test("BR46 Integrated LUFS measurement and optional normalization are wired", ()
 
 test("BR46 True Peak estimate limiter is wired to main and additional output", () => {
   assert.ok(audioSource.includes("createTruePeakLimiterNode"));
-  assert.ok(audioSource.includes("for (let step = 1; step < 4; step++)"));
+  assert.ok(audioSource.includes("for (let step = 1; step < 3; step++)"));
   assert.ok(audioSource.includes("const lookaheadFrames = 128"));
   assert.ok(audioSource.includes("truePeakLimiterNode.connect(outputSplitter)"));
   assert.ok(outputSource.includes("truePeakLimiterNode: routeTruePeakLimiterNode"));
