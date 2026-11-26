@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 44;
+  const BUILD_REVISION = 45;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
