@@ -8,7 +8,7 @@
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
 <title>Music Player v7.5.44</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.44-r44">
+<link rel="stylesheet" href="style.css?v=7.5.45-r45">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -964,8 +964,8 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.44";
-  const BUILD_REVISION = 44
+  const APP_VERSION = "v7.5.45";
+  const BUILD_REVISION = 45
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
   const BUILD_COMMIT_ID = "991c66f38d21d37a0b69d501e185145df6efc770";
   // Source snapshot on main used for this release; distinct from the implementation commit above.
@@ -1346,7 +1346,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.5.44-r44"></script>
+<script src="js/1. ctrl.js?v=7.5.45-r45"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
@@ -1365,17 +1365,39 @@
     const recoverStartup = () => {
       timerId = null;
       const screen = document.getElementById("appLoadingScreen");
-      if (!screen) return;
-      console.error("Music Player startup recovery: visible-time timeout");
-      window.__musicPlayerReportError?.("BOOT", "startup-timeout", new Error("表示中の起動処理が90秒以内に完了しませんでした"));
+      if (!screen || document.getElementById("startupRecoveryActions")) return;
+      const error = new Error("表示中の起動処理が90秒以内に完了しませんでした");
+      console.error("Music Player startup recovery: visible-time timeout", error);
+      window.__musicPlayerReportError?.("BOOT", "startup-timeout", error);
       const fill = document.getElementById("appLoadingProgressFill");
       const percent = document.getElementById("appLoadingPercent");
       const text = document.getElementById("appLoadingText");
       if (fill) fill.style.width = "100%";
-      if (percent) percent.textContent = "100%";
-      if (text) text.textContent = "起動処理に時間がかかっています。画面を表示します...";
-      document.body.classList.remove("app-loading");
-      screen.remove();
+      if (percent) percent.textContent = "起動待機";
+      if (text) text.textContent = "起動処理が時間内に完了しませんでした。再試行するか、読み込み済みの画面を表示できます。";
+      const actions = document.createElement("div");
+      actions.id = "startupRecoveryActions";
+      actions.style.cssText = "display:grid;gap:10px;margin-top:18px;";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "再読み込みして再試行";
+      retry.style.cssText = "min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--accent);color:#111;font:inherit;font-weight:700;cursor:pointer;";
+      retry.addEventListener("click", () => {
+        retry.disabled = true;
+        retry.textContent = "再読み込みしています...";
+        window.location.reload();
+      }, { once: true });
+      const continueButton = document.createElement("button");
+      continueButton.type = "button";
+      continueButton.textContent = "読み込み済みの画面を表示";
+      continueButton.style.cssText = "min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer;";
+      continueButton.addEventListener("click", () => {
+        document.body.classList.remove("app-loading");
+        screen.remove();
+      }, { once: true });
+      actions.append(retry, continueButton);
+      const inner = screen.querySelector(".appLoadingInner");
+      if (inner) inner.appendChild(actions);
     };
 
     const startVisibleTimer = () => {
