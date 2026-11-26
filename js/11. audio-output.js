@@ -1802,7 +1802,7 @@
   function disposeAdditionalOutputRuntime(runtime) {
     if (!runtime) return;
     try { speakerBusNode?.disconnect(runtime.splitter); } catch (e) {}
-    for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.delayNode]) {
+    for (const node of [runtime.splitter, runtime.leftGain, runtime.rightGain, runtime.merger, runtime.limiterNode, runtime.truePeakLimiterNode, runtime.delayNode]) {
       try { node?.disconnect(); } catch (e) {}
     }
     runtime.connected = false;
