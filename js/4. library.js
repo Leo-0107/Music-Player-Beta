@@ -1054,8 +1054,10 @@
     updateSongItemPlayCountUI(songName, state.playCounts[songName]);
   }
 
-  function updatePlayPauseUI(){
-    const isPlaying = !audio.paused && audio.src;
+  function updatePlayPauseUI(optimisticPlaying = null){
+    const isPlaying = typeof optimisticPlaying === "boolean"
+      ? optimisticPlaying
+      : !audio.paused && audio.src;
     if (el.btnPlay) {
       el.btnPlay.textContent = isPlaying ? "❚❚ 一時停止" : "▶ 再生";
       el.btnPlay.classList.toggle("playing", isPlaying);
@@ -1106,25 +1108,31 @@
   async function playPause(){
     if(!state.currentSong && state.playlist.length) return playSong(getVisibleSongs()[0]);
     if(audio.paused) {
-      ensureGraph();
+      // クリック直後に再生意図をUIへ反映し、音声準備・追加出力の待ちで
+      // ボタン表示が遅れないようにする。実再生失敗時は実状態へ戻す。
+      setPlaybackIntent(true);
+      updatePlayPauseUI(true);
       try {
+        ensureGraph();
         await resumeAudioCtx();
         await audio.play();
-        await startOutputBridge?.();
-        setPlaybackIntent(true);
         requestWakeLock();
         lastFrameTime = performance.now();
         startWaveAnimation();
+        updatePlayPauseUI(true);
+        // 追加出力は本体再生のUI/開始を待たせない。
+        Promise.resolve(startOutputBridge?.()).catch(() => {});
       } catch (error) {
         setPlaybackIntent(false);
         savePlaybackMemory?.(true);
+        updatePlayPauseUI(false);
       }
     } else {
       setPlaybackIntent(false);
       audio.pause();
       releaseWakeLock();
+      updatePlayPauseUI(false);
     }
-    updatePlayPauseUI();
   }
 
   function prevTrack(){
