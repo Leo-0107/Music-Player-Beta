@@ -337,7 +337,7 @@
     if (el.integratedLufsMeter) el.integratedLufsMeter.textContent = "測定中...";
   }
   function updateIntegratedLufsMeasurement() {
-    if (!integratedLufsAnalyser || !integratedLufsData || !audioCtx || audio.paused || !state.currentSong) return;
+    if (!integratedLufsAnalyser || !integratedLufsRightAnalyser || !integratedLufsData || !integratedLufsRightData || !audioCtx || audio.paused || !state.currentSong) return;
     const trackKey = String(state.currentSong?.id || state.currentSong?.name || state.currentSong?.title || "");
     if (trackKey && trackKey !== integratedLufsTrackKey) {
       integratedLufsTrackKey = trackKey;
@@ -347,10 +347,12 @@
     if (now - integratedLufsLastSampleAt < 0.38) return;
     integratedLufsLastSampleAt = now;
     integratedLufsAnalyser.getFloatTimeDomainData(integratedLufsData);
+    integratedLufsRightAnalyser.getFloatTimeDomainData(integratedLufsRightData);
     let energy = 0;
     for (let i = 0; i < integratedLufsData.length; i++) {
-      const sample = integratedLufsData[i] || 0;
-      energy += sample * sample;
+      const left = integratedLufsData[i] || 0;
+      const right = integratedLufsRightData[i] || 0;
+      energy += left * left + right * right;
     }
     energy /= integratedLufsData.length;
     if (!Number.isFinite(energy) || energy <= 1e-12) return;
@@ -966,12 +968,15 @@ let mainOutputUsesNativeDestination = false;
       integratedLufsHighPass.type = "highpass";
       integratedLufsHighPass.frequency.value = 38.135;
       integratedLufsHighPass.Q.value = 0.5003;
+      integratedLufsSplitter = audioCtx.createChannelSplitter(2);
       integratedLufsAnalyser = audioCtx.createAnalyser();
-      integratedLufsAnalyser.fftSize = 8192;
+      integratedLufsRightAnalyser = audioCtx.createAnalyser();
+      integratedLufsAnalyser.fftSize = 16384;
+      integratedLufsRightAnalyser.fftSize = 16384;
       integratedLufsAnalyser.smoothingTimeConstant = 0;
-      integratedLufsAnalyser.channelCount = 2;
-      integratedLufsAnalyser.channelCountMode = "explicit";
+      integratedLufsRightAnalyser.smoothingTimeConstant = 0;
       integratedLufsData = new Float32Array(integratedLufsAnalyser.fftSize);
+      integratedLufsRightData = new Float32Array(integratedLufsRightAnalyser.fftSize);
       truePeakLimiterNode = createTruePeakLimiterNode(audioCtx);
       truePeakLimiterGain = 1;
       analyser = audioCtx.createAnalyser();
@@ -1045,7 +1050,9 @@ let mainOutputUsesNativeDestination = false;
       channelNormalizeNode.connect(trackLoudnessAnalyser);
       channelNormalizeNode.connect(integratedLufsHighShelf);
       integratedLufsHighShelf.connect(integratedLufsHighPass);
-      integratedLufsHighPass.connect(integratedLufsAnalyser);
+      integratedLufsHighPass.connect(integratedLufsSplitter);
+      integratedLufsSplitter.connect(integratedLufsAnalyser, 0);
+      integratedLufsSplitter.connect(integratedLufsRightAnalyser, 1);
       trackLoudnessAnalyser.connect(trackLoudnessGainNode);
       trackLoudnessGainNode.connect(masterGain);
       masterGain.connect(micReferenceAnalyser);
