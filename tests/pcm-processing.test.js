@@ -5258,6 +5258,7 @@ test("BR45 Integrated LUFS measurement and optional normalization are wired", ()
 test("BR45 True Peak estimate limiter is wired to main and additional output", () => {
   assert.ok(audioSource.includes("createTruePeakLimiterNode"));
   assert.ok(audioSource.includes("for (let step = 1; step < 4; step++)"));
+  assert.ok(audioSource.includes("const lookaheadFrames = 128"));
   assert.ok(audioSource.includes("truePeakLimiterNode.connect(outputSplitter)"));
   assert.ok(outputSource.includes("truePeakLimiterNode: routeTruePeakLimiterNode"));
   assert.ok(outputSource.includes("runtime.truePeakLimiterNode.connect(target)"));
