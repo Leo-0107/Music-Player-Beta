@@ -482,11 +482,8 @@
     state.integratedLufsTarget = Math.max(-24, Math.min(-8, Number(el.integratedLufsTarget?.value) || -16));
     if (el.integratedLufsTarget) el.integratedLufsTarget.value = String(state.integratedLufsTarget);
     if (el.integratedLufsTargetText) el.integratedLufsTargetText.textContent = "−" + Math.abs(state.integratedLufsTarget) + " LUFS";
-    if (state.integratedLufsEnabled) {
-      state.normalizeTrackVolume = false;
-      if (el.normalizeTrackVolume) el.normalizeTrackVolume.checked = false;
-      resetTrackLoudnessNormalization();
-    }
+    if (el.normalizeTrackVolume) el.normalizeTrackVolume.disabled = state.integratedLufsEnabled === true;
+    if (state.integratedLufsEnabled) resetTrackLoudnessNormalization();
     if (persist) saveState();
   }
   function applyTruePeakSettings(persist = true) {
