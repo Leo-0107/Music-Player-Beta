@@ -156,24 +156,29 @@
   }
 
   function applyAdditionalOutputRouteGraph(runtime, delayMs) {
-    if (!runtime?.merger || !runtime.destination) return;
+    if (!runtime?.merger || !runtime.destination || !runtime.truePeakLimiterNode) return;
     const effectiveDelayMs = getEffectiveSpeakerDelay(delayMs);
     const useLimiter = state.clippingProtection === true && !!runtime.limiterNode;
     const target = effectiveDelayMs > 0 && runtime.delayNode ? runtime.delayNode : runtime.destination;
     try { runtime.merger.disconnect(runtime.limiterNode); } catch (e) {}
+    try { runtime.merger.disconnect(runtime.truePeakLimiterNode); } catch (e) {}
     try { runtime.merger.disconnect(runtime.delayNode); } catch (e) {}
     try { runtime.merger.disconnect(runtime.destination); } catch (e) {}
     if (runtime.limiterNode) {
+      try { runtime.limiterNode.disconnect(runtime.truePeakLimiterNode); } catch (e) {}
       try { runtime.limiterNode.disconnect(runtime.delayNode); } catch (e) {}
       try { runtime.limiterNode.disconnect(runtime.destination); } catch (e) {}
     }
+    try { runtime.truePeakLimiterNode.disconnect(runtime.delayNode); } catch (e) {}
+    try { runtime.truePeakLimiterNode.disconnect(runtime.destination); } catch (e) {}
     if (runtime.delayNode) runtime.delayNode.connect(runtime.destination);
     if (useLimiter) {
       runtime.merger.connect(runtime.limiterNode);
-      runtime.limiterNode.connect(target);
+      runtime.limiterNode.connect(runtime.truePeakLimiterNode);
     } else {
-      runtime.merger.connect(target);
+      runtime.merger.connect(runtime.truePeakLimiterNode);
     }
+    runtime.truePeakLimiterNode.connect(target);
   }
 
   function applyAllSpeakerDelayNodes() {
@@ -1927,6 +1932,7 @@
     routeLimiterNode.ratio.setValueAtTime(2.5, audioCtx.currentTime);
     routeLimiterNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
     routeLimiterNode.release.setValueAtTime(0.2, audioCtx.currentTime);
+    const routeTruePeakLimiterNode = createTruePeakLimiterNode(audioCtx);
     const delayNode = audioCtx.createDelay(1.5);
     const media = document.createElement("audio");
 
@@ -1949,6 +1955,7 @@
       rightGain,
       merger,
       limiterNode: routeLimiterNode,
+      truePeakLimiterNode: routeTruePeakLimiterNode,
       delayNode,
       connected: true,
       playError: null
