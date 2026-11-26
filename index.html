@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.46</title>
+<title>Music Player v7.5.47</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.46-r46">
+<link rel="stylesheet" href="style.css?v=7.5.47-r47">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -982,10 +982,10 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.46";
-  const BUILD_REVISION = 46
+  const APP_VERSION = "v7.5.47";
+  const BUILD_REVISION = 47
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
-  const BUILD_COMMIT_ID = "f17d016a78efd1b3e846addcfc61b1c528ba72af";
+  const BUILD_COMMIT_ID = "5a1e32191cd626df6032d54da332f08e183767e3";
   // Source snapshot on main used for this release; distinct from the implementation commit above.
   const BUILD_SOURCE_BASE_COMMIT_ID = "309315a0a1768580749e5ae49b2f5d8093ef366d";
   let notice = document.getElementById("mpErrorNotice");
@@ -1364,7 +1364,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.5.46-r46"></script>
+<script src="js/1. ctrl.js?v=7.5.47-r47"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
