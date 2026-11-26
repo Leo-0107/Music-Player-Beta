@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 45;
+  const BUILD_REVISION = 46;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -221,11 +221,19 @@
   if (el.nowTitle) {
     const nowTitleContainer = el.nowTitle.closest(".scroll-container");
     let nowTitleResizeFrame = 0;
+    let lastNowTitleRefitText = null;
+    let lastNowTitleRefitWidth = -1;
     const refitNowTitle = () => {
+      const currentText = el.nowTitle.textContent || "";
+      const currentWidth = nowTitleContainer?.clientWidth || 0;
+      // ResizeObserver may fire after child style updates; don't restart marquee if neither input changed.
+      if (currentText === lastNowTitleRefitText && currentWidth === lastNowTitleRefitWidth) return;
+      lastNowTitleRefitText = currentText;
+      lastNowTitleRefitWidth = currentWidth;
       if (nowTitleResizeFrame) cancelAnimationFrame(nowTitleResizeFrame);
       nowTitleResizeFrame = requestAnimationFrame(() => {
         nowTitleResizeFrame = 0;
-        updateTitleTextAndScroll(el.nowTitle, el.nowTitle.textContent || "");
+        updateTitleTextAndScroll(el.nowTitle, currentText);
       });
     };
     if (nowTitleContainer && typeof ResizeObserver !== "undefined") {
@@ -417,7 +425,8 @@
       if (el.truePeakMeter) el.truePeakMeter.textContent = "ブラウザ非対応";
       return ctx.createGain();
     }
-    const node = ctx.createScriptProcessor(256, 2, 2);
+    // 512-frame blocks reduce main-thread callback frequency while keeping added latency modest.
+    const node = ctx.createScriptProcessor(512, 2, 2);
     node.channelCount = 2;
     node.channelCountMode = "explicit";
     node.channelInterpretation = "speakers";
@@ -1253,7 +1262,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.45-r45", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.46-r46", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 
@@ -1446,7 +1455,8 @@ let mainOutputUsesNativeDestination = false;
     // グレインの位相を読み出し位置から独立させ、常に50%オーバーラップで
     // クロスフェードする。これにより、旧実装で起きていた読み出し位置の
     // 不整合による「少しズレた音が重なる」症状と不規則なノイズを抑える。
-    const node = ctx.createScriptProcessor(256, 2, 2);
+    // 512-frame blocks reduce main-thread callback frequency while keeping added latency modest.
+    const node = ctx.createScriptProcessor(512, 2, 2);
     const grainSize = Math.max(2048, Math.round(ctx.sampleRate * 0.09));
     const hopSize = Math.floor(grainSize / 2);
     const bufferLength = grainSize * 6;

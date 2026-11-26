@@ -118,7 +118,7 @@ body.menu-open {
 }
 
 button, input, select { font: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: pan-y; }
 button:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:not(:focus-visible) { outline: none; }
 :where(button, input, select, [tabindex="0"]):focus-visible {
   outline: 2px solid var(--accent);
@@ -188,6 +188,8 @@ body.theme-light select option {
   display: inline-block;
   white-space: nowrap;
   will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 
 .scroll-text.scrolling {
@@ -196,11 +198,11 @@ body.theme-light select option {
 }
 
 @keyframes marqueeScroll {
-  0%, 18% { transform: translateX(0); opacity: 1; }
-  72% { transform: translateX(var(--scroll-dist, -50%)); opacity: 1; }
-  82% { transform: translateX(var(--scroll-dist, -50%)); opacity: 0; }
-  83% { transform: translateX(0); opacity: 0; }
-  92%, 100% { transform: translateX(0); opacity: 1; }
+  0%, 18% { transform: translate3d(0, 0, 0); opacity: 1; }
+  72% { transform: translate3d(var(--scroll-dist, -50%), 0, 0); opacity: 1; }
+  82% { transform: translate3d(var(--scroll-dist, -50%), 0, 0); opacity: 0; }
+  83% { transform: translate3d(0, 0, 0); opacity: 0; }
+  92%, 100% { transform: translate3d(0, 0, 0); opacity: 1; }
 }
 
 .menuBtn {
