@@ -5081,7 +5081,7 @@ test("nested output route storage is normalized to a strict schema and safe gain
   const end = stateSource.indexOf("\n  function loadStringArray(", start);
   assert.ok(start >= 0 && end > start, "output route normalization helpers must exist");
   const helperSource = stateSource.slice(start, end);
-  const sandbox = { isPlainObject(value) { return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype; } };
+  const sandbox = { isPlainObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); } };
   vm.runInNewContext(helperSource + "\nthis.normalizeOutputRoute = normalizeOutputRoute;", sandbox);
   const route = sandbox.normalizeOutputRoute({
     deviceId: "speaker-id", label: "  Living Room  ", enabled: "false",
