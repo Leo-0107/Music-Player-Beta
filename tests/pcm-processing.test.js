@@ -225,7 +225,7 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 48;"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 49;"));
   assert.ok(manifestSource.includes("Music Player v7.5.49"));
   assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.49-r49'));
   assert.ok(indexSource.includes("7.5.49-r49"));
@@ -5285,7 +5285,7 @@ test("C6-14 Vercel config sets Permissions-Policy response header", () => {
 test("BR47 True Peak ScriptProcessor uses a larger block to reduce callback frequency", () => {
   assert.match(audioSource, /createScriptProcessor\(callbackFrames, 2, 2\)/);
   assert.match(audioSource, /const lookaheadFrames = 128/);
-  assert.match(audioSource, /const BUILD_REVISION = 48;/);
+  assert.match(audioSource, /const BUILD_REVISION = 49;/);
 });
 
 test("button-origin vertical touch gestures retain browser pan behavior", () => {
@@ -5293,12 +5293,12 @@ test("button-origin vertical touch gestures retain browser pan behavior", () => 
   assert.match(styleSource, /#shell \{ touch-action: pan-y; \}/);
 });
 
-test("BR48 startup watchdog offers retry and continue actions", () => {
+test("BR49 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("startupRecoveryActions"));
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.49";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 48"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 49"));
 });
 
 test("BR46 Integrated LUFS measurement and optional normalization are wired", () => {
