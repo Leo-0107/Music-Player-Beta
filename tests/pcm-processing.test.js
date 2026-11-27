@@ -5078,11 +5078,11 @@ test("ZIP import rejects archives whose parse-time memory estimate exceeds devic
 
 test("nested output route storage is normalized to a strict schema and safe gain range", () => {
   const start = stateSource.indexOf("  function normalizeStoredNumber(");
-  const end = stateSource.indexOf("\\n  function loadStringArray(", start);
+  const end = stateSource.indexOf("\n  function loadStringArray(", start);
   assert.ok(start >= 0 && end > start, "output route normalization helpers must exist");
   const helperSource = stateSource.slice(start, end);
   const sandbox = { isPlainObject(value) { return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype; } };
-  vm.runInNewContext(helperSource + "\\nthis.normalizeOutputRoute = normalizeOutputRoute;", sandbox);
+  vm.runInNewContext(helperSource + "\nthis.normalizeOutputRoute = normalizeOutputRoute;", sandbox);
   const route = sandbox.normalizeOutputRoute({
     deviceId: "speaker-id", label: "  Living Room  ", enabled: "false",
     left: 99, right: -8, delayMs: 5000, channelMode: "unexpected",
