@@ -1434,5 +1434,21 @@
   })();
 </script>
 
+
+<!-- TEMP: remove after the user's load-error display confirmation -->
+<script>
+(() => {
+  const showTemporaryLoadError = () => {
+    window.__musicPlayerReportError?.(
+      "TEST",
+      "temporary-load-dummy",
+      new Error("一時確認用のダミーエラー（実際の障害ではありません）")
+    );
+  };
+  if (document.readyState === "complete") showTemporaryLoadError();
+  else window.addEventListener("load", showTemporaryLoadError, { once: true });
+})();
+</script>
+
 </body>
 </html>
