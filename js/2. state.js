@@ -611,6 +611,38 @@
     return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
   }
 
+  function normalizeOutputRoute(route) {
+    if (!isPlainObject(route)) return null;
+    const deviceId = typeof route.deviceId === "string" ? route.deviceId : "";
+    const label = typeof route.label === "string" ? route.label.trim().slice(0, 128) : "";
+    if (!deviceId || deviceId.length > 2048 || !deviceId.trim() || !label) return null;
+
+    const channelMode = ["stereo", "left", "right"].includes(route.channelMode)
+      ? route.channelMode
+      : "stereo";
+    const leftChannel = ["left", "right", "off"].includes(route.leftChannel)
+      ? route.leftChannel
+      : (channelMode === "right" ? "right" : "left");
+    const rightChannel = ["left", "right", "off"].includes(route.rightChannel)
+      ? route.rightChannel
+      : (channelMode === "left" ? "left" : "right");
+
+    return {
+      ...route,
+      deviceId,
+      label,
+      groupId: typeof route.groupId === "string" ? route.groupId.slice(0, 512) : "",
+      enabled: route.enabled === true,
+      left: normalizeStoredNumber(route.left, 1, 0, 2),
+      right: normalizeStoredNumber(route.right, 1, 0, 2),
+      delayMs: normalizeStoredNumber(route.delayMs, 0, 0, 1000),
+      channelMode,
+      leftChannel,
+      rightChannel,
+      addedAt: normalizeStoredNumber(route.addedAt, 0, 0, Number.MAX_SAFE_INTEGER)
+    };
+  }
+
   function loadStringArray(k) {
     return loadJSON(k, []).filter(value => typeof value === "string" && value.length > 0 && value.length <= 1024);
   }
@@ -839,15 +871,8 @@
     channelLeft: currentLeftVolumeTarget,
     channelRight: currentRightVolumeTarget,
     outputRoutes: loadJSON(STORAGE.outputRoutes, [])
-      .filter(route => route && typeof route.deviceId === "string" && route.deviceId.length > 0 &&
-        typeof route.label === "string" && route.label.trim().length > 0)
-      .map(route => ({
-        ...route,
-        enabled: route.enabled === true,
-        left: normalizeStoredNumber(route.left, 1, 0, 2),
-        right: normalizeStoredNumber(route.right, 1, 0, 2),
-        delayMs: normalizeStoredNumber(route.delayMs, 0, 0, 1000)
-      })),
+      .map(normalizeOutputRoute)
+      .filter(Boolean),
     mainOutputDeviceId: loadStr(STORAGE.mainOutputDevice, ""),
     speakerSettings: loadSpeakerSettings(STORAGE.speakerSettings, { multipleOutputEnabled: false, outputRoutingBlocked: false, mainEnabled: true, channelMode: "stereo", autoDelayEnabled: true }),
     playlistSettings: loadPlaylistSettings(STORAGE.playlistSettings),

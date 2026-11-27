@@ -208,12 +208,12 @@
             try { openedDB.close(); } catch {}
             return;
           }
-          openedDB.onversionchange = () => {
+          const closeOpenedConnection = () => {
+            if (db === openedDB) db = null;
             try { openedDB.close(); } catch {}
           };
-          openedDB.onerror = () => {
-            try { openedDB.close(); } catch {}
-          };
+          openedDB.onversionchange = closeOpenedConnection;
+          openedDB.onerror = closeOpenedConnection;
           finish(resolve, openedDB);
         };
 

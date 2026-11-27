@@ -4233,11 +4233,15 @@ test("normal IndexedDB open success resolves without closing the connection", as
   const pending = sandbox.openDBConnection();
   let closeCount = 0;
   const openedDB = { close() { closeCount++; } };
+  sandbox.db = openedDB;
   request.onsuccess({ target: { result: openedDB } });
   assert.equal(await pending, openedDB);
   assert.equal(typeof openedDB.onversionchange, "function");
   assert.equal(typeof openedDB.onerror, "function");
   assert.equal(closeCount, 0);
+  openedDB.onversionchange();
+  assert.equal(closeCount, 1);
+  assert.equal(sandbox.db, null);
 });
 
 test("persisted JSON loaders reject mismatched root container types", () => {
@@ -5064,6 +5068,38 @@ test("ZIP importer bounds extracted data and releases consumed JSZip entries", (
 
 
 
+
+test("ZIP import rejects archives whose parse-time memory estimate exceeds device budget before JSZip load", () => {
+  const preflight = librarySource.indexOf("const estimatedArchiveParseBytes = Math.ceil(zipFile.size * 2)");
+  const load = librarySource.indexOf("JSZip.loadAsync(zipFile)");
+  assert.ok(preflight >= 0 && load > preflight, "parse-time memory preflight must run before JSZip parses the archive");
+  assert.match(librarySource, /estimatedArchiveParseBytes > IMPORT_MEMORY_BUDGET_BYTES/);
+});
+
+test("nested output route storage is normalized to a strict schema and safe gain range", () => {
+  const start = stateSource.indexOf("  function normalizeStoredNumber(");
+  const end = stateSource.indexOf("\\n  function loadStringArray(", start);
+  assert.ok(start >= 0 && end > start, "output route normalization helpers must exist");
+  const helperSource = stateSource.slice(start, end);
+  const sandbox = { isPlainObject(value) { return value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype; } };
+  vm.runInNewContext(helperSource + "\\nthis.normalizeOutputRoute = normalizeOutputRoute;", sandbox);
+  const route = sandbox.normalizeOutputRoute({
+    deviceId: "speaker-id", label: "  Living Room  ", enabled: "false",
+    left: 99, right: -8, delayMs: 5000, channelMode: "unexpected",
+    leftChannel: "invalid", rightChannel: null, groupId: {}, addedAt: -1
+  });
+  assert.equal(route.enabled, false);
+  assert.equal(route.left, 2);
+  assert.equal(route.right, 0);
+  assert.equal(route.delayMs, 1000);
+  assert.equal(route.channelMode, "stereo");
+  assert.equal(route.leftChannel, "left");
+  assert.equal(route.rightChannel, "right");
+  assert.equal(route.label, "Living Room");
+  assert.equal(route.groupId, "");
+  assert.equal(route.addedAt, 0);
+  assert.equal(sandbox.normalizeOutputRoute({ deviceId: "id", label: "" }), null);
+});
 
 test("ZIP import queues metadata and extracts one file at a time within estimated memory budget", () => {
   assert.match(librarySource, /const IMPORT_MEMORY_BUDGET_BYTES = \(\(\) =>/);

@@ -397,6 +397,12 @@
         continue;
       }
       if(typeof JSZip==="undefined"){toast("Zipライブラリが見つかりません");continue;}
+      const estimatedArchiveParseBytes = Math.ceil(zipFile.size * 2) + 24 * 1024 * 1024;
+      if (estimatedArchiveParseBytes > IMPORT_MEMORY_BUDGET_BYTES) {
+        const budgetMb = Math.floor(IMPORT_MEMORY_BUDGET_BYTES / (1024 * 1024));
+        toast(`ZIPの解析に必要な推定メモリが端末予算（約${budgetMb}MB）を超えています`);
+        continue;
+      }
       try{
         updateProgress(Math.min(25, processedMediaFiles / Math.max(1, directMediaFiles.length) * 20 + 5), "ZIPを解析しています...");
         let zip = await JSZip.loadAsync(zipFile);
