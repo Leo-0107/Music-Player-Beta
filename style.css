@@ -258,6 +258,7 @@ body.theme-light select option {
 }
 .networkStatus.isOnline { color: var(--accent); }
 .networkStatus.isOffline { color: var(--danger); }
+.networkStatus.isUncertain { color: var(--muted); }
 
 .mainContent {
   padding: 20px;
