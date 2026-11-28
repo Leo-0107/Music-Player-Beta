@@ -148,7 +148,7 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "e9e8425c54675f127de425eafe6a347d2d133aba"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "05148f293b7b409bb3da21a8297557aeb624753a"'));
 });
 
 test("Build implementation commit and main source base commit are separately reported", () => {
