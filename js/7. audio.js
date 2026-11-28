@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 51;
+  const BUILD_REVISION = 52;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -1296,7 +1296,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.51-r51", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.52-r52", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 

@@ -165,6 +165,14 @@ test("peak compression UI does not promise a True Peak ceiling", () => {
   assert.match(outputSource, /ピーク圧縮: \$\{state\.clippingProtection/);
 });
 
+test("manual audio diagnostic capture stores a snapshot without reporting an error", () => {
+  assert.match(indexSource, /id="mpDiagnosticsCaptureAudio"/);
+  assert.match(indexSource, /function captureAudioDiagnostics\(\)/);
+  assert.match(indexSource, /audioDiagnostics: snapshot/);
+  assert.match(indexSource, /音声診断snapshot/);
+  assert.match(indexSource, /manual-snapshot/);
+});
+
 test("network probe failures are not classified as confirmed offline", () => {
   assert.match(uiSource, /uncertain: "接続確認できず"/);
   assert.match(uiSource, /reachable \? "online" : "uncertain"/);
@@ -243,12 +251,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 51;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.51"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.51-r51'));
-  assert.ok(indexSource.includes("7.5.51-r51"));
-  assert.ok(controllerSource.includes("7.5.51-r51"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.51-r51"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 52;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.52"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.52-r52'));
+  assert.ok(indexSource.includes("7.5.52-r52"));
+  assert.ok(controllerSource.includes("7.5.52-r52"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.52-r52"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -485,14 +493,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.51-r51"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.51-r51"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.51-r51"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.51-r51"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.52-r52"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.52-r52"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.52-r52"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.52-r52"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.51-r51"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.52-r52"));
 });
 
 
@@ -4847,7 +4855,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.51-r51",
+        "music-player-app-v7.5.52-r52",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -5303,7 +5311,7 @@ test("C6-14 Vercel config sets Permissions-Policy response header", () => {
 test("BR47 True Peak ScriptProcessor uses a larger block to reduce callback frequency", () => {
   assert.match(audioSource, /createScriptProcessor\(callbackFrames, 2, 2\)/);
   assert.match(audioSource, /const lookaheadFrames = 128/);
-  assert.match(audioSource, /const BUILD_REVISION = 51;/);
+  assert.match(audioSource, /const BUILD_REVISION = 52;/);
 });
 
 test("button-origin vertical touch gestures retain browser pan behavior", () => {

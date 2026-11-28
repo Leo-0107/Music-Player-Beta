@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.51</title>
+<title>Music Player v7.5.52</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.51-r51">
+<link rel="stylesheet" href="style.css?v=7.5.52-r52">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -853,9 +853,10 @@
   </div>
   <div class="panelSection" id="diagnosticsSection">
     <div class="sectionCard">
-      <div class="sectionTitle">エラーログ一覧</div>
+      <div class="sectionTitle">診断ログ一覧</div>
       <div id="mpDiagnosticsLogList" class="mpDiagnosticsLogList" aria-live="polite"></div>
       <div class="mpDiagnosticsLogActions">
+        <button class="btn small" id="mpDiagnosticsCaptureAudio" type="button">音声診断を記録</button>
         <button class="btn small" id="mpDiagnosticsCopy" type="button">診断情報をコピー</button>
         <button class="btn danger small" id="mpDiagnosticsClear" type="button">ログを消去</button>
       </div>
@@ -982,12 +983,12 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.51";
-  const BUILD_REVISION = 51
+  const APP_VERSION = "v7.5.52";
+  const BUILD_REVISION = 52
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
-  const BUILD_COMMIT_ID = "05148f293b7b409bb3da21a8297557aeb624753a";
+  const BUILD_COMMIT_ID = "0000000000000000000000000000000000000000";
   // Source snapshot on main used for this release; distinct from the implementation commit above.
-  const BUILD_SOURCE_BASE_COMMIT_ID = "479053723d500a4b53439c84e7daf5bdeeea68b1";
+  const BUILD_SOURCE_BASE_COMMIT_ID = "68f53b5d6c0d0d3a0fbc9086319966dbcb237e24";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1263,6 +1264,7 @@
       ];
       if (entry.file) lines.push("場所: " + entry.file + (entry.line ? ":" + entry.line : ""));
       if (entry.stack) lines.push("Stack: " + entry.stack);
+      if (entry.audioDiagnostics) lines.push("音声診断snapshot:\n" + JSON.stringify(entry.audioDiagnostics, null, 2));
       body.textContent = lines.join("\n");
       item.appendChild(body);
       diagnosticLogList.appendChild(item);
@@ -1280,6 +1282,58 @@
   }
 
   window.__musicPlayerRefreshDiagnostics = renderDiagnosticLogList;
+
+  function captureAudioDiagnostics() {
+    const now = new Date();
+    sequence += 1;
+    const stamp = now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      String(now.getDate()).padStart(2, "0") + "-" +
+      String(now.getHours()).padStart(2, "0") +
+      String(now.getMinutes()).padStart(2, "0") +
+      String(now.getSeconds()).padStart(2, "0");
+    const snapshot = {
+      capturedAt: now.toISOString(),
+      networkStatus: window.__musicPlayerNetworkStatus || null
+    };
+    const collectors = [
+      ["audioSignal", window.__musicPlayerGetAudioSignalDiagnostics],
+      ["playbackStats", window.__musicPlayerGetPlaybackStats],
+      ["youtubePlaybackStats", window.__musicPlayerGetYoutubePlaybackStats],
+      ["visualizerPerformance", window.__musicPlayerGetVisualizerPerformanceStats],
+      ["outputLatency", window.__musicPlayerGetOutputLatencyDiagnostics]
+    ];
+    collectors.forEach(([key, getter]) => {
+      try {
+        if (typeof getter !== "function") {
+          snapshot[key] = { available: false, reason: "診断API未初期化" };
+          return;
+        }
+        const value = getter();
+        snapshot[key] = value == null
+          ? { available: false, reason: "診断値なし" }
+          : JSON.parse(JSON.stringify(value));
+      } catch (error) {
+        snapshot[key] = { available: false, reason: sanitize(error && error.message ? error.message : error) };
+      }
+    });
+
+    const record = {
+      code: "MP-AUDIO-" + stamp + "-" + String(sequence).padStart(2, "0"),
+      category: "音声診断",
+      stage: "manual-snapshot",
+      message: "音声状態を手動取得しました（エラーではありません）",
+      time: now.toISOString(),
+      version: APP_VERSION,
+      revision: BUILD_REVISION,
+      audioDiagnostics: snapshot
+    };
+    entries.push(record);
+    entries = entries.slice(-10);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch {}
+    renderDiagnosticLogList();
+    return record;
+  }
 
   function getDiagnosticText() {
     const recent = entries.slice(-5);
@@ -1313,6 +1367,7 @@
       lines.push("内容: " + entry.message);
       if (entry.file) lines.push("場所: " + entry.file + ":" + entry.line + ":" + entry.column);
       if (entry.stack) lines.push("Stack: " + entry.stack);
+      if (entry.audioDiagnostics) lines.push("音声診断snapshot: " + JSON.stringify(entry.audioDiagnostics, null, 2));
       lines.push("");
     });
     return lines.join("\n");
@@ -1358,6 +1413,14 @@
     hideDiagnosticNotice();
   });
   document.getElementById("mpErrorClear")?.addEventListener("click", clearDiagnostics);
+  document.getElementById("mpDiagnosticsCaptureAudio")?.addEventListener("click", () => {
+    captureAudioDiagnostics();
+    const button = document.getElementById("mpDiagnosticsCaptureAudio");
+    if (button) {
+      button.textContent = "音声診断を記録しました";
+      setTimeout(() => { button.textContent = "音声診断を記録"; }, 1800);
+    }
+  });
   document.getElementById("mpDiagnosticsCopy")?.addEventListener("click", copyDiagnostics);
   document.getElementById("mpDiagnosticsClear")?.addEventListener("click", clearDiagnostics);
 
