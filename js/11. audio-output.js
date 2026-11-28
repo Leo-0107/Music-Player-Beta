@@ -347,7 +347,7 @@
       if (audioCtx.audioWorklet && typeof AudioWorkletNode === "function") {
         try {
           if (!audioCtx._musicPlayerSpeakerDelayWorkletLoaded) {
-            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.50-r50", document.baseURI).href);
+            await audioCtx.audioWorklet.addModule(new URL("js/12. speaker-delay-worklet.js?v=7.5.51-r51", document.baseURI).href);
             audioCtx._musicPlayerSpeakerDelayWorkletLoaded = true;
           }
           captureNode = new AudioWorkletNode(audioCtx, "speaker-delay-capture", {
@@ -2960,6 +2960,22 @@
       pcmUnderrun: typeof window !== "undefined" && window.__musicPlayerPcmUnderrunDiagnostics
         ? { ...window.__musicPlayerPcmUnderrunDiagnostics }
         : { totalCount: 0, lastGapMs: null, lastFrame: null, lastAtMs: null },
+      mainOutput: {
+        route: mainOutputUsesDirectSink ? "AudioContext.setSinkId"
+          : mainOutputUsesNativeDestination ? "AudioContext.destination"
+          : outputBridgeAudio ? "MediaStreamDestination bridge" : "not-initialized",
+        outputRoutingBlocked: state.speakerSettings?.outputRoutingBlocked === true,
+        mainEnabled: state.speakerSettings?.mainEnabled !== false,
+        directGain: Number.isFinite(Number(mainOutputDirectGainNode?.gain?.value))
+          ? Number(mainOutputDirectGainNode.gain.value) : null,
+        bridge: outputBridgeAudio ? {
+          paused: !!outputBridgeAudio.paused,
+          volume: Number.isFinite(Number(outputBridgeAudio.volume)) ? Number(outputBridgeAudio.volume) : null,
+          readyState: Number(outputBridgeAudio.readyState) || 0,
+          networkState: Number(outputBridgeAudio.networkState) || 0,
+          errorCode: Number(outputBridgeAudio.error?.code) || null
+        } : null
+      },
       additionalOutputRoutes: (state.outputRoutes || []).map((route, index) => {
         const runtime = additionalOutputRuntimes.get(route.deviceId);
         const reduction = Number(runtime?.limiterNode?.reduction);
