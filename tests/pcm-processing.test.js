@@ -5303,7 +5303,7 @@ test("C6-14 Vercel config sets Permissions-Policy response header", () => {
 test("BR47 True Peak ScriptProcessor uses a larger block to reduce callback frequency", () => {
   assert.match(audioSource, /createScriptProcessor\(callbackFrames, 2, 2\)/);
   assert.match(audioSource, /const lookaheadFrames = 128/);
-  assert.match(audioSource, /const BUILD_REVISION = 49;/);
+  assert.match(audioSource, /const BUILD_REVISION = 51;/);
 });
 
 test("button-origin vertical touch gestures retain browser pan behavior", () => {
@@ -5316,7 +5316,7 @@ test("BR49 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
   assert.ok(indexSource.includes('const APP_VERSION = "v7.5.51";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 50"));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 51"));
 });
 
 test("BR46 Integrated LUFS measurement and optional normalization are wired", () => {
