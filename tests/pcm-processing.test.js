@@ -5323,7 +5323,7 @@ test("BR49 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("startupRecoveryActions"));
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.51";'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.53";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 53"));
 });
 
