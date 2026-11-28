@@ -148,12 +148,12 @@ test("JSZip CDN asset uses the verified v3.10.1 SRI hash", () => {
 test("BUILD_COMMIT_ID is explicitly defined as the implementation commit", () => {
   assert.match(indexSource, /BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit/);
   assert.match(indexSource, /const BUILD_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "57db01d94ed26de092442228579e074c5190ffb8"'));
+  assert.ok(indexSource.includes('const BUILD_COMMIT_ID = "e9e8425c54675f127de425eafe6a347d2d133aba"'));
 });
 
 test("Build implementation commit and main source base commit are separately reported", () => {
   assert.match(indexSource, /const BUILD_SOURCE_BASE_COMMIT_ID = "[0-9a-f]{40}"/);
-  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "f75cd9728b89ebd150fc4d486054323925fc0adf"'));
+  assert.ok(indexSource.includes('const BUILD_SOURCE_BASE_COMMIT_ID = "479053723d500a4b53439c84e7daf5bdeeea68b1"'));
   assert.match(indexSource, /Build implementation commit: " \+ BUILD_COMMIT_ID/);
   assert.match(indexSource, /Build source base commit: " \+ BUILD_SOURCE_BASE_COMMIT_ID/);
   assert.match(indexSource, /previousBuildId !== BUILD_SOURCE_BASE_COMMIT_ID/);
@@ -163,6 +163,23 @@ test("peak compression UI does not promise a True Peak ceiling", () => {
   assert.match(indexSource, /ピーク圧縮: ON/);
   assert.match(indexSource, /True Peakの絶対上限を保証する機能ではありません/);
   assert.match(outputSource, /ピーク圧縮: \$\{state\.clippingProtection/);
+});
+
+test("network probe failures are not classified as confirmed offline", () => {
+  assert.match(uiSource, /uncertain: "接続確認できず"/);
+  assert.match(uiSource, /reachable \? "online" : "uncertain"/);
+  assert.match(uiSource, /navigator\.onLine === false \? "offline" : "uncertain"/);
+  assert.match(styleSource, /networkStatus\.isUncertain/);
+});
+
+test("audio diagnostics include final signal, media state, and main output route", () => {
+  assert.match(audioSource, /__musicPlayerGetAudioSignalDiagnostics/);
+  assert.match(audioSource, /postLimiterSignal/);
+  assert.match(audioSource, /signalDetected/);
+  assert.match(indexSource, /AudioSignal: /);
+  assert.match(outputSource, /mainOutput: \{/);
+  assert.match(outputSource, /directGain:/);
+  assert.match(outputSource, /MediaStreamDestination bridge/);
 });
 
 test("audio diagnostics expose local underrun, compressor, and additional-route metrics", () => {
@@ -216,8 +233,8 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.ok(styleSource.includes("::-moz-range-track"));
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-webkit-slider-thumb\s*\{[^}]*background:\s*transparent;/);
   assert.match(styleSource, /\.miniProgressWrap input\[type="range"\]::-moz-range-thumb\s*\{[^}]*background:\s*transparent;/);
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.50";'));
-  assert.ok(indexSource.includes("const BUILD_REVISION = 50"));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.51";'));
+  assert.ok(indexSource.includes("const BUILD_REVISION = 51"));
   assert.ok(indexSource.includes("temporary-load-dummy"));
   // The artwork placeholder and application diagnostics share the same BR.
   assert.match(indexSource, /\.fileLoadProgress\s*\{[^}]*position:\s*fixed/);
@@ -226,12 +243,12 @@ test("mini-player progress fill and thumb share one visual position", () => {
   assert.match(indexSource, /right:max\(10px,env\(safe-area-inset-right,0px\)\)/);
   assert.ok(librarySource.includes("miniPlayerEl?.getBoundingClientRect().top"));
   assert.ok(librarySource.includes("new ResizeObserver(syncProgressPosition)"));
-  assert.ok(audioSource.includes("const BUILD_REVISION = 50;"));
-  assert.ok(manifestSource.includes("Music Player v7.5.50"));
-  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.50-r50'));
-  assert.ok(indexSource.includes("7.5.50-r50"));
-  assert.ok(controllerSource.includes("7.5.50-r50"));
-  assert.ok(rootServiceWorkerSource.includes("7.5.50-r50"));
+  assert.ok(audioSource.includes("const BUILD_REVISION = 51;"));
+  assert.ok(manifestSource.includes("Music Player v7.5.51"));
+  assert.ok(serviceWorkerSource.includes('music-player-app-v7.5.51-r51'));
+  assert.ok(indexSource.includes("7.5.51-r51"));
+  assert.ok(controllerSource.includes("7.5.51-r51"));
+  assert.ok(rootServiceWorkerSource.includes("7.5.51-r51"));
   assert.match(styleSource, /@media \(max-width: 700px\)[\s\S]*?\.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.doesNotMatch(styleSource, /@media \(max-width: 420px\)[\s\S]*?settingsDataTools \.settingsTools:first-child \.settingsToolRow \{\s*grid-template-columns: repeat\(2/);
 });
@@ -468,14 +485,14 @@ test("JavaScript files are numbered and grouped by responsibility with all paths
   for (const file of expectedFiles) {
     assert.ok(serviceWorkerSource.includes(`"./js/${file}"`), `Service Worker cache list must include ${file}`);
   }
-  assert.ok(controllerSource.includes("3. storage.js?v=7.5.50-r50"));
-  assert.ok(controllerSource.includes("2. state.js?v=7.5.50-r50"));
-  assert.ok(controllerSource.includes("7. audio.js?v=7.5.50-r50"));
-  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.50-r50"));
+  assert.ok(controllerSource.includes("3. storage.js?v=7.5.51-r51"));
+  assert.ok(controllerSource.includes("2. state.js?v=7.5.51-r51"));
+  assert.ok(controllerSource.includes("7. audio.js?v=7.5.51-r51"));
+  assert.ok(controllerSource.includes("11. audio-output.js?v=7.5.51-r51"));
   assert.ok(engineSource.includes("js/10. pcm-processing-worker.js"));
   assert.ok(audioSource.includes("js/8. pitch-worklet.js"));
   assert.ok(outputSource.includes("js/12. speaker-delay-worklet.js"));
-  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.50-r50"));
+  assert.ok(rootServiceWorkerSource.includes("./js/13. sw.js?v=7.5.51-r51"));
 });
 
 
@@ -4830,7 +4847,7 @@ test("Service Worker activation deletes only obsolete Music Player cache namespa
     caches: {
       keys: async () => [
         "music-player-app-v7.5.16-r16",
-        "music-player-app-v7.5.50-r50",
+        "music-player-app-v7.5.51-r51",
         "music-player-app-v7.5.31-r31",
         "another-app-cache",
         "shared-site-cache"
@@ -5298,7 +5315,7 @@ test("BR49 startup watchdog offers retry and continue actions", () => {
   assert.ok(indexSource.includes("startupRecoveryActions"));
   assert.ok(indexSource.includes("再読み込みして再試行"));
   assert.ok(indexSource.includes("読み込み済みの画面を表示"));
-  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.50";'));
+  assert.ok(indexSource.includes('const APP_VERSION = "v7.5.51";'));
   assert.ok(indexSource.includes("const BUILD_REVISION = 50"));
 });
 
