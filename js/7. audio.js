@@ -1,4 +1,4 @@
-  const BUILD_REVISION = 50;
+  const BUILD_REVISION = 51;
   const PITCH_WORKLET_PROTOCOL_VERSION = 1;
 
   const titleObserver = new IntersectionObserver((entries) => {
@@ -1223,6 +1223,59 @@ let mainOutputUsesNativeDestination = false;
     }
   }
 
+  function getAudioSignalDiagnostics() {
+    const context = audioCtx;
+    const media = mediaElement;
+    let rms = null;
+    let peak = null;
+    let sampleCount = 0;
+    if (context && analyser && typeof analyser.getFloatTimeDomainData === "function") {
+      try {
+        const samples = new Float32Array(analyser.fftSize || 256);
+        analyser.getFloatTimeDomainData(samples);
+        let sumSquares = 0;
+        let absolutePeak = 0;
+        for (const sample of samples) {
+          const value = Number.isFinite(sample) ? sample : 0;
+          sumSquares += value * value;
+          absolutePeak = Math.max(absolutePeak, Math.abs(value));
+        }
+        sampleCount = samples.length;
+        rms = sampleCount ? Math.sqrt(sumSquares / sampleCount) : null;
+        peak = absolutePeak;
+      } catch {}
+    }
+    const mediaError = media?.error;
+    return {
+      available: !!context,
+      graphReady: audioGraphReady,
+      contextState: context?.state || null,
+      contextTimeSec: Number.isFinite(context?.currentTime) ? Math.round(context.currentTime * 1000) / 1000 : null,
+      sampleRate: Number(context?.sampleRate) || null,
+      playbackIntent: !!playbackIntent,
+      playbackSource: bufferedPlaybackMode ? "buffered-pcm" : "media-element",
+      mediaElement: {
+        paused: media?.paused ?? null,
+        ended: media?.ended ?? null,
+        readyState: Number(media?.readyState) || 0,
+        networkState: Number(media?.networkState) || 0,
+        currentTimeSec: Number.isFinite(media?.currentTime) ? Math.round(media.currentTime * 1000) / 1000 : null,
+        durationSec: Number.isFinite(media?.duration) ? Math.round(media.duration * 1000) / 1000 : null,
+        volume: Number.isFinite(media?.volume) ? media.volume : null,
+        muted: media?.muted ?? null,
+        errorCode: Number(mediaError?.code) || null
+      },
+      sourceNodeCreated: !!sourceNode,
+      postLimiterSignal: {
+        sampleCount,
+        rms: rms == null ? null : Math.round(rms * 1000000) / 1000000,
+        peak: peak == null ? null : Math.round(peak * 1000000) / 1000000,
+        signalDetected: rms == null ? null : rms > 0.00003
+      }
+    };
+  }
+  window.__musicPlayerGetAudioSignalDiagnostics = getAudioSignalDiagnostics;
+
 
   async function resumeAudioCtx(){
     ensureGraph();
@@ -1243,7 +1296,7 @@ let mainOutputUsesNativeDestination = false;
       const routeNode = ctx._musicPlayerPitchRoute;
       if (!sourceNode || !oldShifter || !oldGain || !routeNode) return false;
 
-      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.50-r50", document.baseURI).href;
+      const moduleUrl = new URL("js/8. pitch-worklet.js?v=7.5.51-r51", document.baseURI).href;
       await ctx.audioWorklet.addModule(moduleUrl);
       if (audioCtx !== ctx || !audioGraphReady) return false;
 
