@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121212">
 <meta http-equiv="permissions-policy" content="speaker-selection=(self)">
-<title>Music Player v7.5.50</title>
+<title>Music Player v7.5.51</title>
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css?v=7.5.50-r50">
+<link rel="stylesheet" href="style.css?v=7.5.51-r51">
 <style id="responsive-song-list-fix">
 /* スマホなど狭い画面では、曲名を優先して操作ボタンを下へ移動 */
 .song {
@@ -982,12 +982,12 @@
 (() => {
   const STORAGE_KEY = "mp_diagnostics_v1";
   const DISMISSED_KEY = "mp_diagnostics_notice_dismissed_v1";
-  const APP_VERSION = "v7.5.50";
-  const BUILD_REVISION = 50
+  const APP_VERSION = "v7.5.51";
+  const BUILD_REVISION = 51
   // BUILD_COMMIT_ID identifies the implementation commit, not the later PR merge commit.
-  const BUILD_COMMIT_ID = "ba2464e448491b824a221cf73b4bb09ee45cffad";
+  const BUILD_COMMIT_ID = "e9e8425c54675f127de425eafe6a347d2d133aba";
   // Source snapshot on main used for this release; distinct from the implementation commit above.
-  const BUILD_SOURCE_BASE_COMMIT_ID = "1fd3545ff1624046c53967889e76a95ce4c717ad";
+  const BUILD_SOURCE_BASE_COMMIT_ID = "479053723d500a4b53439c84e7daf5bdeeea68b1";
   let notice = document.getElementById("mpErrorNotice");
   let codeNode = document.getElementById("mpErrorCode");
   let summaryNode = document.getElementById("mpErrorSummary");
@@ -1293,6 +1293,10 @@
       "Page: " + location.pathname,
       ""
     ];
+    const networkStatus = window.__musicPlayerNetworkStatus;
+    if (networkStatus) lines.push("NetworkStatus: " + networkStatus);
+    const audioSignalDiagnostics = window.__musicPlayerGetAudioSignalDiagnostics?.();
+    if (audioSignalDiagnostics) lines.push("AudioSignal: " + JSON.stringify(audioSignalDiagnostics));
     const playbackStats = window.__musicPlayerGetPlaybackStats?.();
     if (playbackStats) lines.push("PlaybackStats: " + JSON.stringify(playbackStats));
     const youtubePlaybackStats = window.__musicPlayerGetYoutubePlaybackStats?.();
@@ -1364,7 +1368,7 @@
 })();;
 </script>
 
-<script src="js/1. ctrl.js?v=7.5.50-r50"></script>
+<script src="js/1. ctrl.js?v=7.5.51-r51"></script>
 <script>
   // 起動最終保護：バックグラウンド滞在時間を除外し、表示中の時間だけを計測する。
   (() => {
