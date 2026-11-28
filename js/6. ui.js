@@ -51,13 +51,16 @@
   }
   function renderNetworkStatus(status) {
     if (!networkStatusElement) return;
-    const labels = { online: "オンライン", offline: "オフライン", checking: "接続確認中" };
+    const labels = { online: "オンライン", offline: "オフライン", uncertain: "接続確認できず", checking: "接続確認中" };
     networkStatusElement.textContent = labels[status] || labels.checking;
     networkStatusElement.classList.toggle("isOnline", status === "online");
     networkStatusElement.classList.toggle("isOffline", status === "offline");
     networkStatusElement.classList.toggle("isChecking", status === "checking");
+    networkStatusElement.classList.toggle("isUncertain", status === "uncertain");
+    window.__musicPlayerNetworkStatus = status;
     networkStatusElement.title = status === "online" ? "インターネットへ接続できます" :
-      status === "offline" ? "インターネットへ接続できません" : "インターネット接続を確認しています";
+      status === "offline" ? "端末がオフライン状態を報告しています" :
+      status === "uncertain" ? "外部接続先へ到達できず、インターネット接続を確定できません" : "インターネット接続を確認しています";
   }
   function markNetworkStatusOffline() {
     networkProbeSequence++;
@@ -85,11 +88,11 @@
       const reachable = await probeInternetConnection(controller.signal);
       controller.abort();
       if (sequence === networkProbeSequence && activeNetworkProbeController === controller) {
-        renderNetworkStatus(reachable ? "online" : "offline");
+        renderNetworkStatus(reachable ? "online" : "uncertain");
       }
     } catch {
       if (sequence === networkProbeSequence && activeNetworkProbeController === controller) {
-        renderNetworkStatus("offline");
+        renderNetworkStatus(navigator.onLine === false ? "offline" : "uncertain");
       }
     } finally {
       window.clearTimeout(timeoutId);
